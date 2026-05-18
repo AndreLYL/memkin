@@ -1,0 +1,40 @@
+# DigitalBrainExtractor Configuration
+
+# Privacy settings
+privacy:
+  retention_days: 30
+  pii_redaction: true
+  anonymize_users: false
+
+# Language Model settings
+llm:
+  provider: "anthropic"
+  model: "claude-3-5-sonnet-20241022"
+  temperature: 0.7
+  max_tokens: 2048
+
+# Block builder settings for signal extraction
+block_builder:
+  enabled: true
+  batch_size: 100
+  timeout_seconds: 300
+
+# Platform adapters
+adapters:
+  slack:
+    enabled: false
+    api_key_env: "SLACK_API_KEY"
+    workspace_id: ""
+
+  email:
+    enabled: false
+    imap_host: ""
+    imap_port: 993
+    username_env: "EMAIL_USERNAME"
+    password_env: "EMAIL_PASSWORD"
+
+# Local storage and state
+local:
+  state_dir: ".dbe"
+  log_level: "info"
+  log_file: ".dbe/extractor.log"

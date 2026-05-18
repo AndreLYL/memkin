@@ -1,0 +1,27 @@
+{
+  "name": "digitalbrain-extractor",
+  "version": "0.1.0",
+  "description": "Extract structured signals from communication platforms and AI agent sessions",
+  "type": "module",
+  "bin": {
+    "dbe": "./src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun src/cli.ts",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "yaml": "^2.3.4",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "vitest": "^1.0.4"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
