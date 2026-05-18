@@ -33,12 +33,12 @@ export function createMockProvider(
 
       // Try partial matches (pattern contained in prompt)
       for (const [pattern, response] of responses.entries()) {
-        if (prompt.includes(pattern.toLowerCase())) {
+        if (pattern === '' || prompt.includes(pattern.toLowerCase())) {
           return response;
         }
       }
 
-      throw new Error(`No mock response found for prompt: "${prompt}"`);
+      throw new Error(`No mock response found for prompt: "${prompt.substring(0, 100)}..."`);
     },
   };
 }
