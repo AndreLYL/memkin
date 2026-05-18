@@ -1,0 +1,330 @@
+/**
+ * Tests for config loader and state directory management
+ */
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
+import { mkdirSync } from 'fs';
+import { loadConfig, type Config } from '../../src/core/config.js';
+import { ensureStateDir, statePath } from '../../src/core/state.js';
+
+// Create a temporary test directory
+const testDir = resolve('/tmp/dbe-test-' + Date.now());
+
+describe('Config loader', () => {
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+    // Save original cwd
+    process.env.TEST_ORIGINAL_CWD = process.cwd();
+    process.chdir(testDir);
+  });
+
+  afterEach(() => {
+    // Restore original cwd
+    if (process.env.TEST_ORIGINAL_CWD) {
+      process.chdir(process.env.TEST_ORIGINAL_CWD);
+      delete process.env.TEST_ORIGINAL_CWD;
+    }
+    // Clean up test directory
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should load default config when no YAML file exists', () => {
+    const config = loadConfig();
+
+    expect(config.privacy.enabled).toBe(true);
+    expect(config.privacy.mode).toBe('reversible');
+    expect(config.privacy.redact_phone).toBe(true);
+    expect(config.privacy.redact_id_card).toBe(true);
+    expect(config.privacy.redact_bank_card).toBe(true);
+    expect(config.privacy.redact_email).toBe(false);
+    expect(config.privacy.redact_url).toBe(false);
+    expect(config.privacy.blocked_words).toEqual([]);
+    expect(config.privacy.replacement).toBe('[REDACTED]');
+
+    expect(config.llm.provider).toBe('openai');
+    expect(config.llm.model).toBe('gpt-4o-mini');
+
+    expect(config.block_builder.block_gap_minutes).toBe(30);
+    expect(config.block_builder.max_block_tokens).toBe(4000);
+    expect(config.block_builder.max_block_messages).toBe(100);
+
+    expect(config.adapters).toEqual({});
+  });
+
+  it('should load and parse valid YAML config file', () => {
+    const yaml = `
+privacy:
+  enabled: false
+  mode: irreversible
+  redact_phone: false
+  blocked_words: ["secret", "confidential"]
+llm:
+  provider: anthropic
+  model: claude-3-sonnet
+block_builder:
+  block_gap_minutes: 60
+  max_block_tokens: 8000
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    expect(config.privacy.enabled).toBe(false);
+    expect(config.privacy.mode).toBe('irreversible');
+    expect(config.privacy.redact_phone).toBe(false);
+    expect(config.privacy.blocked_words).toEqual(['secret', 'confidential']);
+    expect(config.llm.provider).toBe('anthropic');
+    expect(config.llm.model).toBe('claude-3-sonnet');
+    expect(config.block_builder.block_gap_minutes).toBe(60);
+    expect(config.block_builder.max_block_tokens).toBe(8000);
+    // Non-overridden defaults should remain
+    expect(config.privacy.redact_id_card).toBe(true);
+    expect(config.block_builder.max_block_messages).toBe(100);
+  });
+
+  it('should merge user config with defaults', () => {
+    const yaml = `
+llm:
+  provider: custom-provider
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    // User override
+    expect(config.llm.provider).toBe('custom-provider');
+    // Default still used
+    expect(config.llm.model).toBe('gpt-4o-mini');
+    expect(config.privacy.enabled).toBe(true);
+    expect(config.block_builder.block_gap_minutes).toBe(30);
+  });
+
+  it('should interpolate environment variables', () => {
+    process.env.TEST_API_KEY = 'secret-key-123';
+    process.env.TEST_PROVIDER = 'my-provider';
+
+    const yaml = `
+llm:
+  provider: \${TEST_PROVIDER}
+  api_key: \${TEST_API_KEY}
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    expect(config.llm.provider).toBe('my-provider');
+    expect(config.llm.api_key).toBe('secret-key-123');
+
+    delete process.env.TEST_API_KEY;
+    delete process.env.TEST_PROVIDER;
+  });
+
+  it('should replace missing environment variables with empty string', () => {
+    const yaml = `
+llm:
+  api_key: \${MISSING_VAR}
+  base_url: \${ANOTHER_MISSING}
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    expect(config.llm.api_key).toBe('');
+    expect(config.llm.base_url).toBe('');
+  });
+
+  it('should interpolate environment variables in arrays', () => {
+    process.env.TEST_WORD1 = 'secret';
+    process.env.TEST_WORD2 = 'private';
+
+    const yaml = `
+privacy:
+  blocked_words:
+    - \${TEST_WORD1}
+    - \${TEST_WORD2}
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    expect(config.privacy.blocked_words).toEqual(['secret', 'private']);
+
+    delete process.env.TEST_WORD1;
+    delete process.env.TEST_WORD2;
+  });
+
+  it('should handle partial environment variable replacement in strings', () => {
+    process.env.TEST_ENV = 'prod';
+
+    const yaml = `
+privacy:
+  replacement: "[REDACTED-\${TEST_ENV}]"
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    expect(config.privacy.replacement).toBe('[REDACTED-prod]');
+
+    delete process.env.TEST_ENV;
+  });
+
+  it('should support loading config from custom path', () => {
+    const customDir = resolve(testDir, 'configs');
+    mkdirSync(customDir, { recursive: true });
+    const customPath = resolve(customDir, 'custom.yaml');
+
+    const yaml = `
+llm:
+  model: custom-model
+`;
+    writeFileSync(customPath, yaml);
+    const config = loadConfig(customPath);
+
+    expect(config.llm.model).toBe('custom-model');
+    expect(config.llm.provider).toBe('openai'); // default
+  });
+
+  it('should handle empty YAML file', () => {
+    writeFileSync('dbe.yaml', '');
+    const config = loadConfig();
+
+    // All defaults should be applied
+    expect(config.privacy.enabled).toBe(true);
+    expect(config.llm.provider).toBe('openai');
+  });
+
+  it('should throw error for invalid YAML syntax', () => {
+    const yaml = `
+privacy:
+  enabled: [invalid yaml
+`;
+    writeFileSync('dbe.yaml', yaml);
+
+    expect(() => loadConfig()).toThrow();
+  });
+
+  it('should handle nested object merging correctly', () => {
+    const yaml = `
+privacy:
+  enabled: false
+  blocked_words:
+    - word1
+adapters:
+  file:
+    enabled: true
+    output_dir: /tmp/output
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    // Verify nested privacy merging
+    expect(config.privacy.enabled).toBe(false);
+    expect(config.privacy.mode).toBe('reversible'); // default still applied
+    expect(config.privacy.blocked_words).toEqual(['word1']);
+
+    // Verify adapters
+    expect(config.adapters.file).toEqual({
+      enabled: true,
+      output_dir: '/tmp/output',
+    });
+    expect(config.adapters.gbrain).toBeUndefined();
+  });
+
+  it('should preserve config type integrity', () => {
+    const yaml = `
+block_builder:
+  block_gap_minutes: 45
+  max_block_tokens: 5000
+  max_block_messages: 50
+`;
+    writeFileSync('dbe.yaml', yaml);
+    const config = loadConfig();
+
+    // Verify all values are correct type
+    expect(typeof config.block_builder.block_gap_minutes).toBe('number');
+    expect(typeof config.block_builder.max_block_tokens).toBe('number');
+    expect(typeof config.block_builder.max_block_messages).toBe('number');
+    expect(config.block_builder.block_gap_minutes).toBe(45);
+    expect(config.block_builder.max_block_tokens).toBe(5000);
+    expect(config.block_builder.max_block_messages).toBe(50);
+  });
+});
+
+describe('State directory management', () => {
+  beforeEach(() => {
+    mkdirSync(testDir, { recursive: true });
+    process.env.TEST_ORIGINAL_CWD = process.cwd();
+    process.chdir(testDir);
+  });
+
+  afterEach(() => {
+    if (process.env.TEST_ORIGINAL_CWD) {
+      process.chdir(process.env.TEST_ORIGINAL_CWD);
+      delete process.env.TEST_ORIGINAL_CWD;
+    }
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should create .dbe directory if it does not exist', () => {
+    const stateDir = ensureStateDir();
+
+    expect(existsSync(stateDir)).toBe(true);
+    expect(stateDir).toBe(resolve(process.cwd(), '.dbe'));
+  });
+
+  it('should return existing .dbe directory without error', () => {
+    // First call creates it
+    const stateDir1 = ensureStateDir();
+    // Second call should not error and return same path
+    const stateDir2 = ensureStateDir();
+
+    expect(stateDir1).toBe(stateDir2);
+    expect(existsSync(stateDir2)).toBe(true);
+  });
+
+  it('should support custom base directory', () => {
+    const customBase = resolve(testDir, 'custom-base');
+    mkdirSync(customBase, { recursive: true });
+
+    const stateDir = ensureStateDir(customBase);
+
+    expect(stateDir).toBe(resolve(customBase, '.dbe'));
+    expect(existsSync(stateDir)).toBe(true);
+  });
+
+  it('should return correct path for state file', () => {
+    ensureStateDir();
+    const path = statePath('cursors.yaml');
+
+    expect(path).toBe(resolve(process.cwd(), '.dbe', 'cursors.yaml'));
+  });
+
+  it('should return correct path for different state files', () => {
+    ensureStateDir();
+
+    expect(statePath('checkpoints.jsonl')).toBe(resolve(process.cwd(), '.dbe', 'checkpoints.jsonl'));
+    expect(statePath('cursors.yaml')).toBe(resolve(process.cwd(), '.dbe', 'cursors.yaml'));
+    expect(statePath('redaction_map.jsonl')).toBe(
+      resolve(process.cwd(), '.dbe', 'redaction_map.jsonl'),
+    );
+  });
+
+  it('should allow writing to state path', () => {
+    ensureStateDir();
+    const path = statePath('test.txt');
+
+    writeFileSync(path, 'test content');
+
+    expect(existsSync(path)).toBe(true);
+    expect(readFileSync(path, 'utf-8')).toBe('test content');
+  });
+
+  it('should handle nested .dbe directory creation', () => {
+    const nestedBase = resolve(testDir, 'a', 'b', 'c');
+    const stateDir = ensureStateDir(nestedBase);
+
+    expect(existsSync(stateDir)).toBe(true);
+    expect(stateDir).toBe(resolve(nestedBase, '.dbe'));
+  });
+});
