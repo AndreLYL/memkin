@@ -12,7 +12,7 @@ program
   .command("extract")
   .description("Extract signals from a platform or source")
   .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
-  .action((options) => {
+  .action(() => {
     console.log("not implemented yet");
   });
 
@@ -20,7 +20,7 @@ program
   .command("doctor")
   .description("Diagnose configuration and connectivity")
   .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
-  .action((options) => {
+  .action(() => {
     console.log("not implemented yet");
   });
 
