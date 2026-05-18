@@ -1,40 +1,122 @@
 # DigitalBrainExtractor Configuration
+#
+# This file configures the signal extraction pipeline.
+# Save as dbe.yaml in your project directory or pass via --config flag.
+#
+# Environment variable interpolation: Use ${VAR_NAME} syntax to reference env vars.
+# Example: api_key: ${OPENAI_API_KEY}
 
-# Privacy settings
+# Privacy Configuration
+# Determines how to handle sensitive data during extraction.
 privacy:
-  retention_days: 30
-  pii_redaction: true
-  anonymize_users: false
-
-# Language Model settings
-llm:
-  provider: "anthropic"
-  model: "claude-3-5-sonnet-20241022"
-  temperature: 0.7
-  max_tokens: 2048
-
-# Block builder settings for signal extraction
-block_builder:
+  # Enable/disable privacy processing entirely
   enabled: true
-  batch_size: 100
-  timeout_seconds: 300
 
-# Platform adapters
+  # Redaction mode:
+  #   - reversible:   Store original values in a recoverable map (default)
+  #   - irreversible: Permanently remove sensitive data (no recovery possible)
+  mode: reversible
+
+  # Which sensitive data types to redact
+  redact_phone: true              # Mask phone numbers
+  redact_id_card: true            # Mask ID numbers (SSN, passport, etc.)
+  redact_bank_card: true          # Mask credit/debit card numbers
+  redact_email: false             # Mask email addresses (set to true for strict privacy)
+  redact_url: false               # Mask URLs (set to true to hide links)
+
+  # Additional custom patterns to redact
+  # Example: blocked_words: [proprietary, confidential, secret]
+  blocked_words: []
+
+  # String to use when replacing redacted content
+  replacement: "[REDACTED]"
+
+# LLM Provider Configuration
+# Powers the signal extraction (entities, decisions, tasks, discoveries).
+# The LLM analyzes conversation blocks to extract structured signals.
+llm:
+  # Provider: openai or mock
+  #   - openai: Use OpenAI API (GPT-4o-mini recommended for cost/quality)
+  #   - mock:   Dummy provider for testing (no API calls)
+  provider: openai
+
+  # Model name
+  # Recommended: gpt-4o-mini (fast, cheap), gpt-4o (best quality)
+  model: gpt-4o-mini
+
+  # Optional: Custom API endpoint (for proxies, local deployments, etc.)
+  # base_url: https://api.openai.com/v1
+
+  # Optional: API key (can use env var interpolation instead)
+  # api_key: ${OPENAI_API_KEY}
+  # If not set here, will look for OPENAI_API_KEY environment variable
+
+# Block Builder Configuration
+# Controls how raw messages are grouped into conversation blocks for processing.
+block_builder:
+  # Time gap (in minutes) between messages to trigger a new block
+  # Smaller = more granular blocks; larger = broader context per block
+  # Example: 30 minutes = messages within 30min are one block
+  block_gap_minutes: 30
+
+  # Maximum tokens per block (limits LLM processing)
+  # Typical: 2000-4000; increase for longer context, decrease for cost/speed
+  max_block_tokens: 4000
+
+  # Maximum messages per block
+  # Typical: 50-100; limits how many raw messages go to extractor
+  max_block_messages: 100
+
+# Adapter Configuration
+# Defines where extraction results are written.
 adapters:
-  slack:
+  # File adapter: Write results to disk as JSON/Markdown files
+  file:
     enabled: false
-    api_key_env: "SLACK_API_KEY"
-    workspace_id: ""
+    output_dir: ./output
 
-  email:
+  # GBrain adapter: Push results directly to your GBrain knowledge graph
+  gbrain:
     enabled: false
-    imap_host: ""
-    imap_port: 993
-    username_env: "EMAIL_USERNAME"
-    password_env: "EMAIL_PASSWORD"
+    output_dir: ./gbrain-output
 
-# Local storage and state
-local:
-  state_dir: ".dbe"
-  log_level: "info"
-  log_file: ".dbe/extractor.log"
+# Example configurations for different scenarios:
+
+# ===== Development / Testing =====
+# Use mock LLM to test pipeline without API costs:
+#
+# llm:
+#   provider: mock
+#   model: fake-model
+#
+# block_builder:
+#   max_block_messages: 10  # Process fewer messages for faster testing
+#
+# Run with: dbe extract --source claude-code --dry-run --limit 100
+
+# ===== Production with OpenAI =====
+# llm:
+#   provider: openai
+#   model: gpt-4o-mini
+#   api_key: ${OPENAI_API_KEY}
+#
+# privacy:
+#   enabled: true
+#   mode: irreversible
+#   redact_email: true
+#   redact_phone: true
+#
+# adapters:
+#   gbrain:
+#     enabled: true
+
+# ===== High-Privacy Mode (GDPR) =====
+# privacy:
+#   enabled: true
+#   mode: irreversible
+#   redact_phone: true
+#   redact_id_card: true
+#   redact_bank_card: true
+#   redact_email: true
+#   redact_url: true
+#   blocked_words: [proprietary, confidential, internal, secret]
