@@ -77,7 +77,11 @@ export function createOpenAIProvider(config: OpenAIConfig): LLMProvider {
         throw new Error('API response choice has no message');
       }
 
-      return choice.message.content;
+      let content = choice.message.content ?? '';
+      content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
+      const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+      if (codeBlockMatch) content = codeBlockMatch[1].trim();
+      return content;
     },
   };
 }

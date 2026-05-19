@@ -115,7 +115,12 @@ export class ClaudeCodeCollector implements Collector {
       // Directory doesn't exist or can't be read
     }
 
-    return files;
+    // Sort by modification time (newest first) for faster cursor-based skipping
+    const stats = await Promise.all(
+      files.map(async (f) => ({ path: f, mtime: (await fs.stat(f)).mtimeMs }))
+    );
+    stats.sort((a, b) => a.mtime - b.mtime);
+    return stats.map((s) => s.path);
   }
 
   private async parseJsonlFile(filePath: string): Promise<ClaudeCodeRecord[]> {
