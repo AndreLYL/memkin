@@ -5,13 +5,16 @@
 
 import { describe, test, expect } from 'vitest';
 import { spawnSync } from 'child_process';
+import { join } from 'path';
+import { homedir } from 'os';
 
 const PROJECT_ROOT = '/Users/yinglong.li/Workspace/digitalbrain-extractor';
+const BUN = join(homedir(), '.bun', 'bin', 'bun');
 
 describe('CLI', () => {
   describe('dbe --help', () => {
     test('shows main help with version and description', () => {
-      const result = spawnSync('bun', ['src/cli.ts', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -23,7 +26,7 @@ describe('CLI', () => {
     });
 
     test('displays available commands', () => {
-      const result = spawnSync('bun', ['src/cli.ts', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -37,7 +40,7 @@ describe('CLI', () => {
 
   describe('dbe extract', () => {
     test('shows help with --help flag', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'extract', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'extract', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -48,7 +51,7 @@ describe('CLI', () => {
     });
 
     test('shows all required options in help', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'extract', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'extract', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -63,7 +66,7 @@ describe('CLI', () => {
     });
 
     test('requires --source option', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'extract'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'extract'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -73,7 +76,7 @@ describe('CLI', () => {
     });
 
     test('accepts format options', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'extract', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'extract', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -83,7 +86,7 @@ describe('CLI', () => {
     });
 
     test('accepts adapter options', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'extract', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'extract', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -94,7 +97,7 @@ describe('CLI', () => {
     });
 
     test('accepts since and limit options', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'extract', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'extract', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -106,7 +109,7 @@ describe('CLI', () => {
 
   describe('dbe doctor', () => {
     test('shows help with --help flag', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'doctor', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'doctor', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -117,7 +120,7 @@ describe('CLI', () => {
     });
 
     test('runs without crashing', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'doctor'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'doctor'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -128,7 +131,7 @@ describe('CLI', () => {
     });
 
     test('reports on configuration and state', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'doctor'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'doctor'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -141,7 +144,7 @@ describe('CLI', () => {
 
   describe('dbe config init', () => {
     test('shows config subcommand help', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'config', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'config', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -152,7 +155,7 @@ describe('CLI', () => {
     });
 
     test('init command runs successfully', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'config', 'init', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'config', 'init', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -162,7 +165,7 @@ describe('CLI', () => {
 
     test('reports successful config creation', () => {
       // We won't actually create a file, but verify the help text is correct
-      const result = spawnSync('bun', ['src/cli.ts', 'config', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'config', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -173,7 +176,7 @@ describe('CLI', () => {
 
   describe('dbe sources list', () => {
     test('shows sources subcommand help', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'sources', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'sources', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -184,7 +187,7 @@ describe('CLI', () => {
     });
 
     test('list command shows available sources', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'sources', 'list'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'sources', 'list'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -194,7 +197,7 @@ describe('CLI', () => {
     });
 
     test('list shows source descriptions', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'sources', 'list'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'sources', 'list'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -206,7 +209,7 @@ describe('CLI', () => {
 
   describe('dbe sources test', () => {
     test('test command runs health check', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'sources', 'test', 'claude-code'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'sources', 'test', 'claude-code'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -217,7 +220,7 @@ describe('CLI', () => {
     });
 
     test('test with unknown source fails', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'sources', 'test', 'nonexistent'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'sources', 'test', 'nonexistent'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
@@ -227,7 +230,7 @@ describe('CLI', () => {
     });
 
     test('test subcommand accepts source name', () => {
-      const result = spawnSync('bun', ['src/cli.ts', 'sources', '--help'], {
+      const result = spawnSync(BUN, ['src/cli.ts', 'sources', '--help'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });

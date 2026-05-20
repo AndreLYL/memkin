@@ -2,7 +2,7 @@
  * Tests for DedupStore
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DedupStore } from '../../src/core/dedup';
 import { unlinkSync, existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';

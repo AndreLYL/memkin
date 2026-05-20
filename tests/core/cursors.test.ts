@@ -2,7 +2,7 @@
  * Tests for CursorStore
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { CursorStore } from '../../src/core/cursors';
 import { unlinkSync, existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
