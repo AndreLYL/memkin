@@ -1,5 +1,7 @@
 # DigitalBrainExtractor (DBE)
 
+English | [中文](README.zh-CN.md)
+
 CLI tool to extract structured signals from communication platforms and AI agent sessions, converting raw conversations into machine-readable knowledge graphs.
 
 ## Overview
@@ -32,7 +34,7 @@ Collector              Dedup              BlockBuilder           NoiseFilter
 
 ### Pipeline Stages
 
-1. **Collector**: Fetches raw messages from configured sources (Claude Code, Slack, etc.)
+1. **Collector**: Fetches raw messages from configured sources (Claude Code, Codex, Hermes)
 2. **Dedup Store**: Eliminates duplicate messages using content hashing
 3. **Block Builder**: Groups chronologically-adjacent messages into conversation blocks
 4. **Noise Filter**: Uses LLM to assess block significance
@@ -335,12 +337,25 @@ Extracts conversation transcripts from Claude Code agent sessions.
 
 - **Location**: `~/.claude/projects/`
 - **Data**: Agent conversations, decisions, discoveries, session logs
-- **Frequency**: Run extraction after agent sessions to capture fresh signals
 
-Example:
+### Codex
+
+Extracts session data from OpenAI Codex CLI.
+
+- **Location**: `~/.codex/`
+- **Data**: User/assistant messages with system-injection filtering
+
+### Hermes
+
+Extracts session data from OpenClaw Hermes agents.
+
+- **Location**: `~/.openclaw/agents/`
+- **Data**: Multi-agent sessions with automatic sub-agent discovery (main, coder, writer, etc.)
+
+### Extract from all sources
 
 ```bash
-dbe extract --source claude-code --adapter gbrain
+dbe extract --source all --adapter file --output ./exports
 ```
 
 ## Output Formats
@@ -546,7 +561,9 @@ digitalbrain-extractor/
 │   ├── collectors/
 │   │   ├── index.ts               # Collector registry
 │   │   └── agent/
-│   │       └── claude-code.ts      # Claude Code collector
+│   │       ├── claude-code.ts      # Claude Code collector
+│   │       ├── codex.ts            # Codex collector
+│   │       └── hermes.ts           # Hermes collector
 │   ├── extractors/
 │   │   ├── signal-extractor.ts     # LLM-powered extraction
 │   │   ├── noise-filter.ts         # Significance filtering
@@ -671,4 +688,4 @@ Contributions welcome! Ensure:
 
 ## License
 
-TBD
+Licensed under the [Apache License, Version 2.0](LICENSE).
