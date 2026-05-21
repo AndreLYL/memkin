@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ClaudeCodeCollector } from '../../../src/collectors/agent/claude-code';
+import { createClaudeCodeCollector } from '../../../src/collectors/agent/claude-code';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
 describe('ClaudeCodeCollector', () => {
   let tempDir: string;
-  let collector: ClaudeCodeCollector;
+  let collector: ReturnType<typeof createClaudeCodeCollector>;
 
   beforeEach(async () => {
     // Create temporary directory for test
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-code-test-'));
-    collector = new ClaudeCodeCollector(tempDir);
+    collector = createClaudeCodeCollector(tempDir);
   });
 
   afterEach(async () => {
@@ -32,7 +32,7 @@ describe('ClaudeCodeCollector', () => {
   });
 
   it('should fail health check when directory does not exist', async () => {
-    const nonExistentCollector = new ClaudeCodeCollector('/non/existent/path');
+    const nonExistentCollector = createClaudeCodeCollector('/non/existent/path');
     const result = await nonExistentCollector.healthCheck();
     expect(result.ok).toBe(false);
     expect(result.message).toContain('not found');
