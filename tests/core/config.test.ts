@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
+import { writeFileSync, rmSync, existsSync, readFileSync, unlinkSync } from 'fs';
 import { resolve } from 'path';
 import { mkdirSync } from 'fs';
+import * as os from 'os';
 import { loadConfig, type Config } from '../../src/core/config.js';
 import { ensureStateDir, statePath } from '../../src/core/state.js';
 
@@ -246,6 +247,25 @@ block_builder:
     expect(config.block_builder.block_gap_minutes).toBe(45);
     expect(config.block_builder.max_block_tokens).toBe(5000);
     expect(config.block_builder.max_block_messages).toBe(50);
+  });
+
+  it('should load sources config with defaults', () => {
+    const config = loadConfig();
+    expect(config.sources['claude-code']?.enabled).toBe(true);
+    expect(config.sources.codex?.enabled).toBe(true);
+    expect(config.sources.hermes?.enabled).toBe(true);
+  });
+
+  it('should allow disabling a source', () => {
+    const tmpConfig = resolve(os.tmpdir(), `dbe-test-${Date.now()}.yaml`);
+    writeFileSync(tmpConfig, 'sources:\n  codex:\n    enabled: false\n');
+    try {
+      const config = loadConfig(tmpConfig);
+      expect(config.sources.codex?.enabled).toBe(false);
+      expect(config.sources['claude-code']?.enabled).toBe(true);
+    } finally {
+      unlinkSync(tmpConfig);
+    }
   });
 });
 

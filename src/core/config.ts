@@ -61,6 +61,23 @@ export interface AdaptersConfig {
 }
 
 /**
+ * Source configuration for each data source
+ */
+export interface SourceConfig {
+  enabled: boolean;
+  base_dir?: string;
+}
+
+/**
+ * Sources configuration interface
+ */
+export interface SourcesConfig {
+  'claude-code'?: SourceConfig;
+  codex?: SourceConfig;
+  hermes?: SourceConfig;
+}
+
+/**
  * Complete configuration interface
  */
 export interface Config {
@@ -68,6 +85,7 @@ export interface Config {
   llm: LLMConfig;
   block_builder: BlockBuilderConfig;
   adapters: AdaptersConfig;
+  sources: SourcesConfig;
 }
 
 /**
@@ -95,6 +113,11 @@ const DEFAULT_CONFIG: Config = {
     max_block_messages: 100,
   },
   adapters: {},
+  sources: {
+    'claude-code': { enabled: true },
+    codex: { enabled: true },
+    hermes: { enabled: true },
+  },
 };
 
 /**
