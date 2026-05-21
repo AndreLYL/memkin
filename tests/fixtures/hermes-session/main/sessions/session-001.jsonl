@@ -1,0 +1,8 @@
+{"type":"session","id":"hermes-session-001","version":"1.0","timestamp":"2024-02-01T14:00:00.000Z","cwd":"/Users/test/project"}
+{"type":"message","message":{"role":"user","content":[{"type":"text","text":"Research the latest trends in AI agents"}]},"timestamp":"2024-02-01T14:00:01.000Z"}
+{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Let me consider the current landscape..."},{"type":"text","text":"Here are the key trends in AI agents for 2024."},{"type":"toolCall","name":"web_search","input":{"query":"AI agents 2024"}}]},"timestamp":"2024-02-01T14:00:05.000Z"}
+{"type":"model_change","model":"claude-sonnet-4-20250514","timestamp":"2024-02-01T14:00:06.000Z"}
+{"type":"thinking_level_change","level":"high","timestamp":"2024-02-01T14:00:07.000Z"}
+{"type":"message","message":{"role":"user","content":[{"type":"text","text":"Can you also compare Claude vs GPT for agent use cases?"}]},"timestamp":"2024-02-01T14:00:10.000Z"}
+{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Great question! Here's a comparison of Claude and GPT for agent workflows."},{"type":"toolResult","name":"web_search","result":"..."}]},"timestamp":"2024-02-01T14:00:15.000Z"}
+{"type":"custom","name":"model-snapshot","data":{"model":"claude-sonnet-4-20250514"},"timestamp":"2024-02-01T14:00:16.000Z"}
