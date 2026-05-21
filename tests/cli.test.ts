@@ -66,9 +66,11 @@ describe('CLI', () => {
     });
 
     test('defaults to claude-code source and fails on missing API key', () => {
+      const { OPENAI_API_KEY, ANTHROPIC_API_KEY, DBE_API_KEY, ...cleanEnv } = process.env;
       const result = spawnSync(BUN, ['src/cli.ts', 'extract'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
+        env: cleanEnv,
       });
 
       expect(result.status).not.toBe(0);
