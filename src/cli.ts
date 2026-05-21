@@ -2,12 +2,35 @@
 import { Command } from "commander";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { resolve } from "path";
-import { loadConfig } from "./core/config.js";
+import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { runPipeline, PipelineConfig } from "./core/pipeline.js";
-import { ClaudeCodeCollector } from "./collectors/agent/claude-code.js";
+import {
+  registerCollector,
+  getCollector,
+  getAllCollectors,
+  resetRegistry,
+  createClaudeCodeCollector,
+  createCodexCollector,
+  createHermesCollector,
+} from "./collectors/index.js";
 import type { Collector } from "./core/types.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
+
+function bootstrapCollectors(sources: SourcesConfig): void {
+  resetRegistry();
+  const configs = {
+    'claude-code': { factory: createClaudeCodeCollector, config: sources['claude-code'] },
+    codex: { factory: createCodexCollector, config: sources.codex },
+    hermes: { factory: createHermesCollector, config: sources.hermes },
+  };
+
+  for (const [_id, { factory, config }] of Object.entries(configs)) {
+    if (config?.enabled !== false) {
+      registerCollector(factory(config?.base_dir));
+    }
+  }
+}
 
 const program = new Command();
 
@@ -22,7 +45,7 @@ program
 program
   .command("extract")
   .description("Extract signals from a platform or source")
-  .requiredOption("-s, --source <name>", "Source/collector name (e.g., claude-code)")
+  .option("-s, --source <name>", "Source/collector name (e.g., claude-code, codex, hermes, or 'all' for all enabled sources)", "claude-code")
   .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
   .option("-f, --format <type>", "Output format (json|markdown)", "json")
   .option("-a, --adapter <type>", "Output adapter (file|gbrain|stdout)", "stdout")
@@ -38,16 +61,18 @@ program
       // Ensure state directory exists
       ensureStateDir();
 
-      // Create collector based on source
-      let collector: Collector;
-      if (options.source === "claude-code") {
-        collector = new ClaudeCodeCollector();
+      // Bootstrap collectors from config
+      bootstrapCollectors(config.sources);
+
+      // Determine which sources to process
+      let sourceIds: string[];
+      if (options.source === 'all') {
+        sourceIds = getAllCollectors().map(c => c.id);
       } else {
-        console.error(`Error: Unknown source '${options.source}'`);
-        process.exit(1);
+        sourceIds = [options.source];
       }
 
-      // Create LLM provider based on config
+      // Create LLM provider based on config (shared across all sources)
       let provider: ReturnType<typeof createLLMProvider> | undefined;
       if (!options.dryRun) {
         const llmConfig = config.llm;
@@ -79,10 +104,6 @@ program
       const adapter = ["file", "gbrain", "stdout"].includes(options.adapter) ? options.adapter : "stdout";
       const limit = options.limit ? parseInt(options.limit, 10) : undefined;
 
-      // Run pipeline
-      console.log(`Extracting from source: ${options.source}`);
-      console.log(`Format: ${format}, Adapter: ${adapter}`);
-      if (options.dryRun) console.log("DRY-RUN mode enabled");
       // Parse relative since values
       let sinceValue = options.since;
       if (sinceValue) {
@@ -95,37 +116,73 @@ program
         }
       }
 
-      if (sinceValue) console.log(`Since: ${sinceValue}`);
-      if (limit) console.log(`Limit: ${limit} messages`);
-      console.log("");
+      let anyFailed = false;
 
-      const result = await runPipeline(pipelineConfig, {
-        source: collector,
-        provider,
-        format: format as "json" | "markdown",
-        adapter: adapter as "file" | "gbrain" | "stdout",
-        dryRun: options.dryRun || false,
-        since: sinceValue,
-        limit,
-      });
+      // Process each source
+      for (const sourceId of sourceIds) {
+        const collector = getCollector(sourceId);
+        if (!collector) {
+          console.error(`Error: Unknown source '${sourceId}'`);
+          anyFailed = true;
+          continue;
+        }
 
-      // Report results
-      console.log("Pipeline execution complete:");
-      console.log(`  Total messages: ${result.totalMessages}`);
-      console.log(`  Total blocks: ${result.totalBlocks}`);
-      console.log(`  OK blocks: ${result.okBlocks}`);
-      console.log(`  Skipped blocks: ${result.skippedBlocks}`);
-      console.log(`  Failed blocks: ${result.failedBlocks}`);
+        // Health check
+        const health = await collector.healthCheck();
+        if (!health.ok) {
+          if (options.source === 'all') {
+            console.warn(`Warning: ${sourceId} not available — ${health.message}. Skipping.`);
+            continue;
+          }
+          console.error(`Error: ${sourceId} health check failed — ${health.message}`);
+          process.exit(1);
+        }
 
-      if (result.warnings.length > 0) {
-        console.log("\nWarnings:");
-        for (const warning of result.warnings) {
-          console.log(`  - ${warning}`);
+        // Run pipeline for this source
+        console.log(`\n--- Extracting from: ${sourceId} ---`);
+        console.log(`Format: ${format}, Adapter: ${adapter}`);
+        if (options.dryRun) console.log("DRY-RUN mode enabled");
+        if (sinceValue) console.log(`Since: ${sinceValue}`);
+        if (limit) console.log(`Limit: ${limit} messages`);
+        console.log("");
+
+        try {
+          const result = await runPipeline(pipelineConfig, {
+            source: collector,
+            provider,
+            format: format as "json" | "markdown",
+            adapter: adapter as "file" | "gbrain" | "stdout",
+            dryRun: options.dryRun || false,
+            since: sinceValue,
+            limit,
+          });
+
+          // Report results
+          console.log("Pipeline execution complete:");
+          console.log(`  Total messages: ${result.totalMessages}`);
+          console.log(`  Total blocks: ${result.totalBlocks}`);
+          console.log(`  OK blocks: ${result.okBlocks}`);
+          console.log(`  Skipped blocks: ${result.skippedBlocks}`);
+          console.log(`  Failed blocks: ${result.failedBlocks}`);
+
+          if (result.warnings.length > 0) {
+            console.log("\nWarnings:");
+            for (const warning of result.warnings) {
+              console.log(`  - ${warning}`);
+            }
+          }
+
+          if (result.fatal) {
+            console.error(`\nFatal error: ${result.error}`);
+            anyFailed = true;
+          }
+        } catch (error) {
+          console.error(`\nPipeline failed for ${sourceId}:`, error instanceof Error ? error.message : String(error));
+          anyFailed = true;
         }
       }
 
-      if (result.fatal) {
-        console.error(`\nFatal error: ${result.error}`);
+      if (anyFailed) {
         process.exit(1);
       }
     } catch (error) {
@@ -141,17 +198,18 @@ program
   .command("doctor")
   .description("Diagnose configuration and connectivity")
   .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
-  .action((options) => {
+  .action(async (options) => {
     const issues: string[] = [];
     const warnings: string[] = [];
     const ok: string[] = [];
 
     // Check config file
     const configPath = options.config || resolve(process.cwd(), "dbe.yaml");
+    let config: ReturnType<typeof loadConfig> | null = null;
     if (existsSync(configPath)) {
       ok.push(`Configuration file found: ${configPath}`);
       try {
-        loadConfig(options.config);
+        config = loadConfig(options.config);
         ok.push("Configuration loaded successfully");
       } catch (error) {
         issues.push(`Configuration loading failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -171,25 +229,30 @@ program
     }
 
     // Check LLM configuration
-    if (existsSync(configPath)) {
-      try {
-        const config = loadConfig(options.config);
-        if (config.llm?.provider && config.llm?.model) {
-          ok.push(`LLM provider configured: ${config.llm.provider} / ${config.llm.model}`);
+    if (config) {
+      if (config.llm?.provider && config.llm?.model) {
+        ok.push(`LLM provider configured: ${config.llm.provider} / ${config.llm.model}`);
 
-          // Check API key for selected provider
-          const envKey = config.llm.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
-          if (process.env[envKey] || config.llm.api_key) {
-            ok.push(`${config.llm.provider} API key configured`);
-          } else {
-            warnings.push(`${envKey} environment variable not set and no api_key in config`);
-            warnings.push(`Set ${envKey} or add api_key to llm config`);
-          }
+        const envKey = config.llm.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+        if (process.env[envKey] || config.llm.api_key) {
+          ok.push(`${config.llm.provider} API key configured`);
         } else {
-          issues.push("LLM provider or model not configured");
+          warnings.push(`${envKey} environment variable not set and no api_key in config`);
+          warnings.push(`Set ${envKey} or add api_key to llm config`);
         }
-      } catch {
-        // Already reported above
+      } else {
+        issues.push("LLM provider or model not configured");
+      }
+
+      // Check sources
+      bootstrapCollectors(config.sources);
+      for (const collector of getAllCollectors()) {
+        const health = await collector.healthCheck();
+        if (health.ok) {
+          ok.push(`Source ${collector.id}: ${health.message}`);
+        } else {
+          warnings.push(`Source ${collector.id}: ${health.message}`);
+        }
       }
     }
 
@@ -261,6 +324,18 @@ block_builder:
   max_block_tokens: 4000  # Maximum tokens per block
   max_block_messages: 100  # Maximum messages per block
 
+# Source configuration
+sources:
+  claude-code:
+    enabled: true
+    # base_dir: ~/.claude/projects/
+  codex:
+    enabled: true
+    # base_dir: ~/.codex/
+  hermes:
+    enabled: true
+    # base_dir: ~/.openclaw/agents/
+
 # Adapter configuration
 adapters:
   file:
@@ -289,20 +364,16 @@ const sourcesCmd = program.command("sources").description("Manage data sources")
 sourcesCmd
   .command("list")
   .description("List available sources")
-  .action(() => {
-    const sources = [
-      {
-        name: "claude-code",
-        description: "Claude Code agent conversation transcripts",
-        default_location: "~/.claude/projects/",
-      },
-    ];
+  .option("-c, --config <path>", "Path to config file")
+  .action((options) => {
+    const config = loadConfig(options.config);
+    bootstrapCollectors(config.sources);
 
+    const collectors = getAllCollectors();
     console.log("Available sources:\n");
-    for (const source of sources) {
-      console.log(`  ${source.name}`);
-      console.log(`    Description: ${source.description}`);
-      console.log(`    Default location: ${source.default_location}`);
+    for (const c of collectors) {
+      console.log(`  ${c.id}  ✓ enabled`);
+      console.log(`    ${c.description}`);
       console.log("");
     }
   });
@@ -310,19 +381,19 @@ sourcesCmd
 sourcesCmd
   .command("test <name>")
   .description("Test source connectivity and health")
-  .action(async (name) => {
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (name, options) => {
     try {
-      let collector: Collector;
+      const config = loadConfig(options.config);
+      bootstrapCollectors(config.sources);
 
-      if (name === "claude-code") {
-        collector = new ClaudeCodeCollector();
-      } else {
+      const collector = getCollector(name);
+      if (!collector) {
         console.error(`Error: Unknown source '${name}'`);
         process.exit(1);
       }
 
       console.log(`Testing source: ${name}\n`);
-
       const health = await collector.healthCheck();
       if (health.ok) {
         console.log(`✓ ${health.message}`);

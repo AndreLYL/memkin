@@ -24,3 +24,9 @@ dist/
 # Logs
 *.log
 logs/
+
+# Extraction output
+output/
+
+# Test temp files
+tests/temp/

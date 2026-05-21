@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import type { Adapter, AdapterPushResult, ExtractionResult } from '../core/types.js';
 import { JSONFormatter } from '../formatters/json.js';
 import { MarkdownFormatter } from '../formatters/markdown.js';
@@ -53,6 +53,10 @@ export class FileAdapter implements Adapter {
         const extension = this.config.format === 'json' ? 'json' : 'md';
         const filename = `${result.source.platform}-${result.source.channel}-${timestamp}.${extension}`;
         const filepath = join(this.config.output_dir, filename);
+        const dir = dirname(filepath);
+        if (!existsSync(dir)) {
+          await mkdir(dir, { recursive: true });
+        }
 
         await writeFile(filepath, content, 'utf-8');
         pushResult.written += 1;

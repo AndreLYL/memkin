@@ -65,14 +65,14 @@ describe('CLI', () => {
       expect(result.stdout).toContain('--dry-run');
     });
 
-    test('requires --source option', () => {
+    test('defaults to claude-code source and fails on missing API key', () => {
       const result = spawnSync(BUN, ['src/cli.ts', 'extract'], {
         cwd: PROJECT_ROOT,
         encoding: 'utf-8',
       });
 
       expect(result.status).not.toBe(0);
-      expect(result.stderr + result.stdout).toMatch(/source|required/i);
+      expect(result.stderr + result.stdout).toMatch(/api.key|error/i);
     });
 
     test('accepts format options', () => {

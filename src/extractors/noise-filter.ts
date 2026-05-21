@@ -7,9 +7,12 @@
 
 import { ConversationBlock, SignificanceVerdict } from '../core/types';
 import { LLMProvider } from './providers/types';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export type NoiseFilterVerdict = 'pass' | 'skip' | 'escalate';
 

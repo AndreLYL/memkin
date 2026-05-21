@@ -15,9 +15,9 @@ privacy:
 
 # LLM provider configuration
 llm:
-  provider: anthropic
+  provider: openai
   model: claude-haiku-4.5
-  base_url: https://anthropic.southeastasia.cloudapp.azure.com
+  base_url: https://api.tokenflying.top
   api_key: ${DBE_API_KEY}
 
 # Block builder configuration
