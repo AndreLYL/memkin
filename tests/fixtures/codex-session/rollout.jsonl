@@ -1,0 +1,9 @@
+{"type":"session_meta","payload":{"id":"codex-session-001","cwd":"/Users/test/project","model":"o4-mini","instructions":"You are a helpful assistant."},"timestamp":"2024-01-15T09:00:00.000Z"}
+{"type":"response_item","payload":{"role":"developer","content":[{"type":"input_text","text":"<permissions instructions>Always ask before executing.</permissions>"}]},"timestamp":"2024-01-15T09:00:01.000Z"}
+{"type":"response_item","payload":{"role":"user","content":[{"type":"input_text","text":"Fix the login bug in auth.ts"}]},"timestamp":"2024-01-15T09:00:02.000Z"}
+{"type":"response_item","payload":{"role":"user","content":[{"type":"input_text","text":"<environment_context>\nOS: macOS\nShell: zsh\n</environment_context>"}]},"timestamp":"2024-01-15T09:00:02.500Z"}
+{"type":"response_item","payload":{"role":"assistant","content":[{"type":"reasoning","text":"Let me think about the auth flow..."},{"type":"output_text","text":"I'll fix the login bug. The issue is in the token validation logic."}]},"timestamp":"2024-01-15T09:00:05.000Z"}
+{"type":"event_msg","payload":{"type":"user_message","message":"Fix the login bug in auth.ts"},"timestamp":"2024-01-15T09:00:06.000Z"}
+{"type":"event_msg","payload":{"type":"token_count","tokens":150},"timestamp":"2024-01-15T09:00:07.000Z"}
+{"type":"response_item","payload":{"role":"user","content":[{"type":"input_text","text":"Looks good, please also add tests"}]},"timestamp":"2024-01-15T09:00:10.000Z"}
+{"type":"response_item","payload":{"role":"assistant","content":[{"type":"output_text","text":"Sure! I'll add unit tests for the token validation."}]},"timestamp":"2024-01-15T09:00:15.000Z"}
