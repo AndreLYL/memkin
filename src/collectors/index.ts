@@ -21,3 +21,4 @@ export function resetRegistry(): void {
 export { createClaudeCodeCollector } from "./agent/claude-code";
 export { createCodexCollector } from "./agent/codex";
 export { createHermesCollector } from "./agent/hermes";
+export { createFeishuCollector, FeishuCollector } from "./feishu";

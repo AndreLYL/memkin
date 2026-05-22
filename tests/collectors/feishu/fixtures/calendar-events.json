@@ -1,0 +1,34 @@
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "items": [
+      {
+        "event_id": "evt_001",
+        "summary": "Sprint Review Week 20",
+        "description": "Review sprint deliverables and demo new features",
+        "start_time": { "timestamp": "1716300000" },
+        "end_time": { "timestamp": "1716303600" },
+        "organizer": { "open_id": "ou_organizer_001", "display_name": "李四" },
+        "attendees": [
+          { "type": "user", "user_id": "ou_user_001", "display_name": "张三", "rsvp_status": "accept" },
+          { "type": "user", "user_id": "ou_user_002", "display_name": "王五", "rsvp_status": "tentative" }
+        ],
+        "location": { "name": "会议室 A301" },
+        "status": "confirmed",
+        "vchat": { "meeting_url": "https://meetings.feishu.cn/xxx" }
+      },
+      {
+        "event_id": "evt_002",
+        "summary": "1:1 with Manager",
+        "start_time": { "timestamp": "1716386400" },
+        "end_time": { "timestamp": "1716388200" },
+        "organizer": { "open_id": "ou_manager_001" },
+        "attendees": [],
+        "status": "confirmed"
+      }
+    ],
+    "has_more": false,
+    "sync_token": "sync_token_v2_abc123"
+  }
+}

@@ -151,6 +151,11 @@ export interface Collector {
   fetch(opts: FetchOpts): AsyncGenerator<RawMessage>;
 }
 
+export interface CursorProvider {
+  getCommittableCursors(): Record<string, unknown>;
+  discardSource(sourceName: string): void;
+}
+
 export interface Formatter {
   id: string;
   format(result: ExtractionResult): string | Buffer;
