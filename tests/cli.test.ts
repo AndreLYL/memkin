@@ -5,10 +5,12 @@
 
 import { describe, test, expect } from 'vitest';
 import { spawnSync } from 'child_process';
-import { join } from 'path';
+import { join, resolve, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
 
-const PROJECT_ROOT = '/Users/yinglong.li/Workspace/digitalbrain-extractor';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = resolve(__dirname, '..');
 const BUN = join(homedir(), '.bun', 'bin', 'bun');
 
 describe('CLI', () => {

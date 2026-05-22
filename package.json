@@ -10,7 +10,10 @@
     "dev": "bun src/cli.ts",
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun"
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun",
+    "lint": "biome check src/ tests/",
+    "lint:fix": "biome check --fix src/ tests/",
+    "format": "biome format --write src/ tests/"
   },
   "dependencies": {
     "commander": "^11.1.0",
@@ -18,10 +21,26 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
     "@types/bun": "latest",
     "@types/node": "^25.9.1",
     "fast-glob": "^3.3.3",
     "vitest": "^1.0.4"
+  },
+  "keywords": [
+    "knowledge-graph",
+    "signal-extraction",
+    "claude-code",
+    "codex",
+    "ai-agent",
+    "conversation-mining",
+    "cli"
+  ],
+  "author": "AndreLYL",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AndreLYL/digitalbrain-extractor.git"
   },
   "engines": {
     "bun": ">=1.0.0"
