@@ -6,12 +6,14 @@ import { FeishuRateLimiter } from "./rate-limiter";
 import { CalendarSource } from "./sources/calendar";
 import type { FeishuSource } from "./sources/base";
 import { MessageSource } from "./sources/messages";
+import { DocSource } from "./sources/docs";
+import { TaskSource } from "./sources/tasks";
 import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types";
 
 export class FeishuCollector implements Collector, CursorProvider {
   readonly id = "feishu";
   readonly name = "Feishu";
-  readonly description = "Feishu Open API collector (group messages + calendar)";
+  readonly description = "Feishu Open API collector (messages, calendar, docs, tasks)";
 
   private readonly auth: FeishuAuthManager;
   private readonly client: FeishuHttpClient;
@@ -39,6 +41,16 @@ export class FeishuCollector implements Collector, CursorProvider {
       this.sources.push(
         new CalendarSource(this.client, config.sources.calendar.calendar_ids),
       );
+    }
+
+    if (config.sources.docs?.enabled) {
+      this.sources.push(
+        new DocSource(this.client, config.sources.docs),
+      );
+    }
+
+    if (config.sources.tasks?.enabled) {
+      this.sources.push(new TaskSource(this.client));
     }
   }
 
