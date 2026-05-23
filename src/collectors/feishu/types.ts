@@ -10,6 +10,17 @@ export interface FeishuCalendarSourceConfig {
   calendar_ids: string[];
 }
 
+export interface FeishuDocSourceConfig {
+  enabled: boolean;
+  doc_folders: string[];
+  doc_deep_extract_folders?: string[];
+  doc_summary_max_chars?: number;
+}
+
+export interface FeishuTaskSourceConfig {
+  enabled: boolean;
+}
+
 export interface FeishuCollectorConfig {
   app_id: string;
   app_secret: string;
@@ -18,6 +29,8 @@ export interface FeishuCollectorConfig {
   sources: {
     messages?: FeishuMessageSourceConfig;
     calendar?: FeishuCalendarSourceConfig;
+    docs?: FeishuDocSourceConfig;
+    tasks?: FeishuTaskSourceConfig;
   };
 }
 
@@ -96,6 +109,31 @@ export interface FeishuCalendarSyncData {
   has_more: boolean;
   page_token?: string;
   sync_token?: string;
+}
+
+export interface FeishuDriveFile {
+  token: string;
+  name: string;
+  type: string;
+  url: string;
+  owner_id: string;
+  created_time: string;
+  modified_time: string;
+  edit_users?: Array<{ open_id: string }>;
+}
+
+export interface FeishuTask {
+  guid: string;
+  summary: string;
+  description?: string;
+  creator?: { id: string; type: string };
+  due?: { timestamp: string; is_all_day?: boolean };
+  completed_at?: string;
+  updated_at: string;
+  created_at: string;
+  members?: Array<{ id: string; type: string; role: string }>;
+  url?: string;
+  priority?: string;
 }
 
 export class FeishuAuthError extends Error {
