@@ -54,6 +54,28 @@ export class CursorStore {
   }
 
   /**
+   * Store a structured cursor as JSON string
+   */
+  setJSON(collectorId: string, data: Record<string, unknown>): void {
+    this.set(collectorId, JSON.stringify(data));
+  }
+
+  /**
+   * Retrieve a structured cursor, returns undefined if missing or not valid JSON
+   */
+  getJSON<T = Record<string, unknown>>(collectorId: string): T | undefined {
+    const raw = this.get(collectorId);
+    if (!raw) return undefined;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null) return parsed as T;
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * Write all cursors to YAML file (only if dirty)
    * Only called by pipeline when failedBlocks === 0
    */

@@ -280,8 +280,17 @@ export async function runPipeline(
       const messagesToCommit = [...result.okMessages, ...result.skippedMessages];
       dedupStore.commit(messagesToCommit);
 
-      // Commit cursor if we have a last successful message
-      if (result.lastSuccessMessage?.metadata?.cursor) {
+      // Commit cursor — check for CursorProvider (structured) or legacy string cursor
+      const isCursorProvider = (s: unknown): s is import("./types.js").CursorProvider =>
+        typeof s === "object" && s !== null && "getCommittableCursors" in s;
+
+      if (isCursorProvider(opts.source)) {
+        const cursors = opts.source.getCommittableCursors();
+        if (Object.keys(cursors).length > 0) {
+          cursorStore.setJSON(opts.source.id, cursors);
+          cursorStore.commit();
+        }
+      } else if (result.lastSuccessMessage?.metadata?.cursor) {
         cursorStore.set(opts.source.id, String(result.lastSuccessMessage.metadata.cursor));
         cursorStore.commit();
       }
