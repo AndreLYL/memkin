@@ -1,0 +1,30 @@
+{
+  "code": 0,
+  "data": {
+    "items": [
+      {
+        "token": "doccn_abc123",
+        "name": "产品需求文档 PRD v2",
+        "type": "docx",
+        "url": "https://sample.feishu.cn/docx/doccn_abc123",
+        "owner_id": "ou_user_001",
+        "created_time": "1716200000",
+        "modified_time": "1716300000",
+        "edit_users": [
+          { "open_id": "ou_user_001" },
+          { "open_id": "ou_user_002" }
+        ]
+      },
+      {
+        "token": "shtn_def456",
+        "name": "Q2 OKR Tracker",
+        "type": "sheet",
+        "url": "https://sample.feishu.cn/sheets/shtn_def456",
+        "owner_id": "ou_user_003",
+        "created_time": "1716100000",
+        "modified_time": "1716250000"
+      }
+    ],
+    "has_more": false
+  }
+}
