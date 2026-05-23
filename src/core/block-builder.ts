@@ -26,12 +26,16 @@ export class BlockBuilder {
     for await (const message of messages) {
       const messageTokens = this.estimateTokens(message.content);
       const messageTime = new Date(message.timestamp);
-      const messageThreadId = message.metadata?.thread_id as string | undefined;
+      const messageThreadId =
+        (message.metadata?.root_id as string | undefined) ??
+        (message.metadata?.thread_id as string | undefined) ??
+        undefined;
+      const effectiveThreadId = messageThreadId || undefined;
 
       let shouldSplit = false;
 
       // Rule 1: Thread/Reply boundary (highest priority)
-      if (currentBlock.length > 0 && currentThreadId !== messageThreadId) {
+      if (currentBlock.length > 0 && currentThreadId !== undefined && currentThreadId !== effectiveThreadId) {
         shouldSplit = true;
       }
 
@@ -68,8 +72,8 @@ export class BlockBuilder {
       currentBlock.push(message);
       currentTokens += messageTokens;
       lastTimestamp = messageTime;
-      if (currentThreadId === undefined && messageThreadId !== undefined) {
-        currentThreadId = messageThreadId;
+      if (currentThreadId === undefined && effectiveThreadId !== undefined) {
+        currentThreadId = effectiveThreadId;
       }
     }
 
