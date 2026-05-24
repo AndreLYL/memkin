@@ -13,6 +13,7 @@ interface ExtractionResult {
   decisions: Decision[];
   tasks: TaskSignal[];
   discoveries: Discovery[];
+  knowledge: Knowledge[];
 }
 
 interface SourceRef {
@@ -85,6 +86,16 @@ interface Discovery {
   source: SourceRef;
   confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
 }
+interface Knowledge {
+  topic: string;              // kebab-case topic tag: "react-hooks", "feishu-api"
+  content: string;            // Decontextualized knowledge statement
+  source_type: 'conversation' | 'document' | 'teaching';
+  related_entities: string[]; // Entity slugs (may reference entities not in this block)
+  valid_at?: string;          // ISO 8601, when knowledge becomes valid
+  invalid_at?: string;        // ISO 8601, when knowledge expires
+  source: SourceRef;
+  confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
+}
 ```
 
 ## Extraction Rules
@@ -117,6 +128,55 @@ interface Discovery {
 ### Empty Results
 - If no signals found, return empty arrays for all categories
 - Still include valid `source` with platform, channel, timestamp, and quote
+
+### Knowledge vs Discovery
+
+Knowledge (知识): Decontextualized, reusable facts or concepts
+  ✓ "React useEffect runs twice in StrictMode during development"
+  ✓ "Feishu API global rate limit is 50 QPS"
+  ✓ "TCP three-way handshake prevents stale connection requests"
+
+Discovery (发现): Scene-bound, time-bound findings
+  ✓ "Today's integration test found 5s latency on this endpoint"
+  ✓ "Root cause of this bug is a race condition"
+  ✓ "Local Docker DNS resolution is broken"
+
+Rules:
+  1. Remove time/scene info — is the statement still valid and valuable? Yes → Knowledge
+  2. Could this be a FAQ or documentation entry as-is? Yes → Knowledge
+  3. If uncertain, prefer Discovery (conservative)
+
+### Knowledge vs Decision
+
+Knowledge: Norms, facts, concepts — objective, verifiable
+  ✓ "Feishu API global rate limit is 50 QPS"
+  ✓ "Go goroutine initial stack size is 2KB"
+
+Decision: Team/project choices, commitments — subjective, has an owner
+  ✓ "All services will use OpenTelemetry going forward"
+  ✓ "We decided to replace MySQL with PostgreSQL"
+
+Rules:
+  1. Has an explicit decision-maker or team commitment? → Decision
+  2. Would this statement hold true for a different team/project? → Knowledge
+  3. If uncertain, look for verbs like "decided", "chose", "switched to" → Decision
+
+### Knowledge source_type
+
+- `conversation`: Extracted from group/private chat messages
+- `document`: Extracted from cloud document content
+- `teaching`: Someone actively explaining/teaching (systematic explanation of principles, steps, processes)
+
+### Knowledge topic
+
+- Output kebab-case ASCII when possible: "react-hooks", "feishu-api"
+- For Chinese topics, translate to English: "飞书API" → "feishu-api"
+- The system normalizes non-conforming topics automatically
+
+### Knowledge confidence
+
+- Knowledge should rarely be `speculative`. The system may skip speculative Knowledge entries.
+- Prefer `direct` or `paraphrased` for factual statements.
 
 ## Example
 

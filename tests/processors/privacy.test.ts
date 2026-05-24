@@ -84,6 +84,7 @@ const baseResult: ExtractionResult = {
       confidence: "inferred",
     },
   ],
+  knowledge: [],
 };
 
 describe("PrivacyProcessor", () => {
@@ -506,6 +507,97 @@ describe("PrivacyProcessor", () => {
       const result = processor.process(sparseResult);
 
       expect(result.decisions[0].summary).toContain("[REDACTED_PHONE]");
+    });
+  });
+
+  describe("PrivacyProcessor - Knowledge", () => {
+    const baseConfig: PrivacyConfig = {
+      enabled: true,
+      mode: "irreversible",
+      redact_phone: true,
+      redact_id_card: true,
+      redact_bank_card: true,
+      redact_email: false,
+      redact_url: false,
+      blocked_words: ["acme-corp", "project-x"],
+      replacement: "[REDACTED]",
+    };
+
+    const createBaseResult = (): ExtractionResult => ({
+      source: {
+        platform: "test",
+        channel: "test",
+        timestamp: "2026-01-01T00:00:00Z",
+        raw_hash: "hash123",
+        quote: "test quote",
+      },
+      entities: [],
+      timeline: [],
+      links: [],
+      decisions: [],
+      tasks: [],
+      discoveries: [],
+      knowledge: [
+        {
+          topic: "feishu-api",
+          content: "Feishu API rate limit is 50 QPS, call 13912345678 for support",
+          source_type: "document" as const,
+          related_entities: ["tool/feishu"],
+          source: {
+            platform: "feishu",
+            channel: "docs",
+            timestamp: "2026-05-20T10:00:00Z",
+            raw_hash: "khash123",
+            quote: "Rate limit is 50 QPS, contact 13912345678",
+          },
+          confidence: "direct" as const,
+        },
+      ],
+    });
+
+    it("redacts phone numbers in knowledge content", () => {
+      const processor = new PrivacyProcessor(baseConfig);
+      const result = processor.process(createBaseResult());
+      expect(result.knowledge[0].content).toContain("[REDACTED_PHONE]");
+      expect(result.knowledge[0].content).not.toContain("13912345678");
+    });
+
+    it("redacts phone numbers in knowledge source.quote", () => {
+      const processor = new PrivacyProcessor(baseConfig);
+      const result = processor.process(createBaseResult());
+      expect(result.knowledge[0].source.quote).toContain("[REDACTED_PHONE]");
+    });
+
+    it("applies blocked words check to topic", () => {
+      const processor = new PrivacyProcessor(baseConfig);
+      const input = createBaseResult();
+      input.knowledge[0].topic = "acme-corp-api";
+      const result = processor.process(input);
+      expect(result.knowledge[0].topic).toContain("[REDACTED]");
+      expect(result.knowledge[0].topic).not.toContain("acme-corp");
+    });
+
+    it("does NOT apply L1/L2 regex to topic", () => {
+      const processor = new PrivacyProcessor(baseConfig);
+      const input = createBaseResult();
+      input.knowledge[0].topic = "api-v2-13912345678";
+      const result = processor.process(input);
+      expect(result.knowledge[0].topic).toBe("api-v2-13912345678");
+    });
+
+    it("does NOT redact related_entities", () => {
+      const processor = new PrivacyProcessor(baseConfig);
+      const input = createBaseResult();
+      input.knowledge[0].related_entities = ["project/acme-corp"];
+      const result = processor.process(input);
+      expect(result.knowledge[0].related_entities).toEqual(["project/acme-corp"]);
+    });
+
+    it("preserves knowledge when privacy is disabled", () => {
+      const processor = new PrivacyProcessor({ ...baseConfig, enabled: false });
+      const input = createBaseResult();
+      const result = processor.process(input);
+      expect(result.knowledge[0].content).toContain("13912345678");
     });
   });
 });

@@ -222,6 +222,23 @@
       },
       "confidence": "direct"
     }
+  ],
+  "knowledge": [
+    {
+      "topic": "jwt-token-expiration",
+      "content": "Access tokens should be short-lived (minutes to hours) while refresh tokens can be longer-lived (days to weeks) to balance security with user experience",
+      "source_type": "teaching",
+      "related_entities": ["tool/jwt", "concept/refresh-tokens"],
+      "source": {
+        "platform": "slack",
+        "channel": "#engineering",
+        "timestamp": "2024-01-15T10:03:45Z",
+        "thread_id": "thread-auth-migration",
+        "raw_hash": "abc123def456",
+        "quote": "Yes, 7-day access tokens and 30-day refresh tokens."
+      },
+      "confidence": "paraphrased"
+    }
   ]
 }
 ```
@@ -237,3 +254,4 @@
 7. **Decisions**: Capture not just what was decided, but why and what alternatives existed
 8. **Tasks**: Include owner, status, and timing information
 9. **Discoveries**: Extract both insights (learnings) and procedures (how-to)
+10. **Knowledge**: Extract reusable facts that stand alone without the original conversation context

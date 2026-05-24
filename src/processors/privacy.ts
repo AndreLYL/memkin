@@ -11,6 +11,7 @@ import type {
   Discovery,
   Entity,
   ExtractionResult,
+  Knowledge,
   Link,
   SourceRef,
   TaskSignal,
@@ -82,6 +83,7 @@ export class PrivacyProcessor {
       decisions: result.decisions.map((d) => this.processDecision(d)),
       tasks: result.tasks.map((t) => this.processTask(t)),
       discoveries: result.discoveries.map((d) => this.processDiscovery(d)),
+      knowledge: result.knowledge.map((k) => this.processKnowledge(k)),
     };
 
     // Write redaction map if in reversible mode
@@ -162,6 +164,33 @@ export class PrivacyProcessor {
         : discovery.detail,
       source: this.processSourceRef(discovery.source),
     };
+  }
+
+  /**
+   * Process Knowledge - redacts content and applies blocked words to topic
+   * Topic only gets L3 (blocked words) redaction, NOT L1/L2
+   * related_entities are NEVER redacted
+   */
+  private processKnowledge(knowledge: Knowledge): Knowledge {
+    return {
+      ...knowledge,
+      content: this.redactText(knowledge.content, "knowledge.content"),
+      topic: this.redactBlockedWordsOnly(knowledge.topic, "knowledge.topic"),
+      source: this.processSourceRef(knowledge.source),
+    };
+  }
+
+  /**
+   * Redact blocked words only (L3 only, no L1/L2 regex)
+   * Used for topic field which should not match phone/ID/IP patterns
+   */
+  private redactBlockedWordsOnly(text: string, fieldName: string): string {
+    let result = text;
+    for (const word of this.config.blocked_words) {
+      const regex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, "gi");
+      result = this.applyRedaction(result, regex, this.config.replacement, fieldName);
+    }
+    return result;
   }
 
   /**

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FileAdapter } from "../../src/adapters/file.js";
 import { GBrainAdapter } from "../../src/adapters/gbrain.js";
 import { StdoutAdapter } from "../../src/adapters/stdout.js";
-import type { ExtractionResult, SourceRef } from "../../src/core/types.js";
+import type { ExtractionResult, Knowledge, SourceRef } from "../../src/core/types.js";
 
 const createMockSourceRef = (): SourceRef => ({
   platform: "test-platform",
@@ -13,6 +13,16 @@ const createMockSourceRef = (): SourceRef => ({
   message_id: "msg-123",
   raw_hash: "hash-abc123",
   quote: "Test quote",
+});
+
+const createMockKnowledge = (overrides?: Partial<Knowledge>): Knowledge => ({
+  topic: "react-hooks",
+  content: "React useEffect runs twice in StrictMode during development",
+  source_type: "teaching",
+  related_entities: ["tool/react"],
+  source: { ...createMockSourceRef(), raw_hash: "know-hash-001" },
+  confidence: "direct",
+  ...overrides,
 });
 
 const createMockExtractionResult = (): ExtractionResult => ({
@@ -83,6 +93,7 @@ const createMockExtractionResult = (): ExtractionResult => ({
       confidence: "direct",
     },
   ],
+  knowledge: [createMockKnowledge()],
 });
 
 describe("FileAdapter", () => {
@@ -389,6 +400,120 @@ describe("GBrainAdapter", () => {
     const pushResult2 = await adapter.push([result1]);
 
     expect(pushResult2.skipped).toBeGreaterThan(0);
+  });
+
+  it("push creates Knowledge pages with content-hash path", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result = createMockExtractionResult();
+    await adapter.push([result]);
+
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    expect(existsSync(knowledgeDir)).toBe(true);
+
+    const files = readdirSync(knowledgeDir);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatch(/^[a-f0-9]{12}-.*\.md$/);
+
+    const content = readFileSync(join(knowledgeDir, files[0]), "utf-8");
+    expect(content).toContain("React useEffect runs twice");
+    expect(content).toContain("type: knowledge");
+    expect(content).toContain("topic: react-hooks");
+  });
+
+  it("push skips speculative Knowledge", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result: ExtractionResult = {
+      ...createMockExtractionResult(),
+      knowledge: [createMockKnowledge({ confidence: "speculative" })],
+    };
+    const pushResult = await adapter.push([result]);
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    const knowledgeExists = existsSync(knowledgeDir) && readdirSync(knowledgeDir).length > 0;
+    expect(knowledgeExists).toBe(false);
+  });
+
+  it("push deduplicates Knowledge by source_hash", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result = createMockExtractionResult();
+    await adapter.push([result]);
+    const pushResult2 = await adapter.push([result]);
+    expect(pushResult2.skipped).toBeGreaterThan(0);
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    const files = readdirSync(knowledgeDir);
+    expect(files).toHaveLength(1);
+  });
+
+  it("push appends provenance for same content from different source", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result1 = createMockExtractionResult();
+    await adapter.push([result1]);
+
+    const result2: ExtractionResult = {
+      ...createMockExtractionResult(),
+      knowledge: [
+        createMockKnowledge({
+          source: { ...createMockSourceRef(), raw_hash: "different-hash-002", quote: "Different source quote" },
+        }),
+      ],
+    };
+    await adapter.push([result2]);
+
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    const files = readdirSync(knowledgeDir);
+    expect(files).toHaveLength(1);
+    const content = readFileSync(join(knowledgeDir, files[0]), "utf-8");
+    expect(content).toContain("Test quote");
+    expect(content).toContain("Different source quote");
+  });
+
+  it("push uses content hash as fallback when raw_hash is empty", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result: ExtractionResult = {
+      ...createMockExtractionResult(),
+      knowledge: [
+        createMockKnowledge({
+          source: { ...createMockSourceRef(), raw_hash: "" },
+        }),
+      ],
+    };
+    await adapter.push([result]);
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    const files = readdirSync(knowledgeDir);
+    expect(files).toHaveLength(1);
+    const content = readFileSync(join(knowledgeDir, files[0]), "utf-8");
+    expect(content).not.toContain('source_hash: ""');
+    expect(content).not.toContain("source_hash: ''");
+  });
+
+  it("push renders Provenance section with source details", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result = createMockExtractionResult();
+    await adapter.push([result]);
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    const files = readdirSync(knowledgeDir);
+    const content = readFileSync(join(knowledgeDir, files[0]), "utf-8");
+    expect(content).toContain("## Provenance");
+    expect(content).toContain("Test quote");
+    expect(content).toContain("test-platform");
+    expect(content).toContain("test-channel");
+  });
+
+  it("push generates valid YAML frontmatter for content with special chars", async () => {
+    const adapter = new GBrainAdapter({ output_dir: tempDir });
+    const result: ExtractionResult = {
+      ...createMockExtractionResult(),
+      knowledge: [
+        createMockKnowledge({
+          content: 'Content with "quotes" and colons: value and #hash',
+        }),
+      ],
+    };
+    await adapter.push([result]);
+    const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
+    const files = readdirSync(knowledgeDir);
+    const content = readFileSync(join(knowledgeDir, files[0]), "utf-8");
+    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    expect(frontmatterMatch).not.toBeNull();
   });
 });
 

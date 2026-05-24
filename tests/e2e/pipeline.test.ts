@@ -168,6 +168,7 @@ function createMockExtractionResult(blockContent: string): ExtractionResult {
         confidence: "paraphrased",
       },
     ],
+    knowledge: [],
   };
 }
 
@@ -412,6 +413,7 @@ describe("E2E Pipeline Tests", () => {
       decisions: [],
       tasks: [],
       discoveries: [],
+      knowledge: [],
     };
 
     const processed = processor.process(testResult);

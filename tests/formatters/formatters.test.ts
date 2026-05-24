@@ -3,6 +3,7 @@ import type {
   Decision,
   Entity,
   ExtractionResult,
+  Knowledge,
   SourceRef,
   TaskSignal,
 } from "../../src/core/types";
@@ -147,6 +148,16 @@ function createTestResult(): ExtractionResult {
         confidence: "inferred",
       },
     ],
+    knowledge: [
+      {
+        topic: "jwt-expiration",
+        content: "Access tokens should be short-lived (minutes to hours) while refresh tokens can be longer-lived (days to weeks)",
+        source_type: "teaching" as const,
+        related_entities: ["auth-system", "alice-engineer"],
+        source: createSourceRef(),
+        confidence: "direct" as const,
+      },
+    ],
   };
 }
 
@@ -202,6 +213,7 @@ describe("JSONFormatter", () => {
     expect(parsed.signals.timeline).toBeTruthy();
     expect(parsed.signals.links).toBeTruthy();
     expect(parsed.signals.discoveries).toBeTruthy();
+    expect(parsed.signals.knowledge).toBeTruthy();
   });
 
   it("should preserve entity data in output", () => {
@@ -340,6 +352,36 @@ describe("MarkdownFormatter", () => {
     expect(output).toContain("pull request review");
   });
 
+  it("should have Knowledge section in body", () => {
+    const output = formatter.format(testResult);
+    expect(output).toContain("## Knowledge");
+    expect(output).toContain("### jwt-expiration");
+    expect(output).toContain("Access tokens should be short-lived");
+  });
+
+  it("should render related entities in Knowledge section", () => {
+    const output = formatter.format(testResult);
+    const knowledgeStart = output.indexOf("## Knowledge");
+    const knowledgeSection = output.substring(knowledgeStart);
+    expect(knowledgeSection).toContain("auth-system");
+    expect(knowledgeSection).toContain("alice-engineer");
+  });
+
+  it("should show 'No knowledge extracted.' when empty", () => {
+    const emptyResult: ExtractionResult = {
+      source: createSourceRef(),
+      entities: [],
+      decisions: [],
+      tasks: [],
+      timeline: [],
+      links: [],
+      discoveries: [],
+      knowledge: [],
+    };
+    const output = formatter.format(emptyResult);
+    expect(output).toContain("No knowledge extracted.");
+  });
+
   it("should format task status correctly", () => {
     const output = formatter.format(testResult);
 
@@ -373,6 +415,7 @@ describe("MarkdownFormatter", () => {
       timeline: [],
       links: [],
       discoveries: [],
+      knowledge: [],
     };
 
     const output = formatter.format(emptyResult);

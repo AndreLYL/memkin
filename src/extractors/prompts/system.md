@@ -11,6 +11,7 @@ Extract structured signals from conversation blocks, including:
 - **Decisions**: Choices made with reasoning
 - **Tasks**: Action items and their status
 - **Discoveries**: Insights, patterns, procedures, preferences
+- **Knowledge**: Decontextualized, reusable facts or concepts that stand on their own without needing the original context
 
 ## Core Principles
 

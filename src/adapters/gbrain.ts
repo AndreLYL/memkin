@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { stringify as yamlStringify } from "yaml";
 import type {
   Adapter,
   AdapterPushResult,
@@ -8,6 +10,7 @@ import type {
   Discovery,
   Entity,
   ExtractionResult,
+  Knowledge,
   Link,
   TaskSignal,
   TimelineEntry,
@@ -106,6 +109,14 @@ export class GBrainAdapter implements Adapter {
       // Process Links
       for (const link of result.links) {
         const writeResult = await this.appendLink(link, result.source.raw_hash);
+        pushResult.written += writeResult.written;
+        pushResult.skipped += writeResult.skipped;
+        pushResult.errors.push(...writeResult.errors);
+      }
+
+      // Process Knowledge
+      for (const knowledge of result.knowledge) {
+        const writeResult = await this.writeKnowledge(knowledge);
         pushResult.written += writeResult.written;
         pushResult.skipped += writeResult.skipped;
         pushResult.errors.push(...writeResult.errors);
@@ -390,6 +401,145 @@ export class GBrainAdapter implements Adapter {
     return result;
   }
 
+  private async writeKnowledge(knowledge: Knowledge): Promise<AdapterPushResult> {
+    const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
+
+    try {
+      // Skip speculative knowledge
+      if (knowledge.confidence === "speculative") {
+        console.warn(
+          `Skipping speculative knowledge: ${knowledge.topic}/${knowledge.content.slice(0, 30)}`
+        );
+        result.skipped += 1;
+        return result;
+      }
+
+      // Resolve source_hash (fallback to content hash if empty)
+      const sourceHash = knowledge.source.raw_hash || this.contentHash(knowledge.content);
+
+      // Build path: knowledge/{topic}/{content-hash-12}-{content-slug}.md
+      const contentHash12 = this.contentHash(knowledge.content).slice(0, 12);
+      const contentSlug = this.kebabCase(knowledge.content.slice(0, 50));
+      const filename = `${contentHash12}-${contentSlug}.md`;
+      const filepath = join(this.config.output_dir, "knowledge", knowledge.topic, filename);
+      const dirPath = dirname(filepath);
+
+      if (!existsSync(dirPath)) {
+        await mkdir(dirPath, { recursive: true });
+      }
+
+      if (existsSync(filepath)) {
+        const existingContent = await readFile(filepath, "utf-8");
+
+        // Case 2: Same source_hash → skip (exact duplicate)
+        if (existingContent.includes(`source_hash: ${sourceHash}`) ||
+            existingContent.includes(`source_hash: "${sourceHash}"`) ||
+            existingContent.includes(`source_hash: '${sourceHash}'`)) {
+          result.skipped += 1;
+          return result;
+        }
+
+        // Case 3: Different source_hash → append provenance
+        const provenanceEntry = [
+          "",
+          `> ${knowledge.source.quote}`,
+          "",
+          `**Platform:** ${knowledge.source.platform} | **Channel:** ${knowledge.source.channel} | **Time:** ${knowledge.source.timestamp}`,
+          "",
+        ].join("\n");
+
+        // Update updated_at in frontmatter
+        let updatedContent = existingContent.replace(
+          /^(---\n[\s\S]*?)(---)/m,
+          (match, front, closing) => {
+            const now = new Date().toISOString();
+            if (front.includes("updated_at:")) {
+              return front.replace(/updated_at:.*/, `updated_at: "${now}"`) + closing;
+            }
+            return `${front}updated_at: "${now}"\n${closing}`;
+          }
+        );
+
+        // Insert before "## Related Entities" section
+        const relatedIdx = updatedContent.indexOf("## Related Entities");
+        if (relatedIdx !== -1) {
+          updatedContent =
+            updatedContent.slice(0, relatedIdx) +
+            provenanceEntry +
+            updatedContent.slice(relatedIdx);
+        } else {
+          updatedContent = updatedContent + "\n" + provenanceEntry;
+        }
+
+        await writeFile(filepath, updatedContent, "utf-8");
+        result.written += 1;
+        return result;
+      }
+
+      // Case 1: New file — create with YAML serializer
+      const frontmatter: Record<string, unknown> = {
+        title: knowledge.content.slice(0, 80),
+        type: "knowledge",
+        slug: `knowledge/${knowledge.topic}/${contentHash12}-${contentSlug}`,
+        topic: knowledge.topic,
+        source_type: knowledge.source_type,
+        confidence: knowledge.confidence,
+        source_hash: sourceHash,
+        source_platform: knowledge.source.platform,
+        source_channel: knowledge.source.channel,
+        source_timestamp: knowledge.source.timestamp,
+        created_at: new Date().toISOString(),
+      };
+
+      if (knowledge.valid_at) frontmatter.valid_at = knowledge.valid_at;
+      if (knowledge.invalid_at) frontmatter.invalid_at = knowledge.invalid_at;
+
+      const parts: string[] = [];
+
+      // YAML serializer for safe frontmatter
+      parts.push("---");
+      parts.push(yamlStringify(frontmatter).trimEnd());
+      parts.push("---");
+      parts.push("");
+
+      // Content
+      parts.push(`# ${knowledge.content}`);
+      parts.push("");
+
+      // Provenance
+      parts.push("## Provenance");
+      parts.push("");
+      parts.push(`> ${knowledge.source.quote}`);
+      parts.push("");
+      parts.push(
+        `**Platform:** ${knowledge.source.platform} | **Channel:** ${knowledge.source.channel} | **Time:** ${knowledge.source.timestamp}`
+      );
+      parts.push("");
+
+      // Related Entities
+      parts.push("## Related Entities");
+      parts.push("");
+      if (knowledge.related_entities.length > 0) {
+        for (const entity of knowledge.related_entities) {
+          parts.push(`- ${entity}`);
+        }
+      } else {
+        parts.push("- (none)");
+      }
+      parts.push("");
+
+      await writeFile(filepath, parts.join("\n"), "utf-8");
+      result.written += 1;
+    } catch (error) {
+      result.errors.push({
+        signal: `knowledge:${knowledge.topic}/${knowledge.content.slice(0, 30)}`,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return result;
+  }
+
   private async appendTimelineEntry(
     entry: TimelineEntry,
     sourceHash: string,
@@ -612,5 +762,9 @@ export class GBrainAdapter implements Adapter {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+  }
+
+  private contentHash(content: string): string {
+    return createHash("sha256").update(content).digest("hex");
   }
 }

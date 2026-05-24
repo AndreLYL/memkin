@@ -146,6 +146,23 @@ export class MarkdownFormatter implements Formatter {
       }
     }
 
+    // Knowledge Section
+    parts.push("## Knowledge");
+    parts.push("");
+    if (result.knowledge.length === 0) {
+      parts.push("No knowledge extracted.");
+    } else {
+      for (const knowledge of result.knowledge) {
+        parts.push(`### ${knowledge.topic}`);
+        parts.push("");
+        parts.push(knowledge.content);
+        parts.push("");
+        parts.push(`**Source Type:** ${knowledge.source_type} | **Confidence:** ${knowledge.confidence}`);
+        parts.push(`**Related Entities:** ${knowledge.related_entities.length > 0 ? knowledge.related_entities.join(", ") : "none"}`);
+        parts.push("");
+      }
+    }
+
     return parts.join("\n");
   }
 }

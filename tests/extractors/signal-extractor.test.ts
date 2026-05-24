@@ -103,6 +103,7 @@ const createValidExtractionResult = (): ExtractionResult => ({
   ],
   tasks: [],
   discoveries: [],
+  knowledge: [],
 });
 
 describe("SignalExtractor", () => {
@@ -142,6 +143,7 @@ describe("SignalExtractor", () => {
         decisions: [],
         tasks: [],
         discoveries: [],
+        knowledge: [],
       };
 
       const mockProvider = createMockProvider(
@@ -307,6 +309,7 @@ describe("SignalExtractor", () => {
         decisions: [],
         tasks: [],
         discoveries: [],
+        knowledge: [],
       };
 
       const mockProvider = createMockProvider(
