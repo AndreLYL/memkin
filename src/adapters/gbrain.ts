@@ -448,16 +448,27 @@ export class GBrainAdapter implements Adapter {
           "",
         ].join("\n");
 
+        // Update updated_at in frontmatter
+        let updatedContent = existingContent.replace(
+          /^(---\n[\s\S]*?)(---)/m,
+          (match, front, closing) => {
+            const now = new Date().toISOString();
+            if (front.includes("updated_at:")) {
+              return front.replace(/updated_at:.*/, `updated_at: "${now}"`) + closing;
+            }
+            return `${front}updated_at: "${now}"\n${closing}`;
+          }
+        );
+
         // Insert before "## Related Entities" section
-        const relatedIdx = existingContent.indexOf("## Related Entities");
-        let updatedContent: string;
+        const relatedIdx = updatedContent.indexOf("## Related Entities");
         if (relatedIdx !== -1) {
           updatedContent =
-            existingContent.slice(0, relatedIdx) +
+            updatedContent.slice(0, relatedIdx) +
             provenanceEntry +
-            existingContent.slice(relatedIdx);
+            updatedContent.slice(relatedIdx);
         } else {
-          updatedContent = existingContent + "\n" + provenanceEntry;
+          updatedContent = updatedContent + "\n" + provenanceEntry;
         }
 
         await writeFile(filepath, updatedContent, "utf-8");
