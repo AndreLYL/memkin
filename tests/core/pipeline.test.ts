@@ -141,6 +141,7 @@ describe("Pipeline", () => {
         ],
         tasks: [],
         discoveries: [],
+        knowledge: [],
       });
     };
 
@@ -311,6 +312,7 @@ describe("Pipeline", () => {
         decisions: [],
         tasks: [],
         discoveries: [],
+        knowledge: [],
       });
     };
 
@@ -468,6 +470,7 @@ describe("Pipeline", () => {
         decisions: [],
         tasks: [],
         discoveries: [],
+        knowledge: [],
       });
     };
 
