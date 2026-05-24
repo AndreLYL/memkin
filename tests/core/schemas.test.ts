@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseExtractionResult, parseSignificanceVerdict } from "../../src/core/schemas.js";
+import { parseExtractionResult, parseSignificanceVerdict, KnowledgeSchema } from "../../src/core/schemas.js";
 import type { ExtractionResult, SignificanceVerdict } from "../../src/core/types.js";
 
 describe("ExtractionResult schema validation", () => {
@@ -98,6 +98,7 @@ describe("ExtractionResult schema validation", () => {
           },
         },
       ],
+      knowledge: [],
     };
 
     const result = parseExtractionResult(validData);
@@ -376,5 +377,163 @@ describe("Discovery type validation", () => {
 
       expect(() => parseExtractionResult(data)).not.toThrow();
     });
+  });
+});
+
+describe("KnowledgeSchema", () => {
+  const validKnowledge = {
+    topic: "react-hooks",
+    content: "React useEffect runs twice in StrictMode during development",
+    source_type: "teaching",
+    related_entities: ["tool/react"],
+    valid_at: "2026-05-20T14:30:00Z",
+    invalid_at: "2026-12-31T23:59:59Z",
+    source: {
+      platform: "claude-code",
+      channel: "session-abc",
+      timestamp: "2026-05-20T14:30:00Z",
+      raw_hash: "a1b2c3d4",
+      quote: "useEffect will run twice in dev mode because StrictMode intentionally...",
+    },
+    confidence: "direct",
+  };
+
+  it("parses valid Knowledge", () => {
+    const result = KnowledgeSchema.parse(validKnowledge);
+    expect(result.topic).toBe("react-hooks");
+    expect(result.content).toContain("useEffect");
+    expect(result.source_type).toBe("teaching");
+    expect(result.confidence).toBe("direct");
+  });
+
+  it("normalizes non-ASCII topic to kebab-case", () => {
+    const result = KnowledgeSchema.parse({
+      ...validKnowledge,
+      topic: "飞书 API 限流",
+    });
+    expect(result.topic).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    expect(result.topic).not.toBe("");
+  });
+
+  it("normalizes topic with special characters", () => {
+    const result = KnowledgeSchema.parse({
+      ...validKnowledge,
+      topic: "React.useEffect() / StrictMode",
+    });
+    expect(result.topic).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+  });
+
+  it("falls back to 'uncategorized' for empty-after-normalize topic", () => {
+    const result = KnowledgeSchema.parse({
+      ...validKnowledge,
+      topic: "!!!",
+    });
+    expect(result.topic).toBe("uncategorized");
+  });
+
+  it("truncates long topic to 80 chars", () => {
+    const result = KnowledgeSchema.parse({
+      ...validKnowledge,
+      topic: "a".repeat(200),
+    });
+    expect(result.topic.length).toBeLessThanOrEqual(80);
+  });
+
+  it("rejects empty topic", () => {
+    expect(() =>
+      KnowledgeSchema.parse({ ...validKnowledge, topic: "" })
+    ).toThrow();
+  });
+
+  it("rejects invalid source_type", () => {
+    expect(() =>
+      KnowledgeSchema.parse({ ...validKnowledge, source_type: "unknown" })
+    ).toThrow();
+  });
+
+  it("validates valid_at as ISO 8601 datetime", () => {
+    expect(() =>
+      KnowledgeSchema.parse({ ...validKnowledge, valid_at: "not-a-date" })
+    ).toThrow();
+  });
+
+  it("rejects invalid_at before valid_at", () => {
+    expect(() =>
+      KnowledgeSchema.parse({
+        ...validKnowledge,
+        valid_at: "2026-12-31T00:00:00Z",
+        invalid_at: "2026-01-01T00:00:00Z",
+      })
+    ).toThrow();
+  });
+
+  it("accepts missing valid_at and invalid_at", () => {
+    const { valid_at, invalid_at, ...rest } = validKnowledge;
+    const result = KnowledgeSchema.parse(rest);
+    expect(result.valid_at).toBeUndefined();
+    expect(result.invalid_at).toBeUndefined();
+  });
+
+  it("accepts empty related_entities", () => {
+    const result = KnowledgeSchema.parse({
+      ...validKnowledge,
+      related_entities: [],
+    });
+    expect(result.related_entities).toEqual([]);
+  });
+});
+
+describe("ExtractionResultSchema with knowledge", () => {
+  it("defaults knowledge to empty array for backward compat", () => {
+    const minimal = {
+      source: {
+        platform: "test",
+        channel: "test",
+        timestamp: "2026-01-01T00:00:00Z",
+      },
+      entities: [],
+      timeline: [],
+      links: [],
+      decisions: [],
+      tasks: [],
+      discoveries: [],
+    };
+    const result = parseExtractionResult(minimal);
+    expect(result.knowledge).toEqual([]);
+  });
+
+  it("parses knowledge array in ExtractionResult", () => {
+    const full = {
+      source: {
+        platform: "test",
+        channel: "test",
+        timestamp: "2026-01-01T00:00:00Z",
+      },
+      entities: [],
+      timeline: [],
+      links: [],
+      decisions: [],
+      tasks: [],
+      discoveries: [],
+      knowledge: [
+        {
+          topic: "react-hooks",
+          content: "useEffect runs twice in StrictMode",
+          source_type: "teaching",
+          related_entities: [],
+          source: {
+            platform: "test",
+            channel: "test",
+            timestamp: "2026-01-01T00:00:00Z",
+            raw_hash: "abc123",
+            quote: "test quote",
+          },
+          confidence: "direct",
+        },
+      ],
+    };
+    const result = parseExtractionResult(full);
+    expect(result.knowledge).toHaveLength(1);
+    expect(result.knowledge[0].topic).toBe("react-hooks");
   });
 });

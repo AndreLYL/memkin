@@ -121,6 +121,19 @@ export interface Discovery {
   confidence: SignalConfidence;
 }
 
+export type KnowledgeSourceType = 'conversation' | 'document' | 'teaching';
+
+export interface Knowledge {
+  topic: string;
+  content: string;
+  source_type: KnowledgeSourceType;
+  related_entities: string[];
+  valid_at?: string;
+  invalid_at?: string;
+  source: SourceRef;
+  confidence: SignalConfidence;
+}
+
 export interface ExtractionResult {
   source: SourceRef;
   entities: Entity[];
@@ -129,6 +142,7 @@ export interface ExtractionResult {
   decisions: Decision[];
   tasks: TaskSignal[];
   discoveries: Discovery[];
+  knowledge: Knowledge[];
 }
 
 export interface SignificanceVerdict {
