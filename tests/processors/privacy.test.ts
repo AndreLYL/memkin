@@ -84,6 +84,7 @@ const baseResult: ExtractionResult = {
       confidence: "inferred",
     },
   ],
+  knowledge: [],
 };
 
 describe("PrivacyProcessor", () => {
