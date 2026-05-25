@@ -1,10 +1,10 @@
 {
-  "name": "digitalbrain-extractor",
-  "version": "0.1.0",
-  "description": "Extract structured signals from communication platforms and AI agent sessions",
+  "name": "memoark",
+  "version": "0.2.0",
+  "description": "Local-first personal memory extraction and storage",
   "type": "module",
   "bin": {
-    "dbe": "./src/cli.ts"
+    "memoark": "./src/cli.ts"
   },
   "scripts": {
     "dev": "bun src/cli.ts",
@@ -16,7 +16,11 @@
     "format": "biome format --write src/ tests/"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.4.6",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^11.1.0",
+    "hono": "^4.12.23",
+    "openai": "^6.39.0",
     "yaml": "^2.3.4",
     "zod": "^3.22.4"
   },

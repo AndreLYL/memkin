@@ -1,77 +1,56 @@
-# DigitalBrainExtractor (DBE)
+<p align="center">
+  <h1 align="center">Memoark</h1>
+  <p align="center"><strong>把散落的对话变成可搜索的私人记忆。本地优先，AI 驱动。</strong></p>
+</p>
 
-[English](README.md) | 中文
+<p align="center">
+  <a href="README.md">English</a> | 中文
+</p>
 
-从 AI Agent 会话和通信平台中提取结构化信号的 CLI 工具，将原始对话转化为可机器读取的知识图谱。
+---
 
-## 概述
+## 痛点
 
-DigitalBrainExtractor 将非结构化对话数据转化为结构化信号——实体、关系、决策、任务和发现——输出到 GBrain 等知识管理系统。适用于使用 Claude Code、Codex、Hermes 等 AI Agent 的团队，将对话记录转化为组织记忆。
+你的对话散落在各处 — Claude Code、飞书、微信、会议、邮件。每天你做出决策、发现洞察、讨论想法，分布在十几个平台上。但当你需要回忆当时说了什么、在哪里决定的、为什么选择那个方案 — 找不到了。
 
-## 架构
+**你不是记忆力差，你是信息碎片化。**
 
-```
-Collector              Dedup              BlockBuilder           NoiseFilter
-(多平台采集)          (消息去重)          (对话分块)             (显著性过滤)
-     ↓                    ↓                    ↓                      ↓
-   原始消息            去重消息            对话块                过滤后的块
-                                                                    ↓
-                                                         ┌──────────┴──────────┐
-                                                         ↓                     ↓
-                                                  SignalExtractor      Privacy Processor
-                                                  (LLM 驱动提取)       (双轨脱敏)
-                                                         ↓                     ↓
-                                                    提取结果             脱敏结果
-                                                         ↓                     ↓
-                                                      ┌──┴──────────────────┐
-                                                      ↓                     ↓
-                                                   Formatters            Adapters
-                                                (JSON/Markdown)    (File/GBrain/Stdout)
-                                                      ↓                     ↓
-                                                    输出                  存储
-```
+## 解决方案
 
-### Pipeline 阶段
+Memoark 是一个**本地优先的个人记忆系统**。它从多个平台采集你的对话，提取结构化信号（实体、决策、任务、发现、知识、关系），存入统一的可搜索知识图谱 — 一切都在你自己的机器上。
 
-1. **Collector（采集器）**：从配置的数据源获取原始消息（Claude Code、Codex、Hermes）
-2. **Dedup Store（去重）**：基于内容哈希消除重复消息
-3. **Block Builder（分块器）**：将时间相邻的消息分组为对话块
-4. **Noise Filter（噪声过滤）**：使用 LLM 评估块的显著性（L1 规则 + L2 LLM）
-5. **Signal Extractor（信号提取）**：提取实体、决策、任务、关系和发现（LLM 驱动）
-6. **Privacy Processor（隐私处理）**：双轨脱敏（可逆 + 不可逆）
-7. **Formatter（格式化）**：将提取结果转为 JSON 或 Markdown
-8. **Adapter（适配器）**：输出到文件系统、GBrain 或标准输出
+## 核心特性
 
-## 支持的数据源
+**私密 & 本地优先**
+数据永远不离开你的机器。PGLite 嵌入式数据库，Ollama 本地向量嵌入，无云依赖。
 
-| 数据源 | 路径 | 说明 |
-|--------|------|------|
-| **Claude Code** | `~/.claude/projects/` | Claude Code Agent 对话记录 |
-| **Codex** | `~/.codex/` | OpenAI Codex CLI 会话 |
-| **Hermes** | `~/.openclaw/agents/` | OpenClaw Hermes Agent 会话（支持多 Agent 自动发现） |
+**AI 驱动信号提取**
+LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、时间线、决策、任务、发现、知识、关系。
 
-## 提取的信号类型
+**混合语义搜索**
+全文搜索（tsvector）+ 向量检索（pgvector），通过 RRF（Reciprocal Rank Fusion）融合排序。支持自然语言提问。
 
-DBE 从对话中提取 **6 类结构化信号**：
+**MCP 服务器**
+17 个内置工具，让任何支持 MCP 的 AI Agent（Claude Code、Cursor、Windsurf）可以把 Memoark 作为记忆层使用。
 
-| 信号类型 | 说明 | 示例 |
-|---------|------|------|
-| **Entities（实体）** | 人物、项目、工具、组织、概念 | `project/digitalbrain`, `tool/claude-code` |
-| **Timeline（时间线）** | 关键事件及时间戳 | "2026-05-19: 完成多平台采集器重构" |
-| **Decisions（决策）** | 架构选型、技术决策及其理由 | "选择 Apache 2.0 License，因为兼顾开源友好和专利保护" |
-| **Tasks（任务）** | 待办事项及状态追踪 | `[open] 实现 token 自动刷新机制` |
-| **Discoveries（发现）** | 技术洞察、bug 根因、edge case | "UUID v4 不可按字典序排序，需要改用时间戳比较" |
-| **Links（关系）** | 实体间的依赖、引用、协作关系 | `project/dbe --[depends_on]--> tool/codex` |
+**REST API**
+基于 Hono 的 HTTP API，暴露所有存储操作。
+
+**多平台采集**
+一套系统，多个数据源。支持 Claude Code、Codex、Hermes 等 AI Agent 会话，以及飞书。
 
 ## 快速开始
+
+### 前置条件
+
+- [Bun](https://bun.sh) >= 1.0.0
+- （可选）[Ollama](https://ollama.ai) 本地嵌入
 
 ### 安装
 
 ```bash
-git clone https://github.com/AndreLYL/digitalbrain-extractor.git
-cd digitalbrain-extractor
-
-# 安装依赖（需要 Bun 运行时）
+git clone https://github.com/AndreLYL/memoark.git
+cd memoark
 bun install
 ```
 
@@ -81,10 +60,10 @@ bun install
 bun src/cli.ts config init
 ```
 
-生成 `dbe.yaml` 配置模板，编辑后设置 LLM API key：
+设置 LLM API key：
 
 ```bash
-export DBE_API_KEY=sk-your-api-key
+export OPENAI_API_KEY=your-api-key
 ```
 
 ### 检查环境
@@ -96,184 +75,265 @@ bun src/cli.ts doctor
 ### 运行提取
 
 ```bash
-# 从 Claude Code 提取，输出到终端
-bun src/cli.ts extract --source claude-code --format json
+# 从 Claude Code 提取，直接存入 PGLite
+bun src/cli.ts extract --source claude-code
 
-# 从所有启用的数据源提取
-bun src/cli.ts extract --source all --adapter file --output ./output
-
-# 只提取最近 1 天的数据
-bun src/cli.ts extract --source claude-code --since 1d
+# 从所有数据源提取
+bun src/cli.ts extract --source all
 
 # 干跑模式（不调用 LLM）
 bun src/cli.ts extract --source claude-code --dry-run
 ```
 
+### 搜索记忆
+
+```bash
+# 混合搜索（全文 + 向量）
+bun src/cli.ts search "认证中间件决策"
+
+# 仅全文搜索
+bun src/cli.ts search "JWT token" --mode fts
+```
+
+### 启动服务器
+
+```bash
+# HTTP API
+bun src/cli.ts serve
+
+# MCP stdio（AI Agent 集成）
+bun src/cli.ts serve --mcp
+```
+
+## 架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        数据源                                    │
+│  Claude Code  │  Codex  │  Hermes  │  飞书  │  微信              │
+└───────┬───────┴────┬────┴────┬─────┴────┬───┴────┬──────────────┘
+        └────────────┴────────┴──────────┴────────┘
+                              │
+                    ┌─────────▼──────────┐
+                    │   信号提取 Pipeline  │
+                    │                    │
+                    │  采集 → 去重        │
+                    │  → 分块 → 噪声过滤  │
+                    │  → 信号提取 → 脱敏  │
+                    └─────────┬──────────┘
+                              │
+                    ┌─────────▼──────────┐
+                    │   存储层            │
+                    │                    │
+                    │  PGLite + pgvector │
+                    │  （嵌入式 PG）      │
+                    └─────────┬──────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+     ┌────────▼──────┐ ┌─────▼──────┐ ┌──────▼───────┐
+     │   CLI          │ │  MCP       │ │  REST API    │
+     │   管理 & 提取   │ │  服务器     │ │  (Hono)      │
+     └────────────────┘ └────────────┘ └──────────────┘
+```
+
+### 信号类型
+
+| 信号类型 | 说明 | 示例 |
+|---------|------|------|
+| **实体** | 人物、项目、工具、概念 | `project/memoark`, `tool/claude-code` |
+| **时间线** | 关键事件及时间戳 | "2026-05-19: 完成多平台采集器重构" |
+| **决策** | 架构选型、技术决策及其理由 | "选择 PGLite 作为嵌入式 PostgreSQL 方案" |
+| **任务** | 待办事项及状态追踪 | `[open] 实现 token 自动刷新` |
+| **发现** | 技术洞察、bug 根因、edge case | "UUID v4 不可按字典序排序" |
+| **知识** | 可复用的事实性知识 | "PGLite 通过 WASM 在进程内运行完整 Postgres" |
+| **关系** | 实体间的依赖、引用、协作 | `project/memoark --[depends_on]--> tool/pglite` |
+
+### 存储层
+
+| 组件 | 说明 |
+|------|------|
+| **PageStore** | Wiki 风格页面，YAML frontmatter，CRUD |
+| **ChunkStore** | 递归文本分块（300 词，50 词重叠），嵌入复用 |
+| **SearchEngine** | tsvector 全文搜索 + pgvector 向量搜索，RRF 融合排序 |
+| **GraphStore** | 有向链接图，BFS 遍历，链接类型过滤，反向链接 |
+| **TagStore** | 页面标签，冲突安全 upsert |
+| **TimelineStore** | 按时间排序的条目，去重 |
+| **EmbeddingService** | OpenAI / Ollama 批量嵌入，过期 chunk 检测 |
+
 ## CLI 命令
 
-### `dbe extract`
+### `memoark extract`
 
-主命令：从数据源提取信号。
-
-```bash
-dbe extract \
-  --source <name>           # 数据源：claude-code, codex, hermes, all
-  --format json|markdown    # 输出格式，默认 json
-  --adapter file|gbrain|stdout  # 输出目标，默认 stdout
-  --output <dir>            # file adapter 的输出目录
-  --since <date>            # 只处理此时间之后的消息（ISO 8601 或相对值：1d, 2h, 30m）
-  --limit <n>               # 限制处理的消息数
-  --dry-run                 # 测试模式，不写入输出
-```
-
-### `dbe doctor`
-
-诊断配置、数据源连通性和 LLM 设置。
+从数据源提取信号。
 
 ```bash
-dbe doctor
+memoark extract \
+  --source <name>              # claude-code, codex, hermes, feishu, all
+  --format json|markdown       # 输出格式，默认 json
+  --adapter store|file|gbrain|stdout  # 输出目标，默认 store
+  --since <date>               # 只处理此日期之后的消息
+  --limit <n>                  # 限制消息数
+  --dry-run                    # 测试模式
 ```
 
-### `dbe config init`
+### `memoark serve`
+
+启动服务器。
+
+```bash
+memoark serve              # HTTP API
+memoark serve --mcp        # MCP stdio 传输
+```
+
+### `memoark search <query>`
+
+搜索存储的记忆。
+
+```bash
+memoark search "认证中间件"           # 混合搜索（默认）
+memoark search "JWT" --mode fts      # 仅全文搜索
+memoark search "部署" --limit 5      # 限制结果数
+```
+
+### `memoark embed`
+
+为未嵌入的 chunk 生成向量嵌入。
+
+```bash
+memoark embed                  # 嵌入所有过期 chunk
+memoark embed --limit 100     # 限制批量大小
+```
+
+### `memoark doctor`
+
+诊断配置和环境。
+
+### `memoark config init`
 
 生成配置模板。
 
-```bash
-dbe config init
-```
+### `memoark sources list` / `memoark sources test <name>`
 
-### `dbe sources list`
-
-列出所有已启用的数据源。
-
-```bash
-dbe sources list
-```
-
-### `dbe sources test <name>`
-
-测试数据源的连通性和健康状态。
-
-```bash
-dbe sources test claude-code
-```
+列出或测试数据源。
 
 ## 配置
 
-### `dbe.yaml` 结构
+### `dbe.yaml`
 
 ```yaml
 # 隐私配置
 privacy:
   enabled: true
-  mode: reversible          # reversible（可逆）或 irreversible（不可逆）
-  redact_phone: true        # 脱敏手机号
-  redact_id_card: true      # 脱敏身份证号
-  redact_bank_card: true    # 脱敏银行卡号
-  redact_email: false
-  redact_url: false
-  blocked_words: []         # 自定义敏感词
+  mode: reversible           # reversible（可逆）| irreversible（不可逆）
+  redact_phone: true
+  redact_id_card: true
+  redact_bank_card: true
   replacement: "[REDACTED]"
 
-# LLM 配置
+# LLM（信号提取用）
 llm:
-  provider: openai           # openai 或 mock
+  provider: openai
   model: gpt-4o-mini
-  base_url: https://api.openai.com/v1  # 可选：自定义端点
-  api_key: ${OPENAI_API_KEY}           # 支持环境变量插值
+  api_key: ${OPENAI_API_KEY}
 
 # 分块配置
 block_builder:
-  block_gap_minutes: 30      # 超过此时间间隔开始新块
-  max_block_tokens: 4000     # 每块最大 token 数
-  max_block_messages: 100    # 每块最大消息数
+  block_gap_minutes: 30
+  max_block_tokens: 4000
+  max_block_messages: 100
 
-# 数据源配置
+# 数据源
 sources:
   claude-code:
     enabled: true
-    # base_dir: ~/.claude/projects/
   codex:
     enabled: true
-    # base_dir: ~/.codex/
   hermes:
     enabled: true
-    # base_dir: ~/.openclaw/agents/
 
-# 适配器配置
-adapters:
-  file:
-    enabled: false
-    output_dir: ./output
-  gbrain:
-    enabled: false
-    output_dir: ./gbrain-output
+# 存储（PGLite）
+store:
+  data_dir: ~/.memoark/data
+
+# 嵌入
+embedding:
+  provider: openai           # openai | ollama
+  model: text-embedding-3-large
+  dimensions: 1536
+  api_key: ${OPENAI_API_KEY}
+
+# 服务器
+server:
+  http_port: 3927
 ```
 
-### 隐私双轨脱敏
+## 支持的数据源
 
-**可逆模式**：保留原始内容到映射文件，授权人员可恢复。适合内部审计场景。
+| 数据源 | 路径 | 说明 |
+|--------|------|------|
+| **Claude Code** | `~/.claude/projects/` | Claude Code Agent 对话记录 |
+| **Codex** | `~/.codex/` | OpenAI Codex CLI 会话 |
+| **Hermes** | `~/.openclaw/agents/` | OpenClaw Hermes Agent 会话 |
+| **飞书** | API | 飞书消息、日历、文档、任务 |
 
-**不可逆模式**：永久删除敏感内容，不可恢复。适合 GDPR 合规和公开数据集。
+## 路线图
+
+### Phase 1 — 信号提取（已完成）
+
+- [x] 多平台采集器（Claude Code、Codex、Hermes、飞书）
+- [x] LLM 驱动的噪声过滤和信号提取
+- [x] 7 类信号：实体、时间线、决策、任务、发现、知识、关系
+- [x] 双轨隐私脱敏（可逆 + 不可逆）
+- [x] JSON 和 Markdown 输出格式
+
+### Phase 2 — 存储 & 服务器（已完成）
+
+- [x] PGLite 嵌入式 PostgreSQL + pgvector
+- [x] PageStore、ChunkStore、TagStore、TimelineStore、GraphStore
+- [x] 全文搜索（simple 分词器，支持中文）+ 向量搜索
+- [x] RRF 混合搜索
+- [x] EmbeddingService（OpenAI / Ollama）
+- [x] StoreAdapter — Pipeline 直接写入 PGLite
+- [x] Hono REST API
+- [x] MCP 服务器（17 个 stdio 工具）
+- [x] CLI serve、search、embed 命令
+
+### Phase 3 — 查询 & 界面（规划中）
+
+- [ ] 自然语言问答
+- [ ] Web UI — 时间线视图
+- [ ] Web UI — 知识图谱可视化
+
+### Phase 4 — 新数据源
+
+- [ ] 微信聊天记录
+- [ ] 更多平台（社区驱动）
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 语言 | TypeScript |
+| 运行时 | Bun |
+| 数据库 | PGLite（嵌入式 PostgreSQL） |
+| 向量搜索 | pgvector |
+| 嵌入 | OpenAI / Ollama |
+| Web 框架 | Hono |
+| MCP | @modelcontextprotocol/sdk |
+| Linter | Biome |
+| 测试 | Vitest（800+ 测试） |
 
 ## 开发
 
-### 项目结构
-
-```
-src/
-├── cli.ts                      # CLI 入口（Commander.js）
-├── core/                       # 核心模块
-│   ├── types.ts                # TypeScript 接口定义
-│   ├── config.ts               # 配置加载器
-│   ├── pipeline.ts             # Pipeline 编排
-│   ├── block-builder.ts        # 消息分块
-│   ├── dedup.ts                # 去重存储
-│   └── schemas.ts              # Zod 验证 schema
-├── collectors/                 # 数据源采集器
-│   ├── index.ts                # 采集器注册表
-│   └── agent/
-│       ├── claude-code.ts      # Claude Code 采集器
-│       ├── codex.ts            # Codex 采集器
-│       └── hermes.ts           # Hermes 采集器
-├── extractors/                 # LLM 提取器
-│   ├── signal-extractor.ts     # 信号提取（LLM）
-│   ├── noise-filter.ts         # 噪声过滤（规则 + LLM）
-│   └── providers/              # LLM Provider 适配层
-├── processors/
-│   └── privacy.ts              # 隐私处理器
-├── formatters/                 # 输出格式化
-│   ├── json.ts
-│   └── markdown.ts
-└── adapters/                   # 输出适配器
-    ├── file.ts
-    ├── gbrain.ts
-    └── stdout.ts
-```
-
-### 运行测试
-
 ```bash
-# 全量测试
-bun run test
-
-# 监听模式
-bun run test:watch
-
-# 运行指定测试
-bun run test -- path/to/test.ts
+bun run test              # 全量测试
+bun run test:watch        # 监听模式
+bun run lint              # 代码检查
+bun run lint:fix          # 自动修复
 ```
 
-测试套件包含 252 个测试，覆盖核心组件、Pipeline 集成、CLI 参数解析和 Golden 输出验证。
-
-### 贡献
-
-欢迎贡献！请确保：
-
-- 代码通过 `bun run test`
-- CLI 变更同步更新帮助文本
-- 新采集器遵循 `Collector` 接口
-- 新适配器遵循 `Adapter` 接口
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## License
 
