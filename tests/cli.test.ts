@@ -14,7 +14,7 @@ const PROJECT_ROOT = resolve(__dirname, "..");
 const BUN = join(homedir(), ".bun", "bin", "bun");
 
 describe("CLI", () => {
-  describe("dbe --help", () => {
+  describe("memoark --help", () => {
     test("shows main help with version and description", () => {
       const result = spawnSync(BUN, ["src/cli.ts", "--help"], {
         cwd: PROJECT_ROOT,
@@ -22,8 +22,8 @@ describe("CLI", () => {
       });
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("dbe");
-      expect(result.stdout).toContain("Extract structured signals");
+      expect(result.stdout).toContain("memoark");
+      expect(result.stdout).toContain("Local-first personal memory");
       expect(result.stdout).toContain("version");
     });
 
@@ -37,10 +37,13 @@ describe("CLI", () => {
       expect(result.stdout).toContain("doctor");
       expect(result.stdout).toContain("config");
       expect(result.stdout).toContain("sources");
+      expect(result.stdout).toContain("serve");
+      expect(result.stdout).toContain("search");
+      expect(result.stdout).toContain("embed");
     });
   });
 
-  describe("dbe extract", () => {
+  describe("memoark extract", () => {
     test("shows help with --help flag", () => {
       const result = spawnSync(BUN, ["src/cli.ts", "extract", "--help"], {
         cwd: PROJECT_ROOT,
@@ -95,6 +98,7 @@ describe("CLI", () => {
         encoding: "utf-8",
       });
 
+      expect(result.stdout).toContain("store");
       expect(result.stdout).toContain("file");
       expect(result.stdout).toContain("gbrain");
       expect(result.stdout).toContain("stdout");
@@ -111,7 +115,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("dbe doctor", () => {
+  describe("memoark doctor", () => {
     test("shows help with --help flag", () => {
       const result = spawnSync(BUN, ["src/cli.ts", "doctor", "--help"], {
         cwd: PROJECT_ROOT,
@@ -146,7 +150,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("dbe config init", () => {
+  describe("memoark config init", () => {
     test("shows config subcommand help", () => {
       const result = spawnSync(BUN, ["src/cli.ts", "config", "--help"], {
         cwd: PROJECT_ROOT,
@@ -178,7 +182,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("dbe sources list", () => {
+  describe("memoark sources list", () => {
     test("shows sources subcommand help", () => {
       const result = spawnSync(BUN, ["src/cli.ts", "sources", "--help"], {
         cwd: PROJECT_ROOT,
@@ -211,7 +215,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("dbe sources test", () => {
+  describe("memoark sources test", () => {
     test("test command runs health check", () => {
       const result = spawnSync(BUN, ["src/cli.ts", "sources", "test", "claude-code"], {
         cwd: PROJECT_ROOT,
@@ -241,6 +245,42 @@ describe("CLI", () => {
 
       expect(result.stdout).toContain("test");
       expect(result.stdout).toContain("name");
+    });
+  });
+
+  describe("memoark serve", () => {
+    test("shows help", () => {
+      const result = spawnSync(BUN, ["src/cli.ts", "serve", "--help"], {
+        cwd: PROJECT_ROOT,
+        encoding: "utf-8",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("serve");
+      expect(result.stdout).toContain("--mcp");
+    });
+  });
+
+  describe("memoark search", () => {
+    test("shows help", () => {
+      const result = spawnSync(BUN, ["src/cli.ts", "search", "--help"], {
+        cwd: PROJECT_ROOT,
+        encoding: "utf-8",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("search");
+      expect(result.stdout).toContain("--mode");
+    });
+  });
+
+  describe("memoark embed", () => {
+    test("shows help", () => {
+      const result = spawnSync(BUN, ["src/cli.ts", "embed", "--help"], {
+        cwd: PROJECT_ROOT,
+        encoding: "utf-8",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("embed");
+      expect(result.stdout).toContain("--limit");
     });
   });
 });

@@ -31,3 +31,6 @@ output/
 
 # Test temp files
 tests/temp/
+
+# Local isolated worktrees
+.worktrees/

@@ -1,333 +1,354 @@
-# DigitalBrainExtractor (DBE)
+<p align="center">
+  <h1 align="center">Memoark</h1>
+  <p align="center"><strong>Turn your scattered conversations into one private, searchable memory. Local-first, AI-powered.</strong></p>
+</p>
 
-English | [中文](README.zh-CN.md)
+<p align="center">
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#cli-reference">CLI Reference</a> •
+  <a href="#roadmap">Roadmap</a>
+</p>
 
-CLI tool to extract structured signals from communication platforms and AI agent sessions, converting raw conversations into machine-readable knowledge graphs.
+---
 
-## Overview
+## The Problem
 
-DigitalBrainExtractor transforms unstructured conversation data into structured signals—entities, relationships, decisions, tasks, and discoveries—that feed into knowledge management systems like GBrain. Perfect for teams using Claude Code agents or other AI-driven workflows where conversation becomes source material for organizational memory.
+Your conversations are everywhere — Claude Code, Feishu, WeChat, meetings, emails. Every day, you make decisions, discover insights, and discuss ideas across a dozen platforms. But when you need to recall what was said, where it was decided, or why you chose that approach — it's gone. Buried in chat logs you'll never scroll through again.
 
-## Architecture
+**You don't have a memory problem. You have a fragmentation problem.**
+
+## The Solution
+
+Memoark is a **local-first personal memory system** that collects your conversations from multiple platforms, extracts structured signals (entities, decisions, tasks, discoveries, relationships), and stores them in a unified, searchable knowledge graph — all on your own machine.
 
 ```
-Collector              Dedup              BlockBuilder           NoiseFilter
-(Platform-specific)   (Avoid duplicates)  (Group messages)       (Significance)
-     ↓                    ↓                    ↓                      ↓
-   Raw                 Deduplicated       Conversation          Filtered
-  Messages             Messages            Blocks               Blocks
-                                                                    ↓
-                                                         ┌──────────┴──────────┐
-                                                         ↓                     ↓
-                                                  SignalExtractor      Privacy Processor
-                                                  (LLM-powered)        (Dual-track)
-                                                         ↓                     ↓
-                                                   Extraction Result   Redacted Results
-                                                         ↓                     ↓
-                                                      ┌──┴──────────────────┐
-                                                      ↓                     ↓
-                                                   Formatters            Adapters
-                                                (JSON/Markdown)    (File/GBrain/Stdout)
-                                                      ↓                     ↓
-                                                   Output              Storage
+   WeChat          Feishu         Claude Code        Codex          Hermes
+     │               │                │                │               │
+     └───────────────┴────────────────┴────────────────┴───────────────┘
+                                      │
+                                      ▼
+                            ┌───────────────────┐
+                            │     Memoark        │
+                            │                   │
+                            │  Extract → Store  │
+                            │  Search  → Query  │
+                            │                   │
+                            └───────────────────┘
+                                      │
+                      ┌───────────────┼───────────────┐
+                      ▼               ▼               ▼
+                   Timeline      Knowledge        Natural
+                   Recall        Graph             Language Q&A
 ```
 
-### Pipeline Stages
+> "I discussed a technical proposal with a colleague on WeChat yesterday, implemented part of it in Claude Code today, and have a Feishu review meeting next week."
+>
+> Memoark connects these three events automatically — across platforms, across time.
 
-1. **Collector**: Fetches raw messages from configured sources (Claude Code, Codex, Hermes)
-2. **Dedup Store**: Eliminates duplicate messages using content hashing
-3. **Block Builder**: Groups chronologically-adjacent messages into conversation blocks
-4. **Noise Filter**: Uses LLM to assess block significance
-5. **Signal Extractor**: Extracts entities, decisions, tasks, links, and discoveries (LLM-powered)
-6. **Privacy Processor**: Dual-track redaction (reversible + irreversible)
-7. **Formatter**: Converts extraction results to JSON or Markdown
-8. **Adapter**: Pushes to file system, GBrain, or stdout
+## Features
+
+**Private & Local-First**
+Your data never leaves your machine. PGLite embedded database, local vector embeddings via Ollama, no cloud dependency. You own your memory.
+
+**AI-Powered Signal Extraction**
+LLM-driven pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
+
+**Hybrid Semantic Search**
+Full-text search + vector retrieval with Reciprocal Rank Fusion (RRF). Ask questions in natural language — powered by PGLite FTS + pgvector embeddings.
+
+**Knowledge Graph**
+See the connections between people, projects, decisions, and ideas. Graph traversal with BFS, backlink tracking, and link-type filtering.
+
+**Timeline Recall**
+Browse your activity history like an auto-written diary — what you did, when, and across which platforms.
+
+**MCP Server**
+Use Memoark as a memory layer for any AI agent that supports MCP — Claude Code, Cursor, Windsurf. 17 built-in tools for pages, search, graph, tags, timeline, and embeddings.
+
+**REST API**
+Full Hono-powered HTTP API for all store operations. Integrate with any client.
+
+**Multi-Platform Collection**
+One system, multiple sources. Currently supports AI agent sessions (Claude Code, Codex, Hermes) and Feishu (Lark).
 
 ## Quick Start
+
+### Prerequisites
+
+- [Bun](https://bun.sh) >= 1.0.0
+- (Optional) [Ollama](https://ollama.ai) for local embeddings
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd digitalbrain-extractor
-
-# Install dependencies (requires Bun)
+git clone https://github.com/AndreLYL/memoark.git
+cd memoark
 bun install
-
-# Make CLI available
-bun link
 ```
 
-### 1. Initialize Configuration
+### Initialize Configuration
 
 ```bash
-dbe config init
+bun src/cli.ts config init
 ```
 
-This creates `dbe.yaml` with sensible defaults. Edit to customize:
+Edit `dbe.yaml` and set your LLM API key:
 
 ```bash
-vim dbe.yaml
+export OPENAI_API_KEY=your-api-key
 ```
 
-### 2. Check Setup
+### Check Environment
 
 ```bash
-dbe doctor
+bun src/cli.ts doctor
 ```
 
-Diagnoses configuration, state directory, and LLM connectivity.
-
-### 3. List Available Sources
+### Run Your First Extraction
 
 ```bash
-dbe sources list
+# Extract from Claude Code and store directly to PGLite
+bun src/cli.ts extract --source claude-code
+
+# Extract from all sources
+bun src/cli.ts extract --source all
+
+# Dry run (no LLM calls)
+bun src/cli.ts extract --source claude-code --dry-run
 ```
 
-### 4. Test Source Connectivity
+### Search Your Memory
 
 ```bash
-dbe sources test claude-code
+# Hybrid search (FTS + vector)
+bun src/cli.ts search "auth middleware decision"
+
+# FTS-only search
+bun src/cli.ts search "JWT token" --mode fts
 ```
 
-### 5. Run First Extraction
+### Start the Server
 
 ```bash
-dbe extract --source claude-code --format json --adapter stdout
+# HTTP API
+bun src/cli.ts serve
+
+# MCP stdio (for AI agent integration)
+bun src/cli.ts serve --mcp
 ```
 
-For dry-run (no output writes):
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Data Sources                             │
+│  Claude Code  │  Codex  │  Hermes  │  Feishu  │  WeChat        │
+└───────┬───────┴────┬────┴────┬─────┴────┬─────┴────┬───────────┘
+        └────────────┴────────┴──────────┴──────────┘
+                              │
+                    ┌─────────▼──────────┐
+                    │   Signal Extraction │
+                    │   Pipeline          │
+                    │                    │
+                    │  Collector          │
+                    │  → Dedup            │
+                    │  → Block Builder    │
+                    │  → Noise Filter     │
+                    │  → Signal Extractor │
+                    │  → Privacy          │
+                    └─────────┬──────────┘
+                              │
+                    ┌─────────▼──────────┐
+                    │   Storage Layer     │
+                    │                    │
+                    │  PGLite + pgvector │
+                    │  (Embedded PG)     │
+                    └─────────┬──────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+     ┌────────▼──────┐ ┌─────▼──────┐ ┌──────▼───────┐
+     │   CLI          │ │  MCP       │ │  REST API    │
+     │   Management   │ │  Server    │ │  (Hono)      │
+     │   & Extraction │ │  (stdio)   │ │              │
+     └────────────────┘ └────────────┘ └──────────────┘
+```
+
+### Signal Extraction Pipeline
+
+| Stage | Description |
+|-------|-------------|
+| **Collector** | Fetches raw messages from configured data sources |
+| **Dedup** | Eliminates duplicates via content hashing |
+| **Block Builder** | Groups messages into conversation blocks by time and topic |
+| **Noise Filter** | Scores block significance using rules (L1) + LLM (L2) |
+| **Signal Extractor** | LLM-powered extraction of entities, decisions, tasks, discoveries, knowledge, timeline, links |
+| **Privacy Processor** | Dual-track redaction — reversible or irreversible |
+
+### Extracted Signal Types
+
+| Signal | Description | Example |
+|--------|-------------|---------|
+| **Entities** | People, projects, tools, concepts | `project/memoark`, `tool/claude-code` |
+| **Timeline** | Key events with timestamps | "2026-05-19: Completed multi-platform collector refactoring" |
+| **Decisions** | Technical choices with reasoning | "Chose PGLite for embedded PostgreSQL with vector support" |
+| **Tasks** | Action items with status | `[open] Implement token auto-refresh` |
+| **Discoveries** | Insights, root causes, edge cases | "UUID v4 is not lexicographically sortable" |
+| **Knowledge** | Reusable facts with provenance | "PGLite runs full Postgres in-process via WASM" |
+| **Links** | Relationships between entities | `project/memoark --[depends_on]--> tool/pglite` |
+
+### Storage Layer
+
+| Component | Description |
+|-----------|-------------|
+| **PageStore** | CRUD for wiki-style pages with YAML frontmatter |
+| **ChunkStore** | Recursive text chunking (300 words, 50-word overlap) with embedding reuse |
+| **SearchEngine** | FTS via `tsvector` + vector cosine via `pgvector`, fused with RRF scoring |
+| **GraphStore** | Directed link graph with BFS traversal, link types, backlinks |
+| **TagStore** | Page tagging with conflict-safe upserts |
+| **TimelineStore** | Chronological entries per page with dedup |
+| **EmbeddingService** | Batch embedding via OpenAI or Ollama, stale-chunk detection |
+
+## CLI Reference
+
+### `memoark extract`
+
+Extract signals from data sources.
 
 ```bash
-dbe extract --source claude-code --dry-run
+memoark extract \
+  --source <name>              # claude-code, codex, hermes, feishu, all
+  --format json|markdown       # Output format (default: json)
+  --adapter store|file|gbrain|stdout  # Output target (default: store)
+  --output <dir>               # Output directory for file adapter
+  --since <date>               # Process messages after this date (ISO 8601 or relative: 1d, 2h)
+  --limit <n>                  # Max messages to process
+  --dry-run                    # Test without LLM calls or writes
 ```
 
-## CLI Commands
+### `memoark serve`
 
-### `dbe extract`
-
-Main command: extract signals from a source.
+Start the Memoark server.
 
 ```bash
-dbe extract \
-  --source <name> \
-  --format json|markdown \
-  --adapter file|gbrain|stdout \
-  --output <dir> \
-  --since <ISO-8601-date> \
-  --limit <n> \
-  --dry-run
+# HTTP API (default port from config)
+memoark serve
+
+# MCP stdio transport (for AI agent integration)
+memoark serve --mcp
 ```
 
-**Options:**
+### `memoark search <query>`
 
-- `--source <name>` (**required**): Source name (e.g., `claude-code`)
-- `--config <path>`: Config file path (default: `dbe.yaml`)
-- `--format <type>`: Output format—`json` (structured) or `markdown` (human-readable); default: `json`
-- `--adapter <type>`: Where to send results—`file`, `gbrain`, or `stdout`; default: `stdout`
-- `--output <dir>`: Output directory for file adapter (default: current working directory)
-- `--since <ISO-8601-date>`: Process only messages after this date (e.g., `2025-05-15T10:00:00Z`)
-- `--limit <n>`: Maximum messages to process (useful for testing)
-- `--dry-run`: Test pipeline without writing outputs
-
-**Examples:**
+Search your stored memory.
 
 ```bash
-# Extract and print to stdout (preview)
-dbe extract --source claude-code --format markdown
+# Hybrid search (FTS + vector, default)
+memoark search "authentication middleware"
 
-# Extract and save to JSON files
-dbe extract --source claude-code --format json --adapter file --output ./exports
+# FTS-only search
+memoark search "JWT token" --mode fts
 
-# Extract and push to GBrain
-dbe extract --source claude-code --adapter gbrain
-
-# Extract with filters
-dbe extract --source claude-code --since 2025-05-01 --limit 1000 --dry-run
+# Limit results
+memoark search "deployment" --limit 5
 ```
 
-### `dbe doctor`
+### `memoark embed`
 
-Diagnose configuration and setup issues.
+Generate embeddings for unembedded chunks.
 
 ```bash
-dbe doctor [--config <path>]
+# Embed all stale chunks
+memoark embed
+
+# Limit batch size
+memoark embed --limit 100
 ```
 
-Checks:
+### `memoark doctor`
 
-- Configuration file exists and parses correctly
-- State directory (`.dbe/`) is accessible
-- LLM provider and API keys are configured
-- Environment variables are set
-
-Output example:
-
-```
-=== DBE Diagnostic Report ===
-
-✓ OK:
-  Configuration file found: dbe.yaml
-  Configuration loaded successfully
-  LLM provider configured: openai / gpt-4o-mini
-  OpenAI API key configured
-
-No critical issues found.
-```
-
-### `dbe config init`
-
-Generate a `dbe.yaml` template in the current directory.
+Diagnose configuration and environment.
 
 ```bash
-dbe config init
+memoark doctor
 ```
 
-Creates a fully-commented template with sensible defaults. Adjust for your environment.
+### `memoark config init`
 
-### `dbe sources list`
-
-List all available data sources.
+Generate a configuration template.
 
 ```bash
-dbe sources list
+memoark config init
 ```
 
-Output:
+### `memoark sources list`
 
-```
-Available sources:
-
-  claude-code
-    Description: Claude Code agent conversation transcripts
-    Default location: ~/.claude/projects/
-```
-
-### `dbe sources test <name>`
-
-Test connectivity and health of a source.
+List available data sources.
 
 ```bash
-dbe sources test claude-code
+memoark sources list
 ```
 
-Verifies the source is accessible and responding correctly.
+### `memoark sources test <name>`
+
+Test data source connectivity.
+
+```bash
+memoark sources test claude-code
+```
 
 ## Configuration
 
-### `dbe.yaml` Structure
+### `dbe.yaml`
 
 ```yaml
-# Privacy configuration
+# Privacy
 privacy:
-  enabled: true                    # Enable/disable privacy processing
-  mode: reversible                 # reversible or irreversible
-  redact_phone: true               # Mask phone numbers
-  redact_id_card: true             # Mask ID card numbers
-  redact_bank_card: true           # Mask bank card numbers
-  redact_email: false              # Mask email addresses
-  redact_url: false                # Mask URLs
-  blocked_words: []                # Additional words to redact (array)
-  replacement: "[REDACTED]"        # String to replace redacted content
-
-# LLM provider configuration
-llm:
-  provider: openai                 # openai or mock
-  model: gpt-4o-mini               # Model name
-  base_url: https://api.openai.com/v1  # Optional: custom endpoint
-  api_key: ${OPENAI_API_KEY}       # Optional: can use env var interpolation
-
-# Block builder settings
-block_builder:
-  block_gap_minutes: 30            # Time gap to start a new block (minutes)
-  max_block_tokens: 4000           # Max tokens per block
-  max_block_messages: 100          # Max messages per block
-
-# Adapter configuration
-adapters:
-  file:
-    enabled: false
-    output_dir: ./output
-  gbrain:
-    enabled: false
-    output_dir: ./gbrain-output
-```
-
-### Environment Variable Interpolation
-
-Config values can reference environment variables using `${VAR_NAME}` syntax:
-
-```yaml
-llm:
-  api_key: ${OPENAI_API_KEY}       # Will use process.env.OPENAI_API_KEY
-```
-
-### Privacy Configuration
-
-#### Reversible Mode
-
-Preserves the original content in a mapping file, allowing recovery later:
-
-```yaml
-privacy:
-  mode: reversible
+  enabled: true
+  mode: reversible           # reversible | irreversible
   redact_phone: true
-  redact_email: true
-```
-
-Outputs both:
-- **Redacted content** for processing
-- **Reversibility map** (encrypted or protected) for authorized recovery
-
-#### Irreversible Mode
-
-Permanently removes sensitive content:
-
-```yaml
-privacy:
-  mode: irreversible
+  redact_id_card: true
   redact_bank_card: true
-  blocked_words: [proprietary, secret, internal]
-```
+  replacement: "[REDACTED]"
 
-Once redacted, data cannot be recovered.
-
-### LLM Provider Configuration
-
-#### OpenAI
-
-```yaml
+# LLM (for signal extraction)
 llm:
   provider: openai
   model: gpt-4o-mini
-  base_url: https://api.openai.com/v1  # Optional, for proxies
-  api_key: ${OPENAI_API_KEY}           # Via env var or direct
+  api_key: ${OPENAI_API_KEY}
+
+# Block Builder
+block_builder:
+  block_gap_minutes: 30
+  max_block_tokens: 4000
+  max_block_messages: 100
+
+# Data Sources
+sources:
+  claude-code:
+    enabled: true
+  codex:
+    enabled: true
+  hermes:
+    enabled: true
+
+# Store (PGLite)
+store:
+  data_dir: ~/.memoark/data
+
+# Embeddings
+embedding:
+  provider: openai           # openai | ollama
+  model: text-embedding-3-large
+  dimensions: 1536
+  api_key: ${OPENAI_API_KEY}
+
+# Server
+server:
+  http_port: 3927
 ```
-
-Set API key via environment:
-
-```bash
-export OPENAI_API_KEY=sk-...
-dbe extract --source claude-code
-```
-
-Or in config:
-
-```yaml
-llm:
-  api_key: sk-...  # Not recommended; use env var instead
-```
-
-#### Mock Provider (Testing)
-
-```yaml
-llm:
-  provider: mock
-  model: fake-model
-```
-
-Useful for dry-runs and testing without API costs.
 
 ## Supported Sources
 
@@ -350,341 +371,85 @@ Extracts session data from OpenAI Codex CLI.
 Extracts session data from OpenClaw Hermes agents.
 
 - **Location**: `~/.openclaw/agents/`
-- **Data**: Multi-agent sessions with automatic sub-agent discovery (main, coder, writer, etc.)
+- **Data**: Multi-agent sessions with automatic sub-agent discovery
 
-### Extract from all sources
+### Feishu (Lark)
 
-```bash
-dbe extract --source all --adapter file --output ./exports
-```
+Extracts messages from Feishu/Lark workplace platform.
 
-## Output Formats
+- **Data**: Group messages, DMs, calendar events, docs, tasks
 
-### JSON Format
+## Roadmap
 
-Structured extraction results—ideal for programmatic processing:
+### Phase 1 — Signal Extraction (Complete)
 
-```json
-{
-  "source": {
-    "platform": "claude-code",
-    "channel": "project/my-feature",
-    "timestamp": "2025-05-19T10:30:00Z",
-    "raw_hash": "abc123..."
-  },
-  "entities": [
-    {
-      "slug": "auth-middleware",
-      "name": "Authentication Middleware",
-      "type": "concept",
-      "context": "JWT token validation",
-      "confidence": "direct"
-    }
-  ],
-  "timeline": [
-    {
-      "date": "2025-05-19",
-      "summary": "Implemented JWT refresh token rotation",
-      "entities": ["auth-middleware"],
-      "confidence": "direct"
-    }
-  ],
-  "links": [
-    {
-      "from": "auth-middleware",
-      "to": "security-audit",
-      "type": "mentions",
-      "context": "Part of security review",
-      "confidence": "direct"
-    }
-  ],
-  "decisions": [
-    {
-      "summary": "Use httpOnly cookies for JWT storage",
-      "reasoning": "Prevents XSS token theft",
-      "entities": ["auth-middleware"],
-      "date": "2025-05-19",
-      "confidence": "direct"
-    }
-  ],
-  "tasks": [
-    {
-      "title": "Write unit tests for token rotation",
-      "status": "in_progress",
-      "owner": "engineering",
-      "due_date": "2025-05-25",
-      "confidence": "direct"
-    }
-  ],
-  "discoveries": [
-    {
-      "summary": "Refresh tokens need separate rotation logic",
-      "type": "pattern",
-      "entities": ["auth-middleware"],
-      "confidence": "inferred"
-    }
-  ]
-}
-```
+- [x] Multi-platform collectors (Claude Code, Codex, Hermes, Feishu)
+- [x] LLM-powered noise filtering and signal extraction
+- [x] 7 signal types: entities, timeline, decisions, tasks, discoveries, knowledge, links
+- [x] Dual-track privacy redaction (reversible + irreversible)
+- [x] JSON and Markdown output formatters
+- [x] File, GBrain, and Stdout adapters
+- [x] CLI with extract, doctor, config, sources commands
 
-### Markdown Format
+### Phase 2 — Storage & Server (Complete)
 
-Human-readable summary format—ideal for review and documentation:
+- [x] PGLite embedded PostgreSQL with pgvector
+- [x] PageStore, ChunkStore, TagStore, TimelineStore, GraphStore
+- [x] Full-text search with `tsvector` (simple tokenizer for multilingual)
+- [x] Vector search with `pgvector` cosine similarity
+- [x] Hybrid RRF search fusing FTS + vector results
+- [x] EmbeddingService (OpenAI / Ollama)
+- [x] StoreAdapter — pipeline writes directly to PGLite
+- [x] Hono REST API
+- [x] MCP Server with 17 stdio tools
+- [x] CLI serve, search, embed commands
 
-```markdown
-# Extraction Summary
+### Phase 3 — Query & Interface (Next)
 
-**Source**: claude-code / project/my-feature  
-**Date**: 2025-05-19 10:30:00 UTC  
-**Confidence**: direct
+- [ ] Natural language Q&A over stored memories
+- [ ] Web UI — Timeline view
+- [ ] Web UI — Knowledge graph visualization
 
-## Entities
+### Phase 4 — New Data Sources
 
-- **Authentication Middleware** (concept)
-  - Context: JWT token validation
+- [ ] WeChat chat history
+- [ ] More platforms based on community demand
 
-## Timeline
+## Tech Stack
 
-- **2025-05-19**: Implemented JWT refresh token rotation
-
-## Decisions
-
-- **Use httpOnly cookies for JWT storage**
-  - Reasoning: Prevents XSS token theft
-
-## Tasks
-
-- [ ] Write unit tests for token rotation (in_progress, due 2025-05-25)
-
-## Discoveries
-
-- Refresh tokens need separate rotation logic (pattern)
-```
-
-## Adapters
-
-### File Adapter
-
-Writes extraction results to disk:
-
-```bash
-dbe extract --source claude-code --format json --adapter file --output ./exports
-```
-
-Creates:
-- `exports/extraction-{timestamp}.json`
-- One file per extraction for easy organization
-
-### GBrain Adapter
-
-Pushes results directly to your GBrain knowledge graph:
-
-```bash
-dbe extract --source claude-code --adapter gbrain
-```
-
-Creates or updates GBrain pages for:
-- **Entities** → `claude/{platform}/{entity-slug}`
-- **Timeline entries** → appended to entity pages
-- **Decisions** → `claude/decisions/{topic}`
-- **Tasks** → `claude/tasks/{task-slug}`
-- **Discoveries** → `claude/discoveries/{type}/{topic}`
-
-Requires GBrain to be accessible at default location or configured in `dbe.yaml`.
-
-### Stdout Adapter
-
-Prints results directly to terminal (useful for testing):
-
-```bash
-dbe extract --source claude-code --format markdown --adapter stdout
-```
-
-## Privacy & Dual-Track Redaction
-
-DBE supports **dual-track redaction** to balance privacy with recoverability:
-
-### Reversible Mode (Default)
-
-Original content is preserved in an encrypted or protected reversibility map, allowing authorized personnel to recover redacted values.
-
-**Use case**: Internal company communications where privacy is important but recovery may be needed for audits or investigations.
-
-```yaml
-privacy:
-  enabled: true
-  mode: reversible
-  redact_phone: true
-  redact_email: true
-  replacement: "[REDACTED]"
-```
-
-Outputs:
-- **Scrubbed data** for processing and storage
-- **Reversibility map** (stored separately or encrypted) for authorized recovery
-
-### Irreversible Mode
-
-Redactions are permanent—no recovery possible.
-
-**Use case**: GDPR-compliant processing, public datasets, maximum privacy.
-
-```yaml
-privacy:
-  enabled: true
-  mode: irreversible
-  redact_email: true
-  redact_phone: true
-  blocked_words: [proprietary, confidential]
-  replacement: "[REDACTED]"
-```
-
-Once applied, redacted values cannot be recovered.
+| Layer | Technology |
+|-------|-----------|
+| Language | TypeScript |
+| Runtime | Bun |
+| Database | PGLite (embedded PostgreSQL) |
+| Vector Search | pgvector |
+| Embeddings | OpenAI / Ollama |
+| Web Framework | Hono |
+| MCP | @modelcontextprotocol/sdk |
+| Linter | Biome |
+| Tests | Vitest (800+ tests) |
 
 ## Development
 
-### Project Structure
-
-```
-digitalbrain-extractor/
-├── src/
-│   ├── cli.ts                     # CLI entry point (Commander.js)
-│   ├── core/
-│   │   ├── types.ts               # Core TypeScript interfaces
-│   │   ├── config.ts              # Configuration loader
-│   │   ├── pipeline.ts            # Pipeline orchestration
-│   │   ├── state.ts               # State directory management
-│   │   ├── dedup.ts               # Deduplication store
-│   │   ├── cursors.ts             # Pagination cursors
-│   │   ├── block-builder.ts        # Message blocking logic
-│   │   └── schemas.ts             # Zod validation schemas
-│   ├── collectors/
-│   │   ├── index.ts               # Collector registry
-│   │   └── agent/
-│   │       ├── claude-code.ts      # Claude Code collector
-│   │       ├── codex.ts            # Codex collector
-│   │       └── hermes.ts           # Hermes collector
-│   ├── extractors/
-│   │   ├── signal-extractor.ts     # LLM-powered extraction
-│   │   ├── noise-filter.ts         # Significance filtering
-│   │   └── providers/
-│   │       ├── types.ts            # LLM provider interface
-│   │       └── index.ts            # Provider factory
-│   ├── processors/
-│   │   └── privacy.ts              # Privacy processor
-│   ├── formatters/
-│   │   ├── index.ts                # Formatter registry
-│   │   ├── json.ts                 # JSON formatter
-│   │   └── markdown.ts             # Markdown formatter
-│   └── adapters/
-│       ├── index.ts                # Adapter registry
-│       ├── file.ts                 # File adapter
-│       ├── gbrain.ts               # GBrain adapter
-│       └── stdout.ts               # Stdout adapter
-├── tests/                          # Test files
-│   ├── cli.test.ts
-│   ├── fixtures/                   # Test data
-│   └── golden/                     # Expected outputs
-├── dbe.yaml                        # Configuration template
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts
-└── README.md
-```
-
-### Running Tests
-
 ```bash
-# Run all tests
+# Run tests
 bun run test
 
-# Watch mode (re-run on file changes)
+# Watch mode
 bun run test:watch
 
-# Run specific test file
-bun run test -- path/to/test.ts
+# Lint
+bun run lint
+
+# Auto-fix lint issues
+bun run lint:fix
 ```
 
-Tests use Vitest and include:
-- Unit tests for core components (dedup, block builder, privacy)
-- Integration tests for pipeline
-- CLI argument parsing tests
-- Golden output validation tests
-
-### Building
-
-```bash
-# Build to standalone executable
-bun run build
-
-# Output: dist/cli.js (can be run directly with `bun dist/cli.js`)
-```
-
-### Development Workflow
-
-1. **Modify code** in `src/`
-2. **Run tests** to verify: `bun run test:watch`
-3. **Test CLI** locally: `bun src/cli.ts extract --source claude-code --dry-run`
-4. **Commit changes**: Use conventional commits
-
-## Troubleshooting
-
-### No data being extracted
-
-```bash
-dbe doctor
-```
-
-Check:
-- Configuration file syntax (YAML must be valid)
-- LLM provider and API key are set
-- Source is accessible (`dbe sources test claude-code`)
-
-### "Configuration loading failed"
-
-Validate YAML syntax:
-
-```bash
-cat dbe.yaml | yq .
-```
-
-Or check for common issues:
-- Missing colons after keys
-- Inconsistent indentation (use 2 spaces, not tabs)
-- Unclosed quotes
-
-### LLM API errors
-
-Check API key is set:
-
-```bash
-# OpenAI
-echo $OPENAI_API_KEY
-
-# Or verify in config
-grep api_key dbe.yaml
-```
-
-### Pipeline hangs or times out
-
-Reduce load:
-
-```bash
-# Process fewer messages
-dbe extract --source claude-code --limit 100 --dry-run
-
-# Check block builder settings
-vim dbe.yaml  # Increase block_gap_minutes or reduce max_block_messages
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and guidelines.
 
 ## Contributing
 
-Contributions welcome! Ensure:
-
-- Code passes `bun run test`
-- CLI changes are documented in help text
-- New extractors follow the `Collector` interface
-- New adapters follow the `Adapter` interface
+Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
 
 ## License
 

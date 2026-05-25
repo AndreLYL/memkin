@@ -266,6 +266,43 @@ block_builder:
       unlinkSync(tmpConfig);
     }
   });
+
+  it("should parse store and embedding config with env interpolation", () => {
+    process.env.OPENAI_API_KEY = "test-key-123";
+    const yaml = `
+store:
+  data_dir: /tmp/memoark-test
+embedding:
+  provider: openai
+  model: text-embedding-3-large
+  dimensions: 1536
+  api_key: \${OPENAI_API_KEY}
+server:
+  http_port: 3927
+  mcp_transport: stdio
+`;
+    writeFileSync("dbe.yaml", yaml);
+    const config = loadConfig();
+    expect(config.store.data_dir).toBe("/tmp/memoark-test");
+    expect(config.embedding.provider).toBe("openai");
+    expect(config.embedding.dimensions).toBe(1536);
+    expect(config.embedding.api_key).toBe("test-key-123");
+    expect(config.server.http_port).toBe(3927);
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  it("should use defaults when store/embedding sections are absent", () => {
+    const yaml = `
+llm:
+  provider: mock
+`;
+    writeFileSync("dbe.yaml", yaml);
+    const config = loadConfig();
+    expect(config.store.data_dir).toBe("~/.memoark/data");
+    expect(config.embedding.provider).toBe("openai");
+    expect(config.embedding.dimensions).toBe(1536);
+    expect(config.server.http_port).toBe(3927);
+  });
 });
 
 describe("State directory management", () => {
