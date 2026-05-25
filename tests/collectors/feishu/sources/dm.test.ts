@@ -24,7 +24,7 @@ describe("DMSource", () => {
       create_time: "1716300000000",
       chat_id: chatId,
       msg_type: "text",
-      content: '{"text":"我发的消息"}',
+      body: { content: '{"text":"我发的消息"}' },
       sender: { id: selfOpenId, id_type: "open_id", sender_type: "user" },
     },
     {
@@ -34,7 +34,7 @@ describe("DMSource", () => {
       create_time: "1716300001000",
       chat_id: chatId,
       msg_type: "text",
-      content: '{"text":"对方的回复"}',
+      body: { content: '{"text":"对方的回复"}' },
       sender: { id: "ou_other_001", id_type: "open_id", sender_type: "user" },
     },
   ];

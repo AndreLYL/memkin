@@ -100,8 +100,11 @@ export class DMSource implements FeishuSource {
   }
 
   private parseContent(msg: FeishuMessage): string {
+    const raw = msg.body?.content;
+    if (!raw) return "";
+
     try {
-      const parsed = JSON.parse(msg.content);
+      const parsed = JSON.parse(raw);
 
       switch (msg.msg_type) {
         case "text":
@@ -109,18 +112,15 @@ export class DMSource implements FeishuSource {
 
         case "post": {
           const contentObj = parsed.content;
-          if (!contentObj) return "";
+          if (!contentObj) return parsed.title || "";
 
           const texts: string[] = [];
-          for (const langContent of Object.values(contentObj)) {
-            if (Array.isArray(langContent)) {
-              for (const block of langContent) {
-                if (Array.isArray(block)) {
-                  for (const node of block) {
-                    if ((node as Record<string, unknown>).text)
-                      texts.push((node as Record<string, unknown>).text as string);
-                  }
-                }
+          if (parsed.title) texts.push(parsed.title);
+          for (const block of Object.values(contentObj).flat() as unknown[][]) {
+            if (Array.isArray(block)) {
+              for (const node of block) {
+                if ((node as Record<string, unknown>).text)
+                  texts.push((node as Record<string, unknown>).text as string);
               }
             }
           }
@@ -142,10 +142,10 @@ export class DMSource implements FeishuSource {
         }
 
         default:
-          return msg.content;
+          return raw;
       }
     } catch {
-      return msg.content;
+      return raw;
     }
   }
 
@@ -153,9 +153,11 @@ export class DMSource implements FeishuSource {
     msg: FeishuMessage,
   ): Array<{ id: string; type: string; name?: string }> {
     const attachments: Array<{ id: string; type: string; name?: string }> = [];
+    const raw = msg.body?.content;
+    if (!raw) return attachments;
 
     try {
-      const parsed = JSON.parse(msg.content);
+      const parsed = JSON.parse(raw);
 
       if (msg.msg_type === "image" && parsed.image_key) {
         attachments.push({
