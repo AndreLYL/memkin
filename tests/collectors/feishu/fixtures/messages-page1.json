@@ -11,7 +11,7 @@
         "update_time": "1716300000000",
         "chat_id": "oc_test_chat_001",
         "msg_type": "text",
-        "content": "{\"text\":\"大家好，今天的站会讨论一下进度\"}",
+        "body": { "content": "{\"text\":\"大家好，今天的站会讨论一下进度\"}" },
         "sender": {
           "id": "ou_user_001",
           "id_type": "open_id",
@@ -27,7 +27,7 @@
         "update_time": "1716300060000",
         "chat_id": "oc_test_chat_001",
         "msg_type": "text",
-        "content": "{\"text\":\"我这边API开发完成了，等测试\"}",
+        "body": { "content": "{\"text\":\"我这边API开发完成了，等测试\"}" },
         "sender": {
           "id": "ou_user_002",
           "id_type": "open_id",
@@ -49,7 +49,7 @@
         "update_time": "1716300120000",
         "chat_id": "oc_test_chat_001",
         "msg_type": "image",
-        "content": "{\"image_key\":\"img_v3_001\"}",
+        "body": { "content": "{\"image_key\":\"img_v3_001\"}" },
         "sender": {
           "id": "ou_user_003",
           "id_type": "open_id",

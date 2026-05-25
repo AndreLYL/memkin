@@ -80,7 +80,7 @@ export interface FeishuMessage {
   update_time?: string;
   chat_id: string;
   msg_type: string;
-  content: string;
+  body?: { content: string };
   sender: {
     id: string;
     id_type: string;
