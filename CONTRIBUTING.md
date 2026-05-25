@@ -1,4 +1,4 @@
-# Contributing to DigitalBrainExtractor
+# Contributing to Memoark
 
 Thanks for your interest in contributing! This guide will help you get started.
 
@@ -6,8 +6,8 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 ```bash
 # Clone the repo
-git clone https://github.com/AndreLYL/digitalbrain-extractor.git
-cd digitalbrain-extractor
+git clone https://github.com/AndreLYL/memoark.git
+cd memoark
 
 # Install Bun (if not installed)
 curl -fsSL https://bun.sh/install | bash
@@ -67,7 +67,7 @@ bun run test -- path/to   # Run specific test file
 
 ## Reporting Issues
 
-Use [GitHub Issues](https://github.com/AndreLYL/digitalbrain-extractor/issues). Include:
+Use [GitHub Issues](https://github.com/AndreLYL/memoark/issues). Include:
 - Steps to reproduce
 - Expected vs actual behavior
 - Environment (OS, Bun version, Node version)
