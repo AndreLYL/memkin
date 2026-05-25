@@ -110,6 +110,32 @@ export interface SourcesConfig {
 }
 
 /**
+ * Store configuration for data persistence
+ */
+export interface StoreConfig {
+  data_dir: string;
+}
+
+/**
+ * Embedding configuration for vector storage
+ */
+export interface EmbeddingConfig {
+  provider: "openai" | "ollama";
+  model: string;
+  dimensions: number;
+  api_key?: string;
+  base_url?: string;
+}
+
+/**
+ * Server configuration for HTTP and MCP
+ */
+export interface ServerConfig {
+  http_port: number;
+  mcp_transport: "stdio" | "sse";
+}
+
+/**
  * Complete configuration interface
  */
 export interface Config {
@@ -118,6 +144,9 @@ export interface Config {
   block_builder: BlockBuilderConfig;
   adapters: AdaptersConfig;
   sources: SourcesConfig;
+  store: StoreConfig;
+  embedding: EmbeddingConfig;
+  server: ServerConfig;
 }
 
 /**
@@ -149,6 +178,18 @@ const DEFAULT_CONFIG: Config = {
     "claude-code": { enabled: true },
     codex: { enabled: true },
     hermes: { enabled: true },
+  },
+  store: {
+    data_dir: "~/.memoark/data",
+  },
+  embedding: {
+    provider: "openai",
+    model: "text-embedding-3-large",
+    dimensions: 1536,
+  },
+  server: {
+    http_port: 3927,
+    mcp_transport: "stdio",
   },
 };
 
