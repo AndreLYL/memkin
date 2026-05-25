@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BlockBuilder } from "../../src/core/block-builder";
 import type { RawMessage } from "../../src/core/types";
 
@@ -38,7 +38,9 @@ describe("BlockBuilder feishu thread grouping", () => {
 
     const blocks: any[] = [];
     for await (const block of builder.build(
-      (async function* () { for (const m of messages) yield m; })(),
+      (async function* () {
+        for (const m of messages) yield m;
+      })(),
     )) {
       blocks.push(block);
     }
@@ -67,7 +69,9 @@ describe("BlockBuilder feishu thread grouping", () => {
 
     const blocks: any[] = [];
     for await (const block of builder.build(
-      (async function* () { for (const m of messages) yield m; })(),
+      (async function* () {
+        for (const m of messages) yield m;
+      })(),
     )) {
       blocks.push(block);
     }
@@ -94,7 +98,9 @@ describe("BlockBuilder feishu thread grouping", () => {
 
     const blocks: any[] = [];
     for await (const block of builder.build(
-      (async function* () { for (const m of messages) yield m; })(),
+      (async function* () {
+        for (const m of messages) yield m;
+      })(),
     )) {
       blocks.push(block);
     }

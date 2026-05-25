@@ -72,7 +72,7 @@ export class FeishuHttpClient {
       if (NON_RETRYABLE_STATUS.has(res.status)) {
         let apiMsg = `HTTP ${res.status}`;
         try {
-          const body = await res.json() as { msg?: string };
+          const body = (await res.json()) as { msg?: string };
           if (body.msg) apiMsg = body.msg;
         } catch {}
         throw new FeishuApiError(apiMsg, res.status);
@@ -108,11 +108,9 @@ export class FeishuHttpClient {
       const reqParams = { ...params };
       if (pageToken) reqParams.page_token = pageToken;
 
-      const res = await this.request<{ code: number; data: PagedResult<T> }>(
-        "GET",
-        path,
-        { params: reqParams },
-      );
+      const res = await this.request<{ code: number; data: PagedResult<T> }>("GET", path, {
+        params: reqParams,
+      });
 
       const data = res.data;
       yield data;

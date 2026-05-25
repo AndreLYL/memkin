@@ -1,8 +1,8 @@
 import type { RawMessage } from "../../../core/types";
-import type { FeishuHttpClient } from "../http-client";
 import type { CursorStaging } from "../cursor-staging";
+import type { FeishuHttpClient } from "../http-client";
+import type { FeishuDocSourceConfig, FeishuDriveFile, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
-import type { FeishuDriveFile, FeishuDocSourceConfig, SourceCheckpoint } from "../types";
 
 export class DocSource implements FeishuSource {
   readonly name = "docs";
@@ -38,10 +38,10 @@ export class DocSource implements FeishuSource {
     let maxModifiedTime = 0;
     const isDeepFolder = this.deepFolders.has(folderToken);
 
-    for await (const page of this.client.paginate<FeishuDriveFile>(
-      "/open-apis/drive/v1/files",
-      { folder_token: folderToken, page_size: "50" },
-    )) {
+    for await (const page of this.client.paginate<FeishuDriveFile>("/open-apis/drive/v1/files", {
+      folder_token: folderToken,
+      page_size: "50",
+    })) {
       for (const file of page.items) {
         const modifiedTimeMs = Number.parseInt(file.modified_time, 10) * 1000;
 
@@ -123,7 +123,10 @@ export class DocSource implements FeishuSource {
         };
       }
     } catch (error) {
-      console.error(`[DocSource] Deep extract failed for ${file.token}, falling back to summary:`, error);
+      console.error(
+        `[DocSource] Deep extract failed for ${file.token}, falling back to summary:`,
+        error,
+      );
       yield this.mapFileSummary(file, folderToken);
     }
   }
@@ -135,7 +138,8 @@ export class DocSource implements FeishuSource {
     let lastTitle: string | null = null;
     let match: RegExpExecArray | null;
 
-    while ((match = headingRegex.exec(content)) !== null) {
+    match = headingRegex.exec(content);
+    while (match !== null) {
       if (match.index > lastIndex) {
         const text = content.slice(lastIndex, match.index).trim();
         if (text.length > 0) {
@@ -144,6 +148,7 @@ export class DocSource implements FeishuSource {
       }
       lastTitle = match[2];
       lastIndex = match.index + match[0].length;
+      match = headingRegex.exec(content);
     }
 
     const remaining = content.slice(lastIndex).trim();

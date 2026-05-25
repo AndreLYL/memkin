@@ -3,7 +3,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseExtractionResult, parseSignificanceVerdict, KnowledgeSchema } from "../../src/core/schemas.js";
+import {
+  KnowledgeSchema,
+  parseExtractionResult,
+  parseSignificanceVerdict,
+} from "../../src/core/schemas.js";
 import type { ExtractionResult, SignificanceVerdict } from "../../src/core/types.js";
 
 describe("ExtractionResult schema validation", () => {
@@ -440,21 +444,15 @@ describe("KnowledgeSchema", () => {
   });
 
   it("rejects empty topic", () => {
-    expect(() =>
-      KnowledgeSchema.parse({ ...validKnowledge, topic: "" })
-    ).toThrow();
+    expect(() => KnowledgeSchema.parse({ ...validKnowledge, topic: "" })).toThrow();
   });
 
   it("rejects invalid source_type", () => {
-    expect(() =>
-      KnowledgeSchema.parse({ ...validKnowledge, source_type: "unknown" })
-    ).toThrow();
+    expect(() => KnowledgeSchema.parse({ ...validKnowledge, source_type: "unknown" })).toThrow();
   });
 
   it("validates valid_at as ISO 8601 datetime", () => {
-    expect(() =>
-      KnowledgeSchema.parse({ ...validKnowledge, valid_at: "not-a-date" })
-    ).toThrow();
+    expect(() => KnowledgeSchema.parse({ ...validKnowledge, valid_at: "not-a-date" })).toThrow();
   });
 
   it("rejects invalid_at before valid_at", () => {
@@ -463,7 +461,7 @@ describe("KnowledgeSchema", () => {
         ...validKnowledge,
         valid_at: "2026-12-31T00:00:00Z",
         invalid_at: "2026-01-01T00:00:00Z",
-      })
+      }),
     ).toThrow();
   });
 

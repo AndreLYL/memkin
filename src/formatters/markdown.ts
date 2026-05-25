@@ -157,8 +157,12 @@ export class MarkdownFormatter implements Formatter {
         parts.push("");
         parts.push(knowledge.content);
         parts.push("");
-        parts.push(`**Source Type:** ${knowledge.source_type} | **Confidence:** ${knowledge.confidence}`);
-        parts.push(`**Related Entities:** ${knowledge.related_entities.length > 0 ? knowledge.related_entities.join(", ") : "none"}`);
+        parts.push(
+          `**Source Type:** ${knowledge.source_type} | **Confidence:** ${knowledge.confidence}`,
+        );
+        parts.push(
+          `**Related Entities:** ${knowledge.related_entities.length > 0 ? knowledge.related_entities.join(", ") : "none"}`,
+        );
         parts.push("");
       }
     }

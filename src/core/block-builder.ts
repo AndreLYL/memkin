@@ -35,7 +35,11 @@ export class BlockBuilder {
       let shouldSplit = false;
 
       // Rule 1: Thread/Reply boundary (highest priority)
-      if (currentBlock.length > 0 && currentThreadId !== undefined && currentThreadId !== effectiveThreadId) {
+      if (
+        currentBlock.length > 0 &&
+        currentThreadId !== undefined &&
+        currentThreadId !== effectiveThreadId
+      ) {
         shouldSplit = true;
       }
 

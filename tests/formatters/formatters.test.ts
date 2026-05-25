@@ -151,7 +151,8 @@ function createTestResult(): ExtractionResult {
     knowledge: [
       {
         topic: "jwt-expiration",
-        content: "Access tokens should be short-lived (minutes to hours) while refresh tokens can be longer-lived (days to weeks)",
+        content:
+          "Access tokens should be short-lived (minutes to hours) while refresh tokens can be longer-lived (days to weeks)",
         source_type: "teaching" as const,
         related_entities: ["auth-system", "alice-engineer"],
         source: createSourceRef(),

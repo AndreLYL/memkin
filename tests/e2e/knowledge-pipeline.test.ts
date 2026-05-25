@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:f
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GBrainAdapter } from "../../src/adapters/gbrain.js";
-import { parseExtractionResult } from "../../src/core/schemas.js";
 import type { PrivacyConfig } from "../../src/core/config.js";
+import { parseExtractionResult } from "../../src/core/schemas.js";
 import { MarkdownFormatter } from "../../src/formatters/markdown.js";
 import { PrivacyProcessor } from "../../src/processors/privacy.js";
 

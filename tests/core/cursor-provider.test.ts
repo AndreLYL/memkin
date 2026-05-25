@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CursorStore } from "../../src/core/cursors";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtempSync, rmSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { CursorStore } from "../../src/core/cursors";
 
 describe("Pipeline CursorProvider integration", () => {
   let dir: string;

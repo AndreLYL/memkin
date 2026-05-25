@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FeishuAuthManager } from "../../../src/collectors/feishu/auth";
 import { FeishuHttpClient } from "../../../src/collectors/feishu/http-client";
-import { FeishuAuthManager } from "../../../src/collectors/feishu/auth";
-import { FeishuRateLimiter } from "../../../src/collectors/feishu/rate-limiter";
+import type { FeishuRateLimiter } from "../../../src/collectors/feishu/rate-limiter";
 import { FeishuApiError } from "../../../src/collectors/feishu/types";
 
 describe("FeishuHttpClient", () => {
@@ -42,9 +42,16 @@ describe("FeishuHttpClient", () => {
 
   it("retries on 500 with exponential backoff", async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: false, status: 500, headers: new Headers(), json: async () => ({}) })
       .mockResolvedValueOnce({
-        ok: true, status: 200, headers: new Headers(),
+        ok: false,
+        status: 500,
+        headers: new Headers(),
+        json: async () => ({}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
         json: async () => ({ code: 0, data: {} }),
       });
 
@@ -55,9 +62,16 @@ describe("FeishuHttpClient", () => {
 
   it("refreshes token on 401 and retries once", async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: false, status: 401, headers: new Headers(), json: async () => ({}) })
       .mockResolvedValueOnce({
-        ok: true, status: 200, headers: new Headers(),
+        ok: false,
+        status: 401,
+        headers: new Headers(),
+        json: async () => ({}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
         json: async () => ({ code: 0, data: {} }),
       });
 
@@ -68,7 +82,9 @@ describe("FeishuHttpClient", () => {
 
   it("throws FeishuApiError on 403 without retry", async () => {
     mockFetch.mockResolvedValueOnce({
-      ok: false, status: 403, headers: new Headers(),
+      ok: false,
+      status: 403,
+      headers: new Headers(),
       json: async () => ({ code: 403, msg: "forbidden" }),
     });
 
@@ -81,7 +97,9 @@ describe("FeishuHttpClient", () => {
     mockFetch
       .mockResolvedValueOnce({ ok: false, status: 429, headers, json: async () => ({}) })
       .mockResolvedValueOnce({
-        ok: true, status: 200, headers: new Headers(),
+        ok: true,
+        status: 200,
+        headers: new Headers(),
         json: async () => ({ code: 0, data: {} }),
       });
 
@@ -92,11 +110,18 @@ describe("FeishuHttpClient", () => {
   it("paginates through multiple pages", async () => {
     mockFetch
       .mockResolvedValueOnce({
-        ok: true, status: 200, headers: new Headers(),
-        json: async () => ({ code: 0, data: { items: [{ id: "1" }], has_more: true, page_token: "pt1" } }),
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({
+          code: 0,
+          data: { items: [{ id: "1" }], has_more: true, page_token: "pt1" },
+        }),
       })
       .mockResolvedValueOnce({
-        ok: true, status: 200, headers: new Headers(),
+        ok: true,
+        status: 200,
+        headers: new Headers(),
         json: async () => ({ code: 0, data: { items: [{ id: "2" }], has_more: false } }),
       });
 

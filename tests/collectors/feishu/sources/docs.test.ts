@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
 import type { FeishuHttpClient } from "../../../../src/collectors/feishu/http-client";
 import { DocSource } from "../../../../src/collectors/feishu/sources/docs";
-import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
-import driveFilesData from "../fixtures/drive-files.json";
 import docRawContent from "../fixtures/doc-raw-content.json";
+import driveFilesData from "../fixtures/drive-files.json";
 
 function createMockClient(driveItems: unknown[], rawContent?: string): FeishuHttpClient {
   const requestMock = vi.fn().mockImplementation(async (_method: string, path: string) => {

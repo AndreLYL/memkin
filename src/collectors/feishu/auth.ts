@@ -24,7 +24,7 @@ export class FeishuAuthManager {
       return this.token;
     }
     await this.refreshToken();
-    return this.token!;
+    return this.token ?? "";
   }
 
   async healthCheck(): Promise<boolean> {

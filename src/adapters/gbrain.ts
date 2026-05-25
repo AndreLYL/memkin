@@ -408,7 +408,7 @@ export class GBrainAdapter implements Adapter {
       // Skip speculative knowledge
       if (knowledge.confidence === "speculative") {
         console.warn(
-          `Skipping speculative knowledge: ${knowledge.topic}/${knowledge.content.slice(0, 30)}`
+          `Skipping speculative knowledge: ${knowledge.topic}/${knowledge.content.slice(0, 30)}`,
         );
         result.skipped += 1;
         return result;
@@ -432,9 +432,11 @@ export class GBrainAdapter implements Adapter {
         const existingContent = await readFile(filepath, "utf-8");
 
         // Case 2: Same source_hash → skip (exact duplicate)
-        if (existingContent.includes(`source_hash: ${sourceHash}`) ||
-            existingContent.includes(`source_hash: "${sourceHash}"`) ||
-            existingContent.includes(`source_hash: '${sourceHash}'`)) {
+        if (
+          existingContent.includes(`source_hash: ${sourceHash}`) ||
+          existingContent.includes(`source_hash: "${sourceHash}"`) ||
+          existingContent.includes(`source_hash: '${sourceHash}'`)
+        ) {
           result.skipped += 1;
           return result;
         }
@@ -451,13 +453,13 @@ export class GBrainAdapter implements Adapter {
         // Update updated_at in frontmatter
         let updatedContent = existingContent.replace(
           /^(---\n[\s\S]*?)(---)/m,
-          (match, front, closing) => {
+          (_match, front, closing) => {
             const now = new Date().toISOString();
             if (front.includes("updated_at:")) {
               return front.replace(/updated_at:.*/, `updated_at: "${now}"`) + closing;
             }
             return `${front}updated_at: "${now}"\n${closing}`;
-          }
+          },
         );
 
         // Insert before "## Related Entities" section
@@ -468,7 +470,7 @@ export class GBrainAdapter implements Adapter {
             provenanceEntry +
             updatedContent.slice(relatedIdx);
         } else {
-          updatedContent = updatedContent + "\n" + provenanceEntry;
+          updatedContent = `${updatedContent}\n${provenanceEntry}`;
         }
 
         await writeFile(filepath, updatedContent, "utf-8");
@@ -512,7 +514,7 @@ export class GBrainAdapter implements Adapter {
       parts.push(`> ${knowledge.source.quote}`);
       parts.push("");
       parts.push(
-        `**Platform:** ${knowledge.source.platform} | **Channel:** ${knowledge.source.channel} | **Time:** ${knowledge.source.timestamp}`
+        `**Platform:** ${knowledge.source.platform} | **Channel:** ${knowledge.source.channel} | **Time:** ${knowledge.source.timestamp}`,
       );
       parts.push("");
 

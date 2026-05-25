@@ -91,32 +91,31 @@ export const DiscoverySchema = z.object({
   confidence: SignalConfidenceSchema,
 });
 
-export const KnowledgeSourceTypeSchema = z.enum([
-  'conversation', 'document', 'teaching'
-]);
+export const KnowledgeSourceTypeSchema = z.enum(["conversation", "document", "teaching"]);
 
 function normalizeTopicSlug(raw: string): string {
   const slug = raw
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-  return slug || 'uncategorized';
+  return slug || "uncategorized";
 }
 
-export const KnowledgeSchema = z.object({
-  topic: z.string().min(1).transform(normalizeTopicSlug),
-  content: z.string().min(1),
-  source_type: KnowledgeSourceTypeSchema,
-  related_entities: z.array(z.string()),
-  valid_at: z.string().datetime().optional(),
-  invalid_at: z.string().datetime().optional(),
-  source: SourceRefSchema,
-  confidence: SignalConfidenceSchema,
-}).refine(
-  (k) => !k.valid_at || !k.invalid_at || k.invalid_at > k.valid_at,
-  { message: "invalid_at must be after valid_at" }
-);
+export const KnowledgeSchema = z
+  .object({
+    topic: z.string().min(1).transform(normalizeTopicSlug),
+    content: z.string().min(1),
+    source_type: KnowledgeSourceTypeSchema,
+    related_entities: z.array(z.string()),
+    valid_at: z.string().datetime().optional(),
+    invalid_at: z.string().datetime().optional(),
+    source: SourceRefSchema,
+    confidence: SignalConfidenceSchema,
+  })
+  .refine((k) => !k.valid_at || !k.invalid_at || k.invalid_at > k.valid_at, {
+    message: "invalid_at must be after valid_at",
+  });
 
 // Full extraction result schema
 export const ExtractionResultSchema = z.object({

@@ -21,6 +21,18 @@
       "semicolons": "always"
     }
   },
+  "overrides": [
+    {
+      "includes": ["tests/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useYield": "warn"
+          }
+        }
+      }
+    }
+  ],
   "files": {
     "includes": [
       "**",

@@ -1,6 +1,6 @@
 import type { RawMessage } from "../../../core/types";
-import type { FeishuHttpClient } from "../http-client";
 import type { CursorStaging } from "../cursor-staging";
+import type { FeishuHttpClient } from "../http-client";
 import type { FeishuMessage, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
 
@@ -37,15 +37,12 @@ export class DMSource implements FeishuSource {
 
         let maxCreateTime = 0;
 
-        for await (const page of this.client.paginate<FeishuMessage>(
-          "/open-apis/im/v1/messages",
-          {
-            container_id_type: "chat",
-            container_id: chatId,
-            start_time: startSec,
-            end_time: endSec,
-          },
-        )) {
+        for await (const page of this.client.paginate<FeishuMessage>("/open-apis/im/v1/messages", {
+          container_id_type: "chat",
+          container_id: chatId,
+          start_time: startSec,
+          end_time: endSec,
+        })) {
           for (const msg of page.items) {
             const createTimeMs = Number.parseInt(msg.create_time, 10);
             if (createTimeMs > maxCreateTime) {
@@ -120,7 +117,8 @@ export class DMSource implements FeishuSource {
               for (const block of langContent) {
                 if (Array.isArray(block)) {
                   for (const node of block) {
-                    if ((node as Record<string, unknown>).text) texts.push((node as Record<string, unknown>).text as string);
+                    if ((node as Record<string, unknown>).text)
+                      texts.push((node as Record<string, unknown>).text as string);
                   }
                 }
               }
@@ -151,7 +149,9 @@ export class DMSource implements FeishuSource {
     }
   }
 
-  private extractAttachments(msg: FeishuMessage): Array<{ id: string; type: string; name?: string }> {
+  private extractAttachments(
+    msg: FeishuMessage,
+  ): Array<{ id: string; type: string; name?: string }> {
     const attachments: Array<{ id: string; type: string; name?: string }> = [];
 
     try {

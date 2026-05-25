@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { FeishuCollector, createFeishuCollector } from "../../../src/collectors/feishu/collector";
+import { describe, expect, it, vi } from "vitest";
+import { createFeishuCollector, FeishuCollector } from "../../../src/collectors/feishu/collector";
 import type { FeishuCollectorConfig } from "../../../src/collectors/feishu/types";
 import type { RawMessage } from "../../../src/core/types";
 
@@ -29,7 +29,10 @@ describe("FeishuCollector", () => {
 
   it("healthCheck passes with valid config", async () => {
     const collector = createFeishuCollector(baseConfig);
-    (collector as any).auth = { getToken: vi.fn().mockResolvedValue("t-ok"), forceRefresh: vi.fn() };
+    (collector as any).auth = {
+      getToken: vi.fn().mockResolvedValue("t-ok"),
+      forceRefresh: vi.fn(),
+    };
     const health = await collector.healthCheck();
     expect(health.ok).toBe(true);
   });
@@ -59,12 +62,16 @@ describe("FeishuCollector", () => {
     (collector as any).sources = [
       {
         name: "messages",
-        fetch: async function* () { yield mockMessages[0]; },
+        fetch: async function* () {
+          yield mockMessages[0];
+        },
         healthCheck: async () => true,
       },
       {
         name: "calendar",
-        fetch: async function* () { yield mockMessages[1]; },
+        fetch: async function* () {
+          yield mockMessages[1];
+        },
         healthCheck: async () => true,
       },
     ];
@@ -94,12 +101,16 @@ describe("FeishuCollector", () => {
     (collector as any).sources = [
       {
         name: "messages",
-        fetch: async function* () { throw new Error("API down"); },
+        fetch: async function* () {
+          throw new Error("API down");
+        },
         healthCheck: async () => true,
       },
       {
         name: "calendar",
-        fetch: async function* () { yield goodMsg; },
+        fetch: async function* () {
+          yield goodMsg;
+        },
         healthCheck: async () => true,
       },
     ];
@@ -117,8 +128,12 @@ describe("FeishuCollector", () => {
     const collector = createFeishuCollector(baseConfig);
 
     const msg: RawMessage = {
-      platform: "feishu", channel: "group/oc_chat_001", contact: "u1",
-      timestamp: new Date().toISOString(), content: "test", direction: "received",
+      platform: "feishu",
+      channel: "group/oc_chat_001",
+      contact: "u1",
+      timestamp: new Date().toISOString(),
+      content: "test",
+      direction: "received",
     };
 
     (collector as any).sources = [
@@ -133,7 +148,9 @@ describe("FeishuCollector", () => {
       },
     ];
 
-    for await (const _ of collector.fetch({})) { /* consume */ }
+    for await (const _ of collector.fetch({})) {
+      /* consume */
+    }
 
     const cursors = collector.getCommittableCursors();
     expect((cursors as any).messages.oc_chat_001.last_sync_at).toBe(1716300000000);
