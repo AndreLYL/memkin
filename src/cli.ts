@@ -16,6 +16,17 @@ import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
+import { Database } from "./store/database.js";
+import { PageStore } from "./store/pages.js";
+import { ChunkStore } from "./store/chunks.js";
+import { SearchEngine } from "./store/search.js";
+import { GraphStore } from "./store/graph.js";
+import { TagStore } from "./store/tags.js";
+import { TimelineStore } from "./store/timeline.js";
+import { EmbeddingService } from "./store/embedding.js";
+import { createApiApp } from "./server/api.js";
+import { createMcpServer } from "./server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 function bootstrapCollectors(sources: SourcesConfig): void {
   resetRegistry();
@@ -36,11 +47,35 @@ function bootstrapCollectors(sources: SourcesConfig): void {
   }
 }
 
+async function createStores(config: ReturnType<typeof loadConfig>) {
+  const db = await Database.create(config.store.data_dir);
+  const pages = new PageStore(db.pg);
+  const chunks = new ChunkStore(db.pg);
+  const embedding = new EmbeddingService(db.pg, {
+    provider: config.embedding.provider as "openai" | "ollama",
+    model: config.embedding.model,
+    dimensions: config.embedding.dimensions,
+    apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
+    baseUrl: config.embedding.base_url,
+  });
+  const search = new SearchEngine(db.pg, { embedText: (q) => embedding.embedText(q) });
+  return {
+    db,
+    pages,
+    chunks,
+    search,
+    graph: new GraphStore(db.pg),
+    tags: new TagStore(db.pg),
+    timeline: new TimelineStore(db.pg),
+    embedding,
+  };
+}
+
 const program = new Command();
 
 program
-  .name("dbe")
-  .description("Extract structured signals from communication platforms and AI agent sessions")
+  .name("memoark")
+  .description("Local-first personal memory extraction and storage")
   .version("0.1.0");
 
 /**
@@ -56,7 +91,7 @@ program
   )
   .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
   .option("-f, --format <type>", "Output format (json|markdown)", "json")
-  .option("-a, --adapter <type>", "Output adapter (file|gbrain|stdout)", "stdout")
+  .option("-a, --adapter <type>", "Output adapter (store|file|gbrain|stdout)", "store")
   .option("-o, --output <dir>", "Output directory for file adapter")
   .option("--since <date>", "Only process messages since date (ISO 8601 or relative: 1d, 2h, 30m)")
   .option("--limit <n>", "Limit number of messages to process", undefined)
@@ -111,10 +146,16 @@ program
 
       // Parse options
       const format = ["json", "markdown"].includes(options.format) ? options.format : "json";
-      const adapter = ["file", "gbrain", "stdout"].includes(options.adapter)
+      const adapter = ["store", "file", "gbrain", "stdout"].includes(options.adapter)
         ? options.adapter
-        : "stdout";
+        : "store";
       const limit = options.limit ? parseInt(options.limit, 10) : undefined;
+
+      // Create stores if using store adapter
+      let stores: Awaited<ReturnType<typeof createStores>> | undefined;
+      if (adapter === "store") {
+        stores = await createStores(config);
+      }
 
       // Parse relative since values
       let sinceValue = options.since;
@@ -164,7 +205,8 @@ program
             source: collector,
             provider,
             format: format as "json" | "markdown",
-            adapter: adapter as "file" | "gbrain" | "stdout",
+            adapter: adapter as "store" | "file" | "gbrain" | "stdout",
+            stores,
             dryRun: options.dryRun || false,
             since: sinceValue,
             limit,
@@ -196,6 +238,11 @@ program
           );
           anyFailed = true;
         }
+      }
+
+      // Close stores if they were created
+      if (stores) {
+        await stores.db.close();
       }
 
       if (anyFailed) {
@@ -446,6 +493,59 @@ sourcesCmd
       console.error("Test failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
+  });
+
+program
+  .command("serve")
+  .description("Start Memoark HTTP API or MCP stdio server")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--mcp", "Run MCP stdio transport instead of HTTP")
+  .action(async (options) => {
+    const config = loadConfig(options.config);
+    const stores = await createStores(config);
+    if (options.mcp) {
+      const server = createMcpServer(stores);
+      await server.connect(new StdioServerTransport());
+      return;
+    }
+    const app = createApiApp(stores);
+    const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
+    console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+  });
+
+program
+  .command("search <query>")
+  .description("Search Memoark memory")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--mode <mode>", "Search mode (hybrid|fts)", "hybrid")
+  .option("--limit <n>", "Limit results", "20")
+  .action(async (query, options) => {
+    const stores = await createStores(loadConfig(options.config));
+    const limit = Number(options.limit);
+    const results =
+      options.mode === "fts"
+        ? await stores.search.search(query, { limit })
+        : await stores.search.query(query, { limit });
+    for (const result of results) {
+      console.log(
+        `${result.slug}\t${result.score.toFixed(4)}\t${result.snippet.slice(0, 200)}`,
+      );
+    }
+    await stores.db.close();
+  });
+
+program
+  .command("embed")
+  .description("Embed stale Memoark chunks")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--limit <n>", "Limit chunks")
+  .action(async (options) => {
+    const stores = await createStores(loadConfig(options.config));
+    const result = await stores.embedding.embedStale({
+      limit: options.limit ? Number(options.limit) : undefined,
+    });
+    console.log(`Embedded ${result.embedded} chunks, errors ${result.errors}`);
+    await stores.db.close();
   });
 
 program.parse(process.argv);

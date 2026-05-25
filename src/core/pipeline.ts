@@ -7,6 +7,7 @@
 import { FileAdapter } from "../adapters/file.js";
 import { GBrainAdapter } from "../adapters/gbrain.js";
 import { StdoutAdapter } from "../adapters/stdout.js";
+import { StoreAdapter, type StoreAdapterContext } from "../adapters/store.js";
 import { filterNoise, type NoiseFilterVerdict } from "../extractors/noise-filter.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
@@ -46,7 +47,8 @@ export interface PipelineOpts {
   source: Collector;
   provider?: LLMProvider;
   format: "json" | "markdown";
-  adapter: "file" | "gbrain" | "stdout";
+  adapter: "store" | "file" | "gbrain" | "stdout";
+  stores?: StoreAdapterContext;
   dryRun?: boolean;
   since?: string;
   limit?: number;
@@ -189,7 +191,14 @@ export async function runPipeline(
     const _formatter = opts.format === "json" ? new JSONFormatter() : new MarkdownFormatter();
 
     let adapter: Adapter;
-    if (opts.adapter === "file") {
+    if (opts.adapter === "store") {
+      if (!opts.stores) {
+        result.fatal = true;
+        result.error = "Store adapter requires stores context to be provided";
+        return result;
+      }
+      adapter = new StoreAdapter(opts.stores);
+    } else if (opts.adapter === "file") {
       adapter = new FileAdapter({
         output_dir: config.output_dir,
         format: opts.format,
