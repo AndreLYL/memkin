@@ -5,6 +5,7 @@ import { Command } from "commander";
 import {
   createClaudeCodeCollector,
   createCodexCollector,
+  createFeishuCollector,
   createHermesCollector,
   getAllCollectors,
   getCollector,
@@ -18,16 +19,20 @@ import { createLLMProvider, createMockProvider } from "./extractors/providers/in
 
 function bootstrapCollectors(sources: SourcesConfig): void {
   resetRegistry();
-  const configs = {
+  const agentConfigs = {
     "claude-code": { factory: createClaudeCodeCollector, config: sources["claude-code"] },
     codex: { factory: createCodexCollector, config: sources.codex },
     hermes: { factory: createHermesCollector, config: sources.hermes },
   };
 
-  for (const [_id, { factory, config }] of Object.entries(configs)) {
+  for (const [_id, { factory, config }] of Object.entries(agentConfigs)) {
     if (config?.enabled !== false) {
       registerCollector(factory(config?.base_dir));
     }
+  }
+
+  if (sources.feishu?.enabled !== false && sources.feishu?.app_id) {
+    registerCollector(createFeishuCollector(sources.feishu));
   }
 }
 
@@ -46,7 +51,7 @@ program
   .description("Extract signals from a platform or source")
   .option(
     "-s, --source <name>",
-    "Source/collector name (e.g., claude-code, codex, hermes, or 'all' for all enabled sources)",
+    "Source/collector name (e.g., claude-code, codex, hermes, feishu, or 'all' for all enabled sources)",
     "claude-code",
   )
   .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
@@ -348,6 +353,29 @@ sources:
   hermes:
     enabled: true
     # base_dir: ~/.openclaw/agents/
+  feishu:
+    enabled: false
+    app_id: \${FEISHU_APP_ID}
+    app_secret: \${FEISHU_APP_SECRET}
+    # base_url: https://open.feishu.cn  # Optional, defaults to feishu.cn
+    # rate_limit_qps: 5
+    sources:
+      messages:
+        enabled: false
+        chat_ids: []
+        # lookback_days: 30
+      calendar:
+        enabled: false
+        calendar_ids: []
+      docs:
+        enabled: false
+        doc_folders: []
+      tasks:
+        enabled: false
+      dm:
+        enabled: false
+        dm_chat_ids: []
+        self_open_id: ""
 
 # Adapter configuration
 adapters:

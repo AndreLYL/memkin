@@ -71,10 +71,42 @@ export interface SourceConfig {
 /**
  * Sources configuration interface
  */
+export interface FeishuSourceConfig {
+  enabled?: boolean;
+  app_id: string;
+  app_secret: string;
+  base_url?: string;
+  rate_limit_qps?: number;
+  sources: {
+    messages?: {
+      enabled: boolean;
+      chat_ids: string[];
+      lookback_days?: number;
+      overlap_ms?: number;
+    };
+    calendar?: { enabled: boolean; calendar_ids: string[] };
+    docs?: {
+      enabled: boolean;
+      doc_folders: string[];
+      doc_deep_extract_folders?: string[];
+      doc_summary_max_chars?: number;
+    };
+    tasks?: { enabled: boolean };
+    dm?: {
+      enabled: boolean;
+      dm_chat_ids: string[];
+      self_open_id: string;
+      lookback_days?: number;
+      overlap_ms?: number;
+    };
+  };
+}
+
 export interface SourcesConfig {
   "claude-code"?: SourceConfig;
   codex?: SourceConfig;
   hermes?: SourceConfig;
+  feishu?: FeishuSourceConfig;
 }
 
 /**
