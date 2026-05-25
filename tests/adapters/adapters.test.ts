@@ -452,7 +452,11 @@ describe("GBrainAdapter", () => {
       ...createMockExtractionResult(),
       knowledge: [
         createMockKnowledge({
-          source: { ...createMockSourceRef(), raw_hash: "different-hash-002", quote: "Different source quote" },
+          source: {
+            ...createMockSourceRef(),
+            raw_hash: "different-hash-002",
+            quote: "Different source quote",
+          },
         }),
       ],
     };

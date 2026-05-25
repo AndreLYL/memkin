@@ -1,8 +1,8 @@
 import type { RawMessage } from "../../../core/types";
-import type { FeishuHttpClient } from "../http-client";
 import type { CursorStaging } from "../cursor-staging";
-import type { FeishuSource } from "./base";
+import type { FeishuHttpClient } from "../http-client";
 import type { FeishuCalendarEvent, FeishuCalendarSyncData, SourceCheckpoint } from "../types";
+import type { FeishuSource } from "./base";
 
 export class CalendarSource implements FeishuSource {
   readonly name = "calendar";
@@ -33,7 +33,9 @@ export class CalendarSource implements FeishuSource {
     const path = `/open-apis/calendar/v4/calendars/${calendarId}/events`;
     const params: Record<string, string> = {};
 
-    const calendarCheckpoint = checkpoint?.calendar?.[calendarId] as { sync_token?: string } | undefined;
+    const calendarCheckpoint = checkpoint?.calendar?.[calendarId] as
+      | { sync_token?: string }
+      | undefined;
     if (calendarCheckpoint?.sync_token) {
       params.sync_token = calendarCheckpoint.sync_token;
     } else {
@@ -78,11 +80,12 @@ export class CalendarSource implements FeishuSource {
     if (event.location?.name) parts.push(`地点: ${event.location.name}`);
     const content = parts.join("\n");
 
-    const attendees = event.attendees?.map((a) => ({
-      id: a.user_id ?? "unknown",
-      name: a.display_name ?? "unknown",
-      status: a.rsvp_status ?? "unknown",
-    })) ?? [];
+    const attendees =
+      event.attendees?.map((a) => ({
+        id: a.user_id ?? "unknown",
+        name: a.display_name ?? "unknown",
+        status: a.rsvp_status ?? "unknown",
+      })) ?? [];
 
     const metadata: Record<string, unknown> = {
       event_id: event.event_id,

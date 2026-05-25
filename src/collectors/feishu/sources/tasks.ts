@@ -1,8 +1,8 @@
 import type { RawMessage } from "../../../core/types";
-import type { FeishuHttpClient } from "../http-client";
 import type { CursorStaging } from "../cursor-staging";
-import type { FeishuSource } from "./base";
+import type { FeishuHttpClient } from "../http-client";
 import type { FeishuTask, SourceCheckpoint } from "../types";
+import type { FeishuSource } from "./base";
 
 export class TaskSource implements FeishuSource {
   readonly name = "tasks";
@@ -21,10 +21,7 @@ export class TaskSource implements FeishuSource {
 
     let maxUpdatedAt = 0;
 
-    for await (const page of this.client.paginate<FeishuTask>(
-      "/open-apis/task/v2/tasks",
-      params,
-    )) {
+    for await (const page of this.client.paginate<FeishuTask>("/open-apis/task/v2/tasks", params)) {
       for (const task of page.items) {
         const updatedAtMs = Number.parseInt(task.updated_at, 10) * 1000;
         if (updatedAtMs > maxUpdatedAt) {
@@ -58,13 +55,11 @@ export class TaskSource implements FeishuSource {
     if (task.description) parts.push(task.description);
     const content = parts.join("\n");
 
-    const assignees = task.members
-      ?.filter((m) => m.role === "assignee")
-      .map((m) => ({ id: m.id })) ?? [];
+    const assignees =
+      task.members?.filter((m) => m.role === "assignee").map((m) => ({ id: m.id })) ?? [];
 
-    const followers = task.members
-      ?.filter((m) => m.role === "follower")
-      .map((m) => ({ id: m.id })) ?? [];
+    const followers =
+      task.members?.filter((m) => m.role === "follower").map((m) => ({ id: m.id })) ?? [];
 
     const metadata: Record<string, unknown> = {
       task_id: task.guid,

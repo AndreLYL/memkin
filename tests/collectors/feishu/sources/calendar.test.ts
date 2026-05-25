@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
 import type { FeishuHttpClient } from "../../../../src/collectors/feishu/http-client";
 import { CalendarSource } from "../../../../src/collectors/feishu/sources/calendar";
-import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
 import fixtureData from "../fixtures/calendar-events.json";
 
 function createMockClient(responseData: unknown): FeishuHttpClient {
@@ -24,13 +24,23 @@ describe("CalendarSource", () => {
 
     expect(messages).toHaveLength(2);
 
-    const msg1 = messages[0] as { platform: string; channel: string; content: string; metadata?: { event_id?: string } };
+    const msg1 = messages[0] as {
+      platform: string;
+      channel: string;
+      content: string;
+      metadata?: { event_id?: string };
+    };
     expect(msg1.platform).toBe("feishu");
     expect(msg1.channel).toBe("calendar/cal_001");
     expect(msg1.content).toContain("Sprint Review Week 20");
     expect(msg1.metadata?.event_id).toBe("evt_001");
 
-    const msg2 = messages[1] as { platform: string; channel: string; content: string; metadata?: { event_id?: string } };
+    const msg2 = messages[1] as {
+      platform: string;
+      channel: string;
+      content: string;
+      metadata?: { event_id?: string };
+    };
     expect(msg2.platform).toBe("feishu");
     expect(msg2.channel).toBe("calendar/cal_001");
     expect(msg2.content).toContain("1:1 with Manager");
@@ -47,7 +57,9 @@ describe("CalendarSource", () => {
       messages.push(msg);
     }
 
-    const msg1 = messages[0] as { metadata?: { attendees?: Array<{ id?: string; name?: string; status?: string }> } };
+    const msg1 = messages[0] as {
+      metadata?: { attendees?: Array<{ id?: string; name?: string; status?: string }> };
+    };
     expect(msg1.metadata?.attendees).toHaveLength(2);
     expect(msg1.metadata?.attendees?.[0]).toEqual({
       id: "ou_user_001",
@@ -92,9 +104,13 @@ describe("CalendarSource", () => {
       // Just consume
     }
 
-    expect(requestMock).toHaveBeenCalledWith("GET", "/open-apis/calendar/v4/calendars/cal_001/events", {
-      params: { sync_token: "prior_token_xyz" },
-    });
+    expect(requestMock).toHaveBeenCalledWith(
+      "GET",
+      "/open-apis/calendar/v4/calendars/cal_001/events",
+      {
+        params: { sync_token: "prior_token_xyz" },
+      },
+    );
   });
 
   it("commits cursor even with 0 events", async () => {

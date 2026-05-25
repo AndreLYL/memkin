@@ -25,9 +25,7 @@
         "completed_at": "1716300000",
         "updated_at": "1716300000",
         "created_at": "1716100000",
-        "members": [
-          { "id": "ou_user_003", "type": "user", "role": "assignee" }
-        ],
+        "members": [{ "id": "ou_user_003", "type": "user", "role": "assignee" }],
         "priority": "none"
       }
     ],

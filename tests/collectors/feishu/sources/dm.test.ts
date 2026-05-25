@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { FeishuHttpClient, PagedResult } from "../../../../src/collectors/feishu/http-client";
-import type { FeishuMessage } from "../../../../src/collectors/feishu/types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
+import type { FeishuHttpClient, PagedResult } from "../../../../src/collectors/feishu/http-client";
 import { DMSource } from "../../../../src/collectors/feishu/sources/dm";
+import type { FeishuMessage } from "../../../../src/collectors/feishu/types";
 
 function createMockClient(items: FeishuMessage[]): FeishuHttpClient {
   return {

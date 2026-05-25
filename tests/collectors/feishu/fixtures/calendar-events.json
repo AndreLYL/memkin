@@ -11,8 +11,18 @@
         "end_time": { "timestamp": "1716303600" },
         "organizer": { "open_id": "ou_organizer_001", "display_name": "李四" },
         "attendees": [
-          { "type": "user", "user_id": "ou_user_001", "display_name": "张三", "rsvp_status": "accept" },
-          { "type": "user", "user_id": "ou_user_002", "display_name": "王五", "rsvp_status": "tentative" }
+          {
+            "type": "user",
+            "user_id": "ou_user_001",
+            "display_name": "张三",
+            "rsvp_status": "accept"
+          },
+          {
+            "type": "user",
+            "user_id": "ou_user_002",
+            "display_name": "王五",
+            "rsvp_status": "tentative"
+          }
         ],
         "location": { "name": "会议室 A301" },
         "status": "confirmed",

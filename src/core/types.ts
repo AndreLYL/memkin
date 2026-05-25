@@ -121,7 +121,7 @@ export interface Discovery {
   confidence: SignalConfidence;
 }
 
-export type KnowledgeSourceType = 'conversation' | 'document' | 'teaching';
+export type KnowledgeSourceType = "conversation" | "document" | "teaching";
 
 export interface Knowledge {
   topic: string;

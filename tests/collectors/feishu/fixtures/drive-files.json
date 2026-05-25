@@ -10,10 +10,7 @@
         "owner_id": "ou_user_001",
         "created_time": "1716200000",
         "modified_time": "1716300000",
-        "edit_users": [
-          { "open_id": "ou_user_001" },
-          { "open_id": "ou_user_002" }
-        ]
+        "edit_users": [{ "open_id": "ou_user_001" }, { "open_id": "ou_user_002" }]
       },
       {
         "token": "shtn_def456",

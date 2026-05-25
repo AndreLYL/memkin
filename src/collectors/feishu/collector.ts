@@ -3,12 +3,12 @@ import { FeishuAuthManager } from "./auth";
 import { CursorStaging } from "./cursor-staging";
 import { FeishuHttpClient } from "./http-client";
 import { FeishuRateLimiter } from "./rate-limiter";
-import { CalendarSource } from "./sources/calendar";
 import type { FeishuSource } from "./sources/base";
-import { MessageSource } from "./sources/messages";
-import { DocSource } from "./sources/docs";
-import { TaskSource } from "./sources/tasks";
+import { CalendarSource } from "./sources/calendar";
 import { DMSource } from "./sources/dm";
+import { DocSource } from "./sources/docs";
+import { MessageSource } from "./sources/messages";
+import { TaskSource } from "./sources/tasks";
 import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types";
 
 export class FeishuCollector implements Collector, CursorProvider {
@@ -39,15 +39,11 @@ export class FeishuCollector implements Collector, CursorProvider {
     }
 
     if (config.sources.calendar?.enabled) {
-      this.sources.push(
-        new CalendarSource(this.client, config.sources.calendar.calendar_ids),
-      );
+      this.sources.push(new CalendarSource(this.client, config.sources.calendar.calendar_ids));
     }
 
     if (config.sources.docs?.enabled) {
-      this.sources.push(
-        new DocSource(this.client, config.sources.docs),
-      );
+      this.sources.push(new DocSource(this.client, config.sources.docs));
     }
 
     if (config.sources.tasks?.enabled) {
@@ -86,7 +82,8 @@ export class FeishuCollector implements Collector, CursorProvider {
 
     for (const source of this.sources) {
       try {
-        const sourceCheckpoint = this.lastCheckpoint?.[source.name as keyof FeishuCheckpoint] ?? null;
+        const sourceCheckpoint =
+          this.lastCheckpoint?.[source.name as keyof FeishuCheckpoint] ?? null;
         yield* source.fetch(sourceCheckpoint, this.cursorStaging);
       } catch (err) {
         console.error(`feishu: source=${source.name} fatal error:`, err);

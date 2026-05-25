@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
 import type { FeishuHttpClient } from "../../../../src/collectors/feishu/http-client";
 import { TaskSource } from "../../../../src/collectors/feishu/sources/tasks";
-import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging";
 import fixtureData from "../fixtures/tasks.json";
 
 function createMockClient(items: unknown[]): FeishuHttpClient {
@@ -27,7 +27,9 @@ describe("TaskSource", () => {
     expect(messages).toHaveLength(2);
 
     const msg1 = messages[0] as {
-      platform: string; channel: string; content: string;
+      platform: string;
+      channel: string;
+      content: string;
       metadata?: { task_id?: string; status?: string; priority?: string };
     };
     expect(msg1.platform).toBe("feishu");
@@ -79,7 +81,9 @@ describe("TaskSource", () => {
     const source = new TaskSource(client);
     const staging = new CursorStaging();
 
-    for await (const _ of source.fetch(null, staging)) { /* consume */ }
+    for await (const _ of source.fetch(null, staging)) {
+      /* consume */
+    }
 
     const committable = staging.getCommittable();
     expect(committable).toHaveProperty("tasks");
@@ -100,7 +104,9 @@ describe("TaskSource", () => {
       default: { last_update_time: 1716200000000 },
     };
 
-    for await (const _ of source.fetch(checkpoint, staging)) { /* consume */ }
+    for await (const _ of source.fetch(checkpoint, staging)) {
+      /* consume */
+    }
 
     expect(paginateMock).toHaveBeenCalledWith(
       "/open-apis/task/v2/tasks",
