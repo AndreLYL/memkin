@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
-import { PageStore } from "../../src/store/pages.js";
 import { GraphStore } from "../../src/store/graph.js";
+import { PageStore } from "../../src/store/pages.js";
 
 describe("GraphStore", () => {
   let db: Database;
@@ -16,7 +16,9 @@ describe("GraphStore", () => {
     await pages.putPage("entities/bob", "---\ntitle: Bob\ntype: person\n---\nBob.");
     await pages.putPage("projects/memoark", "---\ntitle: Memoark\ntype: project\n---\nMemoark.");
   });
-  afterEach(async () => { await db.close(); });
+  afterEach(async () => {
+    await db.close();
+  });
 
   it("addLink creates a link between two pages", async () => {
     await graph.addLink("entities/alice", "projects/memoark", "works_on", "Lead engineer");

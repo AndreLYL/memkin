@@ -14,6 +14,16 @@ export interface GraphNode {
   depth: number;
 }
 
+interface SlugRow {
+  slug: string;
+}
+
+interface PageSummaryRow {
+  slug: string;
+  title: string;
+  type: string;
+}
+
 export class GraphStore {
   constructor(private pg: PGlite) {}
 
@@ -77,31 +87,31 @@ export class GraphStore {
       for (const current of frontier) {
         const neighbors: string[] = [];
         if (direction === "out" || direction === "both") {
-          const out = await this.pg.query(
+          const out = await this.pg.query<SlugRow>(
             `SELECT pt.slug FROM links l JOIN pages pt ON pt.id = l.to_page_id
              WHERE l.from_page_id = (SELECT id FROM pages WHERE slug = $1)`,
             [current],
           );
-          neighbors.push(...out.rows.map((r: any) => r.slug));
+          neighbors.push(...out.rows.map((r) => r.slug));
         }
         if (direction === "in" || direction === "both") {
-          const inc = await this.pg.query(
+          const inc = await this.pg.query<SlugRow>(
             `SELECT pf.slug FROM links l JOIN pages pf ON pf.id = l.from_page_id
              WHERE l.to_page_id = (SELECT id FROM pages WHERE slug = $1)`,
             [current],
           );
-          neighbors.push(...inc.rows.map((r: any) => r.slug));
+          neighbors.push(...inc.rows.map((r) => r.slug));
         }
         for (const n of neighbors) {
           if (!visited.has(n)) {
             visited.add(n);
             nextFrontier.push(n);
-            const page = await this.pg.query(
+            const page = await this.pg.query<PageSummaryRow>(
               "SELECT slug, title, type FROM pages WHERE slug = $1",
               [n],
             );
             if (page.rows.length > 0) {
-              const p = page.rows[0] as any;
+              const p = page.rows[0];
               result.push({ slug: p.slug, title: p.title, type: p.type, depth: d });
             }
           }

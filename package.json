@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "build": "bun build src/cli.ts --outfile dist/cli.js --target bun",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check src/ tests/",
     "lint:fix": "biome check --fix src/ tests/",
     "format": "biome format --write src/ tests/"
@@ -45,7 +46,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AndreLYL/digitalbrain-extractor.git"
+    "url": "https://github.com/AndreLYL/memoark.git"
   },
   "engines": {
     "bun": ">=1.0.0"
