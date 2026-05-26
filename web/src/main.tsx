@@ -1,11 +1,20 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { RouterProvider } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { router } from "./router";
 import "./styles/glow.css";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 10_000, retry: 1 },
+  },
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <div className="flex items-center justify-center min-h-screen">
-      <h1 className="text-2xl text-purple-400">Memoark</h1>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   </StrictMode>,
 );
