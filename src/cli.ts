@@ -524,7 +524,10 @@ program
       await server.connect(new StdioServerTransport());
       return;
     }
-    const app = createApiApp(stores);
+    const { Hono } = await import("hono");
+    const api = createApiApp(stores);
+    const app = new Hono();
+    app.route("/api", api);
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
   });
