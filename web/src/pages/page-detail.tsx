@@ -4,6 +4,7 @@ import { usePageBySlug } from "../hooks/use-pages";
 import { useTags } from "../hooks/use-tags";
 import { useChunks } from "../hooks/use-chunks";
 import { ContentTab } from "../components/page/content-tab";
+import { ChunksTab } from "../components/page/chunks-tab";
 
 const TABS = ["Content", "Chunks", "Links", "Timeline"] as const;
 type Tab = (typeof TABS)[number];
@@ -89,7 +90,7 @@ export function PageDetail() {
       </div>
 
       {activeTab === "Content" && <ContentTab compiledTruth={bodyContent} frontmatter={frontmatter} />}
-      {activeTab === "Chunks" && <div className="text-muted">Chunks tab — next task</div>}
+      {activeTab === "Chunks" && chunks && <ChunksTab chunks={chunks} />}
       {activeTab === "Links" && <div className="text-muted">Links tab — next task</div>}
       {activeTab === "Timeline" && <div className="text-muted">Timeline tab — next task</div>}
     </div>
