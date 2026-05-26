@@ -16,14 +16,18 @@ export class EmbeddingService {
   private model: string;
   private dimensions: number;
 
-  constructor(private pg: PGlite, config: EmbeddingConfig) {
+  constructor(
+    private pg: PGlite,
+    config: EmbeddingConfig,
+  ) {
     this.model = config.model ?? "text-embedding-3-large";
     this.dimensions = config.dimensions ?? 1536;
     this.client = new OpenAI({
       apiKey: config.apiKey ?? "",
-      baseURL: config.provider === "ollama"
-        ? (config.baseUrl ?? "http://localhost:11434/v1")
-        : config.baseUrl,
+      baseURL:
+        config.provider === "ollama"
+          ? (config.baseUrl ?? "http://localhost:11434/v1")
+          : config.baseUrl,
     });
   }
 
@@ -42,7 +46,10 @@ export class EmbeddingService {
     let errors = 0;
 
     for (let i = 0; i < stale.rows.length; i += BATCH_SIZE) {
-      const batch = stale.rows.slice(i, i + BATCH_SIZE) as Array<{ id: number; chunk_text: string }>;
+      const batch = stale.rows.slice(i, i + BATCH_SIZE) as Array<{
+        id: number;
+        chunk_text: string;
+      }>;
       const texts = batch.map((r) => r.chunk_text);
       try {
         const response = await this.client.embeddings.create({
@@ -52,14 +59,14 @@ export class EmbeddingService {
         });
         for (let j = 0; j < batch.length; j++) {
           const vec = response.data[j].embedding;
-          const vecStr = "[" + vec.join(",") + "]";
+          const vecStr = `[${vec.join(",")}]`;
           await this.pg.query(
             `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW() WHERE id = $2`,
-            [vecStr, batch[j].id]
+            [vecStr, batch[j].id],
           );
           embedded++;
         }
-      } catch (err) {
+      } catch (_err) {
         errors += batch.length;
       }
     }

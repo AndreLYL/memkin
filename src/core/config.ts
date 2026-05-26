@@ -251,7 +251,10 @@ function mergeConfig(
       typeof defaultValue === "object" &&
       !Array.isArray(defaultValue)
     ) {
-      result[key] = mergeConfig(defaultValue, userValue);
+      result[key] = mergeConfig(
+        defaultValue as Record<string, unknown>,
+        userValue as Record<string, unknown>,
+      );
     } else {
       // Otherwise, user value overrides default
       result[key] = userValue;
@@ -291,5 +294,5 @@ export function loadConfig(filePath?: string): Config {
   // Merge with defaults
   const merged = mergeConfig(DEFAULT_CONFIG as unknown as Record<string, unknown>, userConfig);
 
-  return merged as Config;
+  return merged as unknown as Config;
 }

@@ -73,7 +73,7 @@ export const DecisionSchema = z.object({
 export const TaskSignalSchema = z.object({
   title: z.string(),
   status: z.enum(["open", "in_progress", "done", "cancelled"]),
-  owner: z.string().nullable().optional(),
+  owner: z.string().optional(),
   project: z.string().optional(),
   due_date: z.string().optional(), // ISO 8601
   valid_at: z.string().optional(), // ISO 8601

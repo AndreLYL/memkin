@@ -52,13 +52,13 @@ export class ChunkStore {
              WHEN EXCLUDED.chunk_text != content_chunks.chunk_text THEN NULL
              ELSE content_chunks.embedded_at
            END`,
-        [pageId, i, textChunks[i], wordCount]
+        [pageId, i, textChunks[i], wordCount],
       );
     }
-    await this.pg.query(
-      "DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2",
-      [pageId, textChunks.length]
-    );
+    await this.pg.query("DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2", [
+      pageId,
+      textChunks.length,
+    ]);
   }
 
   async getChunks(pageSlug: string): Promise<Chunk[]> {
@@ -67,7 +67,7 @@ export class ChunkStore {
        JOIN pages p ON p.id = cc.page_id
        WHERE p.slug = $1
        ORDER BY cc.chunk_index`,
-      [pageSlug]
+      [pageSlug],
     );
     return result.rows as Chunk[];
   }

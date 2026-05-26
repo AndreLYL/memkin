@@ -11,8 +11,6 @@ import { StoreAdapter, type StoreAdapterContext } from "../adapters/store.js";
 import { filterNoise, type NoiseFilterVerdict } from "../extractors/noise-filter.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
-import { JSONFormatter } from "../formatters/json.js";
-import { MarkdownFormatter } from "../formatters/markdown.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
 import { BlockBuilder } from "./block-builder.js";
 import type { PrivacyConfig } from "./config.js";
@@ -188,7 +186,6 @@ export async function runPipeline(
 
     const extractor = createSignalExtractor(opts.provider);
     const privacyProcessor = new PrivacyProcessor(config.privacy);
-    const _formatter = opts.format === "json" ? new JSONFormatter() : new MarkdownFormatter();
 
     let adapter: Adapter;
     if (opts.adapter === "store") {
@@ -204,7 +201,9 @@ export async function runPipeline(
         format: opts.format,
       });
     } else if (opts.adapter === "gbrain") {
-      adapter = new GBrainAdapter();
+      adapter = new GBrainAdapter({
+        output_dir: config.output_dir,
+      });
     } else {
       adapter = new StdoutAdapter();
     }
