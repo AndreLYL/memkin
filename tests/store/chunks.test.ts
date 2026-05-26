@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ChunkStore } from "../../src/store/chunks.js";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
-import { ChunkStore } from "../../src/store/chunks.js";
 
 describe("ChunkStore", () => {
   let db: Database;
@@ -45,7 +45,7 @@ describe("ChunkStore", () => {
     await db.pg.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()
        WHERE page_id = $2`,
-      ["[" + Array(1536).fill("0.1").join(",") + "]", page.id]
+      [`[${Array(1536).fill("0.1").join(",")}]`, page.id],
     );
     await chunks.rechunk(page.id, "Stable content.");
     const result = await chunks.getChunks("test/stable");
@@ -58,7 +58,7 @@ describe("ChunkStore", () => {
     await db.pg.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()
        WHERE page_id = $2`,
-      ["[" + Array(1536).fill("0.1").join(",") + "]", page.id]
+      [`[${Array(1536).fill("0.1").join(",")}]`, page.id],
     );
     await chunks.rechunk(page.id, "New different content.");
     const result = await chunks.getChunks("test/changed");
@@ -97,7 +97,7 @@ describe("ChunkStore", () => {
     await chunks.rechunk(page.id, "Hello world full text search.");
     const result = await db.pg.query(
       "SELECT search_vector IS NOT NULL AS has_sv FROM content_chunks WHERE page_id = $1",
-      [page.id]
+      [page.id],
     );
     expect(result.rows[0].has_sv).toBe(true);
   });

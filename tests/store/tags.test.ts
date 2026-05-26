@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
 import { TagStore } from "../../src/store/tags.js";
@@ -13,7 +13,9 @@ describe("TagStore", () => {
     pages = new PageStore(db.pg);
     tags = new TagStore(db.pg);
   });
-  afterEach(async () => { await db.close(); });
+  afterEach(async () => {
+    await db.close();
+  });
 
   it("addTag and getTags", async () => {
     await pages.putPage("test/tagged", "---\ntitle: T\ntype: test\n---\nBody.");

@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { Database } from "../../src/store/database.js";
-import { PageStore } from "../../src/store/pages.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChunkStore } from "../../src/store/chunks.js";
+import { Database } from "../../src/store/database.js";
 import { GraphStore } from "../../src/store/graph.js";
+import { PageStore } from "../../src/store/pages.js";
 import { SearchEngine } from "../../src/store/search.js";
 
 const mockEmbedText = vi.fn().mockResolvedValue(Array(1536).fill(0.5));
@@ -21,19 +21,27 @@ describe("SearchEngine — hybrid query", () => {
     graphStore = new GraphStore(db.pg);
     search = new SearchEngine(db.pg, { embedText: mockEmbedText });
 
-    const p1 = await pageStore.putPage("entities/alice",
-      "---\ntitle: Alice\ntype: person\n---\nAlice is an expert in machine learning and distributed systems.");
+    const p1 = await pageStore.putPage(
+      "entities/alice",
+      "---\ntitle: Alice\ntype: person\n---\nAlice is an expert in machine learning and distributed systems.",
+    );
     await chunkStore.rechunk(p1.id, p1.compiled_truth);
 
-    const p2 = await pageStore.putPage("entities/bob",
-      "---\ntitle: Bob\ntype: person\n---\nBob works on frontend development and design systems.");
+    const p2 = await pageStore.putPage(
+      "entities/bob",
+      "---\ntitle: Bob\ntype: person\n---\nBob works on frontend development and design systems.",
+    );
     await chunkStore.rechunk(p2.id, p2.compiled_truth);
 
-    const vecStr = "[" + Array(1536).fill("0.5").join(",") + "]";
-    await db.pg.query(`UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()`, [vecStr]);
+    const vecStr = `[${Array(1536).fill("0.5").join(",")}]`;
+    await db.pg.query(`UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()`, [
+      vecStr,
+    ]);
   });
 
-  afterEach(async () => { await db.close(); });
+  afterEach(async () => {
+    await db.close();
+  });
 
   it("query returns results combining FTS and vector", async () => {
     const results = await search.query("machine learning");
@@ -56,11 +64,17 @@ describe("SearchEngine — hybrid query", () => {
   });
 
   it("query deduplicates per page (keeps highest score chunk)", async () => {
-    const p = await pageStore.putPage("docs/long", "---\ntitle: Long Doc\ntype: doc\n---\nA long document.");
+    const p = await pageStore.putPage(
+      "docs/long",
+      "---\ntitle: Long Doc\ntype: doc\n---\nA long document.",
+    );
     const longContent = Array.from({ length: 400 }, (_, i) => `content${i}`).join(" ");
     await chunkStore.rechunk(p.id, longContent);
-    const vecStr = "[" + Array(1536).fill("0.5").join(",") + "]";
-    await db.pg.query(`UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW() WHERE page_id = $2`, [vecStr, p.id]);
+    const vecStr = `[${Array(1536).fill("0.5").join(",")}]`;
+    await db.pg.query(
+      `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW() WHERE page_id = $2`,
+      [vecStr, p.id],
+    );
     const results = await search.query("content0");
     const docsResults = results.filter((r) => r.slug === "docs/long");
     expect(docsResults.length).toBeLessThanOrEqual(1);
