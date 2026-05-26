@@ -25,5 +25,5 @@ export class DefaultAdapterRegistry implements AdapterRegistry {
   }
 }
 
-export { FileAdapter, GBrainAdapter, StdoutAdapter };
 export { StoreAdapter, type StoreAdapterContext } from "./store.js";
+export { FileAdapter, GBrainAdapter, StdoutAdapter };

@@ -177,7 +177,7 @@ describe("E2E Pipeline Tests", () => {
   let config: PipelineConfig;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "dbe-e2e-"));
+    tempDir = await mkdtemp(join(tmpdir(), "memoark-e2e-"));
     config = {
       dedup_checkpoint: join(tempDir, "dedup.jsonl"),
       cursor_checkpoint: join(tempDir, "cursors.yaml"),
@@ -423,7 +423,7 @@ describe("E2E Pipeline Tests", () => {
     expect(processed.entities[0].context).toContain("[REDACTED_PHONE]");
 
     // Check redaction map file created
-    const _redactionMapPath = join(tempDir, ".dbe-state", "redaction_map.jsonl");
+    const _redactionMapPath = join(tempDir, ".memoark-state", "redaction_map.jsonl");
     // Note: In actual implementation, the processor should write to state dir
     // For now, we verify the redaction logic works
   });

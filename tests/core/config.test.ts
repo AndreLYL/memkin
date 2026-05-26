@@ -10,7 +10,7 @@ import { loadConfig } from "../../src/core/config.js";
 import { ensureStateDir, statePath } from "../../src/core/state.js";
 
 // Create a temporary test directory
-const testDir = resolve(`/tmp/dbe-test-${Date.now()}`);
+const testDir = resolve(`/tmp/memoark-test-${Date.now()}`);
 
 describe("Config loader", () => {
   beforeEach(() => {
@@ -69,7 +69,7 @@ block_builder:
   block_gap_minutes: 60
   max_block_tokens: 8000
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     expect(config.privacy.enabled).toBe(false);
@@ -90,7 +90,7 @@ block_builder:
 llm:
   provider: custom-provider
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     // User override
@@ -110,7 +110,7 @@ llm:
   provider: \${TEST_PROVIDER}
   api_key: \${TEST_API_KEY}
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     expect(config.llm.provider).toBe("my-provider");
@@ -126,7 +126,7 @@ llm:
   api_key: \${MISSING_VAR}
   base_url: \${ANOTHER_MISSING}
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     expect(config.llm.api_key).toBe("");
@@ -143,7 +143,7 @@ privacy:
     - \${TEST_WORD1}
     - \${TEST_WORD2}
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     expect(config.privacy.blocked_words).toEqual(["secret", "private"]);
@@ -159,7 +159,7 @@ privacy:
 privacy:
   replacement: "[REDACTED-\${TEST_ENV}]"
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     expect(config.privacy.replacement).toBe("[REDACTED-prod]");
@@ -184,7 +184,7 @@ llm:
   });
 
   it("should handle empty YAML file", () => {
-    writeFileSync("dbe.yaml", "");
+    writeFileSync("memoark.yaml", "");
     const config = loadConfig();
 
     // All defaults should be applied
@@ -197,7 +197,7 @@ llm:
 privacy:
   enabled: [invalid yaml
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
 
     expect(() => loadConfig()).toThrow();
   });
@@ -213,7 +213,7 @@ adapters:
     enabled: true
     output_dir: /tmp/output
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     // Verify nested privacy merging
@@ -236,7 +236,7 @@ block_builder:
   max_block_tokens: 5000
   max_block_messages: 50
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
     // Verify all values are correct type
@@ -256,7 +256,7 @@ block_builder:
   });
 
   it("should allow disabling a source", () => {
-    const tmpConfig = resolve(os.tmpdir(), `dbe-test-${Date.now()}.yaml`);
+    const tmpConfig = resolve(os.tmpdir(), `memoark-test-${Date.now()}.yaml`);
     writeFileSync(tmpConfig, "sources:\n  codex:\n    enabled: false\n");
     try {
       const config = loadConfig(tmpConfig);
@@ -281,7 +281,7 @@ server:
   http_port: 3927
   mcp_transport: stdio
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
     expect(config.store.data_dir).toBe("/tmp/memoark-test");
     expect(config.embedding.provider).toBe("openai");
@@ -296,7 +296,7 @@ server:
 llm:
   provider: mock
 `;
-    writeFileSync("dbe.yaml", yaml);
+    writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
     expect(config.store.data_dir).toBe("~/.memoark/data");
     expect(config.embedding.provider).toBe("openai");
@@ -322,14 +322,14 @@ describe("State directory management", () => {
     }
   });
 
-  it("should create .dbe directory if it does not exist", () => {
+  it("should create .memoark directory if it does not exist", () => {
     const stateDir = ensureStateDir();
 
     expect(existsSync(stateDir)).toBe(true);
-    expect(stateDir).toBe(resolve(process.cwd(), ".dbe"));
+    expect(stateDir).toBe(resolve(process.cwd(), ".memoark"));
   });
 
-  it("should return existing .dbe directory without error", () => {
+  it("should return existing .memoark directory without error", () => {
     // First call creates it
     const stateDir1 = ensureStateDir();
     // Second call should not error and return same path
@@ -345,7 +345,7 @@ describe("State directory management", () => {
 
     const stateDir = ensureStateDir(customBase);
 
-    expect(stateDir).toBe(resolve(customBase, ".dbe"));
+    expect(stateDir).toBe(resolve(customBase, ".memoark"));
     expect(existsSync(stateDir)).toBe(true);
   });
 
@@ -353,18 +353,18 @@ describe("State directory management", () => {
     ensureStateDir();
     const path = statePath("cursors.yaml");
 
-    expect(path).toBe(resolve(process.cwd(), ".dbe", "cursors.yaml"));
+    expect(path).toBe(resolve(process.cwd(), ".memoark", "cursors.yaml"));
   });
 
   it("should return correct path for different state files", () => {
     ensureStateDir();
 
     expect(statePath("checkpoints.jsonl")).toBe(
-      resolve(process.cwd(), ".dbe", "checkpoints.jsonl"),
+      resolve(process.cwd(), ".memoark", "checkpoints.jsonl"),
     );
-    expect(statePath("cursors.yaml")).toBe(resolve(process.cwd(), ".dbe", "cursors.yaml"));
+    expect(statePath("cursors.yaml")).toBe(resolve(process.cwd(), ".memoark", "cursors.yaml"));
     expect(statePath("redaction_map.jsonl")).toBe(
-      resolve(process.cwd(), ".dbe", "redaction_map.jsonl"),
+      resolve(process.cwd(), ".memoark", "redaction_map.jsonl"),
     );
   });
 
@@ -378,11 +378,11 @@ describe("State directory management", () => {
     expect(readFileSync(path, "utf-8")).toBe("test content");
   });
 
-  it("should handle nested .dbe directory creation", () => {
+  it("should handle nested .memoark directory creation", () => {
     const nestedBase = resolve(testDir, "a", "b", "c");
     const stateDir = ensureStateDir(nestedBase);
 
     expect(existsSync(stateDir)).toBe(true);
-    expect(stateDir).toBe(resolve(nestedBase, ".dbe"));
+    expect(stateDir).toBe(resolve(nestedBase, ".memoark"));
   });
 });

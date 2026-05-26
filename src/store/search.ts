@@ -19,14 +19,14 @@ const BACKLINK_BOOST_FACTOR = 0.05;
 export class SearchEngine {
   private embedText?: (text: string) => Promise<number[]>;
 
-  constructor(private pg: PGlite, opts?: SearchEngineOpts) {
+  constructor(
+    private pg: PGlite,
+    opts?: SearchEngineOpts,
+  ) {
     this.embedText = opts?.embedText;
   }
 
-  async search(
-    query: string,
-    opts?: { limit?: number }
-  ): Promise<SearchResult[]> {
+  async search(query: string, opts?: { limit?: number }): Promise<SearchResult[]> {
     const limit = opts?.limit ?? 20;
 
     const tsquery = query
@@ -54,7 +54,7 @@ export class SearchEngine {
        WHERE p.search_vector @@ to_tsquery('simple', $1)
        ORDER BY page_rank DESC
        LIMIT $2`,
-      [tsquery, limit]
+      [tsquery, limit],
     );
 
     return result.rows.map((row: any) => ({
@@ -66,22 +66,33 @@ export class SearchEngine {
     }));
   }
 
-  async query(
-    query: string,
-    opts?: { limit?: number }
-  ): Promise<SearchResult[]> {
+  async query(query: string, opts?: { limit?: number }): Promise<SearchResult[]> {
     const limit = opts?.limit ?? 20;
     const [ftsResults, vectorResults] = await Promise.all([
       this.ftsChunkSearch(query),
       this.vectorSearch(query),
     ]);
 
-    const scoreMap = new Map<string, {
-      slug: string; title: string; type: string; snippet: string; score: number; chunk_source: string;
-    }>();
+    const scoreMap = new Map<
+      string,
+      {
+        slug: string;
+        title: string;
+        type: string;
+        snippet: string;
+        score: number;
+        chunk_source: string;
+      }
+    >();
 
     const addRanked = (
-      results: Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>,
+      results: Array<{
+        slug: string;
+        title: string;
+        type: string;
+        snippet: string;
+        chunk_source: string;
+      }>,
     ) => {
       for (let rank = 0; rank < results.length; rank++) {
         const r = results[rank];
@@ -90,8 +101,12 @@ export class SearchEngine {
         const newScore = (existing?.score ?? 0) + rrfScore;
         if (!existing || newScore > existing.score) {
           scoreMap.set(r.slug, {
-            slug: r.slug, title: r.title, type: r.type,
-            snippet: existing?.snippet || r.snippet, score: newScore, chunk_source: r.chunk_source,
+            slug: r.slug,
+            title: r.title,
+            type: r.type,
+            snippet: existing?.snippet || r.snippet,
+            score: newScore,
+            chunk_source: r.chunk_source,
           });
         } else {
           existing.score = newScore;
@@ -113,9 +128,9 @@ export class SearchEngine {
       for (const slug of slugs) {
         const bl = await this.pg.query(
           `SELECT COUNT(*) AS cnt FROM links l JOIN pages p ON p.id = l.to_page_id WHERE p.slug = $1`,
-          [slug]
+          [slug],
         );
-        const backlinkCount = Number(bl.rows[0].cnt);
+        const backlinkCount = Number((bl.rows[0] as Record<string, unknown>).cnt);
         if (backlinkCount > 0) {
           const entry = scoreMap.get(slug)!;
           entry.score *= 1 + BACKLINK_BOOST_FACTOR * Math.log(1 + backlinkCount);
@@ -130,8 +145,10 @@ export class SearchEngine {
   }
 
   private async ftsChunkSearch(
-    query: string
-  ): Promise<Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>> {
+    query: string,
+  ): Promise<
+    Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>
+  > {
     const tsquery = query
       .trim()
       .split(/\s+/)
@@ -150,24 +167,26 @@ export class SearchEngine {
        FROM content_chunks cc JOIN pages p ON p.id = cc.page_id
        WHERE cc.search_vector @@ to_tsquery('simple', $1)
        ORDER BY chunk_rank DESC LIMIT 50`,
-      [tsquery]
+      [tsquery],
     );
     return result.rows as any[];
   }
 
   private async vectorSearch(
-    query: string
-  ): Promise<Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>> {
+    query: string,
+  ): Promise<
+    Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>
+  > {
     if (!this.embedText) return [];
     const queryVec = await this.embedText(query);
-    const vecStr = "[" + queryVec.join(",") + "]";
+    const vecStr = `[${queryVec.join(",")}]`;
     const result = await this.pg.query(
       `SELECT p.slug, p.title, p.type, cc.chunk_source,
          cc.chunk_text AS snippet, 1 - (cc.embedding <=> $1::vector) AS cosine_sim
        FROM content_chunks cc JOIN pages p ON p.id = cc.page_id
        WHERE cc.embedding IS NOT NULL
        ORDER BY cc.embedding <=> $1::vector LIMIT 50`,
-      [vecStr]
+      [vecStr],
     );
     return result.rows as any[];
   }

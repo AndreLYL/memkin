@@ -15,7 +15,7 @@ export class TimelineStore {
 
   async addEntry(
     pageSlug: string,
-    entry: { date: string; summary: string; detail?: string; source?: string }
+    entry: { date: string; summary: string; detail?: string; source?: string },
   ): Promise<void> {
     await this.pg.query(
       `INSERT INTO timeline_entries (page_id, date, summary, detail, source)
@@ -23,7 +23,7 @@ export class TimelineStore {
        ON CONFLICT (page_id, date, summary) DO UPDATE SET
          detail = EXCLUDED.detail,
          source = EXCLUDED.source`,
-      [pageSlug, entry.date, entry.summary, entry.detail ?? "", entry.source ?? ""]
+      [pageSlug, entry.date, entry.summary, entry.detail ?? "", entry.source ?? ""],
     );
   }
 
@@ -33,7 +33,7 @@ export class TimelineStore {
        JOIN pages p ON p.id = te.page_id
        WHERE p.slug = $1
        ORDER BY te.date DESC`,
-      [pageSlug]
+      [pageSlug],
     );
     return result.rows as TimelineEntry[];
   }

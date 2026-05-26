@@ -1,5 +1,4 @@
-# DigitalBrainExtractor Configuration
-# Save this file as dbe.yaml in your project directory
+# Memoark Configuration
 
 # Privacy configuration
 privacy:
@@ -26,6 +25,15 @@ block_builder:
   max_block_tokens: 4000  # Maximum tokens per block
   max_block_messages: 100  # Maximum messages per block
 
+# Source configuration
+sources:
+  claude-code:
+    enabled: true
+  codex:
+    enabled: true
+  hermes:
+    enabled: true
+
 # Adapter configuration
 adapters:
   file:
@@ -34,3 +42,18 @@ adapters:
   gbrain:
     enabled: false
     output_dir: ./gbrain-output
+
+# Store (PGLite embedded PostgreSQL)
+store:
+  data_dir: ~/.memoark/data
+
+# Embedding configuration
+embedding:
+  provider: openai           # openai | ollama
+  model: text-embedding-3-large
+  dimensions: 1536
+  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
+
+# Server configuration
+server:
+  http_port: 3927
