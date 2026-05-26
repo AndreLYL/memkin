@@ -1,13 +1,13 @@
 /**
  * State directory management for DigitalBrainExtractor
- * Ensures .dbe/ directory exists and provides path utilities
+ * Ensures .memoark/ directory exists and provides path utilities
  */
 
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Ensure state directory exists (creates .dbe/ in base directory)
+ * Ensure state directory exists (creates .memoark/ in base directory)
  * Uses mkdir -p equivalent to create all intermediate directories
  *
  * @param base - Base directory path (default: current working directory)
@@ -15,7 +15,7 @@ import { resolve } from "node:path";
  */
 export function ensureStateDir(base?: string): string {
   const baseDir = base || process.cwd();
-  const stateDir = resolve(baseDir, ".dbe");
+  const stateDir = resolve(baseDir, ".memoark");
 
   mkdirSync(stateDir, { recursive: true });
 
@@ -24,13 +24,13 @@ export function ensureStateDir(base?: string): string {
 
 /**
  * Get full path for a state file
- * Returns .dbe/{filename} path without creating directories
+ * Returns .memoark/{filename} path without creating directories
  * Call ensureStateDir() first to ensure the directory exists
  *
  * @param filename - Name of the state file (e.g., 'cursors.yaml', 'checkpoints.jsonl')
  * @returns Full path to the state file
  */
 export function statePath(filename: string): string {
-  const stateDir = resolve(process.cwd(), ".dbe");
+  const stateDir = resolve(process.cwd(), ".memoark");
   return resolve(stateDir, filename);
 }

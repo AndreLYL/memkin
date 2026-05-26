@@ -219,7 +219,7 @@ memoark embed --limit 100     # 限制批量大小
 
 ## 配置
 
-### `dbe.yaml`
+### `memoark.yaml`
 
 ```yaml
 # 隐私配置

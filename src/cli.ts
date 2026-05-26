@@ -89,7 +89,7 @@ program
     "Source/collector name (e.g., claude-code, codex, hermes, feishu, or 'all' for all enabled sources)",
     "claude-code",
   )
-  .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
   .option("-f, --format <type>", "Output format (json|markdown)", "json")
   .option("-a, --adapter <type>", "Output adapter (store|file|gbrain|stdout)", "store")
   .option("-o, --output <dir>", "Output directory for file adapter")
@@ -121,7 +121,7 @@ program
         const llmConfig = config.llm;
         if (!llmConfig.api_key && !process.env.OPENAI_API_KEY) {
           console.error(
-            "Error: No API key configured. Set api_key in dbe.yaml or OPENAI_API_KEY env var.",
+            "Error: No API key configured. Set api_key in memoark.yaml or OPENAI_API_KEY env var.",
           );
           process.exit(1);
         }
@@ -260,14 +260,14 @@ program
 program
   .command("doctor")
   .description("Diagnose configuration and connectivity")
-  .option("-c, --config <path>", "Path to config file (default: dbe.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
   .action(async (options) => {
     const issues: string[] = [];
     const warnings: string[] = [];
     const ok: string[] = [];
 
     // Check config file
-    const configPath = options.config || resolve(process.cwd(), "dbe.yaml");
+    const configPath = options.config || resolve(process.cwd(), "memoark.yaml");
     let config: ReturnType<typeof loadConfig> | null = null;
     if (existsSync(configPath)) {
       ok.push(`Configuration file found: ${configPath}`);
@@ -281,11 +281,11 @@ program
       }
     } else {
       warnings.push(`Configuration file not found: ${configPath}`);
-      warnings.push("Create one with: dbe config init");
+      warnings.push("Create one with: memoark config init");
     }
 
     // Check state directory
-    const stateDir = resolve(process.cwd(), ".dbe");
+    const stateDir = resolve(process.cwd(), ".memoark");
     if (existsSync(stateDir)) {
       ok.push(`State directory exists: ${stateDir}`);
     } else {
@@ -359,10 +359,10 @@ const configCmd = program.command("config").description("Manage configuration");
 
 configCmd
   .command("init")
-  .description("Generate dbe.yaml template")
+  .description("Generate memoark.yaml template")
   .action(() => {
-    const template = `# DigitalBrainExtractor Configuration
-# Save this file as dbe.yaml in your project directory
+    const template = `# Memoark Configuration
+# Save this file as memoark.yaml in your project directory
 
 # Privacy configuration
 privacy:
@@ -432,16 +432,32 @@ adapters:
   gbrain:
     enabled: false
     output_dir: ./gbrain-output
+
+# Store (PGLite embedded PostgreSQL)
+store:
+  data_dir: ~/.memoark/data
+
+# Embedding configuration
+embedding:
+  provider: openai           # openai | ollama
+  model: text-embedding-3-large
+  dimensions: 1536
+  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
+  # base_url: http://localhost:11434  # For Ollama
+
+# Server configuration
+server:
+  http_port: 3927
 `;
 
-    const outputPath = resolve(process.cwd(), "dbe.yaml");
+    const outputPath = resolve(process.cwd(), "memoark.yaml");
     writeFileSync(outputPath, template, "utf-8");
     console.log(`✓ Configuration template created: ${outputPath}`);
     console.log("");
     console.log("Next steps:");
-    console.log("  1. Edit dbe.yaml with your configuration");
+    console.log("  1. Edit memoark.yaml with your configuration");
     console.log("  2. Set LLM API key environment variable (OPENAI_API_KEY or ANTHROPIC_API_KEY)");
-    console.log("  3. Run: dbe extract --source claude-code");
+    console.log("  3. Run: memoark extract --source claude-code");
   });
 
 /**

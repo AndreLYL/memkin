@@ -94,7 +94,7 @@ bun install
 bun src/cli.ts config init
 ```
 
-Edit `dbe.yaml` and set your LLM API key:
+Edit `memoark.yaml` and set your LLM API key:
 
 ```bash
 export OPENAI_API_KEY=your-api-key
@@ -301,7 +301,7 @@ memoark sources test claude-code
 
 ## Configuration
 
-### `dbe.yaml`
+### `memoark.yaml`
 
 ```yaml
 # Privacy

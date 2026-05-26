@@ -146,7 +146,7 @@ describe("CLI", () => {
 
       const output = result.stdout;
       // Should contain diagnostic report title or sections
-      expect(output).toMatch(/Diagnostic|Configuration|state|\.dbe/i);
+      expect(output).toMatch(/Diagnostic|Configuration|state|\.memoark/i);
     });
   });
 
@@ -178,7 +178,7 @@ describe("CLI", () => {
         encoding: "utf-8",
       });
 
-      expect(result.stdout).toContain("dbe.yaml");
+      expect(result.stdout).toContain("memoark.yaml");
     });
   });
 
