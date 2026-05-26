@@ -12,9 +12,9 @@ import type {
   TaskSignal,
   TimelineEntry,
 } from "../core/types.js";
-import type { PageStore } from "../store/pages.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { GraphStore } from "../store/graph.js";
+import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 

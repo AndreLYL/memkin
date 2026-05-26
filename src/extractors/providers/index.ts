@@ -3,7 +3,7 @@
  * Creates provider instances based on configuration
  */
 
-import type { LLMConfig } from "../../../core/config";
+import type { LLMConfig } from "../../core/config";
 import { createAnthropicProvider } from "./anthropic";
 import { createMockProvider } from "./mock";
 import { createOpenAIProvider } from "./openai";

@@ -8,21 +8,21 @@ export class TagStore {
       `INSERT INTO tags (page_id, tag)
        SELECT id, $2 FROM pages WHERE slug = $1
        ON CONFLICT (page_id, tag) DO NOTHING`,
-      [slug, tag]
+      [slug, tag],
     );
   }
 
   async removeTag(slug: string, tag: string): Promise<void> {
     await this.pg.query(
       `DELETE FROM tags WHERE page_id = (SELECT id FROM pages WHERE slug = $1) AND tag = $2`,
-      [slug, tag]
+      [slug, tag],
     );
   }
 
   async getTags(slug: string): Promise<string[]> {
     const result = await this.pg.query(
       `SELECT t.tag FROM tags t JOIN pages p ON p.id = t.page_id WHERE p.slug = $1 ORDER BY t.tag`,
-      [slug]
+      [slug],
     );
     return result.rows.map((r: any) => r.tag);
   }

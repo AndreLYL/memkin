@@ -54,16 +54,13 @@ export class PageStore {
          content_hash = EXCLUDED.content_hash,
          updated_at = NOW()
        RETURNING *`,
-      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash]
+      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash],
     );
     return this.rowToPage(result.rows[0]);
   }
 
   async getPage(slug: string): Promise<Page | null> {
-    const result = await this.pg.query(
-      "SELECT * FROM pages WHERE slug = $1",
-      [slug]
-    );
+    const result = await this.pg.query("SELECT * FROM pages WHERE slug = $1", [slug]);
     return result.rows.length > 0 ? this.rowToPage(result.rows[0]) : null;
   }
 
@@ -71,10 +68,7 @@ export class PageStore {
     await this.pg.query("DELETE FROM pages WHERE slug = $1", [slug]);
   }
 
-  async listPages(opts?: {
-    type?: string;
-    limit?: number;
-  }): Promise<Page[]> {
+  async listPages(opts?: { type?: string; limit?: number }): Promise<Page[]> {
     let sql = "SELECT * FROM pages";
     const params: unknown[] = [];
     const conditions: string[] = [];
@@ -102,9 +96,8 @@ export class PageStore {
       type: row.type,
       title: row.title,
       compiled_truth: row.compiled_truth,
-      frontmatter: typeof row.frontmatter === "string"
-        ? JSON.parse(row.frontmatter)
-        : row.frontmatter,
+      frontmatter:
+        typeof row.frontmatter === "string" ? JSON.parse(row.frontmatter) : row.frontmatter,
       content_hash: row.content_hash,
       created_at: row.created_at,
       updated_at: row.updated_at,

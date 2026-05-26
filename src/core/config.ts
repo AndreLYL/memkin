@@ -1,5 +1,5 @@
 /**
- * Configuration loader for DigitalBrainExtractor
+ * Configuration loader for Memoark
  * Loads YAML config files with environment variable interpolation
  * and recursive merging with defaults
  */
@@ -251,7 +251,10 @@ function mergeConfig(
       typeof defaultValue === "object" &&
       !Array.isArray(defaultValue)
     ) {
-      result[key] = mergeConfig(defaultValue, userValue);
+      result[key] = mergeConfig(
+        defaultValue as Record<string, unknown>,
+        userValue as Record<string, unknown>,
+      );
     } else {
       // Otherwise, user value overrides default
       result[key] = userValue;
@@ -265,12 +268,12 @@ function mergeConfig(
  * Load configuration from YAML file
  * Performs environment variable interpolation and merges with defaults
  *
- * @param filePath - Path to YAML config file (default: dbe.yaml in cwd)
+ * @param filePath - Path to YAML config file (default: memoark.yaml in cwd)
  * @returns Loaded and merged configuration
  * @throws Error if file cannot be read or parsed
  */
 export function loadConfig(filePath?: string): Config {
-  const configPath = filePath ? resolve(filePath) : resolve(process.cwd(), "dbe.yaml");
+  const configPath = filePath ? resolve(filePath) : resolve(process.cwd(), "memoark.yaml");
 
   let userConfig: Record<string, unknown> = {};
 
@@ -291,5 +294,5 @@ export function loadConfig(filePath?: string): Config {
   // Merge with defaults
   const merged = mergeConfig(DEFAULT_CONFIG as unknown as Record<string, unknown>, userConfig);
 
-  return merged as Config;
+  return merged as unknown as Config;
 }

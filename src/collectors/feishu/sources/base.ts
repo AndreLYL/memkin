@@ -1,4 +1,4 @@
-import type { RawMessage } from "../../core/types";
+import type { RawMessage } from "../../../core/types";
 import type { CursorStaging } from "../cursor-staging";
 import type { SourceCheckpoint } from "../types";
 
