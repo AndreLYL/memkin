@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
 import { TimelineStore } from "../../src/store/timeline.js";
@@ -13,11 +13,18 @@ describe("TimelineStore", () => {
     pages = new PageStore(db.pg);
     timeline = new TimelineStore(db.pg);
   });
-  afterEach(async () => { await db.close(); });
+  afterEach(async () => {
+    await db.close();
+  });
 
   it("addEntry and getTimeline", async () => {
     await pages.putPage("test/tl", "---\ntitle: T\ntype: test\n---\nBody.");
-    await timeline.addEntry("test/tl", { date: "2026-05-25", summary: "Project started", detail: "Initial setup done", source: "chat" });
+    await timeline.addEntry("test/tl", {
+      date: "2026-05-25",
+      summary: "Project started",
+      detail: "Initial setup done",
+      source: "chat",
+    });
     await timeline.addEntry("test/tl", { date: "2026-05-26", summary: "First feature shipped" });
     const entries = await timeline.getTimeline("test/tl");
     expect(entries).toHaveLength(2);
@@ -28,8 +35,16 @@ describe("TimelineStore", () => {
 
   it("addEntry deduplicates on (page_id, date, summary)", async () => {
     await pages.putPage("test/dedup", "---\ntitle: D\ntype: test\n---\nBody.");
-    await timeline.addEntry("test/dedup", { date: "2026-05-25", summary: "Same event", detail: "V1" });
-    await timeline.addEntry("test/dedup", { date: "2026-05-25", summary: "Same event", detail: "V2 updated" });
+    await timeline.addEntry("test/dedup", {
+      date: "2026-05-25",
+      summary: "Same event",
+      detail: "V1",
+    });
+    await timeline.addEntry("test/dedup", {
+      date: "2026-05-25",
+      summary: "Same event",
+      detail: "V2 updated",
+    });
     const entries = await timeline.getTimeline("test/dedup");
     expect(entries).toHaveLength(1);
     expect(entries[0].detail).toBe("V2 updated");

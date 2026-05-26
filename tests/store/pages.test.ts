@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
 
@@ -47,9 +47,7 @@ describe("PageStore", () => {
     expect(page2.id).toBe(page1.id);
     expect(page2.title).toBe("V2");
     expect(page2.compiled_truth).toBe("Updated.");
-    expect(new Date(page2.updated_at).getTime()).toBeGreaterThan(
-      new Date(firstUpdated).getTime()
-    );
+    expect(new Date(page2.updated_at).getTime()).toBeGreaterThan(new Date(firstUpdated).getTime());
   });
 
   it("getPage returns null for nonexistent slug", async () => {
@@ -61,7 +59,7 @@ describe("PageStore", () => {
     await store.putPage("entities/zhang-san", "---\ntitle: Zhang San\ntype: person\n---\nContext.");
     const page = await store.getPage("entities/zhang-san");
     expect(page).not.toBeNull();
-    expect(page!.title).toBe("Zhang San");
+    expect(page?.title).toBe("Zhang San");
   });
 
   it("deletePage cascades", async () => {

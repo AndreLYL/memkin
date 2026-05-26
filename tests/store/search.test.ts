@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ChunkStore } from "../../src/store/chunks.js";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
-import { ChunkStore } from "../../src/store/chunks.js";
 import { SearchEngine } from "../../src/store/search.js";
 
 describe("SearchEngine — FTS", () => {
@@ -18,19 +18,19 @@ describe("SearchEngine — FTS", () => {
 
     const p1 = await pageStore.putPage(
       "entities/alice",
-      "---\ntitle: Alice\ntype: person\n---\nAlice is a software engineer working on distributed systems."
+      "---\ntitle: Alice\ntype: person\n---\nAlice is a software engineer working on distributed systems.",
     );
     await chunkStore.rechunk(p1.id, p1.compiled_truth);
 
     const p2 = await pageStore.putPage(
       "entities/bob",
-      "---\ntitle: Bob\ntype: person\n---\nBob is a product manager focused on machine learning products."
+      "---\ntitle: Bob\ntype: person\n---\nBob is a product manager focused on machine learning products.",
     );
     await chunkStore.rechunk(p2.id, p2.compiled_truth);
 
     const p3 = await pageStore.putPage(
       "decisions/tech-stack",
-      "---\ntitle: Tech Stack Decision\ntype: decision\n---\nWe chose PostgreSQL for the database and TypeScript for the backend."
+      "---\ntitle: Tech Stack Decision\ntype: decision\n---\nWe chose PostgreSQL for the database and TypeScript for the backend.",
     );
     await chunkStore.rechunk(p3.id, p3.compiled_truth);
   });
@@ -63,7 +63,8 @@ describe("SearchEngine — FTS", () => {
   it("search returns page metadata in results", async () => {
     const results = await search.search("PostgreSQL");
     expect(results.length).toBeGreaterThanOrEqual(1);
-    const r = results.find((x) => x.slug === "decisions/tech-stack")!;
+    const r = results.find((x) => x.slug === "decisions/tech-stack");
+    expect(r).toBeDefined();
     expect(r.title).toBe("Tech Stack Decision");
     expect(r.type).toBe("decision");
     expect(r.snippet).toBeTruthy();

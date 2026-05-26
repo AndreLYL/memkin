@@ -12,6 +12,26 @@ interface SearchEngineOpts {
   embedText?: (text: string) => Promise<number[]>;
 }
 
+interface PageSearchRow {
+  slug: string;
+  title: string;
+  type: string;
+  snippet: string;
+  page_rank: number | string;
+}
+
+interface ChunkSearchRow {
+  slug: string;
+  title: string;
+  type: string;
+  snippet: string;
+  chunk_source: string;
+}
+
+interface CountRow {
+  cnt: number | string;
+}
+
 const RRF_K = 60;
 const COMPILED_TRUTH_BOOST = 2.0;
 const BACKLINK_BOOST_FACTOR = 0.05;
@@ -39,7 +59,7 @@ export class SearchEngine {
 
     if (!tsquery) return [];
 
-    const result = await this.pg.query(
+    const result = await this.pg.query<PageSearchRow>(
       `SELECT
          p.slug,
          p.title,
@@ -57,7 +77,7 @@ export class SearchEngine {
       [tsquery, limit],
     );
 
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row) => ({
       slug: row.slug,
       title: row.title,
       type: row.type,
@@ -126,14 +146,16 @@ export class SearchEngine {
     const slugs = [...scoreMap.keys()];
     if (slugs.length > 0) {
       for (const slug of slugs) {
-        const bl = await this.pg.query(
+        const bl = await this.pg.query<CountRow>(
           `SELECT COUNT(*) AS cnt FROM links l JOIN pages p ON p.id = l.to_page_id WHERE p.slug = $1`,
           [slug],
         );
-        const backlinkCount = Number((bl.rows[0] as Record<string, unknown>).cnt);
+        const backlinkCount = Number(bl.rows[0]?.cnt ?? 0);
         if (backlinkCount > 0) {
-          const entry = scoreMap.get(slug)!;
-          entry.score *= 1 + BACKLINK_BOOST_FACTOR * Math.log(1 + backlinkCount);
+          const entry = scoreMap.get(slug);
+          if (entry) {
+            entry.score *= 1 + BACKLINK_BOOST_FACTOR * Math.log(1 + backlinkCount);
+          }
         }
       }
     }
@@ -159,7 +181,7 @@ export class SearchEngine {
 
     if (!tsquery) return [];
 
-    const result = await this.pg.query(
+    const result = await this.pg.query<ChunkSearchRow>(
       `SELECT p.slug, p.title, p.type, cc.chunk_source,
          ts_rank(cc.search_vector, to_tsquery('simple', $1)) AS chunk_rank,
          ts_headline('simple', cc.chunk_text, to_tsquery('simple', $1),
@@ -169,7 +191,7 @@ export class SearchEngine {
        ORDER BY chunk_rank DESC LIMIT 50`,
       [tsquery],
     );
-    return result.rows as any[];
+    return result.rows;
   }
 
   private async vectorSearch(
@@ -180,7 +202,7 @@ export class SearchEngine {
     if (!this.embedText) return [];
     const queryVec = await this.embedText(query);
     const vecStr = `[${queryVec.join(",")}]`;
-    const result = await this.pg.query(
+    const result = await this.pg.query<ChunkSearchRow>(
       `SELECT p.slug, p.title, p.type, cc.chunk_source,
          cc.chunk_text AS snippet, 1 - (cc.embedding <=> $1::vector) AS cosine_sim
        FROM content_chunks cc JOIN pages p ON p.id = cc.page_id
@@ -188,6 +210,6 @@ export class SearchEngine {
        ORDER BY cc.embedding <=> $1::vector LIMIT 50`,
       [vecStr],
     );
-    return result.rows as any[];
+    return result.rows;
   }
 }

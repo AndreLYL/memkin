@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 
 describe("Database", () => {
@@ -11,12 +11,12 @@ describe("Database", () => {
   it("creates in-memory database with all tables", async () => {
     db = await Database.create();
 
-    const tables = await db.pg.query(`
+    const tables = await db.pg.query<{ tablename: string }>(`
       SELECT tablename FROM pg_tables
       WHERE schemaname = 'public'
       ORDER BY tablename
     `);
-    const names = tables.rows.map((r: any) => r.tablename);
+    const names = tables.rows.map((r) => r.tablename);
     expect(names).toContain("pages");
     expect(names).toContain("content_chunks");
     expect(names).toContain("links");
@@ -26,9 +26,7 @@ describe("Database", () => {
 
   it("has pgvector extension loaded", async () => {
     db = await Database.create();
-    const ext = await db.pg.query(
-      "SELECT extname FROM pg_extension WHERE extname = 'vector'"
-    );
+    const ext = await db.pg.query("SELECT extname FROM pg_extension WHERE extname = 'vector'");
     expect(ext.rows).toHaveLength(1);
   });
 
@@ -40,7 +38,7 @@ describe("Database", () => {
       VALUES ('test-page', 'test', 'Hello World', 'some content here')
     `);
     const result = await db.pg.query(
-      "SELECT search_vector IS NOT NULL AS has_sv FROM pages WHERE slug = 'test-page'"
+      "SELECT search_vector IS NOT NULL AS has_sv FROM pages WHERE slug = 'test-page'",
     );
     expect(result.rows[0].has_sv).toBe(true);
   });

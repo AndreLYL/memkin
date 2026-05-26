@@ -39,7 +39,7 @@ See [README.md](README.md) for the full architecture and directory layout.
 
 1. Create a parser in `src/collectors/agent/` implementing the `SessionParser` interface
 2. Register it in `src/collectors/index.ts`
-3. Add configuration in `dbe.yaml` under `sources:`
+3. Add configuration in `memoark.yaml` under `sources:`
 4. Add tests covering parsing and edge cases
 5. Update `sources list` and `sources test` CLI output
 

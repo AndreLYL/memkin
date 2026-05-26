@@ -1,14 +1,19 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
-import { Database } from "../../src/store/database.js";
-import { PageStore } from "../../src/store/pages.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChunkStore } from "../../src/store/chunks.js";
+import { Database } from "../../src/store/database.js";
 import { EmbeddingService } from "../../src/store/embedding.js";
+import { PageStore } from "../../src/store/pages.js";
 
 vi.mock("openai", () => {
+  interface EmbeddingCreateParams {
+    input: string | string[];
+    dimensions?: number;
+  }
+
   return {
     default: class MockOpenAI {
       embeddings = {
-        create: vi.fn().mockImplementation(async (params: any) => {
+        create: vi.fn().mockImplementation(async (params: EmbeddingCreateParams) => {
           const inputs = Array.isArray(params.input) ? params.input : [params.input];
           return {
             data: inputs.map((_: string, i: number) => ({
@@ -45,7 +50,10 @@ describe("EmbeddingService", () => {
   });
 
   it("embedStale embeds chunks with no embedding", async () => {
-    const page = await pageStore.putPage("test/embed", "---\ntitle: E\ntype: test\n---\nSome content to embed.");
+    const page = await pageStore.putPage(
+      "test/embed",
+      "---\ntitle: E\ntype: test\n---\nSome content to embed.",
+    );
     await chunkStore.rechunk(page.id, page.compiled_truth);
     const staleBefore = await chunkStore.getStaleChunks();
     expect(staleBefore.length).toBeGreaterThan(0);
