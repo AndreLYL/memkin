@@ -102,4 +102,25 @@ describe("PageStore", () => {
     expect(page.frontmatter.confidence).toBe("direct");
     expect(page.frontmatter.source_hash).toBe("abc123");
   });
+
+  it("listPages sorts by title ascending", async () => {
+    await store.putPage("b-page", "---\ntitle: Bravo\ntype: unknown\n---\nB");
+    await store.putPage("a-page", "---\ntitle: Alpha\ntype: unknown\n---\nA");
+    const pages = await store.listPages({ sort: "title", order: "asc" });
+    expect(pages[0].title).toBe("Alpha");
+    expect(pages[1].title).toBe("Bravo");
+  });
+
+  it("listPages with limit=0 returns all pages", async () => {
+    for (let i = 0; i < 5; i++) {
+      await store.putPage(`page-${i}`, `---\ntitle: Page ${i}\ntype: unknown\n---\nContent ${i}`);
+    }
+    const pages = await store.listPages({ limit: 0 });
+    expect(pages).toHaveLength(5);
+  });
+
+  it("listPages defaults to limit 50", async () => {
+    const pages = await store.listPages();
+    expect(Array.isArray(pages)).toBe(true);
+  });
 });

@@ -153,4 +153,24 @@ describe("REST API", () => {
       context: "developer",
     });
   });
+
+  it("GET /api/pages supports sort, order, and limit=0", async () => {
+    await app.request("/api/pages/by-slug?slug=b-page", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: Bravo\ntype: unknown\n---\nB" }),
+    });
+    await app.request("/api/pages/by-slug?slug=a-page", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: Alpha\ntype: unknown\n---\nA" }),
+    });
+
+    const res = await app.request("/api/pages?sort=title&order=asc&limit=0");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toHaveLength(2);
+    expect(body[0].title).toBe("Alpha");
+    expect(body[1].title).toBe("Bravo");
+  });
 });

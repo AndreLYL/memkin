@@ -36,14 +36,23 @@ export function createApiApp(stores: StoreContext): Hono {
     });
   });
 
-  app.get("/pages", async (c) =>
-    c.json(
+  app.get("/pages", async (c) => {
+    const limitRaw = c.req.query("limit");
+    let limit: number | undefined;
+    if (limitRaw !== undefined) {
+      const n = Number(limitRaw);
+      limit = Number.isFinite(n) && n >= 0 ? n : undefined;
+    }
+
+    return c.json(
       await stores.pages.listPages({
         type: c.req.query("type"),
-        limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
+        limit,
+        sort: c.req.query("sort"),
+        order: c.req.query("order"),
       }),
-    ),
-  );
+    );
+  });
   app.get("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
