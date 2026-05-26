@@ -36,7 +36,7 @@ interface RedactionEntry {
  * - L3: Blocked words from config
  *
  * Modes:
- * - reversible: generates .dbe/redaction_map.jsonl for recovery
+ * - reversible: generates .memoark/redaction_map.jsonl for recovery
  * - irreversible: redacts without keeping recovery map
  *
  * Protected fields (never redacted):
@@ -283,7 +283,7 @@ export class PrivacyProcessor {
   }
 
   /**
-   * Write redaction map to .dbe/redaction_map.jsonl
+   * Write redaction map to .memoark/redaction_map.jsonl
    */
   private writeRedactionMap(): void {
     try {
