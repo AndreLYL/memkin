@@ -78,6 +78,44 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json(await stores.search.query(body.query ?? "", { limit: body.limit }));
   });
 
+  app.get("/stats", async (c) => {
+    const pagesResult = await stores.db.pg.query(
+      "SELECT type, COUNT(*)::int AS count FROM pages GROUP BY type",
+    );
+    const chunksResult = await stores.db.pg.query(
+      "SELECT COUNT(*)::int AS total, COUNT(embedded_at)::int AS embedded FROM content_chunks",
+    );
+    const linksResult = await stores.db.pg.query("SELECT COUNT(*)::int AS c FROM links");
+
+    const pages_by_type: Record<string, number> = {};
+    let totalPages = 0;
+    for (const row of pagesResult.rows as Array<{ type: string; count: number }>) {
+      pages_by_type[row.type] = row.count;
+      totalPages += row.count;
+    }
+
+    const chunkRow = chunksResult.rows[0] as { total: number; embedded: number };
+    const linkRow = linksResult.rows[0] as { c: number };
+
+    return c.json({
+      pages: totalPages,
+      chunks: chunkRow.total,
+      embedded_chunks: chunkRow.embedded,
+      links: linkRow.c,
+      pages_by_type,
+    });
+  });
+
+  app.get("/links/all", async (c) => {
+    const result = await stores.db.pg.query(
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context
+       FROM links l
+       JOIN pages pf ON pf.id = l.from_page_id
+       JOIN pages pt ON pt.id = l.to_page_id`,
+    );
+    return c.json(result.rows);
+  });
+
   app.get("/links", async (c) => c.json(await stores.graph.getLinks(c.req.query("slug") ?? "")));
   app.get("/backlinks", async (c) =>
     c.json(await stores.graph.getBacklinks(c.req.query("slug") ?? "")),

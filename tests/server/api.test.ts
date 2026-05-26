@@ -102,4 +102,55 @@ describe("REST API", () => {
     expect((await app.request("/api/chunks?slug=entities/alice")).status).toBe(200);
     expect((await app.request("/api/embed", { method: "POST" })).status).toBe(200);
   });
+
+  it("stats returns aggregated counts and pages_by_type", async () => {
+    await app.request("/api/pages/by-slug?slug=entities/alice", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: Alice\ntype: person\n---\nAlice." }),
+    });
+    await app.request("/api/pages/by-slug?slug=projects/memoark", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: Memoark\ntype: project\n---\nMemory." }),
+    });
+
+    const res = await app.request("/api/stats");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.pages).toBe(2);
+    expect(body.chunks).toBeGreaterThanOrEqual(0);
+    expect(body.embedded_chunks).toBeGreaterThanOrEqual(0);
+    expect(body.links).toBeGreaterThanOrEqual(0);
+    expect(body.pages_by_type).toEqual(expect.objectContaining({ person: 1, project: 1 }));
+  });
+
+  it("links/all returns all link relationships", async () => {
+    await app.request("/api/pages/by-slug?slug=entities/alice", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: Alice\ntype: person\n---\nAlice." }),
+    });
+    await app.request("/api/pages/by-slug?slug=projects/memoark", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: Memoark\ntype: project\n---\nMemory." }),
+    });
+    await app.request("/api/links", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "entities/alice", to: "projects/memoark", type: "works_on", context: "developer" }),
+    });
+
+    const res = await app.request("/api/links/all");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toHaveLength(1);
+    expect(body[0]).toEqual({
+      from_slug: "entities/alice",
+      to_slug: "projects/memoark",
+      link_type: "works_on",
+      context: "developer",
+    });
+  });
 });
