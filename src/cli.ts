@@ -525,11 +525,31 @@ program
       return;
     }
     const { Hono } = await import("hono");
+    const { serveStatic } = await import("hono/bun");
+    const { readFileSync } = await import("node:fs");
     const api = createApiApp(stores);
     const app = new Hono();
     app.route("/api", api);
+
+    const distDir = "./web/dist";
+    const hasFrontend = existsSync(`${distDir}/index.html`);
+
+    if (hasFrontend) {
+      app.use("/*", serveStatic({ root: distDir }));
+
+      app.get("*", (c) => {
+        if (c.req.path.startsWith("/api/")) {
+          return c.json({ error: "Not found" }, 404);
+        }
+        if (!c.req.header("accept")?.includes("text/html")) {
+          return c.json({ error: "Not found" }, 404);
+        }
+        return c.html(readFileSync(`${distDir}/index.html`, "utf-8"));
+      });
+    }
+
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
-    console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    console.log(`Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}`);
   });
 
 program
