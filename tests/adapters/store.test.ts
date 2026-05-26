@@ -1,23 +1,23 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { Database } from "../../src/store/database.js";
-import { PageStore } from "../../src/store/pages.js";
-import { ChunkStore } from "../../src/store/chunks.js";
-import { GraphStore } from "../../src/store/graph.js";
-import { TagStore } from "../../src/store/tags.js";
-import { TimelineStore } from "../../src/store/timeline.js";
 import { StoreAdapter } from "../../src/adapters/store.js";
 import type {
-  Entity,
   Decision,
-  TaskSignal,
   Discovery,
+  Entity,
+  ExtractionResult,
   Knowledge,
   Link,
-  TimelineEntry,
-  ExtractionResult,
   SourceRef,
+  TaskSignal,
+  TimelineEntry,
 } from "../../src/core/types.js";
-import { createHash } from "node:crypto";
+import { ChunkStore } from "../../src/store/chunks.js";
+import { Database } from "../../src/store/database.js";
+import { GraphStore } from "../../src/store/graph.js";
+import { PageStore } from "../../src/store/pages.js";
+import { TagStore } from "../../src/store/tags.js";
+import { TimelineStore } from "../../src/store/timeline.js";
 
 describe("StoreAdapter", () => {
   let db: Database;
@@ -147,7 +147,7 @@ title: Entity A
 type: person
 ---
 ## Context
-Entity A context`
+Entity A context`,
       );
 
       const decision: Decision = {
@@ -190,11 +190,11 @@ Entity A context`
 
       // Verify link to entity was created
       const links = await graph.getLinks(slug);
-      expect(links.some(l => l.to_slug === "entity-a")).toBe(true);
+      expect(links.some((l) => l.to_slug === "entity-a")).toBe(true);
 
       // Verify timeline entry was added to entity
       const entityTimeline = await timeline.getTimeline("entity-a");
-      expect(entityTimeline.some(e => e.summary.includes("Important decision made"))).toBe(true);
+      expect(entityTimeline.some((e) => e.summary.includes("Important decision made"))).toBe(true);
     });
   });
 
@@ -248,7 +248,7 @@ title: Entity B
 type: concept
 ---
 ## Context
-Entity B context`
+Entity B context`,
       );
 
       const discovery: Discovery = {
@@ -290,7 +290,7 @@ Entity B context`
 
       // Verify link to entity
       const links = await graph.getLinks(slug);
-      expect(links.some(l => l.to_slug === "entity-b")).toBe(true);
+      expect(links.some((l) => l.to_slug === "entity-b")).toBe(true);
     });
   });
 
@@ -304,7 +304,7 @@ title: Entity C
 type: tool
 ---
 ## Context
-Entity C context`
+Entity C context`,
       );
 
       const knowledge: Knowledge = {
@@ -346,7 +346,7 @@ Entity C context`
 
       // Verify link to related entity
       const links = await graph.getLinks(knowledgePage.slug);
-      expect(links.some(l => l.to_slug === "entity-c")).toBe(true);
+      expect(links.some((l) => l.to_slug === "entity-c")).toBe(true);
     });
 
     it("should skip speculative confidence knowledge", async () => {
@@ -387,7 +387,7 @@ title: Timeline Entity
 type: person
 ---
 ## Context
-Timeline entity context`
+Timeline entity context`,
       );
 
       const timelineEntry: TimelineEntry = {
@@ -416,7 +416,7 @@ Timeline entity context`
 
       // Verify timeline entry was added
       const entries = await timeline.getTimeline("timeline-entity");
-      expect(entries.some(e => e.summary === "Important event occurred")).toBe(true);
+      expect(entries.some((e) => e.summary === "Important event occurred")).toBe(true);
     });
   });
 
@@ -430,7 +430,7 @@ title: From Entity
 type: person
 ---
 ## Context
-From context`
+From context`,
       );
 
       await pages.putPage(
@@ -440,7 +440,7 @@ title: To Entity
 type: organization
 ---
 ## Context
-To context`
+To context`,
       );
 
       const link: Link = {
@@ -469,7 +469,7 @@ To context`
 
       // Verify link was created
       const links = await graph.getLinks("from-entity");
-      expect(links.some(l => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
+      expect(links.some((l) => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
     });
   });
 });

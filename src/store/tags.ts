@@ -1,5 +1,9 @@
 import type { PGlite } from "@electric-sql/pglite";
 
+interface TagRow {
+  tag: string;
+}
+
 export class TagStore {
   constructor(private pg: PGlite) {}
 
@@ -20,10 +24,10 @@ export class TagStore {
   }
 
   async getTags(slug: string): Promise<string[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<TagRow>(
       `SELECT t.tag FROM tags t JOIN pages p ON p.id = t.page_id WHERE p.slug = $1 ORDER BY t.tag`,
       [slug],
     );
-    return result.rows.map((r: any) => r.tag);
+    return result.rows.map((r) => r.tag);
   }
 }
