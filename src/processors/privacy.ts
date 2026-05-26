@@ -199,7 +199,6 @@ export class PrivacyProcessor {
    */
   private redactText(text: string, fieldName: string): string {
     let result = text;
-    const _positionOffset = 0;
 
     // L1 Patterns - Phone
     if (this.config.redact_phone) {

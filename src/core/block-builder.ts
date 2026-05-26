@@ -114,7 +114,6 @@ export class BlockBuilder {
   private estimateTokens(content: string): number {
     let tokens = 0;
     let currentWord = "";
-    let _isInEnglishWord = false;
 
     for (let i = 0; i < content.length; i++) {
       const char = content[i];
@@ -136,7 +135,6 @@ export class BlockBuilder {
         if (currentWord.length > 0) {
           tokens += 1.3; // English word
           currentWord = "";
-          _isInEnglishWord = false;
         }
         // Chinese character
         tokens += 1.5;
@@ -145,12 +143,10 @@ export class BlockBuilder {
         if (currentWord.length > 0) {
           tokens += 1.3;
           currentWord = "";
-          _isInEnglishWord = false;
         }
       } else {
         // Regular character (English, punctuation, etc.)
         currentWord += char;
-        _isInEnglishWord = true;
       }
     }
 

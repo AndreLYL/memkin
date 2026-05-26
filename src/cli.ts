@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import {
   createClaudeCodeCollector,
@@ -16,17 +17,16 @@ import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
-import { Database } from "./store/database.js";
-import { PageStore } from "./store/pages.js";
-import { ChunkStore } from "./store/chunks.js";
-import { SearchEngine } from "./store/search.js";
-import { GraphStore } from "./store/graph.js";
-import { TagStore } from "./store/tags.js";
-import { TimelineStore } from "./store/timeline.js";
-import { EmbeddingService } from "./store/embedding.js";
 import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { ChunkStore } from "./store/chunks.js";
+import { Database } from "./store/database.js";
+import { EmbeddingService } from "./store/embedding.js";
+import { GraphStore } from "./store/graph.js";
+import { PageStore } from "./store/pages.js";
+import { SearchEngine } from "./store/search.js";
+import { TagStore } from "./store/tags.js";
+import { TimelineStore } from "./store/timeline.js";
 
 function bootstrapCollectors(sources: SourcesConfig): void {
   resetRegistry();
@@ -322,7 +322,7 @@ program
     }
 
     // Report results
-    console.log("=== DBE Diagnostic Report ===\n");
+    console.log("=== Memoark Diagnostic Report ===\n");
 
     if (ok.length > 0) {
       console.log("✓ OK:");
@@ -543,9 +543,7 @@ program
         ? await stores.search.search(query, { limit })
         : await stores.search.query(query, { limit });
     for (const result of results) {
-      console.log(
-        `${result.slug}\t${result.score.toFixed(4)}\t${result.snippet.slice(0, 200)}`,
-      );
+      console.log(`${result.slug}\t${result.score.toFixed(4)}\t${result.snippet.slice(0, 200)}`);
     }
     await stores.db.close();
   });
