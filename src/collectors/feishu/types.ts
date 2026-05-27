@@ -30,8 +30,10 @@ export interface FeishuDMSourceConfig {
 }
 
 export interface FeishuCollectorConfig {
+  auth_mode?: "bot" | "user";
   app_id: string;
   app_secret: string;
+  lark_bin?: string;
   base_url?: string;
   rate_limit_qps?: number;
   sources: {

@@ -1,13 +1,13 @@
 import type { RawMessage } from "../../../core/types";
 import type { CursorStaging } from "../cursor-staging";
-import type { FeishuHttpClient } from "../http-client";
+import type { IFeishuHttpClient } from "../http-client";
 import type { FeishuTask, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
 
 export class TaskSource implements FeishuSource {
   readonly name = "tasks";
 
-  constructor(private readonly client: FeishuHttpClient) {}
+  constructor(private readonly client: IFeishuHttpClient) {}
 
   async *fetch(
     checkpoint: SourceCheckpoint | null,

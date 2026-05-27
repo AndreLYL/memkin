@@ -1,6 +1,6 @@
 import type { RawMessage } from "../../../core/types";
 import type { CursorStaging } from "../cursor-staging";
-import type { FeishuHttpClient } from "../http-client";
+import type { IFeishuHttpClient } from "../http-client";
 import type { FeishuCalendarEvent, FeishuCalendarSyncData, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
 
@@ -8,7 +8,7 @@ export class CalendarSource implements FeishuSource {
   readonly name = "calendar";
 
   constructor(
-    private readonly client: FeishuHttpClient,
+    private readonly client: IFeishuHttpClient,
     private readonly calendarIds: string[],
   ) {}
 

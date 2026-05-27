@@ -73,8 +73,10 @@ export interface SourceConfig {
  */
 export interface FeishuSourceConfig {
   enabled?: boolean;
+  auth_mode?: "bot" | "user";
   app_id: string;
   app_secret: string;
+  lark_bin?: string;
   base_url?: string;
   rate_limit_qps?: number;
   sources: {
@@ -185,7 +187,7 @@ const DEFAULT_CONFIG: Config = {
   embedding: {
     provider: "openai",
     model: "text-embedding-3-large",
-    dimensions: 1536,
+    dimensions: 768,
   },
   server: {
     http_port: 3927,

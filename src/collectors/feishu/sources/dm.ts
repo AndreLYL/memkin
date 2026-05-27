@@ -1,6 +1,6 @@
 import type { RawMessage } from "../../../core/types";
 import type { CursorStaging } from "../cursor-staging";
-import type { FeishuHttpClient } from "../http-client";
+import type { IFeishuHttpClient } from "../http-client";
 import type { FeishuMessage, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
 
@@ -16,7 +16,7 @@ export class DMSource implements FeishuSource {
   private readonly selfOpenId: string;
 
   constructor(
-    private readonly client: FeishuHttpClient,
+    private readonly client: IFeishuHttpClient,
     private readonly chatIds: string[],
     private readonly opts: DMSourceOpts,
   ) {
