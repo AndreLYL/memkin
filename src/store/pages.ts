@@ -80,7 +80,12 @@ export class PageStore {
     await this.pg.query("DELETE FROM pages WHERE slug = $1", [slug]);
   }
 
-  async listPages(opts?: { type?: string; limit?: number }): Promise<Page[]> {
+  async listPages(opts?: {
+    type?: string;
+    limit?: number;
+    sort?: string;
+    order?: string;
+  }): Promise<Page[]> {
     let sql = "SELECT * FROM pages";
     const params: unknown[] = [];
     const conditions: string[] = [];
@@ -92,7 +97,11 @@ export class PageStore {
     if (conditions.length > 0) {
       sql += ` WHERE ${conditions.join(" AND ")}`;
     }
-    sql += " ORDER BY updated_at DESC";
+    const sortCol = ["updated_at", "created_at", "title"].includes(opts?.sort ?? "")
+      ? (opts?.sort ?? "updated_at")
+      : "updated_at";
+    const sortDir = opts?.order === "asc" ? "ASC" : "DESC";
+    sql += ` ORDER BY ${sortCol} ${sortDir}`;
     if (opts?.limit) {
       sql += ` LIMIT $${params.length + 1}`;
       params.push(opts.limit);

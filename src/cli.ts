@@ -552,7 +552,9 @@ program
     }
 
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
-    console.log(`Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}`);
+    console.log(
+      `Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}`,
+    );
   });
 
 program
