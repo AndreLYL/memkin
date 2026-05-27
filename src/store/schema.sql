@@ -78,6 +78,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_pages_search_vector ON pages;
 CREATE TRIGGER trg_pages_search_vector
   BEFORE INSERT OR UPDATE ON pages
   FOR EACH ROW EXECUTE FUNCTION update_page_search_vector();
@@ -90,6 +91,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS chunk_search_vector_trigger ON content_chunks;
 CREATE TRIGGER chunk_search_vector_trigger
   BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
   FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();

@@ -48,7 +48,10 @@ function bootstrapCollectors(sources: SourcesConfig): void {
 }
 
 async function createStores(config: ReturnType<typeof loadConfig>) {
-  const db = await Database.create(config.store.data_dir);
+  const { mkdirSync } = await import("node:fs");
+  const dataDir = config.store.data_dir.replace(/^~/, process.env.HOME ?? "~");
+  mkdirSync(resolve(dataDir), { recursive: true });
+  const db = await Database.create(dataDir);
   const pages = new PageStore(db.pg);
   const chunks = new ChunkStore(db.pg);
   const embedding = new EmbeddingService(db.pg, {
@@ -524,9 +527,34 @@ program
       await server.connect(new StdioServerTransport());
       return;
     }
-    const app = createApiApp(stores);
+    const { Hono } = await import("hono");
+    const { serveStatic } = await import("hono/bun");
+    const { readFileSync } = await import("node:fs");
+    const api = createApiApp(stores);
+    const app = new Hono();
+    app.route("/api", api);
+
+    const distDir = "./web/dist";
+    const hasFrontend = existsSync(`${distDir}/index.html`);
+
+    if (hasFrontend) {
+      app.use("/*", serveStatic({ root: distDir }));
+
+      app.get("*", (c) => {
+        if (c.req.path.startsWith("/api/")) {
+          return c.json({ error: "Not found" }, 404);
+        }
+        if (!c.req.header("accept")?.includes("text/html")) {
+          return c.json({ error: "Not found" }, 404);
+        }
+        return c.html(readFileSync(`${distDir}/index.html`, "utf-8"));
+      });
+    }
+
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
-    console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    console.log(
+      `Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}`,
+    );
   });
 
 program

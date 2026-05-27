@@ -14,7 +14,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check src/ tests/",
     "lint:fix": "biome check --fix src/ tests/",
-    "format": "biome format --write src/ tests/"
+    "format": "biome format --write src/ tests/",
+    "serve": "bun src/cli.ts serve",
+    "web:dev": "cd web && bun run dev",
+    "web:build": "cd web && bun run build",
+    "web:preview": "cd web && bun run preview"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.4.6",

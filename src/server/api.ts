@@ -36,14 +36,23 @@ export function createApiApp(stores: StoreContext): Hono {
     });
   });
 
-  app.get("/pages", async (c) =>
-    c.json(
+  app.get("/pages", async (c) => {
+    const limitRaw = c.req.query("limit");
+    let limit: number | undefined;
+    if (limitRaw !== undefined) {
+      const n = Number(limitRaw);
+      limit = Number.isFinite(n) && n >= 0 ? n : undefined;
+    }
+
+    return c.json(
       await stores.pages.listPages({
         type: c.req.query("type"),
-        limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
+        limit,
+        sort: c.req.query("sort"),
+        order: c.req.query("order"),
       }),
-    ),
-  );
+    );
+  });
   app.get("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
@@ -76,6 +85,44 @@ export function createApiApp(stores: StoreContext): Hono {
   app.post("/query", async (c) => {
     const body = await c.req.json<{ query?: string; limit?: number }>();
     return c.json(await stores.search.query(body.query ?? "", { limit: body.limit }));
+  });
+
+  app.get("/stats", async (c) => {
+    const pagesResult = await stores.db.pg.query(
+      "SELECT type, COUNT(*)::int AS count FROM pages GROUP BY type",
+    );
+    const chunksResult = await stores.db.pg.query(
+      "SELECT COUNT(*)::int AS total, COUNT(embedded_at)::int AS embedded FROM content_chunks",
+    );
+    const linksResult = await stores.db.pg.query("SELECT COUNT(*)::int AS c FROM links");
+
+    const pages_by_type: Record<string, number> = {};
+    let totalPages = 0;
+    for (const row of pagesResult.rows as Array<{ type: string; count: number }>) {
+      pages_by_type[row.type] = row.count;
+      totalPages += row.count;
+    }
+
+    const chunkRow = chunksResult.rows[0] as { total: number; embedded: number };
+    const linkRow = linksResult.rows[0] as { c: number };
+
+    return c.json({
+      pages: totalPages,
+      chunks: chunkRow.total,
+      embedded_chunks: chunkRow.embedded,
+      links: linkRow.c,
+      pages_by_type,
+    });
+  });
+
+  app.get("/links/all", async (c) => {
+    const result = await stores.db.pg.query(
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context
+       FROM links l
+       JOIN pages pf ON pf.id = l.from_page_id
+       JOIN pages pt ON pt.id = l.to_page_id`,
+    );
+    return c.json(result.rows);
   });
 
   app.get("/links", async (c) => c.json(await stores.graph.getLinks(c.req.query("slug") ?? "")));
