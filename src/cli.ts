@@ -442,9 +442,9 @@ store:
 
 # Embedding configuration
 embedding:
-  provider: openai           # openai | ollama
-  model: text-embedding-3-large
-  dimensions: 1536
+  provider: ollama
+  model: nomic-embed-text
+  dimensions: 768
   # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
   # base_url: http://localhost:11434  # For Ollama
 

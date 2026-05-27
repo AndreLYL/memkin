@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS content_chunks (
   chunk_text      TEXT NOT NULL,
   chunk_source    TEXT NOT NULL DEFAULT 'compiled_truth',
   token_count     INTEGER,
-  embedding       vector(1536),
-  model           TEXT NOT NULL DEFAULT 'text-embedding-3-large',
+  embedding       vector(768),
+  model           TEXT NOT NULL DEFAULT 'nomic-embed-text',
   embedded_at     TIMESTAMPTZ,
   search_vector   TSVECTOR,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

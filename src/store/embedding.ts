@@ -21,7 +21,7 @@ export class EmbeddingService {
     config: EmbeddingConfig,
   ) {
     this.model = config.model ?? "text-embedding-3-large";
-    this.dimensions = config.dimensions ?? 1536;
+    this.dimensions = config.dimensions ?? 768;
     this.client = new OpenAI({
       apiKey: config.apiKey ?? "",
       baseURL:
@@ -66,7 +66,11 @@ export class EmbeddingService {
           );
           embedded++;
         }
-      } catch (_err) {
+      } catch (err) {
+        console.error(
+          `embedding: batch ${i}-${i + batch.length} failed:`,
+          err instanceof Error ? err.message : err,
+        );
         errors += batch.length;
       }
     }

@@ -5,7 +5,7 @@ import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
 import { SearchEngine } from "../../src/store/search.js";
 
-const mockEmbedText = vi.fn().mockResolvedValue(Array(1536).fill(0.5));
+const mockEmbedText = vi.fn().mockResolvedValue(Array(768).fill(0.5));
 
 describe("SearchEngine — hybrid query", () => {
   let db: Database;
@@ -33,7 +33,7 @@ describe("SearchEngine — hybrid query", () => {
     );
     await chunkStore.rechunk(p2.id, p2.compiled_truth);
 
-    const vecStr = `[${Array(1536).fill("0.5").join(",")}]`;
+    const vecStr = `[${Array(768).fill("0.5").join(",")}]`;
     await db.pg.query(`UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()`, [
       vecStr,
     ]);
@@ -70,7 +70,7 @@ describe("SearchEngine — hybrid query", () => {
     );
     const longContent = Array.from({ length: 400 }, (_, i) => `content${i}`).join(" ");
     await chunkStore.rechunk(p.id, longContent);
-    const vecStr = `[${Array(1536).fill("0.5").join(",")}]`;
+    const vecStr = `[${Array(768).fill("0.5").join(",")}]`;
     await db.pg.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW() WHERE page_id = $2`,
       [vecStr, p.id],
@@ -86,7 +86,7 @@ describe("SearchEngine — hybrid query", () => {
   });
 
   it("query returns empty for gibberish with no vector match", async () => {
-    mockEmbedText.mockResolvedValueOnce(Array(1536).fill(0.0));
+    mockEmbedText.mockResolvedValueOnce(Array(768).fill(0.0));
     const results = await search.query("xyzzyzzyx12345");
     expect(Array.isArray(results)).toBe(true);
   });
