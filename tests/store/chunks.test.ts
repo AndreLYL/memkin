@@ -45,7 +45,7 @@ describe("ChunkStore", () => {
     await db.pg.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()
        WHERE page_id = $2`,
-      [`[${Array(1536).fill("0.1").join(",")}]`, page.id],
+      [`[${Array(768).fill("0.1").join(",")}]`, page.id],
     );
     await chunks.rechunk(page.id, "Stable content.");
     const result = await chunks.getChunks("test/stable");
@@ -58,7 +58,7 @@ describe("ChunkStore", () => {
     await db.pg.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()
        WHERE page_id = $2`,
-      [`[${Array(1536).fill("0.1").join(",")}]`, page.id],
+      [`[${Array(768).fill("0.1").join(",")}]`, page.id],
     );
     await chunks.rechunk(page.id, "New different content.");
     const result = await chunks.getChunks("test/changed");

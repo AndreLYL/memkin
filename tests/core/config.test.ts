@@ -275,7 +275,7 @@ store:
 embedding:
   provider: openai
   model: text-embedding-3-large
-  dimensions: 1536
+  dimensions: 768
   api_key: \${OPENAI_API_KEY}
 server:
   http_port: 3927
@@ -285,7 +285,7 @@ server:
     const config = loadConfig();
     expect(config.store.data_dir).toBe("/tmp/memoark-test");
     expect(config.embedding.provider).toBe("openai");
-    expect(config.embedding.dimensions).toBe(1536);
+    expect(config.embedding.dimensions).toBe(768);
     expect(config.embedding.api_key).toBe("test-key-123");
     expect(config.server.http_port).toBe(3927);
     delete process.env.OPENAI_API_KEY;
@@ -300,7 +300,7 @@ llm:
     const config = loadConfig();
     expect(config.store.data_dir).toBe("~/.memoark/data");
     expect(config.embedding.provider).toBe("openai");
-    expect(config.embedding.dimensions).toBe(1536);
+    expect(config.embedding.dimensions).toBe(768);
     expect(config.server.http_port).toBe(3927);
   });
 });

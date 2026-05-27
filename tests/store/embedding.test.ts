@@ -17,7 +17,7 @@ vi.mock("openai", () => {
           const inputs = Array.isArray(params.input) ? params.input : [params.input];
           return {
             data: inputs.map((_: string, i: number) => ({
-              embedding: Array(params.dimensions ?? 1536).fill(0.01 * (i + 1)),
+              embedding: Array(params.dimensions ?? 768).fill(0.01 * (i + 1)),
               index: i,
             })),
           };
@@ -39,8 +39,8 @@ describe("EmbeddingService", () => {
     chunkStore = new ChunkStore(db.pg);
     embedder = new EmbeddingService(db.pg, {
       provider: "openai",
-      model: "text-embedding-3-large",
-      dimensions: 1536,
+      model: "nomic-embed-text",
+      dimensions: 768,
       apiKey: "test-key",
     });
   });
@@ -78,7 +78,7 @@ describe("EmbeddingService", () => {
 
   it("embedText returns a vector", async () => {
     const vector = await embedder.embedText("hello world");
-    expect(vector).toHaveLength(1536);
+    expect(vector).toHaveLength(768);
     expect(typeof vector[0]).toBe("number");
   });
 

@@ -23,7 +23,7 @@ describe("MCP server", () => {
       tags: new TagStore(db.pg),
       timeline: new TimelineStore(db.pg),
       search: new SearchEngine(db.pg, {
-        embedText: vi.fn().mockResolvedValue(Array(1536).fill(0.1)),
+        embedText: vi.fn().mockResolvedValue(Array(768).fill(0.1)),
       }),
       embedding: new EmbeddingService(db.pg, { provider: "openai", apiKey: "test-key" }),
     };

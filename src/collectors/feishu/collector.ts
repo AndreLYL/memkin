@@ -1,7 +1,9 @@
 import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../core/types";
 import { FeishuAuthManager } from "./auth";
 import { CursorStaging } from "./cursor-staging";
+import type { IFeishuHttpClient } from "./http-client";
 import { FeishuHttpClient } from "./http-client";
+import { LarkCliHttpClient } from "./lark-cli-client";
 import { FeishuRateLimiter } from "./rate-limiter";
 import type { FeishuSource } from "./sources/base";
 import { CalendarSource } from "./sources/calendar";
@@ -16,16 +18,27 @@ export class FeishuCollector implements Collector, CursorProvider {
   readonly name = "Feishu";
   readonly description = "Feishu Open API collector (messages, calendar, docs, tasks, dm)";
 
-  private readonly auth: FeishuAuthManager;
-  private readonly client: FeishuHttpClient;
+  private readonly auth: FeishuAuthManager | null;
+  private readonly client: IFeishuHttpClient;
+  private readonly larkCliClient: LarkCliHttpClient | null;
   private readonly sources: FeishuSource[];
   private cursorStaging: CursorStaging;
   private lastCheckpoint: FeishuCheckpoint | null = null;
 
   constructor(config: FeishuCollectorConfig) {
-    this.auth = new FeishuAuthManager(config.app_id, config.app_secret, config.base_url);
-    const rateLimiter = new FeishuRateLimiter(config.rate_limit_qps);
-    this.client = new FeishuHttpClient(this.auth, rateLimiter);
+    const isUserMode = config.auth_mode === "user";
+
+    if (isUserMode) {
+      this.auth = null;
+      this.larkCliClient = new LarkCliHttpClient(config.lark_bin);
+      this.client = this.larkCliClient;
+    } else {
+      this.auth = new FeishuAuthManager(config.app_id, config.app_secret, config.base_url);
+      this.larkCliClient = null;
+      const rateLimiter = new FeishuRateLimiter(config.rate_limit_qps);
+      this.client = new FeishuHttpClient(this.auth, rateLimiter);
+    }
+
     this.cursorStaging = new CursorStaging();
     this.sources = [];
 
@@ -67,7 +80,10 @@ export class FeishuCollector implements Collector, CursorProvider {
 
   async healthCheck(): Promise<{ ok: boolean; message: string }> {
     try {
-      await this.auth.getToken();
+      if (this.larkCliClient) {
+        return await this.larkCliClient.healthCheck();
+      }
+      await this.auth?.getToken();
       return { ok: true, message: `${this.sources.length} source(s) enabled` };
     } catch (err) {
       return {

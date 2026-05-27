@@ -16,7 +16,20 @@ export interface PagedResult<T = Record<string, unknown>> {
   page_token?: string;
 }
 
-export class FeishuHttpClient {
+export interface IFeishuHttpClient {
+  request<T = unknown>(
+    method: string,
+    path: string,
+    options?: { params?: Record<string, string>; body?: unknown },
+  ): Promise<T>;
+
+  paginate<T = Record<string, unknown>>(
+    path: string,
+    params?: Record<string, string>,
+  ): AsyncGenerator<PagedResult<T>>;
+}
+
+export class FeishuHttpClient implements IFeishuHttpClient {
   constructor(
     private readonly auth: FeishuAuthManager,
     private readonly rateLimiter: FeishuRateLimiter,

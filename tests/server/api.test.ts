@@ -16,7 +16,7 @@ vi.mock("openai", () => ({
         const inputs = Array.isArray(params.input) ? params.input : [params.input];
         return {
           data: inputs.map((_: string, i: number) => ({
-            embedding: Array(params.dimensions ?? 1536).fill(0.01 * (i + 1)),
+            embedding: Array(params.dimensions ?? 768).fill(0.01 * (i + 1)),
             index: i,
           })),
         };
@@ -37,12 +37,12 @@ describe("REST API", () => {
     const tags = new TagStore(db.pg);
     const timeline = new TimelineStore(db.pg);
     const search = new SearchEngine(db.pg, {
-      embedText: vi.fn().mockResolvedValue(Array(1536).fill(0.1)),
+      embedText: vi.fn().mockResolvedValue(Array(768).fill(0.1)),
     });
     const embedding = new EmbeddingService(db.pg, {
       provider: "openai",
       model: "text-embedding-3-large",
-      dimensions: 1536,
+      dimensions: 768,
       apiKey: "test-key",
     });
     app = createApiApp({ db, pages, chunks, graph, tags, timeline, search, embedding });

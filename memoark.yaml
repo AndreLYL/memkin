@@ -15,7 +15,7 @@ privacy:
 # LLM provider configuration
 llm:
   provider: openai
-  model: claude-haiku-4.5
+  model: MiniMax-M2.5
   base_url: https://api.tokenflying.top
   api_key: ${OPENAI_API_KEY}
 
@@ -33,6 +33,16 @@ sources:
     enabled: true
   hermes:
     enabled: true
+  feishu:
+    enabled: true
+    auth_mode: user
+    app_id: cli_a94d131ca0b89bc6
+    app_secret: unused-in-user-mode
+    sources:
+      messages:
+        enabled: true
+        chat_ids:
+          - oc_9a29c0eaf777bf346dc27cf2b892c597
 
 # Adapter configuration
 adapters:
@@ -49,9 +59,9 @@ store:
 
 # Embedding configuration
 embedding:
-  provider: openai           # openai | ollama
-  model: text-embedding-3-large
-  dimensions: 1536
+  provider: ollama
+  model: nomic-embed-text
+  dimensions: 768
   # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
 
 # Server configuration
