@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFeishuCollector, FeishuCollector } from "../../../src/collectors/feishu/collector";
+import { FeishuCollector } from "../../../src/collectors/feishu/collector";
 import type { FeishuCollectorConfig } from "../../../src/collectors/feishu/types";
 import type { RawMessage } from "../../../src/core/types";
 
@@ -19,16 +19,20 @@ const baseConfig: FeishuCollectorConfig = {
   },
 };
 
+function makeCollector(config = baseConfig) {
+  return new FeishuCollector(config, config.sources.messages?.chat_ids ?? []);
+}
+
 describe("FeishuCollector", () => {
   it("has correct id and metadata", () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
     expect(collector.id).toBe("feishu");
     expect(collector.name).toBe("Feishu");
     expect(collector.description).toContain("Feishu");
   });
 
   it("healthCheck passes with valid config", async () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
     (collector as any).auth = {
       getToken: vi.fn().mockResolvedValue("t-ok"),
       forceRefresh: vi.fn(),
@@ -38,7 +42,7 @@ describe("FeishuCollector", () => {
   });
 
   it("fetch yields messages from all enabled sources", async () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
 
     const mockMessages: RawMessage[] = [
       {
@@ -87,7 +91,7 @@ describe("FeishuCollector", () => {
   });
 
   it("isolates source failures — other sources continue", async () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
 
     const goodMsg: RawMessage = {
       platform: "feishu",
@@ -125,7 +129,7 @@ describe("FeishuCollector", () => {
   });
 
   it("getCommittableCursors returns staged cursors from sources", async () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
 
     const msg: RawMessage = {
       platform: "feishu",
@@ -157,7 +161,7 @@ describe("FeishuCollector", () => {
   });
 
   it("discardSource removes staged cursors for failed source", () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
 
     (collector as any).cursorStaging.stage("messages", "oc_chat_001", { last_sync_at: 123 });
     (collector as any).cursorStaging.commit("messages", "oc_chat_001");
@@ -175,7 +179,7 @@ describe("FeishuCollector", () => {
         calendar: { enabled: true, calendar_ids: ["cal_primary"] },
       },
     };
-    const collector = createFeishuCollector(config);
+    const collector = makeCollector(config);
     const sourceNames = (collector as any).sources.map((s: any) => s.name);
     expect(sourceNames).not.toContain("messages");
     expect(sourceNames).toContain("calendar");
@@ -195,7 +199,7 @@ describe("FeishuCollector", () => {
         },
       },
     };
-    const collector = createFeishuCollector(config);
+    const collector = makeCollector(config);
     const sourceNames = (collector as any).sources.map((s: any) => s.name);
     expect(sourceNames).toContain("docs");
     expect(sourceNames).toContain("tasks");
@@ -210,14 +214,14 @@ describe("FeishuCollector", () => {
         tasks: { enabled: false },
       },
     };
-    const collector = createFeishuCollector(config);
+    const collector = makeCollector(config);
     const sourceNames = (collector as any).sources.map((s: any) => s.name);
     expect(sourceNames).not.toContain("docs");
     expect(sourceNames).not.toContain("tasks");
   });
 
   it("updated description includes docs and tasks", () => {
-    const collector = createFeishuCollector(baseConfig);
+    const collector = makeCollector();
     expect(collector.description).toContain("docs");
     expect(collector.description).toContain("tasks");
   });
@@ -234,7 +238,7 @@ describe("FeishuCollector", () => {
         },
       },
     };
-    const collector = createFeishuCollector(config);
+    const collector = makeCollector(config);
     const sourceNames = (collector as any).sources.map((s: any) => s.name);
     expect(sourceNames).toContain("dm");
   });

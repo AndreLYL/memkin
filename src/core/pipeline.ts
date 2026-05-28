@@ -16,6 +16,7 @@ import { BlockBuilder } from "./block-builder.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
+import type { IdentityResolver } from "./identity-resolver.js";
 import type {
   Adapter,
   BlockResult,
@@ -47,6 +48,7 @@ export interface PipelineOpts {
   format: "json" | "markdown";
   adapter: "store" | "file" | "gbrain" | "stdout";
   stores?: StoreAdapterContext;
+  identityResolver?: IdentityResolver;
   dryRun?: boolean;
   since?: string;
   limit?: number;
@@ -146,6 +148,18 @@ export async function runPipeline(
       return result;
     }
 
+    // Stage 1.5: Identity Resolution (before block building)
+    let messagesToBlock = newOrModifiedMessages;
+    if (opts.identityResolver && messagesToBlock.length > 0) {
+      try {
+        messagesToBlock = await opts.identityResolver.enrichBatch(messagesToBlock);
+      } catch (err) {
+        result.warnings.push(
+          `Identity resolution failed (continuing with raw contacts): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
     // Stage 2: BlockBuilder
     const blockBuilder = new BlockBuilder({
       block_gap_minutes: config.block_gap_minutes,
@@ -158,7 +172,7 @@ export async function runPipeline(
     try {
       for await (const block of blockBuilder.build(
         (async function* () {
-          for (const msg of newOrModifiedMessages) {
+          for (const msg of messagesToBlock) {
             yield msg;
           }
         })(),

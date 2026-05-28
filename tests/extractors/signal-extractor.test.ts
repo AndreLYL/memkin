@@ -83,6 +83,13 @@ const createValidExtractionResult = (): ExtractionResult => ({
       type: "works_on",
       context: "Bob committed to working on auth system this week",
       confidence: "direct",
+      source: {
+        platform: "slack",
+        channel: "#general",
+        timestamp: "2024-01-15T10:00:00Z",
+        raw_hash: "hash123",
+        quote: "Bob committed to working on auth system this week",
+      },
     },
   ],
   decisions: [

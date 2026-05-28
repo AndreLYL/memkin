@@ -184,5 +184,84 @@ export function createApiApp(stores: StoreContext): Hono {
     ),
   );
 
+  app.get("/provenance", async (c) => {
+    const channel = c.req.query("channel");
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+
+    const signals: Array<{ type: string; slug?: string; summary: string; source: unknown }> = [];
+
+    // Query pages with source in frontmatter
+    const pagesResult = await stores.db.pg.query(
+      `SELECT slug, frontmatter FROM pages
+       WHERE frontmatter->'source' IS NOT NULL
+       ${channel ? "AND frontmatter->'source'->>'channel' = $1" : ""}
+       ORDER BY frontmatter->'source'->>'timestamp' DESC`,
+      channel ? [channel] : [],
+    );
+    for (const row of pagesResult.rows as Array<{ slug: string; frontmatter: Record<string, unknown> }>) {
+      const src = row.frontmatter.source as Record<string, unknown> | undefined;
+      if (!src) continue;
+      const ts = src.timestamp as string | undefined;
+      if (from && ts && ts < from) continue;
+      if (to && ts && ts > to) continue;
+      signals.push({
+        type: (row.frontmatter.type as string) ?? "page",
+        slug: row.slug,
+        summary: (row.frontmatter.title as string) ?? row.slug,
+        source: src,
+      });
+    }
+
+    // Query timeline entries with provenance
+    const timelineResult = await stores.db.pg.query(
+      `SELECT te.summary, te.date, te.provenance, p.slug
+       FROM timeline_entries te
+       JOIN pages p ON p.id = te.page_id
+       WHERE te.provenance IS NOT NULL
+       ${channel ? "AND te.provenance->>'channel' = $1" : ""}
+       ORDER BY te.date DESC`,
+      channel ? [channel] : [],
+    );
+    for (const row of timelineResult.rows as Array<{ summary: string; date: string; provenance: unknown; slug: string }>) {
+      const prov = row.provenance as Record<string, unknown>;
+      const ts = prov.timestamp as string | undefined;
+      if (from && ts && ts < from) continue;
+      if (to && ts && ts > to) continue;
+      signals.push({ type: "timeline", slug: row.slug, summary: row.summary, source: prov });
+    }
+
+    // Query links with provenance
+    const linksResult = await stores.db.pg.query(
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.provenance
+       FROM links l
+       JOIN pages pf ON pf.id = l.from_page_id
+       JOIN pages pt ON pt.id = l.to_page_id
+       WHERE l.provenance IS NOT NULL
+       ${channel ? "AND l.provenance->>'channel' = $1" : ""}`,
+      channel ? [channel] : [],
+    );
+    for (const row of linksResult.rows as Array<{ from_slug: string; to_slug: string; link_type: string; provenance: unknown }>) {
+      const prov = row.provenance as Record<string, unknown>;
+      const ts = prov.timestamp as string | undefined;
+      if (from && ts && ts < from) continue;
+      if (to && ts && ts > to) continue;
+      signals.push({
+        type: "link",
+        summary: `${row.from_slug} → ${row.to_slug} (${row.link_type})`,
+        source: prov,
+      });
+    }
+
+    // Sort by timestamp
+    signals.sort((a, b) => {
+      const tsA = (a.source as Record<string, unknown>)?.timestamp as string ?? "";
+      const tsB = (b.source as Record<string, unknown>)?.timestamp as string ?? "";
+      return tsB.localeCompare(tsA);
+    });
+
+    return c.json(signals);
+  });
+
   return app;
 }

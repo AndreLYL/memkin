@@ -118,6 +118,13 @@ function createMockExtractionResult(blockContent: string): ExtractionResult {
         type: "works_on",
         context: "Tech lead role",
         confidence: "direct",
+        source: {
+          platform: "test-platform",
+          channel: "test-channel",
+          timestamp: "2024-01-01T10:00:00Z",
+          raw_hash: rawHash,
+          quote: quote.substring(0, 100),
+        },
       },
     ],
     decisions: [

@@ -52,6 +52,7 @@ interface Link {
   type: 'works_on' | 'works_at' | 'reports_to' | 'collaborates' | 'depends_on' | 'mentions' | 'custom';
   context: string;           // Description of relationship
   confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
+  source: SourceRef;
 }
 
 interface Decision {
@@ -177,6 +178,17 @@ Rules:
 
 - Knowledge should rarely be `speculative`. The system may skip speculative Knowledge entries.
 - Prefer `direct` or `paraphrased` for factual statements.
+
+### Language Policy
+
+- Structural fields (slug, topic, type, status) → English ASCII, kebab-case
+- Natural language fields (name, summary, content, context, detail,
+  reasoning, quote) → **SAME LANGUAGE as the source material**
+- If the conversation is in Chinese, write summaries in Chinese
+- If the conversation mixes languages, use the dominant language
+- quote field MUST be verbatim from the original text, never translated
+- slug for Chinese person names: use pinyin
+  (e.g., "李应龙" → "person/li-yinglong")
 
 ## Example
 

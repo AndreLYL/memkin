@@ -760,10 +760,13 @@ export class GBrainAdapter implements Adapter {
   }
 
   private kebabCase(str: string): string {
-    return str
+    const ascii = str
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+    if (ascii.length >= 3) return ascii;
+    const hash = createHash("sha256").update(str).digest("hex").slice(0, 12);
+    return ascii ? `${ascii}-${hash}` : hash;
   }
 
   private contentHash(content: string): string {
