@@ -1,5 +1,5 @@
-import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../core/types";
 import type { IdentityBackend } from "../../core/identity-resolver";
+import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../core/types";
 import { FeishuAuthManager } from "./auth";
 import { CursorStaging } from "./cursor-staging";
 import type { IFeishuHttpClient } from "./http-client";
@@ -51,7 +51,9 @@ export class LarkCliIdentityBackend implements IdentityBackend {
             this.memberCache.set(member.member_id, member.name);
           }
         }
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
   }
 }
@@ -69,11 +71,7 @@ export class FeishuCollector implements Collector, CursorProvider {
   private lastCheckpoint: FeishuCheckpoint | null = null;
   private identityBackend: LarkCliIdentityBackend | null = null;
 
-  constructor(
-    config: FeishuCollectorConfig,
-    chatIds: string[],
-    private readonly selfOpenId?: string,
-  ) {
+  constructor(config: FeishuCollectorConfig, chatIds: string[], selfOpenId?: string) {
     const isUserMode = config.auth_mode === "user";
 
     if (isUserMode) {
@@ -117,7 +115,7 @@ export class FeishuCollector implements Collector, CursorProvider {
       this.sources.push(
         new DMSource(this.client, config.sources.dm.dm_chat_ids, {
           lookbackDays: config.sources.dm.lookback_days ?? 30,
-          selfOpenId: config.sources.dm.self_open_id,
+          selfOpenId: config.sources.dm.self_open_id ?? selfOpenId,
           overlapMs: config.sources.dm.overlap_ms,
         }),
       );
@@ -184,7 +182,9 @@ export class FeishuCollector implements Collector, CursorProvider {
   }
 }
 
-export async function createFeishuCollector(config: FeishuCollectorConfig): Promise<FeishuCollector> {
+export async function createFeishuCollector(
+  config: FeishuCollectorConfig,
+): Promise<FeishuCollector> {
   let chatIds: string[] = [];
   let selfOpenId: string | undefined;
 
@@ -208,7 +208,11 @@ export async function createFeishuCollector(config: FeishuCollectorConfig): Prom
 
     // Get self open_id for DM direction detection
     try {
-      const status = await client.request<{ userOpenId?: string }>("GET", "/open-apis/authen/v1/user_info", {});
+      const status = await client.request<{ userOpenId?: string }>(
+        "GET",
+        "/open-apis/authen/v1/user_info",
+        {},
+      );
       selfOpenId = (status as Record<string, unknown>).userOpenId as string | undefined;
     } catch {
       // lark auth status is not an API call — parse from healthCheck
@@ -216,7 +220,9 @@ export async function createFeishuCollector(config: FeishuCollectorConfig): Prom
         const stdout = await client.execShortcut("auth", "status");
         const parsed = JSON.parse(stdout) as { userOpenId?: string };
         selfOpenId = parsed.userOpenId;
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
   }
 

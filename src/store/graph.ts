@@ -43,7 +43,14 @@ export class GraphStore {
        FROM pages f, pages t
        WHERE f.slug = $1 AND t.slug = $2
        ON CONFLICT (from_page_id, to_page_id, link_type) DO UPDATE SET context = EXCLUDED.context`,
-      [fromSlug, toSlug, type, context ?? "", provenance ? JSON.stringify(provenance) : null, sourceHash ?? null],
+      [
+        fromSlug,
+        toSlug,
+        type,
+        context ?? "",
+        provenance ? JSON.stringify(provenance) : null,
+        sourceHash ?? null,
+      ],
     );
   }
 

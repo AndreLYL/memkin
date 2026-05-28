@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { PrivacyProcessor } from "./processors/privacy.js";
 import { parseExtractionResult } from "./core/schemas.js";
 import type {
   ConversationBlock,
@@ -9,6 +8,7 @@ import type {
   RawMessage,
   SourceRef,
 } from "./core/types.js";
+import { PrivacyProcessor } from "./processors/privacy.js";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -25,7 +25,10 @@ function makeMsg(overrides: Partial<RawMessage> = {}): RawMessage {
   };
 }
 
-function makeBlock(messages: RawMessage[], overrides: Partial<ConversationBlock> = {}): ConversationBlock {
+function makeBlock(
+  messages: RawMessage[],
+  overrides: Partial<ConversationBlock> = {},
+): ConversationBlock {
   return {
     block_id: "blk-1",
     platform: messages[0]?.platform ?? "feishu",
@@ -115,56 +118,72 @@ describe("AC-1: deterministic raw_hash", () => {
 
 describe("AC-3/4/5: normalizeTopicSlug for CJK", () => {
   it("AC-3: Chinese name produces non-empty slug", () => {
-    const result = parseExtractionResult(makeValidExtraction({
-      knowledge: [{
-        topic: "李应龙的工作偏好",
-        content: "喜欢用 LazyVim",
-        source_type: "conversation",
-        related_entities: [],
-        source: makeSourceRef(),
-        confidence: "direct",
-      }],
-    }));
+    const result = parseExtractionResult(
+      makeValidExtraction({
+        knowledge: [
+          {
+            topic: "李应龙的工作偏好",
+            content: "喜欢用 LazyVim",
+            source_type: "conversation",
+            related_entities: [],
+            source: makeSourceRef(),
+            confidence: "direct",
+          },
+        ],
+      }),
+    );
     expect(result.knowledge[0].topic).toBeTruthy();
     expect(result.knowledge[0].topic.length).toBeGreaterThanOrEqual(3);
   });
 
   it("AC-4: pure Chinese topic does not become 'uncategorized'", () => {
-    const result = parseExtractionResult(makeValidExtraction({
-      knowledge: [{
-        topic: "技术架构决策",
-        content: "选择了 PGLite",
-        source_type: "conversation",
-        related_entities: [],
-        source: makeSourceRef(),
-        confidence: "direct",
-      }],
-    }));
+    const result = parseExtractionResult(
+      makeValidExtraction({
+        knowledge: [
+          {
+            topic: "技术架构决策",
+            content: "选择了 PGLite",
+            source_type: "conversation",
+            related_entities: [],
+            source: makeSourceRef(),
+            confidence: "direct",
+          },
+        ],
+      }),
+    );
     expect(result.knowledge[0].topic).not.toBe("uncategorized");
     expect(result.knowledge[0].topic.length).toBeGreaterThanOrEqual(3);
   });
 
   it("AC-5: hash is deterministic for same input", () => {
-    const ext1 = parseExtractionResult(makeValidExtraction({
-      knowledge: [{
-        topic: "中文主题",
-        content: "c",
-        source_type: "conversation",
-        related_entities: [],
-        source: makeSourceRef(),
-        confidence: "direct",
-      }],
-    }));
-    const ext2 = parseExtractionResult(makeValidExtraction({
-      knowledge: [{
-        topic: "中文主题",
-        content: "c",
-        source_type: "conversation",
-        related_entities: [],
-        source: makeSourceRef(),
-        confidence: "direct",
-      }],
-    }));
+    const ext1 = parseExtractionResult(
+      makeValidExtraction({
+        knowledge: [
+          {
+            topic: "中文主题",
+            content: "c",
+            source_type: "conversation",
+            related_entities: [],
+            source: makeSourceRef(),
+            confidence: "direct",
+          },
+        ],
+      }),
+    );
+    const ext2 = parseExtractionResult(
+      makeValidExtraction({
+        knowledge: [
+          {
+            topic: "中文主题",
+            content: "c",
+            source_type: "conversation",
+            related_entities: [],
+            source: makeSourceRef(),
+            confidence: "direct",
+          },
+        ],
+      }),
+    );
     expect(ext1.knowledge[0].topic).toBe(ext2.knowledge[0].topic);
   });
 });
@@ -174,16 +193,20 @@ describe("AC-3/4/5: normalizeTopicSlug for CJK", () => {
 describe("AC-6: Link schema includes source", () => {
   it("Link.source survives Zod parse", () => {
     const src = makeSourceRef({ quote: "他们合作了" });
-    const result = parseExtractionResult(makeValidExtraction({
-      links: [{
-        from: "alice",
-        to: "bob",
-        type: "collaborates",
-        context: "在项目中合作",
-        confidence: "direct",
-        source: src,
-      }],
-    }));
+    const result = parseExtractionResult(
+      makeValidExtraction({
+        links: [
+          {
+            from: "alice",
+            to: "bob",
+            type: "collaborates",
+            context: "在项目中合作",
+            confidence: "direct",
+            source: src,
+          },
+        ],
+      }),
+    );
     expect(result.links[0].source).toBeDefined();
     expect(result.links[0].source.platform).toBe("feishu");
     expect(result.links[0].source.quote).toBe("他们合作了");
@@ -211,14 +234,16 @@ describe("AC-7: Privacy redacts Link.source.quote", () => {
       source: makeSourceRef(),
       entities: [],
       timeline: [],
-      links: [{
-        from: "alice",
-        to: "bob",
-        type: "collaborates",
-        context: "context",
-        confidence: "direct",
-        source: makeSourceRef({ quote: "Call me at 13812345678 tomorrow" }),
-      }],
+      links: [
+        {
+          from: "alice",
+          to: "bob",
+          type: "collaborates",
+          context: "context",
+          confidence: "direct",
+          source: makeSourceRef({ quote: "Call me at 13812345678 tomorrow" }),
+        },
+      ],
       decisions: [],
       tasks: [],
       discoveries: [],
@@ -237,10 +262,7 @@ describe("AC-10: first_seen provenance (ON CONFLICT preserves original)", () => 
   it("GraphStore.addLink SQL uses DO UPDATE SET context only, not provenance", async () => {
     // This is a structural assertion — verify the SQL pattern in graph.ts
     const { readFileSync } = await import("node:fs");
-    const graphSrc = readFileSync(
-      new URL("./store/graph.ts", import.meta.url).pathname,
-      "utf-8",
-    );
+    const graphSrc = readFileSync(new URL("./store/graph.ts", import.meta.url).pathname, "utf-8");
     // ON CONFLICT should NOT update provenance
     expect(graphSrc).toContain("ON CONFLICT");
     expect(graphSrc).toContain("DO UPDATE SET context = EXCLUDED.context");
@@ -368,10 +390,7 @@ describe("AC-9: idempotent schema migration", () => {
 describe("AC-8: /provenance endpoint exists in API", () => {
   it("api.ts registers GET /provenance route", async () => {
     const { readFileSync } = await import("node:fs");
-    const apiSrc = readFileSync(
-      new URL("./server/api.ts", import.meta.url).pathname,
-      "utf-8",
-    );
+    const apiSrc = readFileSync(new URL("./server/api.ts", import.meta.url).pathname, "utf-8");
     expect(apiSrc).toContain('"/provenance"');
     expect(apiSrc).toContain("app.get");
     // Should query provenance from links and timeline_entries

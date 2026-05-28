@@ -17,7 +17,13 @@ export class TimelineStore {
 
   async addEntry(
     pageSlug: string,
-    entry: { date: string; summary: string; detail?: string; source?: string; provenance?: SourceRef },
+    entry: {
+      date: string;
+      summary: string;
+      detail?: string;
+      source?: string;
+      provenance?: SourceRef;
+    },
   ): Promise<void> {
     await this.pg.query(
       `INSERT INTO timeline_entries (page_id, date, summary, detail, source, provenance)
@@ -25,7 +31,14 @@ export class TimelineStore {
        ON CONFLICT (page_id, date, summary) DO UPDATE SET
          detail = EXCLUDED.detail,
          source = EXCLUDED.source`,
-      [pageSlug, entry.date, entry.summary, entry.detail ?? "", entry.source ?? "", entry.provenance ? JSON.stringify(entry.provenance) : null],
+      [
+        pageSlug,
+        entry.date,
+        entry.summary,
+        entry.detail ?? "",
+        entry.source ?? "",
+        entry.provenance ? JSON.stringify(entry.provenance) : null,
+      ],
     );
   }
 
