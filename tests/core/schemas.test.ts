@@ -52,6 +52,13 @@ describe("ExtractionResult schema validation", () => {
           type: "works_on",
           context: "John is leading the API redesign",
           confidence: "direct",
+          source: {
+            platform: "slack",
+            channel: "#engineering",
+            timestamp: "2026-05-19T12:00:00Z",
+            raw_hash: "abc123",
+            quote: "John is leading the API redesign",
+          },
         },
       ],
       decisions: [
@@ -293,6 +300,13 @@ describe("LinkType validation", () => {
             type,
             context: "test context",
             confidence: "direct",
+            source: {
+              platform: "slack",
+              channel: "#engineering",
+              timestamp: "2026-05-19T12:00:00Z",
+              raw_hash: "abc123",
+              quote: "test context",
+            },
           },
         ],
         decisions: [],
@@ -427,12 +441,13 @@ describe("KnowledgeSchema", () => {
     expect(result.topic).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
   });
 
-  it("falls back to 'uncategorized' for empty-after-normalize topic", () => {
+  it("falls back to hash for empty-after-normalize topic", () => {
     const result = KnowledgeSchema.parse({
       ...validKnowledge,
       topic: "!!!",
     });
-    expect(result.topic).toBe("uncategorized");
+    // Topic "!!!" normalizes to empty string, so slug is just the hash
+    expect(result.topic).toMatch(/^[a-f0-9]{12}$/);
   });
 
   it("truncates long topic to 80 chars", () => {

@@ -1,10 +1,12 @@
 import type { PGlite } from "@electric-sql/pglite";
+import type { SourceRef } from "../core/types.js";
 
 export interface LinkRow {
   from_slug: string;
   to_slug: string;
   link_type: string;
   context: string;
+  provenance?: SourceRef;
 }
 
 export interface GraphNode {
@@ -27,14 +29,21 @@ interface PageSummaryRow {
 export class GraphStore {
   constructor(private pg: PGlite) {}
 
-  async addLink(fromSlug: string, toSlug: string, type: string, context?: string): Promise<void> {
+  async addLink(
+    fromSlug: string,
+    toSlug: string,
+    type: string,
+    context?: string,
+    provenance?: SourceRef,
+    sourceHash?: string,
+  ): Promise<void> {
     await this.pg.query(
-      `INSERT INTO links (from_page_id, to_page_id, link_type, context)
-       SELECT f.id, t.id, $3, $4
+      `INSERT INTO links (from_page_id, to_page_id, link_type, context, provenance, source_hash)
+       SELECT f.id, t.id, $3, $4, $5, $6
        FROM pages f, pages t
        WHERE f.slug = $1 AND t.slug = $2
        ON CONFLICT (from_page_id, to_page_id, link_type) DO UPDATE SET context = EXCLUDED.context`,
-      [fromSlug, toSlug, type, context ?? ""],
+      [fromSlug, toSlug, type, context ?? "", provenance ? JSON.stringify(provenance) : null, sourceHash ?? null],
     );
   }
 
@@ -49,7 +58,7 @@ export class GraphStore {
 
   async getLinks(slug: string): Promise<LinkRow[]> {
     const result = await this.pg.query(
-      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id
        JOIN pages pt ON pt.id = l.to_page_id
@@ -61,7 +70,7 @@ export class GraphStore {
 
   async getBacklinks(slug: string): Promise<LinkRow[]> {
     const result = await this.pg.query(
-      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id
        JOIN pages pt ON pt.id = l.to_page_id

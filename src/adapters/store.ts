@@ -9,6 +9,7 @@ import type {
   ExtractionResult,
   Knowledge,
   Link,
+  SourceRef,
   TaskSignal,
   TimelineEntry,
 } from "../core/types.js";
@@ -60,7 +61,7 @@ export class StoreAdapter implements Adapter {
     for (const result of results) {
       // Process Entities
       for (const entity of result.entities) {
-        const writeResult = await this.writeEntity(entity, result.source.raw_hash);
+        const writeResult = await this.writeEntity(entity, result.source.raw_hash, result.source);
         pushResult.written += writeResult.written;
         pushResult.skipped += writeResult.skipped;
         pushResult.errors.push(...writeResult.errors);
@@ -118,19 +119,17 @@ export class StoreAdapter implements Adapter {
     return pushResult;
   }
 
-  private async writeEntity(entity: Entity, sourceHash: string): Promise<AdapterPushResult> {
+  private async writeEntity(entity: Entity, sourceHash: string, source?: SourceRef): Promise<AdapterPushResult> {
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
     try {
-      // Check for duplicate by source_hash in frontmatter
       const existingPage = await this.stores.pages.getPage(entity.slug);
       if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
         result.skipped += 1;
         return result;
       }
 
-      // Build markdown with frontmatter
-      const frontmatter = {
+      const frontmatter: Record<string, unknown> = {
         title: entity.name,
         type: entity.type,
         confidence: entity.confidence,
@@ -138,6 +137,14 @@ export class StoreAdapter implements Adapter {
         created_at: existingPage?.frontmatter.created_at ?? new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+
+      if (source) {
+        if (!existingPage?.frontmatter.first_seen) {
+          frontmatter.first_seen = source;
+        } else {
+          frontmatter.first_seen = existingPage.frontmatter.first_seen;
+        }
+      }
 
       const content = `---
 ${yamlStringify(frontmatter).trimEnd()}
@@ -190,6 +197,7 @@ ${entity.context}
         entities: decision.entities,
         confidence: decision.confidence,
         source_hash: sourceHash,
+        source: decision.source,
         created_at: new Date().toISOString(),
       };
 
@@ -230,10 +238,9 @@ ${parts.join("\n")}`;
 
       // Create links to entities
       for (const entitySlug of decision.entities) {
-        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in decision");
+        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in decision", decision.source, sourceHash);
       }
 
-      // Add timeline entry to related entities
       for (const entitySlug of decision.entities) {
         try {
           await this.stores.timeline.addEntry(entitySlug, {
@@ -241,6 +248,7 @@ ${parts.join("\n")}`;
             summary: `Decision: ${decision.summary}`,
             detail: decision.reasoning ?? "",
             source: decision.source.platform,
+            provenance: decision.source,
           });
         } catch {
           // Entity page might not exist yet, skip
@@ -279,6 +287,7 @@ ${parts.join("\n")}`;
         status: task.status,
         confidence: task.confidence,
         source_hash: sourceHash,
+        source: task.source,
         created_at: new Date().toISOString(),
       };
 
@@ -334,6 +343,7 @@ ${yamlStringify(frontmatter).trimEnd()}
         entities: discovery.entities,
         confidence: discovery.confidence,
         source_hash: sourceHash,
+        source: discovery.source,
         created_at: new Date().toISOString(),
       };
 
@@ -366,7 +376,7 @@ ${parts.join("\n")}`;
 
       // Create links to entities
       for (const entitySlug of discovery.entities) {
-        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in discovery");
+        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in discovery", discovery.source, sourceHash);
       }
 
       result.written += 1;
@@ -411,6 +421,7 @@ ${parts.join("\n")}`;
         source_type: knowledge.source_type,
         confidence: knowledge.confidence,
         source_hash: sourceHash,
+        source: knowledge.source,
         created_at: new Date().toISOString(),
       };
 
@@ -449,7 +460,7 @@ ${parts.join("\n")}`;
 
       // Create links to related entities
       for (const entitySlug of knowledge.related_entities) {
-        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in knowledge");
+        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in knowledge", knowledge.source, sourceHash);
       }
 
       result.written += 1;
@@ -473,6 +484,7 @@ ${parts.join("\n")}`;
           date: entry.date,
           summary: entry.summary,
           source: entry.source.platform,
+          provenance: entry.source,
         });
 
         result.written += 1;
@@ -492,7 +504,7 @@ ${parts.join("\n")}`;
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
     try {
-      await this.stores.graph.addLink(link.from, link.to, link.type, link.context);
+      await this.stores.graph.addLink(link.from, link.to, link.type, link.context, link.source, link.source.raw_hash);
       result.written += 1;
     } catch (error) {
       result.errors.push({
@@ -505,10 +517,13 @@ ${parts.join("\n")}`;
   }
 
   private kebabCase(str: string): string {
-    return str
+    const ascii = str
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+    if (ascii.length >= 3) return ascii;
+    const hash = createHash("sha256").update(str).digest("hex").slice(0, 12);
+    return ascii ? `${ascii}-${hash}` : hash;
   }
 
   private contentHash(content: string): string {

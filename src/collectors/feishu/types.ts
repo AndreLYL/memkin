@@ -1,6 +1,6 @@
 export interface FeishuMessageSourceConfig {
   enabled: boolean;
-  chat_ids: string[];
+  chat_ids?: string[];
   lookback_days?: number;
   overlap_ms?: number;
 }

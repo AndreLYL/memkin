@@ -8,12 +8,14 @@ import {
   createCodexCollector,
   createFeishuCollector,
   createHermesCollector,
+  FeishuCollector,
   getAllCollectors,
   getCollector,
   registerCollector,
   resetRegistry,
 } from "./collectors/index.js";
 import { loadConfig, type SourcesConfig } from "./core/config.js";
+import { IdentityResolver } from "./core/identity-resolver.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
@@ -28,7 +30,7 @@ import { SearchEngine } from "./store/search.js";
 import { TagStore } from "./store/tags.js";
 import { TimelineStore } from "./store/timeline.js";
 
-function bootstrapCollectors(sources: SourcesConfig): void {
+async function bootstrapCollectors(sources: SourcesConfig): Promise<void> {
   resetRegistry();
   const agentConfigs = {
     "claude-code": { factory: createClaudeCodeCollector, config: sources["claude-code"] },
@@ -43,7 +45,8 @@ function bootstrapCollectors(sources: SourcesConfig): void {
   }
 
   if (sources.feishu?.enabled !== false && sources.feishu?.app_id) {
-    registerCollector(createFeishuCollector(sources.feishu));
+    const feishuCollector = await createFeishuCollector(sources.feishu);
+    registerCollector(feishuCollector);
   }
 }
 
@@ -108,7 +111,7 @@ program
       ensureStateDir();
 
       // Bootstrap collectors from config
-      bootstrapCollectors(config.sources);
+      await bootstrapCollectors(config.sources);
 
       // Determine which sources to process
       let sourceIds: string[];
@@ -158,6 +161,22 @@ program
       let stores: Awaited<ReturnType<typeof createStores>> | undefined;
       if (adapter === "store") {
         stores = await createStores(config);
+      }
+
+      // Create identity resolver with feishu backend if available
+      let identityDb: Awaited<ReturnType<typeof Database.create>> | undefined;
+      let identityResolver: IdentityResolver | undefined;
+      const pg = stores?.db.pg;
+      const feishuCollector = getCollector("feishu");
+      const identityBackend =
+        feishuCollector instanceof FeishuCollector
+          ? feishuCollector.getIdentityBackend()
+          : undefined;
+      if (pg) {
+        identityResolver = new IdentityResolver(pg, identityBackend);
+      } else {
+        identityDb = await Database.create(config.store.data_dir);
+        identityResolver = new IdentityResolver(identityDb.pg, identityBackend);
       }
 
       // Parse relative since values
@@ -210,6 +229,7 @@ program
             format: format as "json" | "markdown",
             adapter: adapter as "store" | "file" | "gbrain" | "stdout",
             stores,
+            identityResolver,
             dryRun: options.dryRun || false,
             since: sinceValue,
             limit,
@@ -246,6 +266,9 @@ program
       // Close stores if they were created
       if (stores) {
         await stores.db.close();
+      }
+      if (identityDb) {
+        await identityDb.close();
       }
 
       if (anyFailed) {
@@ -313,7 +336,7 @@ program
       }
 
       // Check sources
-      bootstrapCollectors(config.sources);
+      await bootstrapCollectors(config.sources);
       for (const collector of getAllCollectors()) {
         const health = await collector.healthCheck();
         if (health.ok) {
@@ -492,7 +515,7 @@ sourcesCmd
   .action(async (name, options) => {
     try {
       const config = loadConfig(options.config);
-      bootstrapCollectors(config.sources);
+      await bootstrapCollectors(config.sources);
 
       const collector = getCollector(name);
       if (!collector) {

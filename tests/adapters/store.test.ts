@@ -449,6 +449,7 @@ To context`,
         type: "works_at",
         context: "Works at relationship",
         confidence: "direct",
+        source: createSourceRef(),
       };
 
       const result: ExtractionResult = {

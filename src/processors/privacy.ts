@@ -149,6 +149,7 @@ export class PrivacyProcessor {
     return {
       ...link,
       context: this.redactText(link.context, "link.context"),
+      source: this.processSourceRef(link.source),
     };
   }
 

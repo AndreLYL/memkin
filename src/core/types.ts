@@ -42,8 +42,12 @@ export interface ConversationBlock {
 export interface SourceRef {
   platform: string;
   channel: string;
+  channel_name?: string;
   timestamp: string; // ISO 8601
+  start_time?: string;
+  end_time?: string;
   message_id?: string;
+  message_ids?: string[];
   thread_id?: string;
   file_path?: string;
   line_range?: { start: number; end: number };
@@ -86,6 +90,7 @@ export interface Link {
   type: LinkType;
   context: string;
   confidence: SignalConfidence;
+  source: SourceRef;
 }
 
 export interface Decision {

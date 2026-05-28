@@ -9,11 +9,12 @@
  * 5. Returns BlockResult (ok/failed) - never returns empty on failure
  */
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseExtractionResult } from "../core/schemas.js";
-import type { BlockResult, ConversationBlock, RawMessage } from "../core/types.js";
+import type { BlockResult, ConversationBlock, ExtractionResult, RawMessage, SourceRef } from "../core/types.js";
 import type { ChatMessage, LLMProvider } from "./providers/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -102,9 +103,51 @@ function formatConversation(messages: RawMessage[]): string {
  * Hash function for generating raw_hash from conversation block
  */
 function hashBlock(block: ConversationBlock): string {
-  // Simple hash based on block metadata
-  const data = `${block.platform}:${block.channel}:${block.block_id}:${block.start_time}`;
-  return Buffer.from(data).toString("base64").slice(0, 16);
+  const messageIds = block.messages
+    .map((m) => {
+      const mid = m.metadata?.message_id as string | undefined;
+      if (mid) return mid;
+      const contentHash = createHash("sha256").update(m.content).digest("hex").slice(0, 8);
+      return `${m.timestamp}:${m.contact}:${contentHash}`;
+    })
+    .sort()
+    .join(",");
+  const data = [
+    block.platform,
+    block.channel,
+    block.thread_id ?? "",
+    messageIds,
+    block.start_time,
+    block.end_time,
+  ].join("|");
+  return createHash("sha256").update(data).digest("hex").slice(0, 16);
+}
+
+function buildSourceRef(block: ConversationBlock): SourceRef {
+  return {
+    platform: block.platform,
+    channel: block.channel,
+    timestamp: block.start_time,
+    start_time: block.start_time,
+    end_time: block.end_time,
+    thread_id: block.thread_id,
+    message_ids: block.messages
+      .map((m) => m.metadata?.message_id as string)
+      .filter(Boolean),
+    raw_hash: hashBlock(block),
+    quote: "",
+  };
+}
+
+function stampSourceRefs(result: ExtractionResult, canonical: SourceRef): void {
+  result.source = { ...canonical, quote: result.source.quote || canonical.quote };
+  const stamp = (s: SourceRef) => ({ ...canonical, quote: s.quote || canonical.quote });
+  for (const d of result.decisions) d.source = stamp(d.source);
+  for (const t of result.tasks) t.source = stamp(t.source);
+  for (const disc of result.discoveries) disc.source = stamp(disc.source);
+  for (const k of result.knowledge) k.source = stamp(k.source);
+  for (const tl of result.timeline) tl.source = stamp(tl.source);
+  for (const link of result.links) link.source = stamp(link.source);
 }
 
 /**
@@ -186,13 +229,9 @@ Output ONLY valid JSON matching ExtractionResultSchema.`;
           // Validate with Zod
           const result = parseExtractionResult(jsonData);
 
-          // Success - ensure source has required metadata
-          if (!result.source.raw_hash) {
-            result.source.raw_hash = hashBlock(block);
-          }
-          if (!result.source.thread_id && block.thread_id) {
-            result.source.thread_id = block.thread_id;
-          }
+          // System stamp: overwrite LLM-generated source fields with canonical provenance
+          const canonical = buildSourceRef(block);
+          stampSourceRefs(result, canonical);
 
           return { status: "ok", data: result };
         } catch (err) {

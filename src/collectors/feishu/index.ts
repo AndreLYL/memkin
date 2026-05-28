@@ -1,2 +1,2 @@
-export { createFeishuCollector, FeishuCollector } from "./collector";
+export { createFeishuCollector, FeishuCollector, LarkCliIdentityBackend } from "./collector";
 export type { FeishuCollectorConfig } from "./types";

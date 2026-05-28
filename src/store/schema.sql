@@ -95,3 +95,38 @@ DROP TRIGGER IF EXISTS chunk_search_vector_trigger ON content_chunks;
 CREATE TRIGGER chunk_search_vector_trigger
   BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
   FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
+
+-- Provenance migration (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'links' AND column_name = 'provenance'
+  ) THEN
+    ALTER TABLE links ADD COLUMN provenance JSONB;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'links' AND column_name = 'source_hash'
+  ) THEN
+    ALTER TABLE links ADD COLUMN source_hash TEXT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'timeline_entries' AND column_name = 'provenance'
+  ) THEN
+    ALTER TABLE timeline_entries ADD COLUMN provenance JSONB;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS identity_cache (
+  platform     TEXT NOT NULL,
+  external_id  TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  slug_hint    TEXT,
+  raw_data     JSONB,
+  resolved_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (platform, external_id)
+);

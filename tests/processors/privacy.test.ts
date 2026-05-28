@@ -36,6 +36,13 @@ const baseResult: ExtractionResult = {
       type: "works_on",
       context: "Works on Project X at IP 192.168.1.1",
       confidence: "direct",
+      source: {
+        platform: "slack",
+        channel: "#engineering",
+        timestamp: "2026-05-19T12:00:00Z",
+        raw_hash: "abc123",
+        quote: "Works on Project X",
+      },
     },
   ],
   decisions: [
