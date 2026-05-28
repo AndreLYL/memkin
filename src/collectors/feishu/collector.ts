@@ -30,7 +30,7 @@ export class LarkCliIdentityBackend implements IdentityBackend {
 
   async resolveFeishuOpenId(openId: string): Promise<{ name: string; slugHint?: string } | null> {
     if (this.memberCache.has(openId)) {
-      return { name: this.memberCache.get(openId)! };
+      return { name: this.memberCache.get(openId) as string };
     }
     return null;
   }

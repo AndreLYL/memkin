@@ -199,7 +199,10 @@ export function createApiApp(stores: StoreContext): Hono {
        ORDER BY frontmatter->'source'->>'timestamp' DESC`,
       channel ? [channel] : [],
     );
-    for (const row of pagesResult.rows as Array<{ slug: string; frontmatter: Record<string, unknown> }>) {
+    for (const row of pagesResult.rows as Array<{
+      slug: string;
+      frontmatter: Record<string, unknown>;
+    }>) {
       const src = row.frontmatter.source as Record<string, unknown> | undefined;
       if (!src) continue;
       const ts = src.timestamp as string | undefined;
@@ -223,7 +226,12 @@ export function createApiApp(stores: StoreContext): Hono {
        ORDER BY te.date DESC`,
       channel ? [channel] : [],
     );
-    for (const row of timelineResult.rows as Array<{ summary: string; date: string; provenance: unknown; slug: string }>) {
+    for (const row of timelineResult.rows as Array<{
+      summary: string;
+      date: string;
+      provenance: unknown;
+      slug: string;
+    }>) {
       const prov = row.provenance as Record<string, unknown>;
       const ts = prov.timestamp as string | undefined;
       if (from && ts && ts < from) continue;
@@ -241,7 +249,12 @@ export function createApiApp(stores: StoreContext): Hono {
        ${channel ? "AND l.provenance->>'channel' = $1" : ""}`,
       channel ? [channel] : [],
     );
-    for (const row of linksResult.rows as Array<{ from_slug: string; to_slug: string; link_type: string; provenance: unknown }>) {
+    for (const row of linksResult.rows as Array<{
+      from_slug: string;
+      to_slug: string;
+      link_type: string;
+      provenance: unknown;
+    }>) {
       const prov = row.provenance as Record<string, unknown>;
       const ts = prov.timestamp as string | undefined;
       if (from && ts && ts < from) continue;
@@ -255,8 +268,8 @@ export function createApiApp(stores: StoreContext): Hono {
 
     // Sort by timestamp
     signals.sort((a, b) => {
-      const tsA = (a.source as Record<string, unknown>)?.timestamp as string ?? "";
-      const tsB = (b.source as Record<string, unknown>)?.timestamp as string ?? "";
+      const tsA = ((a.source as Record<string, unknown>)?.timestamp as string) ?? "";
+      const tsB = ((b.source as Record<string, unknown>)?.timestamp as string) ?? "";
       return tsB.localeCompare(tsA);
     });
 
