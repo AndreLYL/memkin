@@ -66,6 +66,12 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
     yield { items, has_more: false };
   }
 
+  async execShortcut(domain: string, shortcut: string, flags?: string[]): Promise<string> {
+    const args = ["--as", "user", domain, `+${shortcut}`, "--format", "json"];
+    if (flags) args.push(...flags);
+    return execLark(this.bin, args);
+  }
+
   async healthCheck(): Promise<{ ok: boolean; message: string }> {
     try {
       await execLark(this.bin, ["auth", "status"]);
