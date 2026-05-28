@@ -119,7 +119,11 @@ export class StoreAdapter implements Adapter {
     return pushResult;
   }
 
-  private async writeEntity(entity: Entity, sourceHash: string, source?: SourceRef): Promise<AdapterPushResult> {
+  private async writeEntity(
+    entity: Entity,
+    sourceHash: string,
+    source?: SourceRef,
+  ): Promise<AdapterPushResult> {
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
     try {
@@ -238,7 +242,14 @@ ${parts.join("\n")}`;
 
       // Create links to entities
       for (const entitySlug of decision.entities) {
-        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in decision", decision.source, sourceHash);
+        await this.stores.graph.addLink(
+          slug,
+          entitySlug,
+          "mentions",
+          "Referenced in decision",
+          decision.source,
+          sourceHash,
+        );
       }
 
       for (const entitySlug of decision.entities) {
@@ -376,7 +387,14 @@ ${parts.join("\n")}`;
 
       // Create links to entities
       for (const entitySlug of discovery.entities) {
-        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in discovery", discovery.source, sourceHash);
+        await this.stores.graph.addLink(
+          slug,
+          entitySlug,
+          "mentions",
+          "Referenced in discovery",
+          discovery.source,
+          sourceHash,
+        );
       }
 
       result.written += 1;
@@ -460,7 +478,14 @@ ${parts.join("\n")}`;
 
       // Create links to related entities
       for (const entitySlug of knowledge.related_entities) {
-        await this.stores.graph.addLink(slug, entitySlug, "mentions", "Referenced in knowledge", knowledge.source, sourceHash);
+        await this.stores.graph.addLink(
+          slug,
+          entitySlug,
+          "mentions",
+          "Referenced in knowledge",
+          knowledge.source,
+          sourceHash,
+        );
       }
 
       result.written += 1;
@@ -504,7 +529,14 @@ ${parts.join("\n")}`;
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
     try {
-      await this.stores.graph.addLink(link.from, link.to, link.type, link.context, link.source, link.source.raw_hash);
+      await this.stores.graph.addLink(
+        link.from,
+        link.to,
+        link.type,
+        link.context,
+        link.source,
+        link.source.raw_hash,
+      );
       result.written += 1;
     } catch (error) {
       result.errors.push({

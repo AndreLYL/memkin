@@ -14,7 +14,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseExtractionResult } from "../core/schemas.js";
-import type { BlockResult, ConversationBlock, ExtractionResult, RawMessage, SourceRef } from "../core/types.js";
+import type {
+  BlockResult,
+  ConversationBlock,
+  ExtractionResult,
+  RawMessage,
+  SourceRef,
+} from "../core/types.js";
 import type { ChatMessage, LLMProvider } from "./providers/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -131,9 +137,7 @@ function buildSourceRef(block: ConversationBlock): SourceRef {
     start_time: block.start_time,
     end_time: block.end_time,
     thread_id: block.thread_id,
-    message_ids: block.messages
-      .map((m) => m.metadata?.message_id as string)
-      .filter(Boolean),
+    message_ids: block.messages.map((m) => m.metadata?.message_id as string).filter(Boolean),
     raw_hash: hashBlock(block),
     quote: "",
   };
