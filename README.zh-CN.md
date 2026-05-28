@@ -275,7 +275,7 @@ server:
 | **Claude Code** | `~/.claude/projects/` | Claude Code Agent 对话记录 |
 | **Codex** | `~/.codex/` | OpenAI Codex CLI 会话 |
 | **Hermes** | `~/.openclaw/agents/` | OpenClaw Hermes Agent 会话 |
-| **飞书** | API | 飞书消息、日历、文档、任务 |
+| **飞书** | API | 飞书消息、日历、文档、任务、邮件 |
 
 ## 路线图
 
@@ -299,11 +299,12 @@ server:
 - [x] MCP 服务器（17 个 stdio 工具）
 - [x] CLI serve、search、embed 命令
 
-### Phase 3 — 查询 & 界面（规划中）
+### Phase 3 — 查询 & 界面（进行中）
 
 - [ ] 自然语言问答
-- [ ] Web UI — 时间线视图
-- [ ] Web UI — 知识图谱可视化
+- [x] Web UI — 时间线视图
+- [x] Web UI — 知识图谱可视化
+- [x] Web UI — Dashboard、搜索、页面详情
 
 ### Phase 4 — 新数据源
 
@@ -322,7 +323,7 @@ server:
 | Web 框架 | Hono |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| 测试 | Vitest（800+ 测试） |
+| 测试 | Vitest（400+ 测试） |
 
 ## 开发
 

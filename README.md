@@ -377,7 +377,7 @@ Extracts session data from OpenClaw Hermes agents.
 
 Extracts messages from Feishu/Lark workplace platform.
 
-- **Data**: Group messages, DMs, calendar events, docs, tasks
+- **Data**: Group messages, DMs, calendar events, docs, tasks, mail
 
 ## Roadmap
 
@@ -404,11 +404,12 @@ Extracts messages from Feishu/Lark workplace platform.
 - [x] MCP Server with 17 stdio tools
 - [x] CLI serve, search, embed commands
 
-### Phase 3 — Query & Interface (Next)
+### Phase 3 — Query & Interface (In Progress)
 
 - [ ] Natural language Q&A over stored memories
-- [ ] Web UI — Timeline view
-- [ ] Web UI — Knowledge graph visualization
+- [x] Web UI — Timeline view
+- [x] Web UI — Knowledge graph visualization
+- [x] Web UI — Dashboard, Search, Page detail
 
 ### Phase 4 — New Data Sources
 
@@ -427,7 +428,7 @@ Extracts messages from Feishu/Lark workplace platform.
 | Web Framework | Hono |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| Tests | Vitest (800+ tests) |
+| Tests | Vitest (400+ tests) |
 
 ## Development
 
