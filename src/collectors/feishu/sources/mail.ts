@@ -72,16 +72,31 @@ export class MailSource implements FeishuSource {
   }
 
   private async fetchTriage(): Promise<TriageItem[]> {
-    const stdout = await this.client.execShortcut("mail", "triage", ["--folder", "INBOX"]);
+    const stdout = await this.client.execShortcut("mail", "triage", [
+      "--filter",
+      '{"folder":"INBOX"}',
+    ]);
     try {
-      return JSON.parse(stdout) as TriageItem[];
+      const parsed = JSON.parse(stdout);
+      if (parsed && Array.isArray(parsed.messages)) {
+        return parsed.messages as TriageItem[];
+      }
+      if (Array.isArray(parsed)) {
+        return parsed as TriageItem[];
+      }
+      return [];
     } catch {
       const lines = stdout.trim().split("\n").filter(Boolean);
       const items: TriageItem[] = [];
       for (const line of lines) {
         if (line.startsWith("[")) continue;
         try {
-          items.push(JSON.parse(line) as TriageItem);
+          const obj = JSON.parse(line);
+          if (obj && Array.isArray(obj.messages)) {
+            items.push(...(obj.messages as TriageItem[]));
+          } else {
+            items.push(obj as TriageItem);
+          }
         } catch {}
       }
       return items;
@@ -96,7 +111,12 @@ export class MailSource implements FeishuSource {
         "--html",
         "false",
       ]);
-      return JSON.parse(stdout) as FeishuMailMessage;
+      const parsed = JSON.parse(stdout);
+      const raw = parsed?.data ?? parsed;
+      if (raw.body_plain_text !== undefined && raw.body === undefined) {
+        raw.body = raw.body_plain_text;
+      }
+      return raw as FeishuMailMessage;
     } catch (err) {
       console.error(`[MailSource] Failed to fetch message ${messageId}:`, err);
       return null;

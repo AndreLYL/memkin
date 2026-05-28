@@ -217,7 +217,10 @@ describe("MailSource", () => {
       results.push(msg);
     }
 
-    expect(client.execShortcut).toHaveBeenCalledWith("mail", "triage", ["--folder", "INBOX"]);
+    expect(client.execShortcut).toHaveBeenCalledWith("mail", "triage", [
+      "--filter",
+      '{"folder":"INBOX"}',
+    ]);
   });
 
   it("calls message with --html false", async () => {
