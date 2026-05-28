@@ -3,8 +3,8 @@
  * Corresponds to types in types.ts but with runtime validation
  */
 
-import { z } from "zod";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import type { ExtractionResult, SignificanceVerdict } from "./types.js";
 
 // Base schemas

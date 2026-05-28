@@ -1,12 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { parseExtractionResult } from "./core/schemas.js";
-import type {
-  ConversationBlock,
-  ExtractionResult,
-  RawMessage,
-  SourceRef,
-} from "./core/types.js";
+import type { ConversationBlock, ExtractionResult, RawMessage, SourceRef } from "./core/types.js";
 import { PrivacyProcessor } from "./processors/privacy.js";
 
 // ── Helpers ──────────────────────────────────────────────────
