@@ -40,15 +40,23 @@ export const TimelineEntrySchema = z.object({
   confidence: SignalConfidenceSchema,
 });
 
-export const LinkTypeSchema = z.enum([
+const KNOWN_LINK_TYPES = [
   "works_on",
   "works_at",
   "reports_to",
   "collaborates",
   "depends_on",
   "mentions",
+  "approves",
+  "uses",
   "custom",
-]);
+] as const;
+
+export const LinkTypeSchema = z
+  .string()
+  .transform((v) =>
+    (KNOWN_LINK_TYPES as readonly string[]).includes(v) ? v : "custom",
+  ) as unknown as z.ZodType<(typeof KNOWN_LINK_TYPES)[number]>;
 
 export const LinkSchema = z.object({
   from: z.string(), // entity slug
@@ -82,10 +90,16 @@ export const TaskSignalSchema = z.object({
   confidence: SignalConfidenceSchema,
 });
 
+const KNOWN_DISCOVERY_TYPES = ["procedure", "preference", "pattern", "insight", "risk"] as const;
+
 export const DiscoverySchema = z.object({
   summary: z.string(),
   detail: z.string().optional(),
-  type: z.enum(["procedure", "preference", "pattern", "insight"]),
+  type: z
+    .string()
+    .transform((v) =>
+      (KNOWN_DISCOVERY_TYPES as readonly string[]).includes(v) ? v : "insight",
+    ) as unknown as z.ZodType<(typeof KNOWN_DISCOVERY_TYPES)[number]>,
   entities: z.array(z.string()), // slugs
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
@@ -108,8 +122,8 @@ export const KnowledgeSchema = z
     content: z.string().min(1),
     source_type: KnowledgeSourceTypeSchema,
     related_entities: z.array(z.string()),
-    valid_at: z.string().datetime().optional(),
-    invalid_at: z.string().datetime().optional(),
+    valid_at: z.string().optional(),
+    invalid_at: z.string().optional(),
     source: SourceRefSchema,
     confidence: SignalConfidenceSchema,
   })

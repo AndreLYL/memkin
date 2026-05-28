@@ -78,6 +78,8 @@ export type LinkType =
   | "collaborates"
   | "depends_on"
   | "mentions"
+  | "approves"
+  | "uses"
   | "custom";
 
 export interface Link {
@@ -115,7 +117,7 @@ export interface TaskSignal {
 export interface Discovery {
   summary: string;
   detail?: string;
-  type: "procedure" | "preference" | "pattern" | "insight";
+  type: "procedure" | "preference" | "pattern" | "insight" | "risk";
   entities: string[]; // slugs
   source: SourceRef;
   confidence: SignalConfidence;
