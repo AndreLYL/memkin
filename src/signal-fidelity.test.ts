@@ -4,7 +4,6 @@ import { parseExtractionResult } from "./core/schemas.js";
 import type {
   ConversationBlock,
   ExtractionResult,
-  Link,
   RawMessage,
   SourceRef,
 } from "./core/types.js";
@@ -347,7 +346,7 @@ describe("AC-11: IdentityResolver enrichBatch", () => {
 
 describe("AC-12: stampSourceRefs overwrites LLM source, preserves quote", () => {
   it("overwrites platform/channel/raw_hash, keeps LLM quote", async () => {
-    const mod = await import("./extractors/signal-extractor.js");
+    await import("./extractors/signal-extractor.js");
     // Access the internal functions via the module — they're not exported,
     // so we verify via structural test: build a block, extract hash, verify structure
     const { readFileSync } = await import("node:fs");
