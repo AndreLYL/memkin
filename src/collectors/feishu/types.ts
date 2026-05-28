@@ -29,6 +29,12 @@ export interface FeishuDMSourceConfig {
   overlap_ms?: number;
 }
 
+export interface FeishuMailSourceConfig {
+  enabled: boolean;
+  lookback_days?: number;
+  overlap_ms?: number;
+}
+
 export interface FeishuCollectorConfig {
   auth_mode?: "bot" | "user";
   app_id: string;
@@ -42,6 +48,7 @@ export interface FeishuCollectorConfig {
     docs?: FeishuDocSourceConfig;
     tasks?: FeishuTaskSourceConfig;
     dm?: FeishuDMSourceConfig;
+    mail?: FeishuMailSourceConfig;
   };
 }
 
@@ -51,6 +58,7 @@ export interface FeishuCheckpoint {
   calendar?: Record<string, { sync_token: string }>;
   docs?: Record<string, { last_edit_time: number }>;
   tasks?: Record<string, { last_update_time: number }>;
+  mail?: Record<string, { last_sync_at: number }>;
 }
 
 export type SourceCheckpoint = Record<string, Record<string, unknown>>;
@@ -145,6 +153,18 @@ export interface FeishuTask {
   members?: Array<{ id: string; type: string; role: string }>;
   url?: string;
   priority?: string;
+}
+
+export interface FeishuMailMessage {
+  message_id: string;
+  subject: string;
+  from: string;
+  to?: string[];
+  cc?: string[];
+  date: string;
+  thread_id?: string;
+  body?: string;
+  attachments?: Array<{ file_name: string; size?: number }>;
 }
 
 export class FeishuAuthError extends Error {

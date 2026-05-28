@@ -9,6 +9,7 @@ import type { FeishuSource } from "./sources/base";
 import { CalendarSource } from "./sources/calendar";
 import { DMSource } from "./sources/dm";
 import { DocSource } from "./sources/docs";
+import { MailSource } from "./sources/mail";
 import { MessageSource } from "./sources/messages";
 import { TaskSource } from "./sources/tasks";
 import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types";
@@ -16,7 +17,7 @@ import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types";
 export class FeishuCollector implements Collector, CursorProvider {
   readonly id = "feishu";
   readonly name = "Feishu";
-  readonly description = "Feishu Open API collector (messages, calendar, docs, tasks, dm)";
+  readonly description = "Feishu Open API collector (messages, calendar, docs, tasks, dm, mail)";
 
   private readonly auth: FeishuAuthManager | null;
   private readonly client: IFeishuHttpClient;
@@ -71,6 +72,19 @@ export class FeishuCollector implements Collector, CursorProvider {
           overlapMs: config.sources.dm.overlap_ms,
         }),
       );
+    }
+
+    if (config.sources.mail?.enabled) {
+      if (!this.larkCliClient) {
+        console.warn("feishu: mail source requires auth_mode=user (lark-cli), skipping");
+      } else {
+        this.sources.push(
+          new MailSource(this.larkCliClient, {
+            lookbackDays: config.sources.mail.lookback_days ?? 30,
+            overlapMs: config.sources.mail.overlap_ms,
+          }),
+        );
+      }
     }
   }
 
