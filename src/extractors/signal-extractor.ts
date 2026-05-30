@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { parseExtractionResult } from "../core/schemas.js";
 import type {
   BlockResult,
+  CanonicalisedBlock,
   ConversationBlock,
   ExtractionResult,
   RawMessage,
@@ -81,7 +82,7 @@ function extractJson(raw: string): string | null {
  * Signal Extractor interface
  */
 export interface SignalExtractor {
-  extract(block: ConversationBlock): Promise<BlockResult>;
+  extract(input: CanonicalisedBlock | ConversationBlock): Promise<BlockResult>;
 }
 
 /**
@@ -162,9 +163,19 @@ export function createSignalExtractor(provider: LLMProvider): SignalExtractor {
   const signalExtractPrompt = loadPrompt("signal-extract.md");
 
   return {
-    async extract(block: ConversationBlock): Promise<BlockResult> {
-      // Format conversation for LLM
-      const conversationText = formatConversation(block.messages);
+    async extract(input: CanonicalisedBlock | ConversationBlock): Promise<BlockResult> {
+      // Determine input type and extract the underlying block and conversation text
+      const isCanonicalized = "canonical_markdown" in input;
+      const block = isCanonicalized ? (input as CanonicalisedBlock).block : (input as ConversationBlock);
+      const cb = isCanonicalized ? (input as CanonicalisedBlock) : null;
+
+      // Get conversation text: use canonical_markdown for email/document/structured sources
+      let conversationText: string;
+      if (cb && (cb.source_type === "email" || cb.source_type === "document" || cb.source_type === "structured")) {
+        conversationText = cb.canonical_markdown;
+      } else {
+        conversationText = formatConversation(block.messages);
+      }
 
       // Build prompt with context
       const userPrompt = `${signalExtractPrompt}
