@@ -62,6 +62,7 @@ export class BlockBuilder {
     let currentBlock: RawMessage[] = [];
     let currentTokens = 0;
     let currentThreadId: string | undefined;
+    let currentDocToken: string | undefined;
     let lastTimestamp: Date | null = null;
 
     for await (const message of messages) {
@@ -72,6 +73,71 @@ export class BlockBuilder {
         (message.metadata?.thread_id as string | undefined) ??
         undefined;
       const effectiveThreadId = messageThreadId || undefined;
+
+      // Rule 0: Platform+Channel boundary
+      if (currentBlock.length > 0) {
+        const firstMsg = currentBlock[0];
+        if (message.platform !== firstMsg.platform || message.channel !== firstMsg.channel) {
+          yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+          currentBlock = [];
+          currentTokens = 0;
+          currentThreadId = undefined;
+          currentDocToken = undefined;
+          lastTimestamp = messageTime;
+        }
+      }
+
+      // Rule 0a: Email standalone
+      if (message.channel.startsWith("mail/")) {
+        if (currentBlock.length > 0) {
+          yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+          currentBlock = [];
+          currentTokens = 0;
+          currentThreadId = undefined;
+          currentDocToken = undefined;
+        }
+        yield this.finalizeBlock([message], messageTokens, undefined);
+        lastTimestamp = messageTime;
+        continue;
+      }
+
+      // Rule 0b: Structured standalone
+      if (message.channel.startsWith("calendar/") || message.channel === "tasks") {
+        if (currentBlock.length > 0) {
+          yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+          currentBlock = [];
+          currentTokens = 0;
+          currentThreadId = undefined;
+          currentDocToken = undefined;
+        }
+        yield this.finalizeBlock([message], messageTokens, undefined);
+        lastTimestamp = messageTime;
+        continue;
+      }
+
+      // Rule 0c: Document per doc_token
+      if (message.channel.startsWith("docs/")) {
+        const msgDocToken = (message.metadata?.doc_token as string) ?? undefined;
+        if (currentBlock.length > 0) {
+          if (!msgDocToken || msgDocToken !== currentDocToken) {
+            yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+            currentBlock = [];
+            currentTokens = 0;
+            currentThreadId = undefined;
+          }
+        }
+        if (!msgDocToken) {
+          yield this.finalizeBlock([message], messageTokens, undefined);
+          currentDocToken = undefined;
+          lastTimestamp = messageTime;
+          continue;
+        }
+        currentDocToken = msgDocToken;
+        currentBlock.push(message);
+        currentTokens += messageTokens;
+        lastTimestamp = messageTime;
+        continue;
+      }
 
       let shouldSplit = false;
 

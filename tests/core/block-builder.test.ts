@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { BlockBuilder } from "../../src/core/block-builder";
-import type { RawMessage } from "../../src/core/types";
+import type { ConversationBlock, RawMessage } from "../../src/core/types";
 
 async function* createGenerator(messages: RawMessage[]): AsyncGenerator<RawMessage> {
   for (const msg of messages) {
@@ -23,6 +23,29 @@ function createMessage(
     direction: "received",
     metadata,
   };
+}
+
+// Helper for new tests
+function makeMsg(content: string, overrides?: Partial<RawMessage>): RawMessage {
+  return {
+    platform: "feishu",
+    channel: "group/oc_test",
+    contact: "alice",
+    timestamp: "2026-05-29T10:00:00Z",
+    content,
+    direction: "received",
+    ...overrides,
+  };
+}
+
+async function* gen(msgs: RawMessage[]): AsyncGenerator<RawMessage> {
+  for (const m of msgs) yield m;
+}
+
+async function collect(gen: AsyncGenerator<ConversationBlock>): Promise<ConversationBlock[]> {
+  const result: ConversationBlock[] = [];
+  for await (const b of gen) result.push(b);
+  return result;
 }
 
 describe("BlockBuilder", () => {
@@ -257,5 +280,105 @@ describe("BlockBuilder", () => {
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0].thread_id).toBeUndefined();
+  });
+});
+
+describe("BlockBuilder — source-aware split rules", () => {
+  test("Rule 0: different channel forces split", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("msg1", { channel: "group/oc_abc", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("msg2", { channel: "group/oc_def", timestamp: "2026-05-29T10:00:30Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+    expect(blocks[0].channel).toBe("group/oc_abc");
+    expect(blocks[1].channel).toBe("group/oc_def");
+  });
+
+  test("Rule 0: different platform forces split", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("msg1", { platform: "feishu", channel: "group/oc_abc", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("msg2", { platform: "agent", channel: "claude-code/session1", timestamp: "2026-05-29T10:00:30Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+  });
+
+  test("Rule 0a: email messages are standalone blocks", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("chat msg", { channel: "group/oc_abc", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("Subject1\n\nEmail body 1", { channel: "mail/INBOX", timestamp: "2026-05-29T10:00:30Z" }),
+      makeMsg("Subject2\n\nEmail body 2", { channel: "mail/INBOX", timestamp: "2026-05-29T10:01:00Z" }),
+      makeMsg("chat msg2", { channel: "group/oc_abc", timestamp: "2026-05-29T10:01:30Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(4);
+    expect(blocks[0].channel).toBe("group/oc_abc");
+    expect(blocks[1].channel).toBe("mail/INBOX");
+    expect(blocks[1].messages.length).toBe(1);
+    expect(blocks[2].channel).toBe("mail/INBOX");
+    expect(blocks[2].messages.length).toBe(1);
+    expect(blocks[3].channel).toBe("group/oc_abc");
+  });
+
+  test("Rule 0b: calendar events are standalone blocks", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("event1", { channel: "calendar/primary", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("event2", { channel: "calendar/primary", timestamp: "2026-05-29T10:01:00Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+    expect(blocks[0].messages.length).toBe(1);
+    expect(blocks[1].messages.length).toBe(1);
+  });
+
+  test("Rule 0b: tasks are standalone blocks", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("task1", { channel: "tasks", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("task2", { channel: "tasks", timestamp: "2026-05-29T10:01:00Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+  });
+
+  test("Rule 0c: documents split by doc_token metadata", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("doc1 content", { channel: "docs/folder1", timestamp: "2026-05-29T10:00:00Z", metadata: { doc_token: "doc_aaa" } }),
+      makeMsg("doc1 page2", { channel: "docs/folder1", timestamp: "2026-05-29T10:01:00Z", metadata: { doc_token: "doc_aaa" } }),
+      makeMsg("doc2 content", { channel: "docs/folder1", timestamp: "2026-05-29T10:02:00Z", metadata: { doc_token: "doc_bbb" } }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+    expect(blocks[0].messages.length).toBe(2);
+    expect(blocks[1].messages.length).toBe(1);
+  });
+
+  test("Rule 0c: documents without doc_token are standalone", async () => {
+    const builder = new BlockBuilder();
+    const messages = gen([
+      makeMsg("doc1", { channel: "docs/folder1", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("doc2", { channel: "docs/folder1", timestamp: "2026-05-29T10:01:00Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+  });
+
+  test("existing chat rules still apply within same channel", async () => {
+    const builder = new BlockBuilder({ block_gap_minutes: 5 });
+    const messages = gen([
+      makeMsg("msg1", { channel: "group/oc_abc", timestamp: "2026-05-29T10:00:00Z" }),
+      makeMsg("msg2", { channel: "group/oc_abc", timestamp: "2026-05-29T10:02:00Z" }),
+      makeMsg("msg3", { channel: "group/oc_abc", timestamp: "2026-05-29T10:10:00Z" }),
+    ]);
+    const blocks = await collect(builder.build(messages));
+    expect(blocks.length).toBe(2);
+    expect(blocks[0].messages.length).toBe(2);
+    expect(blocks[1].messages.length).toBe(1);
   });
 });
