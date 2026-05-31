@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { StoreAdapter } from "../../src/adapters/store.js";
 import type {
   Decision,
@@ -43,6 +43,10 @@ describe("StoreAdapter", () => {
       tags,
       timeline,
     });
+  });
+
+  afterEach(async () => {
+    await db.close();
   });
 
   function createSourceRef(platform = "test", channel = "test-channel"): SourceRef {

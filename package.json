@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "bun src/cli.ts",
-    "test": "vitest",
+    "test": "vitest run",
     "test:watch": "vitest --watch",
     "build": "bun build src/cli.ts --outfile dist/cli.js --target bun",
     "typecheck": "tsc --noEmit",
