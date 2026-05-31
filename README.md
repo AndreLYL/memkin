@@ -112,6 +112,9 @@ bun src/cli.ts doctor
 # Extract from Claude Code and store directly to PGLite
 bun src/cli.ts extract --source claude-code
 
+# Extract from Feishu
+bun src/cli.ts extract --source feishu
+
 # Extract from all sources
 bun src/cli.ts extract --source all
 
@@ -333,6 +336,29 @@ sources:
     enabled: true
   hermes:
     enabled: true
+  feishu:
+    enabled: false
+    app_id: ${FEISHU_APP_ID}
+    app_secret: ${FEISHU_APP_SECRET}
+    auth_mode: bot               # bot | user
+    sources:
+      messages:
+        enabled: true
+        chat_ids: []             # empty = auto-discover all joined groups
+        lookback_days: 30
+      calendar:
+        enabled: false
+        calendar_ids: []
+      docs:
+        enabled: false
+        doc_folders: []
+      tasks:
+        enabled: false
+      dm:
+        enabled: false
+        dm_chat_ids: []
+      mail:
+        enabled: false           # user mode only
 
 # Store (PGLite)
 store:
@@ -375,9 +401,12 @@ Extracts session data from OpenClaw Hermes agents.
 
 ### Feishu (Lark)
 
-Extracts messages from Feishu/Lark workplace platform.
+Extracts data from Feishu/Lark workplace platform via Open API.
 
-- **Data**: Group messages, DMs, calendar events, docs, tasks, mail
+- **Auth**: Bot mode (app credentials) or User mode (lark-cli OAuth)
+- **Sources**: Group messages, DMs, calendar events, cloud docs/wiki, tasks, mail
+- **Features**: Auto-discovery of chat IDs, incremental sync via cursor checkpoints, identity resolution (OpenID → display name), rate limiting (50 QPS token bucket), automatic pagination, retry with exponential backoff
+- **User mode extras**: DM direction detection, mail extraction (user_access_token required)
 
 ## Roadmap
 
@@ -414,6 +443,7 @@ Extracts messages from Feishu/Lark workplace platform.
 ### Phase 4 — New Data Sources
 
 - [ ] WeChat chat history
+- [ ] Signal / Telegram
 - [ ] More platforms based on community demand
 
 ## Tech Stack
@@ -428,7 +458,7 @@ Extracts messages from Feishu/Lark workplace platform.
 | Web Framework | Hono |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| Tests | Vitest (400+ tests) |
+| Tests | Vitest (675+ tests) |
 
 ## Development
 

@@ -200,3 +200,29 @@ export interface DedupEntry {
   source_hash: string;
   content_hash: string;
 }
+
+export type SourceType = "email" | "chat" | "dm" | "document" | "structured";
+
+export type InteractionTag = "sent" | "reply" | "dm";
+
+export interface CanonicalisedBlock {
+  block: ConversationBlock;
+  source_type: SourceType;
+  interaction_tags: InteractionTag[];
+  canonical_markdown: string;
+}
+
+export interface SignalScore {
+  token_score: number;
+  unique_words_score: number;
+  source_score: number;
+  interaction_score: number;
+  entity_density_score: number;
+  combined: number;
+  decision: "admit" | "drop" | "evaluate";
+}
+
+export interface QuickEntity {
+  type: "email" | "url" | "handle" | "hashtag" | "phone" | "ticket_id";
+  value: string;
+}

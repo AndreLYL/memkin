@@ -6,6 +6,47 @@ export interface BlockBuilderConfig {
   max_block_messages?: number;
 }
 
+export function estimateTokens(content: string): number {
+  let tokens = 0;
+  let currentWord = "";
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const code = char.charCodeAt(0);
+
+    const isChinese =
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x20000 && code <= 0x2a6df) ||
+      (code >= 0x2a700 && code <= 0x2b73f) ||
+      (code >= 0x2b740 && code <= 0x2b81f) ||
+      (code >= 0x2b820 && code <= 0x2ceaf) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0x2f800 && code <= 0x2fa1f);
+
+    if (isChinese) {
+      if (currentWord.length > 0) {
+        tokens += 1.3;
+        currentWord = "";
+      }
+      tokens += 1.5;
+    } else if (/\s/.test(char)) {
+      if (currentWord.length > 0) {
+        tokens += 1.3;
+        currentWord = "";
+      }
+    } else {
+      currentWord += char;
+    }
+  }
+
+  if (currentWord.length > 0) {
+    tokens += 1.3;
+  }
+
+  return tokens;
+}
+
 export class BlockBuilder {
   private config: Required<BlockBuilderConfig>;
 
@@ -21,6 +62,7 @@ export class BlockBuilder {
     let currentBlock: RawMessage[] = [];
     let currentTokens = 0;
     let currentThreadId: string | undefined;
+    let currentDocToken: string | undefined;
     let lastTimestamp: Date | null = null;
 
     for await (const message of messages) {
@@ -31,6 +73,71 @@ export class BlockBuilder {
         (message.metadata?.thread_id as string | undefined) ??
         undefined;
       const effectiveThreadId = messageThreadId || undefined;
+
+      // Rule 0: Platform+Channel boundary
+      if (currentBlock.length > 0) {
+        const firstMsg = currentBlock[0];
+        if (message.platform !== firstMsg.platform || message.channel !== firstMsg.channel) {
+          yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+          currentBlock = [];
+          currentTokens = 0;
+          currentThreadId = undefined;
+          currentDocToken = undefined;
+          lastTimestamp = messageTime;
+        }
+      }
+
+      // Rule 0a: Email standalone
+      if (message.channel.startsWith("mail/")) {
+        if (currentBlock.length > 0) {
+          yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+          currentBlock = [];
+          currentTokens = 0;
+          currentThreadId = undefined;
+          currentDocToken = undefined;
+        }
+        yield this.finalizeBlock([message], messageTokens, undefined);
+        lastTimestamp = messageTime;
+        continue;
+      }
+
+      // Rule 0b: Structured standalone
+      if (message.channel.startsWith("calendar/") || message.channel === "tasks") {
+        if (currentBlock.length > 0) {
+          yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+          currentBlock = [];
+          currentTokens = 0;
+          currentThreadId = undefined;
+          currentDocToken = undefined;
+        }
+        yield this.finalizeBlock([message], messageTokens, undefined);
+        lastTimestamp = messageTime;
+        continue;
+      }
+
+      // Rule 0c: Document per doc_token
+      if (message.channel.startsWith("docs/")) {
+        const msgDocToken = (message.metadata?.doc_token as string) ?? undefined;
+        if (currentBlock.length > 0) {
+          if (!msgDocToken || msgDocToken !== currentDocToken) {
+            yield this.finalizeBlock(currentBlock, currentTokens, currentThreadId);
+            currentBlock = [];
+            currentTokens = 0;
+            currentThreadId = undefined;
+          }
+        }
+        if (!msgDocToken) {
+          yield this.finalizeBlock([message], messageTokens, undefined);
+          currentDocToken = undefined;
+          lastTimestamp = messageTime;
+          continue;
+        }
+        currentDocToken = msgDocToken;
+        currentBlock.push(message);
+        currentTokens += messageTokens;
+        lastTimestamp = messageTime;
+        continue;
+      }
 
       let shouldSplit = false;
 
@@ -112,49 +219,6 @@ export class BlockBuilder {
   }
 
   private estimateTokens(content: string): number {
-    let tokens = 0;
-    let currentWord = "";
-
-    for (let i = 0; i < content.length; i++) {
-      const char = content[i];
-      const code = char.charCodeAt(0);
-
-      // Check if character is Chinese (CJK Unified Ideographs and extensions)
-      const isChinese =
-        (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
-        (code >= 0x3400 && code <= 0x4dbf) || // CJK Extension A
-        (code >= 0x20000 && code <= 0x2a6df) || // CJK Extension B
-        (code >= 0x2a700 && code <= 0x2b73f) || // CJK Extension C
-        (code >= 0x2b740 && code <= 0x2b81f) || // CJK Extension D
-        (code >= 0x2b820 && code <= 0x2ceaf) || // CJK Extension E
-        (code >= 0xf900 && code <= 0xfaff) || // CJK Compatibility Ideographs
-        (code >= 0x2f800 && code <= 0x2fa1f); // CJK Compatibility Ideographs Supplement
-
-      if (isChinese) {
-        // Finish current English word if any
-        if (currentWord.length > 0) {
-          tokens += 1.3; // English word
-          currentWord = "";
-        }
-        // Chinese character
-        tokens += 1.5;
-      } else if (/\s/.test(char)) {
-        // Whitespace - finish current word
-        if (currentWord.length > 0) {
-          tokens += 1.3;
-          currentWord = "";
-        }
-      } else {
-        // Regular character (English, punctuation, etc.)
-        currentWord += char;
-      }
-    }
-
-    // Add final word if any
-    if (currentWord.length > 0) {
-      tokens += 1.3;
-    }
-
-    return tokens;
+    return estimateTokens(content);
   }
 }

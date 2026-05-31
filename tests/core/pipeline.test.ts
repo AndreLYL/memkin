@@ -243,7 +243,7 @@ describe("Pipeline", () => {
         channel: "channel1",
         contact: "user1",
         timestamp: "2024-01-01T10:00:00Z",
-        content: "Block 1 message",
+        content: "Block 1 message with some content to avoid being dropped",
         direction: "sent",
         metadata: { cursor: "msg1", message_id: "id1" },
       },
@@ -252,8 +252,8 @@ describe("Pipeline", () => {
         channel: "channel1",
         contact: "user2",
         timestamp: "2024-01-01T12:00:00Z", // 2 hours gap - new block
-        content: "Block 2 message",
-        direction: "received",
+        content: "Block 2 message with enough content and context to pass scoring",
+        direction: "sent", // Make it sent to pass interaction scoring
         metadata: { cursor: "msg2", message_id: "id2" },
       },
     ];
@@ -261,43 +261,18 @@ describe("Pipeline", () => {
     const collector = createMockCollector(messages);
 
     let callCount = 0;
-    // First block: fail on extraction only (pass significance, fail extraction)
-    // Second block: success on both
+    // First block: always fail on extraction (both attempts)
+    // Second block: succeed on extraction
     const mockProvider = createMockProvider(new Map([["", " "]]));
     mockProvider.chat = async (messages) => {
       callCount++;
-      const prompt = messages
-        .map((m) => m.content)
-        .join(" ")
-        .toLowerCase();
 
-      const isSignificanceCall = prompt.includes("significance");
-
-      // First block: significance passes (call 1), extraction fails (call 2)
-      if (callCount === 1) {
-        // Significance for block 1
-        return JSON.stringify({
-          worth_processing: true,
-          confidence: 0.8,
-          reason: "Contains content",
-          topics: ["general"],
-        });
-      }
-      if (callCount === 2) {
-        // Extraction for block 1 - FAIL
+      // Check if this is for block 1 (first two calls - original + retry)
+      if (callCount <= 2) {
         throw new Error("Simulated extraction failure");
       }
 
-      // Second block: both calls succeed
-      if (isSignificanceCall || callCount === 3) {
-        return JSON.stringify({
-          worth_processing: true,
-          confidence: 0.8,
-          reason: "Contains content",
-          topics: ["general"],
-        });
-      }
-
+      // Block 2: extraction succeeds
       return JSON.stringify({
         source: {
           platform: "test",
@@ -306,7 +281,15 @@ describe("Pipeline", () => {
           raw_hash: "test-hash",
           quote: "Block 2 message",
         },
-        entities: [],
+        entities: [
+          {
+            slug: "person/test",
+            name: "Test Person",
+            type: "person",
+            context: "Test entity",
+            confidence: "direct",
+          },
+        ],
         timeline: [],
         links: [],
         decisions: [],
@@ -421,7 +404,7 @@ describe("Pipeline", () => {
         channel: "channel1",
         contact: "user1",
         timestamp: "2024-01-01T10:00:00Z",
-        content: "Message 1",
+        content: "Message 1 with enough content to pass signal scoring filters",
         direction: "sent",
         metadata: { cursor: "msg1", message_id: "id1" },
       },
@@ -430,8 +413,8 @@ describe("Pipeline", () => {
         channel: "channel1",
         contact: "user2",
         timestamp: "2024-01-01T10:01:00Z",
-        content: "Message 2",
-        direction: "received",
+        content: "Message 2 with sufficient context for extraction processing",
+        direction: "sent",
         metadata: { cursor: "msg2", message_id: "id2" },
       },
     ];
@@ -440,22 +423,10 @@ describe("Pipeline", () => {
 
     const mockProvider = createMockProvider(new Map([["", " "]]));
     let callCount = 0;
-    mockProvider.chat = async (messages) => {
+    mockProvider.chat = async (_messages) => {
       callCount++;
-      const prompt = messages
-        .map((m) => m.content)
-        .join(" ")
-        .toLowerCase();
 
-      if (prompt.includes("significance") || callCount % 2 === 1) {
-        return JSON.stringify({
-          worth_processing: true,
-          confidence: 0.8,
-          reason: "Contains content",
-          topics: ["general"],
-        });
-      }
-
+      // All extraction calls return non-empty results
       return JSON.stringify({
         source: {
           platform: "test",
@@ -464,7 +435,15 @@ describe("Pipeline", () => {
           raw_hash: "test-hash",
           quote: "Message",
         },
-        entities: [],
+        entities: [
+          {
+            slug: "person/test",
+            name: "Test Person",
+            type: "person",
+            context: "Test entity",
+            confidence: "direct",
+          },
+        ],
         timeline: [],
         links: [],
         decisions: [],

@@ -1,0 +1,147 @@
+<h2>Dashboard 页面布局</h2>
+<p class="subtitle">知识库总览 — 深空神经网络风格</p>
+
+<div class="mockup">
+  <div class="mockup-header">Dashboard — Memoark</div>
+  <div class="mockup-body" style="background: #06060f; padding: 24px; min-height: 500px; font-family: -apple-system, sans-serif;">
+
+    <!-- Sidebar + Main -->
+    <div style="display: flex; gap: 0;">
+
+      <!-- Sidebar -->
+      <div style="width: 56px; background: #0a0a18; border-right: 1px solid #1a1a2e; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 20px; border-radius: 8px 0 0 8px; min-height: 460px;">
+        <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #00d4ff, #7b68ee); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 700;">M</div>
+        <div style="width: 32px; height: 32px; border-radius: 8px; background: #7b68ee22; border: 1px solid #7b68ee44; display: flex; align-items: center; justify-content: center; font-size: 14px;" title="Dashboard">📊</div>
+        <div style="width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0.4;" title="Graph">🕸️</div>
+        <div style="width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0.4;" title="Pages">📄</div>
+        <div style="width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0.4;" title="Search">🔍</div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="flex: 1; padding: 20px 24px;">
+
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <div>
+            <div style="font-size: 20px; font-weight: 600; color: #e2e8f0;">Dashboard</div>
+            <div style="font-size: 12px; color: #4a5568; margin-top: 2px;">Knowledge base health & statistics</div>
+          </div>
+          <div style="font-size: 11px; color: #2d3748; background: #0d1117; padding: 6px 12px; border-radius: 6px; border: 1px solid #1a1a2e;">Last sync: 2 min ago</div>
+        </div>
+
+        <!-- Stats Row -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+          <div style="background: linear-gradient(135deg, #0d1117 0%, #0a0f1a 100%); border: 1px solid #1a1a2e; border-radius: 10px; padding: 16px;">
+            <div style="font-size: 10px; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px;">Pages</div>
+            <div style="font-size: 28px; font-weight: 700; color: #00d4ff; margin-top: 4px; text-shadow: 0 0 20px #00d4ff44;">247</div>
+            <div style="font-size: 10px; color: #2d9764; margin-top: 4px;">↑ 12 this week</div>
+          </div>
+          <div style="background: linear-gradient(135deg, #0d1117 0%, #0a0f1a 100%); border: 1px solid #1a1a2e; border-radius: 10px; padding: 16px;">
+            <div style="font-size: 10px; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px;">Chunks</div>
+            <div style="font-size: 28px; font-weight: 700; color: #7b68ee; margin-top: 4px; text-shadow: 0 0 20px #7b68ee44;">1,842</div>
+            <div style="font-size: 10px; color: #4a5568; margin-top: 4px;">avg 7.5 / page</div>
+          </div>
+          <div style="background: linear-gradient(135deg, #0d1117 0%, #0a0f1a 100%); border: 1px solid #1a1a2e; border-radius: 10px; padding: 16px;">
+            <div style="font-size: 10px; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px;">Embeddings</div>
+            <div style="font-size: 28px; font-weight: 700; color: #00ffa3; margin-top: 4px; text-shadow: 0 0 20px #00ffa344;">94%</div>
+            <div style="width: 100%; height: 3px; background: #1a1a2e; border-radius: 2px; margin-top: 8px;"><div style="width: 94%; height: 100%; background: linear-gradient(90deg, #00ffa3, #00d4ff); border-radius: 2px;"></div></div>
+          </div>
+          <div style="background: linear-gradient(135deg, #0d1117 0%, #0a0f1a 100%); border: 1px solid #1a1a2e; border-radius: 10px; padding: 16px;">
+            <div style="font-size: 10px; color: #4a5568; text-transform: uppercase; letter-spacing: 1.5px;">Links</div>
+            <div style="font-size: 28px; font-weight: 700; color: #f97316; margin-top: 4px; text-shadow: 0 0 20px #f9731644;">389</div>
+            <div style="font-size: 10px; color: #4a5568; margin-top: 4px;">across 156 pages</div>
+          </div>
+        </div>
+
+        <!-- Two Column -->
+        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px;">
+
+          <!-- Page Types Distribution -->
+          <div style="background: #0d1117; border: 1px solid #1a1a2e; border-radius: 10px; padding: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: #a0aec0; margin-bottom: 16px;">Page Types</div>
+            <div style="display: flex; gap: 8px; align-items: flex-end; height: 100px; padding: 0 8px;">
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 100%; height: 70px; background: linear-gradient(180deg, #00d4ff44, #00d4ff11); border-radius: 4px 4px 0 0; border-top: 2px solid #00d4ff;"></div>
+                <span style="font-size: 9px; color: #4a5568;">person</span>
+              </div>
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 100%; height: 50px; background: linear-gradient(180deg, #7b68ee44, #7b68ee11); border-radius: 4px 4px 0 0; border-top: 2px solid #7b68ee;"></div>
+                <span style="font-size: 9px; color: #4a5568;">project</span>
+              </div>
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 100%; height: 35px; background: linear-gradient(180deg, #00ffa344, #00ffa311); border-radius: 4px 4px 0 0; border-top: 2px solid #00ffa3;"></div>
+                <span style="font-size: 9px; color: #4a5568;">decision</span>
+              </div>
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 100%; height: 45px; background: linear-gradient(180deg, #f9731644, #f9731611); border-radius: 4px 4px 0 0; border-top: 2px solid #f97316;"></div>
+                <span style="font-size: 9px; color: #4a5568;">session</span>
+              </div>
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 100%; height: 20px; background: linear-gradient(180deg, #ec489944, #ec489911); border-radius: 4px 4px 0 0; border-top: 2px solid #ec4899;"></div>
+                <span style="font-size: 9px; color: #4a5568;">other</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div style="background: #0d1117; border: 1px solid #1a1a2e; border-radius: 10px; padding: 16px;">
+            <div style="font-size: 12px; font-weight: 600; color: #a0aec0; margin-bottom: 12px;">Recent Updates</div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 6px; height: 6px; background: #00d4ff; border-radius: 50%; box-shadow: 0 0 6px #00d4ff; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-size: 11px; color: #e2e8f0;">memoark-backend</div>
+                  <div style="font-size: 9px; color: #4a5568;">2 min ago · project</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 6px; height: 6px; background: #7b68ee; border-radius: 50%; box-shadow: 0 0 6px #7b68ee; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-size: 11px; color: #e2e8f0;">jwt-auth-decision</div>
+                  <div style="font-size: 9px; color: #4a5568;">15 min ago · decision</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 6px; height: 6px; background: #00ffa3; border-radius: 50%; box-shadow: 0 0 6px #00ffa3; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-size: 11px; color: #e2e8f0;">yinglong-li</div>
+                  <div style="font-size: 9px; color: #4a5568;">1 hr ago · person</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 6px; height: 6px; background: #f97316; border-radius: 50%; box-shadow: 0 0 6px #f97316; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-size: 11px; color: #e2e8f0;">feishu-collector</div>
+                  <div style="font-size: 9px; color: #4a5568;">3 hrs ago · project</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 16px; background: #111827; border-radius: 8px; border: 1px solid #1f2937;">
+  <h3 style="margin-top: 0;">Dashboard 数据来源</h3>
+  <table style="width: 100%; font-size: 13px; color: #d1d5db;">
+    <tr style="border-bottom: 1px solid #1f2937;">
+      <td style="padding: 6px 0; color: #9ca3af;">Stats 卡片</td>
+      <td style="padding: 6px 0;"><code>GET /health</code> + <code>GET /pages</code> 聚合统计</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #1f2937;">
+      <td style="padding: 6px 0; color: #9ca3af;">Embedding 覆盖率</td>
+      <td style="padding: 6px 0;">需要新增后端端点：嵌入 chunk 数 / 总 chunk 数</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #1f2937;">
+      <td style="padding: 6px 0; color: #9ca3af;">Page Types 图表</td>
+      <td style="padding: 6px 0;">需要新增端点：按 type 分组统计</td>
+    </tr>
+    <tr>
+      <td style="padding: 6px 0; color: #9ca3af;">Recent Updates</td>
+      <td style="padding: 6px 0;"><code>GET /pages?limit=10</code> 按 updated_at 排序</td>
+    </tr>
+  </table>
+</div>
