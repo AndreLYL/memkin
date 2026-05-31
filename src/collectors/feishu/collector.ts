@@ -187,37 +187,45 @@ export async function createFeishuCollector(
 ): Promise<FeishuCollector> {
   let chatIds: string[] = [];
   let selfOpenId: string | undefined;
+  const isUserMode = config.auth_mode === "user";
 
-  if (config.auth_mode === "user") {
-    const client = new LarkCliHttpClient(config.lark_bin);
+  let client: IFeishuHttpClient;
+  if (isUserMode) {
+    client = new LarkCliHttpClient(config.lark_bin);
+  } else {
+    const auth = new FeishuAuthManager(config.app_id, config.app_secret, config.base_url);
+    const rateLimiter = new FeishuRateLimiter(config.rate_limit_qps);
+    client = new FeishuHttpClient(auth, rateLimiter);
+  }
 
-    // Auto-discover chats if not explicitly configured
-    if (!config.sources.messages?.chat_ids?.length) {
-      try {
-        const res = await client.request<{
-          code: number;
-          data: { items: FeishuChatInfo[] };
-        }>("GET", "/open-apis/im/v1/chats", { params: { page_size: "100" } });
+  // Auto-discover chats if not explicitly configured (works in both user and bot modes)
+  if (!config.sources.messages?.chat_ids?.length) {
+    try {
+      const res = await client.request<{
+        code: number;
+        data: { items: FeishuChatInfo[] };
+      }>("GET", "/open-apis/im/v1/chats", { params: { page_size: "100" } });
 
-        chatIds = res.data.items.map((c) => c.chat_id);
-        console.log(`feishu: auto-discovered ${chatIds.length} chats`);
-      } catch (err) {
-        console.warn("feishu: chat auto-discovery failed, using configured chat_ids", err);
-      }
+      chatIds = res.data.items.map((c) => c.chat_id);
+      console.log(`feishu: auto-discovered ${chatIds.length} chats`);
+    } catch (err) {
+      console.warn("feishu: chat auto-discovery failed, using configured chat_ids", err);
     }
+  }
 
+  if (isUserMode) {
+    const larkClient = client as LarkCliHttpClient;
     // Get self open_id for DM direction detection
     try {
-      const status = await client.request<{ userOpenId?: string }>(
+      const status = await larkClient.request<{ userOpenId?: string }>(
         "GET",
         "/open-apis/authen/v1/user_info",
         {},
       );
       selfOpenId = (status as Record<string, unknown>).userOpenId as string | undefined;
     } catch {
-      // lark auth status is not an API call — parse from healthCheck
       try {
-        const stdout = await client.execShortcut("auth", "status");
+        const stdout = await larkClient.execShortcut("auth", "status");
         const parsed = JSON.parse(stdout) as { userOpenId?: string };
         selfOpenId = parsed.userOpenId;
       } catch {
