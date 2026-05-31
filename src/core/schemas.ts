@@ -8,7 +8,20 @@ import { z } from "zod";
 import type { ExtractionResult, SignificanceVerdict } from "./types.js";
 
 // Base schemas
-export const SignalConfidenceSchema = z.enum(["direct", "paraphrased", "inferred", "speculative"]);
+function optionalString(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+}
+
+export const SignalConfidenceSchema = z.preprocess(
+  (value) => {
+    const text = String(value ?? "").toLowerCase();
+    if (["direct", "paraphrased", "inferred", "speculative"].includes(text)) return text;
+    return "inferred";
+  },
+  z.enum(["direct", "paraphrased", "inferred", "speculative"]),
+);
 
 export const SourceRefSchema = z.object({
   platform: z.string(),
@@ -29,31 +42,62 @@ export const SourceRefSchema = z.object({
 });
 
 // Signal schemas
-export const EntitySchema = z.object({
-  slug: z.string(),
-  name: z.string(),
-  type: z.enum(["person", "project", "organization", "tool", "concept"]),
-  context: z.string(),
-  confidence: SignalConfidenceSchema,
-});
+export const EntitySchema = z.preprocess(
+  (value) => {
+    if (!value || typeof value !== "object") return value;
+    const entity = { ...(value as Record<string, unknown>) };
+    if (!entity.name && typeof entity.slug === "string") {
+      entity.name = entity.slug.split("/").pop()?.replace(/-/g, " ") || entity.slug;
+    }
+    return entity;
+  },
+  z.object({
+    slug: z.string(),
+    name: z.string(),
+    type: z.enum(["person", "project", "organization", "tool", "concept"]).catch("concept"),
+    context: z.string().default(""),
+    confidence: SignalConfidenceSchema,
+  }),
+);
 
 export const TimelineEntrySchema = z.object({
   date: z.string(), // ISO 8601 or partial
   summary: z.string(),
-  entities: z.array(z.string()), // slugs
+  entities: z.array(z.string()).default([]), // slugs
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
 });
 
-export const LinkTypeSchema = z.enum([
-  "works_on",
-  "works_at",
-  "reports_to",
-  "collaborates",
-  "depends_on",
-  "mentions",
-  "custom",
-]);
+export const LinkTypeSchema = z.preprocess(
+  (value) => {
+    const text = String(value ?? "").toLowerCase();
+    if (text === "uses" || text === "requires") return "depends_on";
+    if (text === "contains" || text === "session_of" || text === "related_to") return "mentions";
+    if (
+      [
+        "works_on",
+        "works_at",
+        "reports_to",
+        "collaborates",
+        "depends_on",
+        "mentions",
+        "custom",
+      ].includes(text)
+    ) {
+      return text;
+    }
+    return "custom";
+  },
+  z.enum([
+    "works_on",
+    "works_at",
+    "reports_to",
+    "collaborates",
+    "depends_on",
+    "mentions",
+    "custom",
+  ]),
+);
 
 export const LinkSchema = z.object({
   from: z.string(), // entity slug
@@ -68,7 +112,7 @@ export const DecisionSchema = z.object({
   summary: z.string(),
   reasoning: z.string().optional(),
   alternatives: z.array(z.string()).optional(),
-  entities: z.array(z.string()), // slugs
+  entities: z.array(z.string()).default([]), // slugs
   date: z.string(), // ISO 8601
   valid_at: z.string().optional(), // ISO 8601
   invalid_at: z.string().optional(), // ISO 8601
@@ -78,12 +122,22 @@ export const DecisionSchema = z.object({
 
 export const TaskSignalSchema = z.object({
   title: z.string(),
-  status: z.enum(["open", "in_progress", "done", "cancelled"]),
+  status: z.preprocess(
+    (value) => {
+      const text = String(value ?? "").toLowerCase();
+      if (text === "completed" || text === "complete" || text === "closed") return "done";
+      if (text === "pending" || text === "todo" || text === "new") return "open";
+      if (text === "doing" || text === "in-progress") return "in_progress";
+      if (["open", "in_progress", "done", "cancelled"].includes(text)) return text;
+      return "open";
+    },
+    z.enum(["open", "in_progress", "done", "cancelled"]),
+  ),
   owner: z.string().optional(),
   project: z.string().optional(),
-  due_date: z.string().optional(), // ISO 8601
-  valid_at: z.string().optional(), // ISO 8601
-  invalid_at: z.string().optional(), // ISO 8601
+  due_date: z.preprocess(optionalString, z.string().optional()), // ISO 8601
+  valid_at: z.preprocess(optionalString, z.string().optional()), // ISO 8601
+  invalid_at: z.preprocess(optionalString, z.string().optional()), // ISO 8601
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
 });
@@ -91,13 +145,29 @@ export const TaskSignalSchema = z.object({
 export const DiscoverySchema = z.object({
   summary: z.string(),
   detail: z.string().optional(),
-  type: z.enum(["procedure", "preference", "pattern", "insight"]),
-  entities: z.array(z.string()), // slugs
+  type: z.preprocess(
+    (value) => {
+      const text = String(value ?? "").toLowerCase();
+      if (text === "behavior" || text === "configuration" || text === "result") return "insight";
+      if (["procedure", "preference", "pattern", "insight"].includes(text)) return text;
+      return "insight";
+    },
+    z.enum(["procedure", "preference", "pattern", "insight"]),
+  ),
+  entities: z.array(z.string()).default([]), // slugs
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
 });
 
-export const KnowledgeSourceTypeSchema = z.enum(["conversation", "document", "teaching"]);
+export const KnowledgeSourceTypeSchema = z.preprocess(
+  (value) => {
+    const text = String(value ?? "").toLowerCase();
+    if (["conversation", "document", "teaching"].includes(text)) return text;
+    if (text.includes("document") || text.includes("api")) return "document";
+    return "conversation";
+  },
+  z.enum(["conversation", "document", "teaching"]),
+);
 
 function normalizeTopicSlug(raw: string): string {
   const slug = raw
@@ -111,16 +181,26 @@ function normalizeTopicSlug(raw: string): string {
 }
 
 export const KnowledgeSchema = z
-  .object({
-    topic: z.string().min(1).transform(normalizeTopicSlug),
-    content: z.string().min(1),
-    source_type: KnowledgeSourceTypeSchema,
-    related_entities: z.array(z.string()),
-    valid_at: z.string().datetime().optional(),
-    invalid_at: z.string().datetime().optional(),
-    source: SourceRefSchema,
-    confidence: SignalConfidenceSchema,
-  })
+  .preprocess(
+    (value) => {
+      if (!value || typeof value !== "object") return value;
+      const knowledge = { ...(value as Record<string, unknown>) };
+      if (!knowledge.content && typeof knowledge.topic === "string") {
+        knowledge.content = knowledge.topic;
+      }
+      return knowledge;
+    },
+    z.object({
+      topic: z.string().min(1).transform(normalizeTopicSlug),
+      content: z.string().min(1),
+      source_type: KnowledgeSourceTypeSchema,
+      related_entities: z.array(z.string()).default([]),
+      valid_at: z.preprocess(optionalString, z.string().optional()),
+      invalid_at: z.preprocess(optionalString, z.string().optional()),
+      source: SourceRefSchema,
+      confidence: SignalConfidenceSchema,
+    }),
+  )
   .refine((k) => !k.valid_at || !k.invalid_at || k.invalid_at > k.valid_at, {
     message: "invalid_at must be after valid_at",
   });
@@ -128,12 +208,12 @@ export const KnowledgeSchema = z
 // Full extraction result schema
 export const ExtractionResultSchema = z.object({
   source: SourceRefSchema,
-  entities: z.array(EntitySchema),
-  timeline: z.array(TimelineEntrySchema),
-  links: z.array(LinkSchema),
-  decisions: z.array(DecisionSchema),
-  tasks: z.array(TaskSignalSchema),
-  discoveries: z.array(DiscoverySchema),
+  entities: z.array(EntitySchema).default([]),
+  timeline: z.array(TimelineEntrySchema).default([]),
+  links: z.array(LinkSchema).default([]),
+  decisions: z.array(DecisionSchema).default([]),
+  tasks: z.array(TaskSignalSchema).default([]),
+  discoveries: z.array(DiscoverySchema).default([]),
   knowledge: z.array(KnowledgeSchema).default([]),
 });
 

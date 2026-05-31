@@ -3,11 +3,12 @@ import type { IFeishuHttpClient, PagedResult } from "./http-client";
 import { FeishuApiError } from "./types";
 
 const DEFAULT_LARK_BIN = `${process.env.HOME}/.local/bin/lark`;
-const EXEC_TIMEOUT = 30_000;
+const EXEC_TIMEOUT = 120_000;
+const MAX_BUFFER = 256 * 1024 * 1024;
 
 function execLark(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(bin, args, { timeout: EXEC_TIMEOUT, maxBuffer: 10 * 1024 * 1024 }, (err, stdout) => {
+    execFile(bin, args, { timeout: EXEC_TIMEOUT, maxBuffer: MAX_BUFFER }, (err, stdout) => {
       if (err) {
         reject(new FeishuApiError(`lark-cli failed: ${err.message}`, 0));
         return;

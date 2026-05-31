@@ -23,10 +23,21 @@ export interface FeishuTaskSourceConfig {
 
 export interface FeishuDMSourceConfig {
   enabled: boolean;
-  dm_chat_ids: string[];
-  self_open_id: string;
+  dm_chat_ids?: string[];
+  self_open_id?: string;
   lookback_days?: number;
   overlap_ms?: number;
+}
+
+export interface FeishuMessageSearchSourceConfig {
+  enabled: boolean;
+  chat_types?: Array<"p2p" | "group">;
+  query?: string;
+  sender_type?: "user" | "bot";
+  exclude_sender_type?: "user" | "bot";
+  lookback_days?: number;
+  overlap_ms?: number;
+  page_size?: number;
 }
 
 export interface FeishuMailSourceConfig {
@@ -48,6 +59,7 @@ export interface FeishuCollectorConfig {
     docs?: FeishuDocSourceConfig;
     tasks?: FeishuTaskSourceConfig;
     dm?: FeishuDMSourceConfig;
+    message_search?: FeishuMessageSearchSourceConfig;
     mail?: FeishuMailSourceConfig;
   };
 }
@@ -55,6 +67,7 @@ export interface FeishuCollectorConfig {
 export interface FeishuCheckpoint {
   messages?: Record<string, { last_sync_at: number }>;
   dm?: Record<string, { last_sync_at: number }>;
+  message_search?: Record<string, { last_sync_at: number }>;
   calendar?: Record<string, { sync_token: string }>;
   docs?: Record<string, { last_edit_time: number }>;
   tasks?: Record<string, { last_update_time: number }>;

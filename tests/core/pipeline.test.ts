@@ -283,13 +283,13 @@ describe("Pipeline", () => {
           topics: ["general"],
         });
       }
-      if (callCount === 2) {
-        // Extraction for block 1 - FAIL
+      if (callCount === 2 || callCount === 3) {
+        // Extraction for block 1 - FAIL, including the extractor retry
         throw new Error("Simulated extraction failure");
       }
 
       // Second block: both calls succeed
-      if (isSignificanceCall || callCount === 3) {
+      if (isSignificanceCall || callCount === 4) {
         return JSON.stringify({
           worth_processing: true,
           confidence: 0.8,

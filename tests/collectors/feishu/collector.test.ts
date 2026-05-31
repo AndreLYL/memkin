@@ -106,6 +106,7 @@ describe("FeishuCollector", () => {
       {
         name: "messages",
         fetch: async function* () {
+          yield* [] as RawMessage[];
           throw new Error("API down");
         },
         healthCheck: async () => true,

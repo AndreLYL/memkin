@@ -96,10 +96,20 @@ export interface FeishuSourceConfig {
     tasks?: { enabled: boolean };
     dm?: {
       enabled: boolean;
-      dm_chat_ids: string[];
-      self_open_id: string;
+      dm_chat_ids?: string[];
+      self_open_id?: string;
       lookback_days?: number;
       overlap_ms?: number;
+    };
+    message_search?: {
+      enabled: boolean;
+      chat_types?: Array<"p2p" | "group">;
+      query?: string;
+      sender_type?: "user" | "bot";
+      exclude_sender_type?: "user" | "bot";
+      lookback_days?: number;
+      overlap_ms?: number;
+      page_size?: number;
     };
   };
 }

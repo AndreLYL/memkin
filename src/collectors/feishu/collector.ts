@@ -11,6 +11,7 @@ import { CalendarSource } from "./sources/calendar";
 import { DMSource } from "./sources/dm";
 import { DocSource } from "./sources/docs";
 import { MailSource } from "./sources/mail";
+import { MessageSearchSource } from "./sources/message-search";
 import { MessageSource } from "./sources/messages";
 import { TaskSource } from "./sources/tasks";
 import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types";
@@ -71,7 +72,12 @@ export class FeishuCollector implements Collector, CursorProvider {
   private lastCheckpoint: FeishuCheckpoint | null = null;
   private identityBackend: LarkCliIdentityBackend | null = null;
 
-  constructor(config: FeishuCollectorConfig, chatIds: string[], selfOpenId?: string) {
+  constructor(
+    config: FeishuCollectorConfig,
+    messageChatIds: string[],
+    dmChatIds: string[],
+    selfOpenId?: string,
+  ) {
     const isUserMode = config.auth_mode === "user";
 
     if (isUserMode) {
@@ -90,7 +96,9 @@ export class FeishuCollector implements Collector, CursorProvider {
     this.sources = [];
 
     if (config.sources.messages?.enabled) {
-      const msgChatIds = config.sources.messages.chat_ids ?? chatIds;
+      const msgChatIds = config.sources.messages.chat_ids?.length
+        ? config.sources.messages.chat_ids
+        : messageChatIds;
       this.sources.push(
         new MessageSource(this.client, msgChatIds, {
           lookbackDays: config.sources.messages.lookback_days ?? 30,
@@ -112,13 +120,35 @@ export class FeishuCollector implements Collector, CursorProvider {
     }
 
     if (config.sources.dm?.enabled) {
+      const dmSourceChatIds = config.sources.dm.dm_chat_ids?.length
+        ? config.sources.dm.dm_chat_ids
+        : dmChatIds;
       this.sources.push(
-        new DMSource(this.client, config.sources.dm.dm_chat_ids, {
+        new DMSource(this.client, dmSourceChatIds, {
           lookbackDays: config.sources.dm.lookback_days ?? 30,
-          selfOpenId: config.sources.dm.self_open_id ?? selfOpenId,
+          selfOpenId: config.sources.dm.self_open_id ?? selfOpenId ?? "",
           overlapMs: config.sources.dm.overlap_ms,
         }),
       );
+    }
+
+    if (config.sources.message_search?.enabled) {
+      if (!this.larkCliClient) {
+        console.warn("feishu: message_search source requires auth_mode=user (lark-cli), skipping");
+      } else {
+        this.sources.push(
+          new MessageSearchSource(this.larkCliClient, {
+            chatTypes: config.sources.message_search.chat_types ?? ["p2p"],
+            lookbackDays: config.sources.message_search.lookback_days ?? 30,
+            selfOpenId,
+            query: config.sources.message_search.query,
+            senderType: config.sources.message_search.sender_type,
+            excludeSenderType: config.sources.message_search.exclude_sender_type,
+            pageSize: config.sources.message_search.page_size,
+            overlapMs: config.sources.message_search.overlap_ms,
+          }),
+        );
+      }
     }
 
     if (config.sources.mail?.enabled) {
@@ -185,22 +215,37 @@ export class FeishuCollector implements Collector, CursorProvider {
 export async function createFeishuCollector(
   config: FeishuCollectorConfig,
 ): Promise<FeishuCollector> {
-  let chatIds: string[] = [];
+  let discoveredChatIds: string[] = [];
+  let messageChatIds: string[] = [];
+  let dmChatIds: string[] = [];
   let selfOpenId: string | undefined;
 
   if (config.auth_mode === "user") {
     const client = new LarkCliHttpClient(config.lark_bin);
+    const shouldDiscoverMessageChats =
+      !!config.sources.messages?.enabled && !config.sources.messages.chat_ids?.length;
+    const shouldDiscoverDmChats =
+      !!config.sources.dm?.enabled && !config.sources.dm.dm_chat_ids?.length;
 
     // Auto-discover chats if not explicitly configured
-    if (!config.sources.messages?.chat_ids?.length) {
+    if (shouldDiscoverMessageChats || shouldDiscoverDmChats) {
       try {
         const res = await client.request<{
           code: number;
           data: { items: FeishuChatInfo[] };
         }>("GET", "/open-apis/im/v1/chats", { params: { page_size: "100" } });
 
-        chatIds = res.data.items.map((c) => c.chat_id);
-        console.log(`feishu: auto-discovered ${chatIds.length} chats`);
+        const chats = res.data.items ?? [];
+        discoveredChatIds = chats.map((c) => c.chat_id);
+        messageChatIds = shouldDiscoverMessageChats
+          ? chats.filter((c) => c.chat_mode !== "p2p").map((c) => c.chat_id)
+          : [];
+        dmChatIds = shouldDiscoverDmChats
+          ? chats.filter((c) => c.chat_mode === "p2p").map((c) => c.chat_id)
+          : [];
+        console.log(
+          `feishu: auto-discovered ${discoveredChatIds.length} chats (${messageChatIds.length} group, ${dmChatIds.length} dm)`,
+        );
       } catch (err) {
         console.warn("feishu: chat auto-discovery failed, using configured chat_ids", err);
       }
@@ -226,13 +271,13 @@ export async function createFeishuCollector(
     }
   }
 
-  const collector = new FeishuCollector(config, chatIds, selfOpenId);
+  const collector = new FeishuCollector(config, messageChatIds, dmChatIds, selfOpenId);
 
   // Warm identity cache from discovered chats
   const backend = collector.getIdentityBackend();
-  if (backend instanceof LarkCliIdentityBackend && chatIds.length > 0) {
-    await backend.warmCacheFromChats(chatIds);
-    console.log(`feishu: identity cache warmed from ${chatIds.length} chats`);
+  if (backend instanceof LarkCliIdentityBackend && discoveredChatIds.length > 0) {
+    await backend.warmCacheFromChats(discoveredChatIds);
+    console.log(`feishu: identity cache warmed from ${discoveredChatIds.length} chats`);
   }
 
   return collector;

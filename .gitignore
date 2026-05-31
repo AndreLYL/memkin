@@ -7,10 +7,13 @@ package-lock.json
 dist/
 web/dist/
 web/node_modules/
+web/bun.lock
+graphify-out/
 
 # State directory
 .dbe/
 .memoark/
+.memoark.bak.*/
 
 # Environment variables
 .env

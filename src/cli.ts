@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
-import { existsSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   createClaudeCodeCollector,
   createCodexCollector,
@@ -51,7 +52,6 @@ async function bootstrapCollectors(sources: SourcesConfig): Promise<void> {
 }
 
 async function createStores(config: ReturnType<typeof loadConfig>) {
-  const { mkdirSync } = await import("node:fs");
   const dataDir = config.store.data_dir.replace(/^~/, process.env.HOME ?? "~");
   mkdirSync(resolve(dataDir), { recursive: true });
   const db = await Database.create(dataDir);
@@ -75,6 +75,47 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
     timeline: new TimelineStore(db.pg),
     embedding,
   };
+}
+
+function timestampForPath(date = new Date()): string {
+  return date.toISOString().replace(/[:.]/g, "-");
+}
+
+function backupStoreAndState(config: ReturnType<typeof loadConfig>): {
+  dataBackup?: string;
+  stateBackup?: string;
+} {
+  const stamp = timestampForPath();
+  const dataDir = resolve(config.store.data_dir.replace(/^~/, process.env.HOME ?? "~"));
+  const stateDir = resolve(process.cwd(), ".memoark");
+  const result: { dataBackup?: string; stateBackup?: string } = {};
+
+  if (existsSync(dataDir)) {
+    const dataBackup = `${dataDir}.bak.${stamp}`;
+    cpSync(dataDir, dataBackup, { recursive: true });
+    result.dataBackup = dataBackup;
+  }
+
+  if (existsSync(stateDir)) {
+    const stateBackup = `${stateDir}.bak.${stamp}`;
+    cpSync(stateDir, stateBackup, { recursive: true });
+    result.stateBackup = stateBackup;
+  }
+
+  return result;
+}
+
+function removeCursor(source: string): void {
+  const cursorPath = statePath("cursors.yaml");
+  if (!existsSync(cursorPath)) return;
+
+  const raw = readFileSync(cursorPath, "utf-8");
+  const data = parseYaml(raw) as Record<string, unknown> | null;
+  if (!data || typeof data !== "object") return;
+  if (!(source in data)) return;
+
+  delete data[source];
+  writeFileSync(cursorPath, stringifyYaml(data), "utf-8");
 }
 
 const program = new Command();
@@ -379,6 +420,121 @@ program
   });
 
 /**
+ * Store subcommand group
+ */
+const storeCmd = program.command("store").description("Manage the local PGLite store");
+
+storeCmd
+  .command("purge-source <source>")
+  .description("Delete stored signals and incremental state for one source")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("--yes", "Apply the purge. Without this flag, only print the deletion plan.")
+  .option("--keep-cursor", "Keep the source cursor in .memoark/cursors.yaml")
+  .option(
+    "--keep-dedup",
+    "Keep .memoark/dedup.jsonl. Legacy dedup entries are not source-scoped, so this can skip old messages on rebuild.",
+  )
+  .action(async (source, options) => {
+    const config = loadConfig(options.config);
+    ensureStateDir();
+    const stores = await createStores(config);
+    const platform = String(source);
+
+    try {
+      const pages = await stores.db.pg.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c
+         FROM pages
+         WHERE frontmatter->'source'->>'platform' = $1
+            OR frontmatter->'first_seen'->>'platform' = $1`,
+        [platform],
+      );
+      const links = await stores.db.pg.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c
+         FROM links
+         WHERE provenance->>'platform' = $1`,
+        [platform],
+      );
+      const timeline = await stores.db.pg.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c
+         FROM timeline_entries
+         WHERE provenance->>'platform' = $1 OR source = $1`,
+        [platform],
+      );
+
+      console.log(`Source purge plan: ${platform}`);
+      console.log(`  Pages: ${pages.rows[0]?.c ?? 0}`);
+      console.log(`  Links: ${links.rows[0]?.c ?? 0}`);
+      console.log(`  Timeline entries: ${timeline.rows[0]?.c ?? 0}`);
+      if (!options.keepCursor) console.log("  Cursor: remove source cursor");
+      if (!options.keepDedup) {
+        console.log("  Dedup: reset .memoark/dedup.jsonl after backup");
+      }
+
+      if (!options.yes) {
+        console.log("\nDry run only. Re-run with --yes to apply.");
+        return;
+      }
+
+      const backups = backupStoreAndState(config);
+      if (backups.dataBackup) console.log(`Backup created: ${backups.dataBackup}`);
+      if (backups.stateBackup) console.log(`State backup created: ${backups.stateBackup}`);
+
+      await stores.db.pg.query("BEGIN");
+      const deletedTimeline = await stores.db.pg.query<{ c: number }>(
+        `WITH deleted AS (
+           DELETE FROM timeline_entries
+           WHERE provenance->>'platform' = $1 OR source = $1
+           RETURNING 1
+         )
+         SELECT COUNT(*)::int AS c FROM deleted`,
+        [platform],
+      );
+      const deletedLinks = await stores.db.pg.query<{ c: number }>(
+        `WITH deleted AS (
+           DELETE FROM links
+           WHERE provenance->>'platform' = $1
+           RETURNING 1
+         )
+         SELECT COUNT(*)::int AS c FROM deleted`,
+        [platform],
+      );
+      const deletedPages = await stores.db.pg.query<{ c: number }>(
+        `WITH deleted AS (
+           DELETE FROM pages
+           WHERE frontmatter->'source'->>'platform' = $1
+              OR frontmatter->'first_seen'->>'platform' = $1
+           RETURNING 1
+         )
+         SELECT COUNT(*)::int AS c FROM deleted`,
+        [platform],
+      );
+      await stores.db.pg.query("COMMIT");
+
+      if (!options.keepCursor) {
+        removeCursor(platform);
+      }
+      if (!options.keepDedup) {
+        writeFileSync(statePath("dedup.jsonl"), "", "utf-8");
+      }
+
+      console.log("Purge complete:");
+      console.log(`  Deleted pages: ${deletedPages.rows[0]?.c ?? 0}`);
+      console.log(`  Deleted links: ${deletedLinks.rows[0]?.c ?? 0}`);
+      console.log(`  Deleted timeline entries: ${deletedTimeline.rows[0]?.c ?? 0}`);
+    } catch (error) {
+      try {
+        await stores.db.pg.query("ROLLBACK");
+      } catch {
+        // Ignore rollback failures; the original error is more useful.
+      }
+      console.error("Purge failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    } finally {
+      await stores.db.close();
+    }
+  });
+
+/**
  * Config subcommand group
  */
 const configCmd = program.command("config").description("Manage configuration");
@@ -449,6 +605,12 @@ sources:
         enabled: false
         dm_chat_ids: []
         self_open_id: ""
+      message_search:
+        enabled: false
+        chat_types:
+          - p2p
+        # lookback_days: 3
+        # page_size: 50
 
 # Adapter configuration
 adapters:

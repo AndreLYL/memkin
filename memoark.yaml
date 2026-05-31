@@ -17,7 +17,7 @@ llm:
   provider: openai
   model: MiniMax-M2.5
   base_url: https://api.tokenflying.top
-  api_key: ${OPENAI_API_KEY}
+  api_key: ${TOKENFREE_API_KEY}
 
 # Block builder configuration
 block_builder:
@@ -41,8 +41,18 @@ sources:
     sources:
       messages:
         enabled: true
-        chat_ids:
-          - oc_9a29c0eaf777bf346dc27cf2b892c597
+        chat_ids: []
+        lookback_days: 3
+      dm:
+        enabled: true
+        dm_chat_ids: []
+        lookback_days: 3
+      message_search:
+        enabled: true
+        chat_types:
+          - p2p
+        lookback_days: 3
+        page_size: 50
 
 # Adapter configuration
 adapters:

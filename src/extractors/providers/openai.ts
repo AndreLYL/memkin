@@ -11,6 +11,13 @@ interface OpenAIConfig {
   baseUrl?: string;
 }
 
+const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_MAX_RETRIES = 2;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Create an OpenAI-compatible LLM provider
  * Supports OpenAI API, Anthropic proxy, Ollama, TokenFree, and other compatible services
@@ -47,39 +54,72 @@ export function createOpenAIProvider(config: OpenAIConfig): LLMProvider {
         requestBody.response_format = { type: "json_object" };
       }
 
-      // Make the API call
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
+      let lastError: unknown;
 
-      const data = (await response.json()) as {
-        error?: { message: string };
-        choices?: Array<{ message?: { content?: string } }>;
-      };
+      for (let attempt = 0; attempt <= DEFAULT_MAX_RETRIES; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-      // Check for API errors
-      if (data.error) {
-        throw new Error(`API error: ${data.error.message}`);
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
+          });
+
+          const raw = await response.text();
+          let data: {
+            error?: { message: string };
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            throw new Error(`API returned non-JSON response: ${raw.slice(0, 300)}`);
+          }
+
+          if (!response.ok) {
+            const message = data.error?.message ?? raw.slice(0, 300) ?? response.statusText;
+            throw new Error(`API HTTP ${response.status}: ${message}`);
+          }
+
+          // Check for API errors
+          if (data.error) {
+            throw new Error(`API error: ${data.error.message}`);
+          }
+
+          // Check for valid response structure
+          if (!data.choices || data.choices.length === 0) {
+            throw new Error("API returned no choices in response");
+          }
+
+          const choice = data.choices[0];
+          if (!choice.message) {
+            throw new Error("API response choice has no message");
+          }
+
+          let content = choice.message.content ?? "";
+          content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+          return content;
+        } catch (error) {
+          lastError = error;
+          if (attempt >= DEFAULT_MAX_RETRIES) break;
+          await sleep(1000 * 2 ** attempt);
+        } finally {
+          clearTimeout(timeout);
+        }
       }
 
-      // Check for valid response structure
-      if (!data.choices || data.choices.length === 0) {
-        throw new Error("API returned no choices in response");
-      }
-
-      const choice = data.choices[0];
-      if (!choice.message) {
-        throw new Error("API response choice has no message");
-      }
-
-      let content = choice.message.content ?? "";
-      content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
-      return content;
+      throw new Error(
+        `API request failed after ${DEFAULT_MAX_RETRIES + 1} attempts: ${
+          lastError instanceof Error ? lastError.message : String(lastError)
+        }`,
+      );
     },
   };
 }

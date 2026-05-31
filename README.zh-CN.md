@@ -85,6 +85,75 @@ bun src/cli.ts extract --source all
 bun src/cli.ts extract --source claude-code --dry-run
 ```
 
+### 飞书私聊/群聊提取
+
+飞书消息有两条不同路径：
+
+- `sources.feishu.sources.messages` 使用 OpenAPI chat/message 接口，适合明确群聊 `chat_id` 或自动发现到的群聊。
+- `sources.feishu.sources.message_search` 使用 `lark-cli im +messages-search`，适合 user-mode 下搜索最近私聊和群聊。私聊机器人对话通常需要这条路径，否则最近三天会明显少数据。
+
+本地需要先完成 lark-cli 的飞书用户态登录，并在 `memoark.yaml` 打开 `message_search`：
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4.1-mini
+  api_key: ${TOKENFREE_API_KEY}
+
+sources:
+  feishu:
+    enabled: true
+    auth_mode: user
+    app_id: ${FEISHU_APP_ID}
+    app_secret: ${FEISHU_APP_SECRET}
+    sources:
+      messages:
+        enabled: true
+        chat_ids: []
+        lookback_days: 3
+      message_search:
+        enabled: true
+        chat_types:
+          - p2p
+          # - group
+        lookback_days: 3
+        page_size: 50
+```
+
+然后运行：
+
+```bash
+bun src/cli.ts extract --source feishu --adapter store --since 3d
+```
+
+`--dry-run` 只验证采集数量，不写数据库、不提交 cursor：
+
+```bash
+bun src/cli.ts extract --source feishu --adapter store --since 3d --dry-run
+```
+
+### 增量状态与重建
+
+Memoark 的增量状态分两层：
+
+- 数据库：默认在 `~/.memoark/data`，保存提取后的页面、chunk、关系和时间线。
+- 运行状态：当前仓库的 `.memoark/cursors.yaml` 和 `.memoark/dedup.jsonl`，分别保存源 cursor 和消息去重 hash。
+
+正常增量运行不要手动删这些文件。需要删除某个源的过期提取结果并重跑时，用内置命令，它会先备份数据库和 `.memoark`：
+
+```bash
+# 先预览会删除多少内容
+bun src/cli.ts store purge-source feishu
+
+# 确认后清理飞书结果、飞书 cursor，并重置旧格式 dedup
+bun src/cli.ts store purge-source feishu --yes
+
+# 再跑最近三天
+bun src/cli.ts extract --source feishu --adapter store --since 3d
+```
+
+旧版 `dedup.jsonl` 只记录 hash，没有记录来源平台，所以彻底重跑飞书时默认会备份后清空整个 dedup。后续增量会重新建立去重状态。
+
 ### 搜索记忆
 
 ```bash

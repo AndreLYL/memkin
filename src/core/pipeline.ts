@@ -186,6 +186,10 @@ export async function runPipeline(
       return result;
     }
 
+    console.log(
+      `Collected ${result.totalMessages} messages; processing ${messagesToBlock.length} new/modified messages in ${blocks.length} blocks.`,
+    );
+
     // Dry-run stops here
     if (opts.dryRun) {
       return result;
@@ -232,8 +236,14 @@ export async function runPipeline(
 
     // Process each block
     const extractedResults: ExtractionResult[] = [];
+    let blockIndex = 0;
 
     for (const block of blocks) {
+      blockIndex++;
+      console.log(
+        `Processing block ${blockIndex}/${blocks.length} (${block.messages.length} messages)`,
+      );
+
       try {
         // Noise filter
         const filterVerdict: NoiseFilterVerdict = await filterNoise(block, opts.provider);
