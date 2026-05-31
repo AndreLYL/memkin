@@ -140,9 +140,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
     return {
       async chat(_messages: ChatMessage[]): Promise<string> {
         llmCallCount++;
-        const result = extractionResult === "empty"
-          ? createEmptyExtraction("mock content")
-          : extractionResult;
+        const result =
+          extractionResult === "empty" ? createEmptyExtraction("mock content") : extractionResult;
         return JSON.stringify(result);
       },
     };
@@ -185,7 +184,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
         channel: "mail/INBOX",
         contact: "alice@example.com",
         timestamp: "2024-01-01T10:00:00Z",
-        content: "We have decided to use JWT for authentication. This will improve security and scalability. Alice will be the tech lead and Bob will handle implementation. Deadline is next Friday.",
+        content:
+          "We have decided to use JWT for authentication. This will improve security and scalability. Alice will be the tech lead and Bob will handle implementation. Deadline is next Friday.",
         direction: "sent",
         metadata: { cursor: "1", message_id: "email-001" },
       },
@@ -313,7 +313,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
         channel: "group/oc_jkl012",
         contact: "charlie",
         timestamp: "2024-01-01T10:00:00Z",
-        content: "Let me think about the architecture design for the new microservices platform. We need to consider scalability, security, and maintainability carefully.",
+        content:
+          "Let me think about the architecture design for the new microservices platform. We need to consider scalability, security, and maintainability carefully.",
         direction: "sent",
         metadata: { cursor: "1", message_id: "msg-001" },
       },
@@ -356,7 +357,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
         channel: "mail/INBOX",
         contact: "alice@example.com",
         timestamp: "2024-01-01T10:05:00Z",
-        content: "We have decided to migrate to cloud infrastructure. This is a strategic decision for better scalability and cost efficiency. Alice will lead the migration project starting next quarter.",
+        content:
+          "We have decided to migrate to cloud infrastructure. This is a strategic decision for better scalability and cost efficiency. Alice will lead the migration project starting next quarter.",
         direction: "sent",
         metadata: { cursor: "2", message_id: "email-001" },
       },
@@ -427,7 +429,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
         channel: "group/oc_xyz",
         contact: "alice",
         timestamp: "2024-01-01T10:04:00Z",
-        content: "Agreed. I will document the design decisions and share with the team by end of week.",
+        content:
+          "Agreed. I will document the design decisions and share with the team by end of week.",
         direction: "sent",
         metadata: { cursor: "3", message_id: "msg-003" },
       },

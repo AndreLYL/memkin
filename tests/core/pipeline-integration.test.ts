@@ -5,7 +5,13 @@ import type { ExtractionResult } from "../../src/core/types.js";
 describe("isEmptyExtraction", () => {
   test("truly empty result → true", () => {
     const result: ExtractionResult = {
-      source: { platform: "feishu", channel: "test", timestamp: "2026-05-29T10:00:00Z", raw_hash: "", quote: "" },
+      source: {
+        platform: "feishu",
+        channel: "test",
+        timestamp: "2026-05-29T10:00:00Z",
+        raw_hash: "",
+        quote: "",
+      },
       entities: [],
       timeline: [],
       links: [],
@@ -19,8 +25,16 @@ describe("isEmptyExtraction", () => {
 
   test("result with one entity → false", () => {
     const result: ExtractionResult = {
-      source: { platform: "feishu", channel: "test", timestamp: "2026-05-29T10:00:00Z", raw_hash: "", quote: "" },
-      entities: [{ slug: "person/alice", name: "Alice", type: "person", context: "", confidence: "direct" }],
+      source: {
+        platform: "feishu",
+        channel: "test",
+        timestamp: "2026-05-29T10:00:00Z",
+        raw_hash: "",
+        quote: "",
+      },
+      entities: [
+        { slug: "person/alice", name: "Alice", type: "person", context: "", confidence: "direct" },
+      ],
       timeline: [],
       links: [],
       decisions: [],

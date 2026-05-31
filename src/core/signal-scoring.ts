@@ -1,5 +1,5 @@
-import { extractQuickEntities } from "./entity-extract.js";
 import { estimateTokens } from "./block-builder.js";
+import { extractQuickEntities } from "./entity-extract.js";
 import type { CanonicalisedBlock, InteractionTag, SignalScore, SourceType } from "./types.js";
 
 const SOURCE_WEIGHTS: Record<SourceType, number> = {
@@ -24,7 +24,12 @@ const WEIGHTS = {
   entity_density: 1.0,
 };
 
-const TOTAL_WEIGHT = WEIGHTS.token + WEIGHTS.unique_words + WEIGHTS.source + WEIGHTS.interaction + WEIGHTS.entity_density; // 7.5
+const TOTAL_WEIGHT =
+  WEIGHTS.token +
+  WEIGHTS.unique_words +
+  WEIGHTS.source +
+  WEIGHTS.interaction +
+  WEIGHTS.entity_density; // 7.5
 
 export function scoreBlock(cb: CanonicalisedBlock): SignalScore {
   const text = cb.canonical_markdown;
@@ -37,13 +42,13 @@ export function scoreBlock(cb: CanonicalisedBlock): SignalScore {
   const interaction_score = scoreInteraction(cb.interaction_tags);
   const entity_density_score = tokens === 0 ? 0 : Math.min(1.0, entities.length / (tokens / 100));
 
-  const combined = (
-    token_score * WEIGHTS.token +
-    unique_words_score * WEIGHTS.unique_words +
-    source_score * WEIGHTS.source +
-    interaction_score * WEIGHTS.interaction +
-    entity_density_score * WEIGHTS.entity_density
-  ) / TOTAL_WEIGHT;
+  const combined =
+    (token_score * WEIGHTS.token +
+      unique_words_score * WEIGHTS.unique_words +
+      source_score * WEIGHTS.source +
+      interaction_score * WEIGHTS.interaction +
+      entity_density_score * WEIGHTS.entity_density) /
+    TOTAL_WEIGHT;
 
   let decision: SignalScore["decision"];
 
@@ -99,9 +104,7 @@ function scoreTTR(text: string): number {
     let hasOther = false;
     for (let i = 0; i < token.length; i++) {
       const code = token.charCodeAt(i);
-      const isCJK =
-        (code >= 0x4e00 && code <= 0x9fff) ||
-        (code >= 0x3400 && code <= 0x4dbf);
+      const isCJK = (code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf);
       if (isCJK) {
         words.push(token[i]);
       } else {

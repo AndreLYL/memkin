@@ -166,12 +166,19 @@ export function createSignalExtractor(provider: LLMProvider): SignalExtractor {
     async extract(input: CanonicalisedBlock | ConversationBlock): Promise<BlockResult> {
       // Determine input type and extract the underlying block and conversation text
       const isCanonicalized = "canonical_markdown" in input;
-      const block = isCanonicalized ? (input as CanonicalisedBlock).block : (input as ConversationBlock);
+      const block = isCanonicalized
+        ? (input as CanonicalisedBlock).block
+        : (input as ConversationBlock);
       const cb = isCanonicalized ? (input as CanonicalisedBlock) : null;
 
       // Get conversation text: use canonical_markdown for email/document/structured sources
       let conversationText: string;
-      if (cb && (cb.source_type === "email" || cb.source_type === "document" || cb.source_type === "structured")) {
+      if (
+        cb &&
+        (cb.source_type === "email" ||
+          cb.source_type === "document" ||
+          cb.source_type === "structured")
+      ) {
         conversationText = cb.canonical_markdown;
       } else {
         conversationText = formatConversation(block.messages);

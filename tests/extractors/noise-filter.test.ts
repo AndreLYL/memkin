@@ -1,14 +1,27 @@
 import { describe, expect, test } from "vitest";
-import { filterNoiseL1, mapScoreDecision } from "../../src/extractors/noise-filter.js";
 import type { ConversationBlock, SignalScore } from "../../src/core/types.js";
+import { filterNoiseL1, mapScoreDecision } from "../../src/extractors/noise-filter.js";
 
-function makeBlock(channel: string, content: string, overrides?: Partial<ConversationBlock>): ConversationBlock {
+function makeBlock(
+  channel: string,
+  content: string,
+  overrides?: Partial<ConversationBlock>,
+): ConversationBlock {
   return {
     block_id: "test-1",
     platform: "feishu",
     channel,
     thread_id: undefined,
-    messages: [{ platform: "feishu", channel, contact: "alice", timestamp: "2026-05-29T10:00:00Z", content, direction: "received" }],
+    messages: [
+      {
+        platform: "feishu",
+        channel,
+        contact: "alice",
+        timestamp: "2026-05-29T10:00:00Z",
+        content,
+        direction: "received",
+      },
+    ],
     start_time: "2026-05-29T10:00:00Z",
     end_time: "2026-05-29T10:00:00Z",
     participants: ["alice"],
@@ -35,7 +48,9 @@ describe("filterNoiseL1 — chat/dm channel", () => {
   });
 
   test("task keyword → escalate", () => {
-    expect(filterNoiseL1(makeBlock("group/oc_abc", "这个任务分配给小明，deadline周五"))).toBe("escalate");
+    expect(filterNoiseL1(makeBlock("group/oc_abc", "这个任务分配给小明，deadline周五"))).toBe(
+      "escalate",
+    );
   });
 
   test("normal chat → null (no decision)", () => {
@@ -45,11 +60,17 @@ describe("filterNoiseL1 — chat/dm channel", () => {
 
 describe("filterNoiseL1 — email channel", () => {
   test("auto-reply → skip", () => {
-    expect(filterNoiseL1(makeBlock("mail/INBOX", "This is an auto-reply. I am out of office until Monday."))).toBe("skip");
+    expect(
+      filterNoiseL1(
+        makeBlock("mail/INBOX", "This is an auto-reply. I am out of office until Monday."),
+      ),
+    ).toBe("skip");
   });
 
   test("out of office → skip", () => {
-    expect(filterNoiseL1(makeBlock("mail/INBOX", "Out of Office: I will return on June 1st"))).toBe("skip");
+    expect(filterNoiseL1(makeBlock("mail/INBOX", "Out of Office: I will return on June 1st"))).toBe(
+      "skip",
+    );
   });
 
   test("meeting cancelled → skip", () => {
@@ -57,7 +78,9 @@ describe("filterNoiseL1 — email channel", () => {
   });
 
   test("normal email → null (no decision)", () => {
-    expect(filterNoiseL1(makeBlock("mail/INBOX", "Hi team, here's the weekly status report."))).toBeNull();
+    expect(
+      filterNoiseL1(makeBlock("mail/INBOX", "Hi team, here's the weekly status report.")),
+    ).toBeNull();
   });
 
   test("email with decision keyword → escalate", () => {

@@ -20,13 +20,15 @@ export function extractQuickEntities(text: string): QuickEntity[] {
   const urlRegex = PATTERNS[0].regex;
   let match: RegExpExecArray | null;
 
-  while ((match = urlRegex.exec(text)) !== null) {
+  match = urlRegex.exec(text);
+  while (match !== null) {
     urlRanges.push([match.index, match.index + match[0].length]);
     const key = `url:${match[0]}`;
     if (!seen.has(key)) {
       seen.add(key);
       results.push({ type: "url", value: match[0] });
     }
+    match = urlRegex.exec(text);
   }
 
   // Helper: check if position is inside a URL
@@ -37,13 +39,15 @@ export function extractQuickEntities(text: string): QuickEntity[] {
   for (let i = 1; i < PATTERNS.length; i++) {
     const { type, regex } = PATTERNS[i];
     const re = new RegExp(regex.source, regex.flags);
-    while ((match = re.exec(text)) !== null) {
+    match = re.exec(text);
+    while (match !== null) {
       if (type === "email" && isInsideUrl(match.index)) continue;
       const key = `${type}:${match[0]}`;
       if (!seen.has(key)) {
         seen.add(key);
         results.push({ type, value: match[0] });
       }
+      match = re.exec(text);
     }
   }
 

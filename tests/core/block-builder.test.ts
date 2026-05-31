@@ -299,8 +299,16 @@ describe("BlockBuilder — source-aware split rules", () => {
   test("Rule 0: different platform forces split", async () => {
     const builder = new BlockBuilder();
     const messages = gen([
-      makeMsg("msg1", { platform: "feishu", channel: "group/oc_abc", timestamp: "2026-05-29T10:00:00Z" }),
-      makeMsg("msg2", { platform: "agent", channel: "claude-code/session1", timestamp: "2026-05-29T10:00:30Z" }),
+      makeMsg("msg1", {
+        platform: "feishu",
+        channel: "group/oc_abc",
+        timestamp: "2026-05-29T10:00:00Z",
+      }),
+      makeMsg("msg2", {
+        platform: "agent",
+        channel: "claude-code/session1",
+        timestamp: "2026-05-29T10:00:30Z",
+      }),
     ]);
     const blocks = await collect(builder.build(messages));
     expect(blocks.length).toBe(2);
@@ -310,8 +318,14 @@ describe("BlockBuilder — source-aware split rules", () => {
     const builder = new BlockBuilder();
     const messages = gen([
       makeMsg("chat msg", { channel: "group/oc_abc", timestamp: "2026-05-29T10:00:00Z" }),
-      makeMsg("Subject1\n\nEmail body 1", { channel: "mail/INBOX", timestamp: "2026-05-29T10:00:30Z" }),
-      makeMsg("Subject2\n\nEmail body 2", { channel: "mail/INBOX", timestamp: "2026-05-29T10:01:00Z" }),
+      makeMsg("Subject1\n\nEmail body 1", {
+        channel: "mail/INBOX",
+        timestamp: "2026-05-29T10:00:30Z",
+      }),
+      makeMsg("Subject2\n\nEmail body 2", {
+        channel: "mail/INBOX",
+        timestamp: "2026-05-29T10:01:00Z",
+      }),
       makeMsg("chat msg2", { channel: "group/oc_abc", timestamp: "2026-05-29T10:01:30Z" }),
     ]);
     const blocks = await collect(builder.build(messages));
@@ -349,9 +363,21 @@ describe("BlockBuilder — source-aware split rules", () => {
   test("Rule 0c: documents split by doc_token metadata", async () => {
     const builder = new BlockBuilder();
     const messages = gen([
-      makeMsg("doc1 content", { channel: "docs/folder1", timestamp: "2026-05-29T10:00:00Z", metadata: { doc_token: "doc_aaa" } }),
-      makeMsg("doc1 page2", { channel: "docs/folder1", timestamp: "2026-05-29T10:01:00Z", metadata: { doc_token: "doc_aaa" } }),
-      makeMsg("doc2 content", { channel: "docs/folder1", timestamp: "2026-05-29T10:02:00Z", metadata: { doc_token: "doc_bbb" } }),
+      makeMsg("doc1 content", {
+        channel: "docs/folder1",
+        timestamp: "2026-05-29T10:00:00Z",
+        metadata: { doc_token: "doc_aaa" },
+      }),
+      makeMsg("doc1 page2", {
+        channel: "docs/folder1",
+        timestamp: "2026-05-29T10:01:00Z",
+        metadata: { doc_token: "doc_aaa" },
+      }),
+      makeMsg("doc2 content", {
+        channel: "docs/folder1",
+        timestamp: "2026-05-29T10:02:00Z",
+        metadata: { doc_token: "doc_bbb" },
+      }),
     ]);
     const blocks = await collect(builder.build(messages));
     expect(blocks.length).toBe(2);

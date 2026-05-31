@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { scoreBlock } from "../../src/core/signal-scoring.js";
-import type { CanonicalisedBlock, ConversationBlock, InteractionTag, SourceType } from "../../src/core/types.js";
+import type {
+  CanonicalisedBlock,
+  ConversationBlock,
+  InteractionTag,
+  SourceType,
+} from "../../src/core/types.js";
 
 function makeCB(overrides: {
   canonical_markdown?: string;
@@ -8,13 +13,23 @@ function makeCB(overrides: {
   interaction_tags?: InteractionTag[];
   channel?: string;
 }): CanonicalisedBlock {
-  const markdown = overrides.canonical_markdown ?? "This is a test message with some content about the project.";
+  const markdown =
+    overrides.canonical_markdown ?? "This is a test message with some content about the project.";
   const block: ConversationBlock = {
     block_id: "test-1",
     platform: "feishu",
     channel: overrides.channel ?? "group/oc_test",
     thread_id: undefined,
-    messages: [{ platform: "feishu", channel: overrides.channel ?? "group/oc_test", contact: "alice", timestamp: "2026-05-29T10:00:00Z", content: markdown, direction: "received" }],
+    messages: [
+      {
+        platform: "feishu",
+        channel: overrides.channel ?? "group/oc_test",
+        contact: "alice",
+        timestamp: "2026-05-29T10:00:00Z",
+        content: markdown,
+        direction: "received",
+      },
+    ],
     start_time: "2026-05-29T10:00:00Z",
     end_time: "2026-05-29T10:00:00Z",
     participants: ["alice"],
@@ -51,13 +66,17 @@ describe("scoreBlock — token_score dimension", () => {
 
 describe("scoreBlock — unique_words_score (TTR)", () => {
   test("high TTR (diverse content) scores high", () => {
-    const cb = makeCB({ canonical_markdown: "apple banana cherry date elderberry fig grape honeydew kiwi lemon" });
+    const cb = makeCB({
+      canonical_markdown: "apple banana cherry date elderberry fig grape honeydew kiwi lemon",
+    });
     const score = scoreBlock(cb);
     expect(score.unique_words_score).toBeGreaterThanOrEqual(0.9);
   });
 
   test("low TTR (repetitive content) scores low", () => {
-    const cb = makeCB({ canonical_markdown: "ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok" });
+    const cb = makeCB({
+      canonical_markdown: "ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok",
+    });
     const score = scoreBlock(cb);
     expect(score.unique_words_score).toBeLessThanOrEqual(0.2);
   });
@@ -125,7 +144,10 @@ describe("scoreBlock — interaction_score dimension", () => {
 
 describe("scoreBlock — entity_density_score dimension", () => {
   test("text with emails and URLs scores > 0", () => {
-    const cb = makeCB({ canonical_markdown: "Contact alice@example.com at https://example.com for info about the project" });
+    const cb = makeCB({
+      canonical_markdown:
+        "Contact alice@example.com at https://example.com for info about the project",
+    });
     expect(scoreBlock(cb).entity_density_score).toBeGreaterThan(0);
   });
 
@@ -140,7 +162,9 @@ describe("scoreBlock — combined and decision", () => {
     const cb = makeCB({
       source_type: "email",
       interaction_tags: ["sent", "reply"],
-      canonical_markdown: "alice@example.com confirmed the migration plan at https://jira.example.com/PROJ-123. We will proceed with PostgreSQL next week. The timeline is set for June 1st. " + "diverse content ".repeat(10),
+      canonical_markdown:
+        "alice@example.com confirmed the migration plan at https://jira.example.com/PROJ-123. We will proceed with PostgreSQL next week. The timeline is set for June 1st. " +
+        "diverse content ".repeat(10),
     });
     const score = scoreBlock(cb);
     expect(score.decision).toBe("admit");
@@ -171,7 +195,8 @@ describe("scoreBlock — combined and decision", () => {
     const cb = makeCB({
       source_type: "chat",
       interaction_tags: [],
-      canonical_markdown: "Let's discuss the architecture for the new service. I think we should use a microservices approach with gRPC communication between services. What do you think about using Kubernetes for orchestration?",
+      canonical_markdown:
+        "Let's discuss the architecture for the new service. I think we should use a microservices approach with gRPC communication between services. What do you think about using Kubernetes for orchestration?",
     });
     const score = scoreBlock(cb);
     expect(score.decision).toBe("evaluate");

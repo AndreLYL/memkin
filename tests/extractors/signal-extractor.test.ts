@@ -522,7 +522,8 @@ describe("SignalExtractor — CanonicalisedBlock input", () => {
       },
       source_type: "chat",
       interaction_tags: [],
-      canonical_markdown: "[2026-05-29T10:00:00Z] alice: Let's discuss the plan\n[2026-05-29T10:01:00Z] bob: Sure, I'm ready",
+      canonical_markdown:
+        "[2026-05-29T10:00:00Z] alice: Let's discuss the plan\n[2026-05-29T10:01:00Z] bob: Sure, I'm ready",
     };
 
     const result = await extractor.extract(cb);

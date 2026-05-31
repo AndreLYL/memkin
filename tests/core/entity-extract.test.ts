@@ -9,7 +9,9 @@ describe("extractQuickEntities", () => {
   });
 
   test("extracts URLs", () => {
-    const result = extractQuickEntities("See https://github.com/foo/bar and http://example.com/path?q=1");
+    const result = extractQuickEntities(
+      "See https://github.com/foo/bar and http://example.com/path?q=1",
+    );
     expect(result).toContainEqual({ type: "url", value: "https://github.com/foo/bar" });
     expect(result).toContainEqual({ type: "url", value: "http://example.com/path?q=1" });
   });
@@ -28,7 +30,7 @@ describe("extractQuickEntities", () => {
 
   test("extracts phone numbers", () => {
     const result = extractQuickEntities("Call +86-138-0000-1234 or 021-12345678");
-    expect(result.filter(e => e.type === "phone").length).toBeGreaterThanOrEqual(1);
+    expect(result.filter((e) => e.type === "phone").length).toBeGreaterThanOrEqual(1);
   });
 
   test("extracts ticket IDs (12-15 digit numbers)", () => {
@@ -42,13 +44,13 @@ describe("extractQuickEntities", () => {
 
   test("deduplicates same (type, value) pairs", () => {
     const result = extractQuickEntities("Email alice@x.com and again alice@x.com");
-    const emails = result.filter(e => e.type === "email" && e.value === "alice@x.com");
+    const emails = result.filter((e) => e.type === "email" && e.value === "alice@x.com");
     expect(emails.length).toBe(1);
   });
 
   test("does not match email inside URL", () => {
     const result = extractQuickEntities("Visit https://user@example.com/path");
-    const emails = result.filter(e => e.type === "email");
+    const emails = result.filter((e) => e.type === "email");
     expect(emails.length).toBe(0);
   });
 });

@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 import { canonicalize } from "../../src/core/canonicalize";
 import type { ConversationBlock, RawMessage } from "../../src/core/types";
 
-function makeBlock(overrides: Partial<ConversationBlock> & { messages: RawMessage[] }): ConversationBlock {
+function makeBlock(
+  overrides: Partial<ConversationBlock> & { messages: RawMessage[] },
+): ConversationBlock {
   return {
     block_id: "test-block-1",
     platform: "feishu",
@@ -11,7 +13,7 @@ function makeBlock(overrides: Partial<ConversationBlock> & { messages: RawMessag
     messages: overrides.messages,
     start_time: overrides.messages[0].timestamp,
     end_time: overrides.messages[overrides.messages.length - 1].timestamp,
-    participants: [...new Set(overrides.messages.map(m => m.contact))],
+    participants: [...new Set(overrides.messages.map((m) => m.contact))],
     token_count: 100,
     ...overrides,
   };
@@ -81,10 +83,12 @@ describe("canonicalize — interaction tags", () => {
   test("email reply adds 'reply' tag", () => {
     const block = makeBlock({
       channel: "mail/INBOX",
-      messages: [makeMsg("Subject\n\nReply body", {
-        direction: "sent",
-        metadata: { thread_id: "thread_123" },
-      })],
+      messages: [
+        makeMsg("Subject\n\nReply body", {
+          direction: "sent",
+          metadata: { thread_id: "thread_123" },
+        }),
+      ],
     });
     const tags = canonicalize(block).interaction_tags;
     expect(tags).toContain("sent");
@@ -102,7 +106,8 @@ describe("canonicalize — interaction tags", () => {
 
 describe("canonicalize — email adapter", () => {
   test("strips reply chain (On ... wrote:)", () => {
-    const content = "Re: Project Update\n\nSounds good, let's proceed.\n\nOn 2026-05-28 Alice wrote:\n> Original message here\n> More quoted text";
+    const content =
+      "Re: Project Update\n\nSounds good, let's proceed.\n\nOn 2026-05-28 Alice wrote:\n> Original message here\n> More quoted text";
     const block = makeBlock({ channel: "mail/INBOX", messages: [makeMsg(content)] });
     const result = canonicalize(block);
     expect(result.canonical_markdown).not.toContain("On 2026-05-28 Alice wrote:");
@@ -111,7 +116,8 @@ describe("canonicalize — email adapter", () => {
   });
 
   test("strips footer (unsubscribe)", () => {
-    const content = "Important update\n\nHere is the news.\n\nTo unsubscribe from this mailing list, click here.";
+    const content =
+      "Important update\n\nHere is the news.\n\nTo unsubscribe from this mailing list, click here.";
     const block = makeBlock({ channel: "mail/INBOX", messages: [makeMsg(content)] });
     const result = canonicalize(block);
     expect(result.canonical_markdown).not.toContain("unsubscribe");
@@ -119,7 +125,8 @@ describe("canonicalize — email adapter", () => {
   });
 
   test("strips Teams meeting template", () => {
-    const content = "Sync meeting\n\nLet's discuss the roadmap.\n\nMicrosoft Teams meeting\nJoin on your computer\nhttps://teams.microsoft.com/l/meetup";
+    const content =
+      "Sync meeting\n\nLet's discuss the roadmap.\n\nMicrosoft Teams meeting\nJoin on your computer\nhttps://teams.microsoft.com/l/meetup";
     const block = makeBlock({ channel: "mail/INBOX", messages: [makeMsg(content)] });
     const result = canonicalize(block);
     expect(result.canonical_markdown).not.toContain("Microsoft Teams meeting");
@@ -138,11 +145,13 @@ describe("canonicalize — email adapter", () => {
     const content = "Meeting Notes\n\nAction items from today.";
     const block = makeBlock({
       channel: "mail/INBOX",
-      messages: [makeMsg(content, {
-        contact: "bob@example.com",
-        timestamp: "2026-05-29T10:00:00Z",
-        metadata: { to: ["alice@example.com"], cc: ["carol@example.com"] },
-      })],
+      messages: [
+        makeMsg(content, {
+          contact: "bob@example.com",
+          timestamp: "2026-05-29T10:00:00Z",
+          metadata: { to: ["alice@example.com"], cc: ["carol@example.com"] },
+        }),
+      ],
     });
     const result = canonicalize(block);
     expect(result.canonical_markdown).toContain("From: bob@example.com");
@@ -170,9 +179,11 @@ describe("canonicalize — structured adapter", () => {
   test("calendar event preserves metadata fields", () => {
     const block = makeBlock({
       channel: "calendar/primary",
-      messages: [makeMsg("Team Standup\n\nDaily sync meeting", {
-        metadata: { event_id: "ev_123", location: "Zoom", attendees: ["alice", "bob"] },
-      })],
+      messages: [
+        makeMsg("Team Standup\n\nDaily sync meeting", {
+          metadata: { event_id: "ev_123", location: "Zoom", attendees: ["alice", "bob"] },
+        }),
+      ],
     });
     const result = canonicalize(block);
     expect(result.source_type).toBe("structured");
