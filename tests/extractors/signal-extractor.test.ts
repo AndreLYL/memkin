@@ -188,7 +188,7 @@ describe("SignalExtractor", () => {
 
     it("retries once on validation failure with error feedback", async () => {
       let callCount = 0;
-      const invalidJson = '{ "entities": [] }'; // missing required fields
+      const invalidJson = '{ "entities": "not an array" }';
       const validResult = createValidExtractionResult();
 
       const mockProvider = {
@@ -211,7 +211,7 @@ describe("SignalExtractor", () => {
 
     it("returns BlockResult.failed after second validation failure", async () => {
       let callCount = 0;
-      const invalidJson = '{ "entities": [] }'; // missing required fields
+      const invalidJson = '{ "entities": "not an array" }';
 
       const mockProvider = {
         async chat() {

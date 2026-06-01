@@ -426,7 +426,7 @@ describe("GBrainAdapter", () => {
       ...createMockExtractionResult(),
       knowledge: [createMockKnowledge({ confidence: "speculative" })],
     };
-    const pushResult = await adapter.push([result]);
+    const _pushResult = await adapter.push([result]);
     const knowledgeDir = join(tempDir, "knowledge", "react-hooks");
     const knowledgeExists = existsSync(knowledgeDir) && readdirSync(knowledgeDir).length > 0;
     expect(knowledgeExists).toBe(false);

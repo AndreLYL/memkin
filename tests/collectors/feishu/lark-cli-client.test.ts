@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LarkCliHttpClient } from "../../../src/collectors/feishu/lark-cli-client";
 import { FeishuApiError } from "../../../src/collectors/feishu/types";
@@ -8,7 +9,7 @@ vi.mock("node:child_process", () => ({
 
 import { execFile } from "node:child_process";
 
-const mockExecFile = vi.mocked(execFile);
+const mockExecFile = execFile as unknown as Mock;
 
 function mockExecSuccess(stdout: string) {
   mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {

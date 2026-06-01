@@ -11,6 +11,7 @@ describe("FeishuHttpClient", () => {
   let client: FeishuHttpClient;
 
   beforeEach(() => {
+    mockFetch.mockReset();
     globalThis.fetch = mockFetch;
     auth = { getToken: vi.fn().mockResolvedValue("t-test"), forceRefresh: vi.fn() } as any;
     limiter = { acquire: vi.fn() } as any;

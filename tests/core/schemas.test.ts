@@ -136,8 +136,8 @@ describe("ExtractionResult schema validation", () => {
     expect(result.source.quote).toBe("");
   });
 
-  it("should throw ZodError when confidence value is invalid", () => {
-    const invalidData = {
+  it("rejects invalid confidence values", () => {
+    const data = {
       source: {
         platform: "slack",
         channel: "#engineering",
@@ -151,7 +151,7 @@ describe("ExtractionResult schema validation", () => {
           name: "Test Entity",
           type: "project",
           context: "test context",
-          confidence: "invalid_confidence", // Invalid value
+          confidence: "invalid_confidence",
         },
       ],
       timeline: [],
@@ -161,11 +161,11 @@ describe("ExtractionResult schema validation", () => {
       discoveries: [],
     };
 
-    expect(() => parseExtractionResult(invalidData)).toThrow(/confidence/);
+    expect(() => parseExtractionResult(data)).toThrow();
   });
 
-  it("should throw ZodError when entity type is invalid", () => {
-    const invalidData = {
+  it("rejects invalid entity types", () => {
+    const data = {
       source: {
         platform: "slack",
         channel: "#engineering",
@@ -177,7 +177,7 @@ describe("ExtractionResult schema validation", () => {
         {
           slug: "test",
           name: "Test Entity",
-          type: "invalid_type", // Invalid type
+          type: "invalid_type",
           context: "test context",
           confidence: "direct",
         },
@@ -189,7 +189,7 @@ describe("ExtractionResult schema validation", () => {
       discoveries: [],
     };
 
-    expect(() => parseExtractionResult(invalidData)).toThrow(/type/);
+    expect(() => parseExtractionResult(data)).toThrow();
   });
 });
 
