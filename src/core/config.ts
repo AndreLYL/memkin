@@ -147,6 +147,18 @@ export interface ServerConfig {
   mcp_transport: "stdio" | "sse";
 }
 
+export interface SchedulerSourceConfig {
+  enabled?: boolean;
+  interval_secs?: number;
+}
+
+export interface SchedulerConfig {
+  enabled: boolean;
+  tick_interval_secs: number;
+  defaults: { interval_secs: number };
+  sources: Record<string, SchedulerSourceConfig>;
+}
+
 /**
  * Complete configuration interface
  */
@@ -159,6 +171,7 @@ export interface Config {
   store: StoreConfig;
   embedding: EmbeddingConfig;
   server: ServerConfig;
+  scheduler?: SchedulerConfig;
 }
 
 /**

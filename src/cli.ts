@@ -1,6 +1,14 @@
 #!/usr/bin/env bun
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -704,17 +712,97 @@ program
   .description("Start Memoark HTTP API or MCP stdio server")
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
+  .option("--no-fetch", "Disable auto-fetch scheduler")
+  .option("--fetch-only", "Run scheduler only, no HTTP/MCP server")
   .action(async (options) => {
     const config = loadConfig(options.config);
     const stores = await createStores(config);
+
     if (options.mcp) {
       const server = createMcpServer(stores);
       await server.connect(new StdioServerTransport());
       return;
     }
+
+    // --- Scheduler integration ---
+    const { Scheduler, RunHistory, DaemonLogger, AlertWriter, classifyResult } = await import(
+      "./daemon/index.js"
+    );
+    const { createPipelineRuntime } = await import(
+      "./core/pipeline-factory.js"
+    );
+
+    let scheduler: InstanceType<typeof Scheduler> | undefined;
+    const schedulerConfig = config.scheduler;
+
+    if (schedulerConfig?.enabled && options.fetch !== false) {
+      await bootstrapCollectors(config.sources);
+      ensureStateDir();
+
+      const dataDir = config.store.data_dir.replace(/^~/, homedir());
+      const stateDir = resolve(dataDir, "..");
+      const runtime = await createPipelineRuntime(config, stores.db.pg, stateDir);
+      const history = new RunHistory(stateDir);
+      const logger = new DaemonLogger(stateDir);
+      const alertWriter = new AlertWriter(new PageStore(stores.db.pg));
+
+      scheduler = new Scheduler(schedulerConfig, stateDir);
+
+      scheduler.setRunSource(async (sourceId: string) => {
+        const collector = getCollector(sourceId);
+        if (!collector) throw new Error(`Unknown source: ${sourceId}`);
+        return runPipeline(runtime.config, {
+          source: collector,
+          provider: runtime.provider,
+          format: "json" as const,
+          adapter: "store" as const,
+          stores,
+          identityResolver: runtime.identity_resolver,
+        });
+      });
+
+      scheduler.setOnTick((sourceId: string, result: import("./core/pipeline.js").PipelineResult, duration_ms: number) => {
+        const classified = classifyResult(result);
+        logger.log(
+          classified === "failed" ? "error" : "info",
+          sourceId,
+          `${classified} — ${result.okBlocks}ok/${result.failedBlocks}fail, ${duration_ms}ms`,
+        );
+        history.append({
+          ts: Date.now(),
+          source: sourceId,
+          result: classified,
+          msgs: result.totalMessages,
+          blocks: result.totalBlocks,
+          ok: result.okBlocks,
+          skipped: result.skippedBlocks,
+          failed: result.failedBlocks,
+          duration_ms,
+        });
+        alertWriter.update(scheduler!.getAlertDetails());
+      });
+
+      await scheduler.start();
+      logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
+    }
+
+    const cleanup = () => {
+      scheduler?.stop();
+      process.exit(0);
+    };
+    process.on("SIGINT", cleanup);
+    process.on("SIGTERM", cleanup);
+
+    if (options.fetchOnly) {
+      console.log("Memoark fetch-only daemon running. Press Ctrl+C to stop.");
+      await new Promise(() => {});
+      return;
+    }
+
+    // --- HTTP server ---
     const { Hono } = await import("hono");
     const { serveStatic } = await import("hono/bun");
-    const { readFileSync } = await import("node:fs");
+    const { readFileSync: readFile } = await import("node:fs");
     const api = createApiApp(stores);
     const app = new Hono();
     app.route("/api", api);
@@ -732,13 +820,13 @@ program
         if (!c.req.header("accept")?.includes("text/html")) {
           return c.json({ error: "Not found" }, 404);
         }
-        return c.html(readFileSync(`${distDir}/index.html`, "utf-8"));
+        return c.html(readFile(`${distDir}/index.html`, "utf-8"));
       });
     }
 
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
     console.log(
-      `Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}`,
+      `Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}${scheduler ? " (scheduler active)" : ""}`,
     );
   });
 
@@ -773,6 +861,121 @@ program
     });
     console.log(`Embedded ${result.embedded} chunks, errors ${result.errors}`);
     await stores.db.close();
+  });
+
+/**
+ * Daemon subcommand group
+ */
+const daemon = program.command("daemon").description("Manage background fetch daemon");
+
+daemon
+  .command("start")
+  .description("Start daemon in background (detached)")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (options) => {
+    const { spawn } = await import("node:child_process");
+    const args = [process.argv[1], "serve", "--fetch-only"];
+    if (options.config) args.push("-c", options.config);
+
+    const child = spawn(process.execPath, args, {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+
+    const config = loadConfig(options.config);
+    const dataDir = config.store.data_dir.replace(/^~/, homedir());
+    const stateDir = resolve(dataDir, "..");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(join(stateDir, "daemon.pid"), String(child.pid));
+    console.log(`Daemon started (PID: ${child.pid})`);
+  });
+
+daemon
+  .command("stop")
+  .description("Stop the running daemon")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (options) => {
+    const config = loadConfig(options.config);
+    const dataDir = config.store.data_dir.replace(/^~/, homedir());
+    const stateDir = resolve(dataDir, "..");
+    const pidFile = join(stateDir, "daemon.pid");
+
+    if (!existsSync(pidFile)) {
+      console.log("No daemon PID file found. Is the daemon running?");
+      return;
+    }
+
+    const pid = parseInt(readFileSync(pidFile, "utf-8").trim());
+    try {
+      process.kill(pid, "SIGTERM");
+      unlinkSync(pidFile);
+      console.log(`Daemon stopped (PID: ${pid})`);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ESRCH") {
+        unlinkSync(pidFile);
+        console.log("Daemon was not running (stale PID file removed)");
+      } else {
+        throw err;
+      }
+    }
+  });
+
+daemon
+  .command("restart")
+  .description("Restart the daemon")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (options) => {
+    await daemon.commands
+      .find((c: any) => c.name() === "stop")
+      ?.parseAsync(["-c", options.config || ""].filter(Boolean), { from: "user" });
+    await new Promise((r) => setTimeout(r, 500));
+    await daemon.commands
+      .find((c: any) => c.name() === "start")
+      ?.parseAsync(["-c", options.config || ""].filter(Boolean), { from: "user" });
+  });
+
+daemon
+  .command("status")
+  .description("Show scheduler status and recent run history")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (options) => {
+    const config = loadConfig(options.config);
+    const dataDir = config.store.data_dir.replace(/^~/, homedir());
+    const stateDir = resolve(dataDir, "..");
+    const statePath = join(stateDir, "scheduler-state.json");
+
+    if (!existsSync(statePath)) {
+      console.log("No scheduler state found. Has the daemon run?");
+      return;
+    }
+
+    const state = JSON.parse(readFileSync(statePath, "utf-8"));
+
+    const uptime = Date.now() - state.daemon_started_at;
+    const uptimeHrs = (uptime / 3600000).toFixed(1);
+    const lastHb = new Date(state.last_heartbeat_at).toLocaleString();
+    console.log(`Daemon uptime: ${uptimeHrs}h | Last heartbeat: ${lastHb}\n`);
+
+    console.log("Sources:");
+    for (const [id, s] of Object.entries(state.sources) as Array<[string, any]>) {
+      const lastRun = s.last_run_at ? new Date(s.last_run_at).toLocaleString() : "never";
+      const status =
+        s.consecutive_failures > 0
+          ? `FAILING (${s.consecutive_failures}x)`
+          : s.consecutive_partials > 0
+            ? `PARTIAL (${s.consecutive_partials}x)`
+            : "OK";
+      const error = s.last_error ? ` — ${s.last_error}` : "";
+      console.log(`  ${id}: ${status} | last: ${lastRun}${error}`);
+    }
+
+    const { RunHistory } = await import("./daemon/run-history.js");
+    const history = new RunHistory(stateDir);
+    const stats = history.stats24h();
+    console.log(
+      `\n24h stats: ${stats.total_runs} runs, ${stats.total_msgs} msgs, ${stats.ok_blocks}ok/${stats.skipped_blocks}skip/${stats.failed_blocks}fail blocks`,
+    );
   });
 
 program.parse(process.argv);
