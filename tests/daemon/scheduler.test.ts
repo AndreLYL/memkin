@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Scheduler } from "../../src/daemon/scheduler.js";
 import type { SchedulerConfig } from "../../src/core/config.js";
 import type { PipelineResult } from "../../src/core/pipeline.js";
+import { Scheduler } from "../../src/daemon/scheduler.js";
 
 function makeSchedulerConfig(overrides: Partial<SchedulerConfig> = {}): SchedulerConfig {
   return {

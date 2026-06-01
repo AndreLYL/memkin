@@ -12,7 +12,7 @@ export function classifyResult(r: PipelineResult): RunResult {
 const MAX_BACKOFF_SECS = 21600; // 6 hours
 
 export function computeBackoff(base_interval_secs: number, consecutive_failures: number): number {
-  const backoff = base_interval_secs * Math.pow(2, consecutive_failures);
+  const backoff = base_interval_secs * 2 ** consecutive_failures;
   return Math.min(backoff, MAX_BACKOFF_SECS);
 }
 

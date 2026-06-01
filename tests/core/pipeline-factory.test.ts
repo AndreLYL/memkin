@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildPipelineConfig } from "../../src/core/pipeline-factory.js";
 import { loadConfig } from "../../src/core/config.js";
+import { buildPipelineConfig } from "../../src/core/pipeline-factory.js";
 
 describe("buildPipelineConfig", () => {
   it("returns a PipelineConfig from Config + output_dir", () => {

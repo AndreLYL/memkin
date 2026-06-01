@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { PipelineResult } from "../../src/core/pipeline.js";
 import {
   classifyResult,
   computeBackoff,
   SourceSchedule,
 } from "../../src/daemon/source-schedule.js";
-import type { PipelineResult } from "../../src/core/pipeline.js";
 
 function makePipelineResult(overrides: Partial<PipelineResult> = {}): PipelineResult {
   return {

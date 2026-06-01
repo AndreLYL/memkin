@@ -1,14 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { SchedulerConfig } from "../../src/core/config.js";
 import type { PipelineResult } from "../../src/core/pipeline.js";
-import { Scheduler } from "../../src/daemon/scheduler.js";
-import { RunHistory } from "../../src/daemon/run-history.js";
 import { AlertWriter } from "../../src/daemon/alerts.js";
+import { RunHistory } from "../../src/daemon/run-history.js";
+import { Scheduler } from "../../src/daemon/scheduler.js";
 import { classifyResult, SourceSchedule } from "../../src/daemon/source-schedule.js";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
-import type { SchedulerConfig } from "../../src/core/config.js";
 
 function makeOkResult(msgs = 10, blocks = 2): PipelineResult {
   return {
@@ -139,15 +139,13 @@ describe("Scheduler integration", () => {
     expect(schedule.shouldAlert()).toBe(true);
 
     // Write alert
-    await alertWriter.update([
-      { source_id: "feishu", state: schedule.serialize() },
-    ]);
+    await alertWriter.update([{ source_id: "feishu", state: schedule.serialize() }]);
 
     const alertPage = await pageStore.getPage("system/alerts");
     expect(alertPage).not.toBeNull();
-    expect(alertPage!.compiled_truth).toContain("feishu");
-    expect(alertPage!.compiled_truth).toContain("API 429");
-    expect(alertPage!.compiled_truth).toContain("3");
+    expect(alertPage?.compiled_truth).toContain("feishu");
+    expect(alertPage?.compiled_truth).toContain("API 429");
+    expect(alertPage?.compiled_truth).toContain("3");
 
     // Recovery
     schedule.recordResult("ok", now);
@@ -190,7 +188,7 @@ describe("Scheduler integration", () => {
     expect(sched.getAlertSources()).toContain("feishu");
     const alert = await pageStore.getPage("system/alerts");
     expect(alert).not.toBeNull();
-    expect(alert!.compiled_truth).toContain("network error");
+    expect(alert?.compiled_truth).toContain("network error");
 
     sched.stop();
   }, 15_000);

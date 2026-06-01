@@ -1,4 +1,11 @@
-import { appendFileSync, existsSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
@@ -16,7 +23,7 @@ export class DaemonLogger {
   log(level: "info" | "warn" | "error", source: string, message: string): void {
     const line = `${new Date().toISOString()} [${level}] [${source}] ${message}`;
     console.log(line);
-    appendFileSync(this.logPath, line + "\n");
+    appendFileSync(this.logPath, `${line}\n`);
     this.rotateIfNeeded();
   }
 

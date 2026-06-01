@@ -3,7 +3,6 @@ import type {
   Decision,
   Entity,
   ExtractionResult,
-  Knowledge,
   SourceRef,
   TaskSignal,
 } from "../../src/core/types";

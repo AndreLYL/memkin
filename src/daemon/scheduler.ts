@@ -10,9 +10,7 @@ interface SchedulerPersistence {
   sources: Record<string, SourceState>;
 }
 
-export interface RunSourceFn {
-  (sourceId: string): Promise<PipelineResult>;
-}
+export type RunSourceFn = (sourceId: string) => Promise<PipelineResult>;
 
 export class Scheduler {
   private schedules: Map<string, SourceSchedule> = new Map();
@@ -65,9 +63,7 @@ export class Scheduler {
     this.runSource = fn;
   }
 
-  setOnTick(
-    fn: (sourceId: string, result: PipelineResult, duration_ms: number) => void,
-  ): void {
+  setOnTick(fn: (sourceId: string, result: PipelineResult, duration_ms: number) => void): void {
     this.onTick = fn;
   }
 
@@ -156,7 +152,7 @@ export class Scheduler {
     for (const [id, s] of this.schedules) {
       data.sources[id] = s.serialize();
     }
-    writeFileSync(this.state_path, JSON.stringify(data, null, 2) + "\n");
+    writeFileSync(this.state_path, `${JSON.stringify(data, null, 2)}\n`);
   }
 
   private loadState(): SchedulerPersistence | null {

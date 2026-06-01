@@ -40,9 +40,39 @@ describe("RunHistory", () => {
     const h12ago = now - 12 * 3600 * 1000;
     const h25ago = now - 25 * 3600 * 1000;
 
-    rh.append({ ts: h25ago, source: "feishu", result: "ok", msgs: 10, blocks: 1, ok: 1, skipped: 0, failed: 0, duration_ms: 100 });
-    rh.append({ ts: h12ago, source: "feishu", result: "ok", msgs: 50, blocks: 3, ok: 2, skipped: 1, failed: 0, duration_ms: 5000 });
-    rh.append({ ts: now, source: "claude-code", result: "partial", msgs: 20, blocks: 2, ok: 1, skipped: 0, failed: 1, duration_ms: 3000 });
+    rh.append({
+      ts: h25ago,
+      source: "feishu",
+      result: "ok",
+      msgs: 10,
+      blocks: 1,
+      ok: 1,
+      skipped: 0,
+      failed: 0,
+      duration_ms: 100,
+    });
+    rh.append({
+      ts: h12ago,
+      source: "feishu",
+      result: "ok",
+      msgs: 50,
+      blocks: 3,
+      ok: 2,
+      skipped: 1,
+      failed: 0,
+      duration_ms: 5000,
+    });
+    rh.append({
+      ts: now,
+      source: "claude-code",
+      result: "partial",
+      msgs: 20,
+      blocks: 2,
+      ok: 1,
+      skipped: 0,
+      failed: 1,
+      duration_ms: 3000,
+    });
 
     const stats = rh.stats24h(now);
     expect(stats.total_runs).toBe(2);
@@ -62,7 +92,17 @@ describe("RunHistory", () => {
   it("rotates file when exceeding max size", () => {
     const rh = new RunHistory(tmpDir, 500);
     for (let i = 0; i < 20; i++) {
-      rh.append({ ts: Date.now(), source: "s", result: "ok", msgs: 1, blocks: 1, ok: 1, skipped: 0, failed: 0, duration_ms: 1 });
+      rh.append({
+        ts: Date.now(),
+        source: "s",
+        result: "ok",
+        msgs: 1,
+        blocks: 1,
+        ok: 1,
+        skipped: 0,
+        failed: 0,
+        duration_ms: 1,
+      });
     }
     const filePath = join(tmpDir, "scheduler-runs.jsonl");
     const size = readFileSync(filePath).length;

@@ -1,12 +1,5 @@
 #!/usr/bin/env bun
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -728,9 +721,7 @@ program
     const { Scheduler, RunHistory, DaemonLogger, AlertWriter, classifyResult } = await import(
       "./daemon/index.js"
     );
-    const { createPipelineRuntime } = await import(
-      "./core/pipeline-factory.js"
-    );
+    const { createPipelineRuntime } = await import("./core/pipeline-factory.js");
 
     let scheduler: InstanceType<typeof Scheduler> | undefined;
     const schedulerConfig = config.scheduler;
@@ -761,26 +752,32 @@ program
         });
       });
 
-      scheduler.setOnTick((sourceId: string, result: import("./core/pipeline.js").PipelineResult, duration_ms: number) => {
-        const classified = classifyResult(result);
-        logger.log(
-          classified === "failed" ? "error" : "info",
-          sourceId,
-          `${classified} — ${result.okBlocks}ok/${result.failedBlocks}fail, ${duration_ms}ms`,
-        );
-        history.append({
-          ts: Date.now(),
-          source: sourceId,
-          result: classified,
-          msgs: result.totalMessages,
-          blocks: result.totalBlocks,
-          ok: result.okBlocks,
-          skipped: result.skippedBlocks,
-          failed: result.failedBlocks,
-          duration_ms,
-        });
-        alertWriter.update(scheduler!.getAlertDetails());
-      });
+      scheduler.setOnTick(
+        (
+          sourceId: string,
+          result: import("./core/pipeline.js").PipelineResult,
+          duration_ms: number,
+        ) => {
+          const classified = classifyResult(result);
+          logger.log(
+            classified === "failed" ? "error" : "info",
+            sourceId,
+            `${classified} — ${result.okBlocks}ok/${result.failedBlocks}fail, ${duration_ms}ms`,
+          );
+          history.append({
+            ts: Date.now(),
+            source: sourceId,
+            result: classified,
+            msgs: result.totalMessages,
+            blocks: result.totalBlocks,
+            ok: result.okBlocks,
+            skipped: result.skippedBlocks,
+            failed: result.failedBlocks,
+            duration_ms,
+          });
+          alertWriter.update(scheduler?.getAlertDetails());
+        },
+      );
 
       await scheduler.start();
       logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
@@ -906,7 +903,7 @@ daemon
       return;
     }
 
-    const pid = parseInt(readFileSync(pidFile, "utf-8").trim());
+    const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
     try {
       process.kill(pid, "SIGTERM");
       unlinkSync(pidFile);

@@ -35,7 +35,7 @@ export class RunHistory {
   }
 
   append(record: RunRecord): void {
-    appendFileSync(this.filePath, JSON.stringify(record) + "\n");
+    appendFileSync(this.filePath, `${JSON.stringify(record)}\n`);
     this.rotateIfNeeded();
   }
 
@@ -74,6 +74,6 @@ export class RunHistory {
 
     const lines = readFileSync(this.filePath, "utf-8").trim().split("\n");
     const keep = lines.slice(Math.floor(lines.length / 2));
-    writeFileSync(this.filePath, keep.join("\n") + "\n");
+    writeFileSync(this.filePath, `${keep.join("\n")}\n`);
   }
 }
