@@ -124,7 +124,7 @@ const program = new Command();
 program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
-  .version("0.1.0");
+  .version("0.2.0");
 
 /**
  * Extract command - main pipeline execution
@@ -775,7 +775,7 @@ program
             failed: result.failedBlocks,
             duration_ms,
           });
-          alertWriter.update(scheduler?.getAlertDetails());
+          alertWriter.update(scheduler?.getAlertDetails() ?? []);
         },
       );
 

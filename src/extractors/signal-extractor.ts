@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { parseExtractionResult } from "../core/schemas.js";
 import type {
   BlockResult,
+  CanonicalisedBlock,
   ConversationBlock,
   ExtractionResult,
   RawMessage,
@@ -81,7 +82,7 @@ function extractJson(raw: string): string | null {
  * Signal Extractor interface
  */
 export interface SignalExtractor {
-  extract(block: ConversationBlock): Promise<BlockResult>;
+  extract(input: CanonicalisedBlock | ConversationBlock): Promise<BlockResult>;
 }
 
 /**
@@ -154,33 +155,6 @@ function stampSourceRefs(result: ExtractionResult, canonical: SourceRef): void {
   for (const link of result.links) link.source = stamp(link.source);
 }
 
-function sourceQuote(rawSource: unknown): string {
-  if (rawSource && typeof rawSource === "object" && "quote" in rawSource) {
-    const quote = (rawSource as { quote?: unknown }).quote;
-    return typeof quote === "string" ? quote : "";
-  }
-  return "";
-}
-
-function prepareRawSourceRefs(raw: unknown, canonical: SourceRef): unknown {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
-
-  const result = raw as Record<string, unknown>;
-  result.source = { ...canonical, quote: sourceQuote(result.source) };
-
-  for (const key of ["decisions", "tasks", "discoveries", "knowledge", "timeline", "links"]) {
-    const items = result[key];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-      const signal = item as Record<string, unknown>;
-      signal.source = { ...canonical, quote: sourceQuote(signal.source) };
-    }
-  }
-
-  return result;
-}
-
 /**
  * Create a signal extractor with the given LLM provider
  */
@@ -189,9 +163,26 @@ export function createSignalExtractor(provider: LLMProvider): SignalExtractor {
   const signalExtractPrompt = loadPrompt("signal-extract.md");
 
   return {
-    async extract(block: ConversationBlock): Promise<BlockResult> {
-      // Format conversation for LLM
-      const conversationText = formatConversation(block.messages);
+    async extract(input: CanonicalisedBlock | ConversationBlock): Promise<BlockResult> {
+      // Determine input type and extract the underlying block and conversation text
+      const isCanonicalized = "canonical_markdown" in input;
+      const block = isCanonicalized
+        ? (input as CanonicalisedBlock).block
+        : (input as ConversationBlock);
+      const cb = isCanonicalized ? (input as CanonicalisedBlock) : null;
+
+      // Get conversation text: use canonical_markdown for email/document/structured sources
+      let conversationText: string;
+      if (
+        cb &&
+        (cb.source_type === "email" ||
+          cb.source_type === "document" ||
+          cb.source_type === "structured")
+      ) {
+        conversationText = cb.canonical_markdown;
+      } else {
+        conversationText = formatConversation(block.messages);
+      }
 
       // Build prompt with context
       const userPrompt = `${signalExtractPrompt}
@@ -257,14 +248,11 @@ Output ONLY valid JSON matching ExtractionResultSchema.`;
             }
           }
 
-          // System stamp: overwrite LLM-generated source fields with canonical provenance
-          const canonical = buildSourceRef(block);
-          prepareRawSourceRefs(jsonData, canonical);
-
           // Validate with Zod
           const result = parseExtractionResult(jsonData);
 
-          // System stamp again after validation/defaults normalize the object
+          // System stamp: overwrite LLM-generated source fields with canonical provenance
+          const canonical = buildSourceRef(block);
           stampSourceRefs(result, canonical);
 
           return { status: "ok", data: result };

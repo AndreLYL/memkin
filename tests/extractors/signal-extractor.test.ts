@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { ConversationBlock, ExtractionResult } from "../../src/core/types";
+import type { CanonicalisedBlock, ConversationBlock, ExtractionResult } from "../../src/core/types";
 import { createMockProvider } from "../../src/extractors/providers/mock";
 import { createSignalExtractor } from "../../src/extractors/signal-extractor";
 
@@ -336,5 +336,289 @@ describe("SignalExtractor", () => {
         expect(extractionResult.data.entities[3].confidence).toBe("speculative");
       }
     });
+  });
+});
+
+describe("SignalExtractor — CanonicalisedBlock input", () => {
+  it("email source uses canonical_markdown in prompt", async () => {
+    let capturedPrompt = "";
+    const validResult = createValidExtractionResult();
+
+    const mockProvider = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        capturedPrompt = messages.map((m) => m.content).join("\n");
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const cb: CanonicalisedBlock = {
+      block: {
+        block_id: "test-email-1",
+        platform: "feishu",
+        channel: "mail/INBOX",
+        thread_id: undefined,
+        messages: [
+          {
+            platform: "feishu",
+            channel: "mail/INBOX",
+            contact: "alice",
+            timestamp: "2026-05-29T10:00:00Z",
+            content: "raw email content",
+            direction: "received",
+          },
+        ],
+        start_time: "2026-05-29T10:00:00Z",
+        end_time: "2026-05-29T10:00:00Z",
+        participants: ["alice"],
+        token_count: 50,
+      },
+      source_type: "email",
+      interaction_tags: [],
+      canonical_markdown:
+        "---\nFrom: bob@example.com\nSubject: Migration Plan\n---\nLet's migrate to PostgreSQL.",
+    };
+
+    const result = await extractor.extract(cb);
+    expect(result.status).toBe("ok");
+    // Verify canonical_markdown was used (should contain the email metadata)
+    expect(capturedPrompt).toContain("From: bob@example.com");
+    expect(capturedPrompt).toContain("Subject: Migration Plan");
+    expect(capturedPrompt).toContain("migrate to PostgreSQL");
+    // Should NOT contain formatted message like [timestamp] → contact:
+    expect(capturedPrompt).not.toContain("raw email content");
+  });
+
+  it("document source uses canonical_markdown in prompt", async () => {
+    let capturedPrompt = "";
+    const validResult = createValidExtractionResult();
+
+    const mockProvider = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        capturedPrompt = messages.map((m) => m.content).join("\n");
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const cb: CanonicalisedBlock = {
+      block: {
+        block_id: "test-doc-1",
+        platform: "feishu",
+        channel: "doc/docx_abc123",
+        thread_id: undefined,
+        messages: [
+          {
+            platform: "feishu",
+            channel: "doc/docx_abc123",
+            contact: "alice",
+            timestamp: "2026-05-29T10:00:00Z",
+            content: "raw doc content",
+            direction: "received",
+          },
+        ],
+        start_time: "2026-05-29T10:00:00Z",
+        end_time: "2026-05-29T10:00:00Z",
+        participants: ["alice"],
+        token_count: 80,
+      },
+      source_type: "document",
+      interaction_tags: [],
+      canonical_markdown: "# Architecture Decision\n\n We will use microservices architecture.",
+    };
+
+    const result = await extractor.extract(cb);
+    expect(result.status).toBe("ok");
+    expect(capturedPrompt).toContain("# Architecture Decision");
+    expect(capturedPrompt).toContain("microservices architecture");
+    expect(capturedPrompt).not.toContain("raw doc content");
+  });
+
+  it("structured source uses canonical_markdown in prompt", async () => {
+    let capturedPrompt = "";
+    const validResult = createValidExtractionResult();
+
+    const mockProvider = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        capturedPrompt = messages.map((m) => m.content).join("\n");
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const cb: CanonicalisedBlock = {
+      block: {
+        block_id: "test-struct-1",
+        platform: "feishu",
+        channel: "bitable/tbl_123",
+        thread_id: undefined,
+        messages: [
+          {
+            platform: "feishu",
+            channel: "bitable/tbl_123",
+            contact: "system",
+            timestamp: "2026-05-29T10:00:00Z",
+            content: "raw structured data",
+            direction: "received",
+          },
+        ],
+        start_time: "2026-05-29T10:00:00Z",
+        end_time: "2026-05-29T10:00:00Z",
+        participants: ["system"],
+        token_count: 30,
+      },
+      source_type: "structured",
+      interaction_tags: [],
+      canonical_markdown: "| Task | Owner | Status |\n| Deploy | Alice | Done |",
+    };
+
+    const result = await extractor.extract(cb);
+    expect(result.status).toBe("ok");
+    expect(capturedPrompt).toContain("| Task | Owner | Status |");
+    expect(capturedPrompt).toContain("Deploy | Alice | Done");
+    expect(capturedPrompt).not.toContain("raw structured data");
+  });
+
+  it("chat source with CanonicalisedBlock uses formatConversation", async () => {
+    let capturedPrompt = "";
+    const validResult = createValidExtractionResult();
+
+    const mockProvider = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        capturedPrompt = messages.map((m) => m.content).join("\n");
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const cb: CanonicalisedBlock = {
+      block: {
+        block_id: "test-chat-1",
+        platform: "feishu",
+        channel: "group/oc_abc",
+        thread_id: undefined,
+        messages: [
+          {
+            platform: "feishu",
+            channel: "group/oc_abc",
+            contact: "alice",
+            timestamp: "2026-05-29T10:00:00Z",
+            content: "Let's discuss the plan",
+            direction: "received",
+          },
+          {
+            platform: "feishu",
+            channel: "group/oc_abc",
+            contact: "bob",
+            timestamp: "2026-05-29T10:01:00Z",
+            content: "Sure, I'm ready",
+            direction: "sent",
+          },
+        ],
+        start_time: "2026-05-29T10:00:00Z",
+        end_time: "2026-05-29T10:01:00Z",
+        participants: ["alice", "bob"],
+        token_count: 50,
+      },
+      source_type: "chat",
+      interaction_tags: [],
+      canonical_markdown:
+        "[2026-05-29T10:00:00Z] alice: Let's discuss the plan\n[2026-05-29T10:01:00Z] bob: Sure, I'm ready",
+    };
+
+    const result = await extractor.extract(cb);
+    expect(result.status).toBe("ok");
+    // For chat source, should use formatConversation with arrows
+    expect(capturedPrompt).toMatch(/[←→]/); // Should contain direction arrows
+    expect(capturedPrompt).toContain("alice");
+    expect(capturedPrompt).toContain("bob");
+    expect(capturedPrompt).toContain("discuss the plan");
+  });
+
+  it("dm source with CanonicalisedBlock uses formatConversation", async () => {
+    let capturedPrompt = "";
+    const validResult = createValidExtractionResult();
+
+    const mockProvider = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        capturedPrompt = messages.map((m) => m.content).join("\n");
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const cb: CanonicalisedBlock = {
+      block: {
+        block_id: "test-dm-1",
+        platform: "feishu",
+        channel: "dm/ou_alice",
+        thread_id: undefined,
+        messages: [
+          {
+            platform: "feishu",
+            channel: "dm/ou_alice",
+            contact: "alice",
+            timestamp: "2026-05-29T10:00:00Z",
+            content: "Quick question about the API",
+            direction: "received",
+          },
+        ],
+        start_time: "2026-05-29T10:00:00Z",
+        end_time: "2026-05-29T10:00:00Z",
+        participants: ["alice"],
+        token_count: 20,
+      },
+      source_type: "dm",
+      interaction_tags: ["dm"],
+      canonical_markdown: "[2026-05-29T10:00:00Z] alice: Quick question about the API",
+    };
+
+    const result = await extractor.extract(cb);
+    expect(result.status).toBe("ok");
+    // DM should also use formatConversation (it's conversational, not document-like)
+    expect(capturedPrompt).toMatch(/[←→]/);
+    expect(capturedPrompt).toContain("alice");
+    expect(capturedPrompt).toContain("Quick question about the API");
+  });
+
+  it("raw ConversationBlock still works (backwards compat)", async () => {
+    let capturedPrompt = "";
+    const validResult = createValidExtractionResult();
+
+    const mockProvider = {
+      async chat(messages: Array<{ role: string; content: string }>) {
+        capturedPrompt = messages.map((m) => m.content).join("\n");
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const block: ConversationBlock = {
+      block_id: "test-raw-1",
+      platform: "feishu",
+      channel: "group/oc_abc",
+      thread_id: undefined,
+      messages: [
+        {
+          platform: "feishu",
+          channel: "group/oc_abc",
+          contact: "alice",
+          timestamp: "2026-05-29T10:00:00Z",
+          content: "Hello world",
+          direction: "received",
+        },
+      ],
+      start_time: "2026-05-29T10:00:00Z",
+      end_time: "2026-05-29T10:00:00Z",
+      participants: ["alice"],
+      token_count: 10,
+    };
+
+    const result = await extractor.extract(block);
+    expect(result.status).toBe("ok");
+    // Should use formatConversation for raw block
+    expect(capturedPrompt).toMatch(/[←→]/);
+    expect(capturedPrompt).toContain("alice");
+    expect(capturedPrompt).toContain("Hello world");
   });
 });

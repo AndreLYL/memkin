@@ -8,15 +8,18 @@ import { FileAdapter } from "../adapters/file.js";
 import { GBrainAdapter } from "../adapters/gbrain.js";
 import { StdoutAdapter } from "../adapters/stdout.js";
 import { StoreAdapter, type StoreAdapterContext } from "../adapters/store.js";
-import { filterNoise, type NoiseFilterVerdict } from "../extractors/noise-filter.js";
+import { filterNoiseL1, mapScoreDecision } from "../extractors/noise-filter.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
 import { BlockBuilder } from "./block-builder.js";
+import { canonicalize } from "./canonicalize.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
+import { isEmptyExtraction } from "./helpers.js";
 import type { IdentityResolver } from "./identity-resolver.js";
+import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
   BlockResult,
@@ -186,10 +189,6 @@ export async function runPipeline(
       return result;
     }
 
-    console.log(
-      `Collected ${result.totalMessages} messages; processing ${messagesToBlock.length} new/modified messages in ${blocks.length} blocks.`,
-    );
-
     // Dry-run stops here
     if (opts.dryRun) {
       return result;
@@ -236,26 +235,34 @@ export async function runPipeline(
 
     // Process each block
     const extractedResults: ExtractionResult[] = [];
-    let blockIndex = 0;
 
     for (const block of blocks) {
-      blockIndex++;
-      console.log(
-        `Processing block ${blockIndex}/${blocks.length} (${block.messages.length} messages)`,
-      );
-
       try {
-        // Noise filter
-        const filterVerdict: NoiseFilterVerdict = await filterNoise(block, opts.provider);
+        // Stage A: L1 rule-based filter (no LLM)
+        const l1Verdict = filterNoiseL1(block);
 
-        if (filterVerdict === "skip") {
+        if (l1Verdict === "skip") {
           result.skippedBlocks++;
           result.skippedMessages.push(...block.messages);
           continue;
         }
 
-        // Extract signals
-        const blockResult: BlockResult = await extractor.extract(block);
+        // Stage B: Canonicalize (source-aware cleaning + interaction tagging)
+        const cb = canonicalize(block);
+
+        // Stage C: 5-dim scoring (cheap, no LLM)
+        const score = scoreBlock(cb);
+        const scoreVerdict = mapScoreDecision(score);
+
+        // L1 "escalate" bypasses score gate — always extract
+        if (l1Verdict !== "escalate" && scoreVerdict === "skip") {
+          result.skippedBlocks++;
+          result.skippedMessages.push(...block.messages);
+          continue;
+        }
+
+        // Stage D: LLM extraction (only blocks that passed/escalated)
+        const blockResult: BlockResult = await extractor.extract(cb);
 
         if (blockResult.status === "failed") {
           result.failedBlocks++;
@@ -270,16 +277,25 @@ export async function runPipeline(
           continue;
         }
 
-        // Success - process extraction result
-        result.okBlocks++;
-        result.okMessages.push(...block.messages);
+        // Success - check for empty extraction
+        if (blockResult.status === "ok") {
+          // Empty extraction guard
+          if (isEmptyExtraction(blockResult.data)) {
+            result.skippedBlocks++;
+            result.skippedMessages.push(...block.messages);
+            continue;
+          }
 
-        // Apply privacy processing
-        const processedResult = privacyProcessor.process(blockResult.data);
-        extractedResults.push(processedResult);
+          result.okBlocks++;
+          result.okMessages.push(...block.messages);
 
-        // Track last successful message
-        result.lastSuccessMessage = block.messages[block.messages.length - 1];
+          // Apply privacy processing
+          const processedResult = privacyProcessor.process(blockResult.data);
+          extractedResults.push(processedResult);
+
+          // Track last successful message
+          result.lastSuccessMessage = block.messages[block.messages.length - 1];
+        }
       } catch (err) {
         // Non-fatal error - log and continue
         result.failedBlocks++;

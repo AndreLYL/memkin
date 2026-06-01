@@ -36,7 +36,7 @@ sources:
   feishu:
     enabled: true
     auth_mode: user
-    app_id: cli_a94d131ca0b89bc6
+    app_id: cli_a9f10f0545f9dcb3
     app_secret: unused-in-user-mode
     sources:
       messages:
@@ -65,7 +65,7 @@ adapters:
 
 # Store (PGLite embedded PostgreSQL)
 store:
-  data_dir: ~/.memoark/data
+  data_dir: /Users/yinglong.li/.memoark/data
 
 # Embedding configuration
 embedding:

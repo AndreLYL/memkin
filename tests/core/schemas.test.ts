@@ -136,7 +136,7 @@ describe("ExtractionResult schema validation", () => {
     expect(result.source.quote).toBe("");
   });
 
-  it("normalizes invalid confidence values to inferred", () => {
+  it("rejects invalid confidence values", () => {
     const data = {
       source: {
         platform: "slack",
@@ -161,11 +161,10 @@ describe("ExtractionResult schema validation", () => {
       discoveries: [],
     };
 
-    const result = parseExtractionResult(data);
-    expect(result.entities[0].confidence).toBe("inferred");
+    expect(() => parseExtractionResult(data)).toThrow();
   });
 
-  it("normalizes invalid entity types to concept", () => {
+  it("rejects invalid entity types", () => {
     const data = {
       source: {
         platform: "slack",
@@ -190,8 +189,7 @@ describe("ExtractionResult schema validation", () => {
       discoveries: [],
     };
 
-    const result = parseExtractionResult(data);
-    expect(result.entities[0].type).toBe("concept");
+    expect(() => parseExtractionResult(data)).toThrow();
   });
 });
 
@@ -464,9 +462,8 @@ describe("KnowledgeSchema", () => {
     expect(() => KnowledgeSchema.parse({ ...validKnowledge, topic: "" })).toThrow();
   });
 
-  it("normalizes invalid source_type to conversation", () => {
-    const result = KnowledgeSchema.parse({ ...validKnowledge, source_type: "unknown" });
-    expect(result.source_type).toBe("conversation");
+  it("rejects invalid source_type", () => {
+    expect(() => KnowledgeSchema.parse({ ...validKnowledge, source_type: "unknown" })).toThrow();
   });
 
   it("validates valid_at as ISO 8601 datetime", () => {

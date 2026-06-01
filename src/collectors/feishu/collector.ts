@@ -215,54 +215,61 @@ export class FeishuCollector implements Collector, CursorProvider {
 export async function createFeishuCollector(
   config: FeishuCollectorConfig,
 ): Promise<FeishuCollector> {
-  let discoveredChatIds: string[] = [];
   let messageChatIds: string[] = [];
   let dmChatIds: string[] = [];
+  let allDiscoveredChatIds: string[] = [];
   let selfOpenId: string | undefined;
+  const isUserMode = config.auth_mode === "user";
 
-  if (config.auth_mode === "user") {
-    const client = new LarkCliHttpClient(config.lark_bin);
-    const shouldDiscoverMessageChats =
-      !!config.sources.messages?.enabled && !config.sources.messages.chat_ids?.length;
-    const shouldDiscoverDmChats =
-      !!config.sources.dm?.enabled && !config.sources.dm.dm_chat_ids?.length;
+  let client: IFeishuHttpClient;
+  if (isUserMode) {
+    client = new LarkCliHttpClient(config.lark_bin);
+  } else {
+    const auth = new FeishuAuthManager(config.app_id, config.app_secret, config.base_url);
+    const rateLimiter = new FeishuRateLimiter(config.rate_limit_qps);
+    client = new FeishuHttpClient(auth, rateLimiter);
+  }
 
-    // Auto-discover chats if not explicitly configured
-    if (shouldDiscoverMessageChats || shouldDiscoverDmChats) {
-      try {
-        const res = await client.request<{
-          code: number;
-          data: { items: FeishuChatInfo[] };
-        }>("GET", "/open-apis/im/v1/chats", { params: { page_size: "100" } });
+  const shouldDiscoverMessageChats =
+    !!config.sources.messages?.enabled && !config.sources.messages.chat_ids?.length;
+  const shouldDiscoverDmChats =
+    !!config.sources.dm?.enabled && !config.sources.dm.dm_chat_ids?.length;
 
-        const chats = res.data.items ?? [];
-        discoveredChatIds = chats.map((c) => c.chat_id);
-        messageChatIds = shouldDiscoverMessageChats
-          ? chats.filter((c) => c.chat_mode !== "p2p").map((c) => c.chat_id)
-          : [];
-        dmChatIds = shouldDiscoverDmChats
-          ? chats.filter((c) => c.chat_mode === "p2p").map((c) => c.chat_id)
-          : [];
-        console.log(
-          `feishu: auto-discovered ${discoveredChatIds.length} chats (${messageChatIds.length} group, ${dmChatIds.length} dm)`,
-        );
-      } catch (err) {
-        console.warn("feishu: chat auto-discovery failed, using configured chat_ids", err);
-      }
-    }
-
-    // Get self open_id for DM direction detection
+  if (shouldDiscoverMessageChats || shouldDiscoverDmChats) {
     try {
-      const status = await client.request<{ userOpenId?: string }>(
+      const res = await client.request<{
+        code: number;
+        data: { items: FeishuChatInfo[] };
+      }>("GET", "/open-apis/im/v1/chats", { params: { page_size: "100" } });
+
+      const chats = res.data.items ?? [];
+      allDiscoveredChatIds = chats.map((c) => c.chat_id);
+      messageChatIds = shouldDiscoverMessageChats
+        ? chats.filter((c) => c.chat_mode !== "p2p").map((c) => c.chat_id)
+        : [];
+      dmChatIds = shouldDiscoverDmChats
+        ? chats.filter((c) => c.chat_mode === "p2p").map((c) => c.chat_id)
+        : [];
+      console.log(
+        `feishu: auto-discovered ${allDiscoveredChatIds.length} chats (${messageChatIds.length} group, ${dmChatIds.length} dm)`,
+      );
+    } catch (err) {
+      console.warn("feishu: chat auto-discovery failed, using configured chat_ids", err);
+    }
+  }
+
+  if (isUserMode) {
+    const larkClient = client as LarkCliHttpClient;
+    try {
+      const status = await larkClient.request<{ userOpenId?: string }>(
         "GET",
         "/open-apis/authen/v1/user_info",
         {},
       );
       selfOpenId = (status as Record<string, unknown>).userOpenId as string | undefined;
     } catch {
-      // lark auth status is not an API call — parse from healthCheck
       try {
-        const stdout = await client.execShortcut("auth", "status");
+        const stdout = await larkClient.execShortcut("auth", "status");
         const parsed = JSON.parse(stdout) as { userOpenId?: string };
         selfOpenId = parsed.userOpenId;
       } catch {
@@ -273,11 +280,10 @@ export async function createFeishuCollector(
 
   const collector = new FeishuCollector(config, messageChatIds, dmChatIds, selfOpenId);
 
-  // Warm identity cache from discovered chats
   const backend = collector.getIdentityBackend();
-  if (backend instanceof LarkCliIdentityBackend && discoveredChatIds.length > 0) {
-    await backend.warmCacheFromChats(discoveredChatIds);
-    console.log(`feishu: identity cache warmed from ${discoveredChatIds.length} chats`);
+  if (backend instanceof LarkCliIdentityBackend && allDiscoveredChatIds.length > 0) {
+    await backend.warmCacheFromChats(allDiscoveredChatIds);
+    console.log(`feishu: identity cache warmed from ${allDiscoveredChatIds.length} chats`);
   }
 
   return collector;
