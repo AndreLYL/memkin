@@ -9,8 +9,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { ConversationBlock } from "../core/types";
-import type { LLMProvider } from "./providers/types";
+import type { ConversationBlock } from "../core/types.js";
+import type { LLMProvider } from "./providers/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -132,7 +132,7 @@ async function filterL2(
     [
       {
         role: "system",
-        content: "You are a significance judgment assistant.",
+        content: "You are a significance judgment assistant. Always respond with valid JSON.",
       },
       { role: "user", content: prompt },
     ],

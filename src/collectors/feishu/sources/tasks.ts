@@ -1,8 +1,8 @@
-import type { RawMessage } from "../../../core/types";
-import type { CursorStaging } from "../cursor-staging";
-import type { FeishuHttpClient } from "../http-client";
-import type { FeishuTask, SourceCheckpoint } from "../types";
-import type { FeishuSource } from "./base";
+import type { RawMessage } from "../../../core/types.js";
+import type { CursorStaging } from "../cursor-staging.js";
+import type { FeishuHttpClient } from "../http-client.js";
+import type { FeishuTask, SourceCheckpoint } from "../types.js";
+import type { FeishuSource } from "./base.js";
 
 export class TaskSource implements FeishuSource {
   readonly name = "tasks";

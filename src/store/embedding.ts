@@ -22,12 +22,10 @@ export class EmbeddingService {
   ) {
     this.model = config.model ?? "text-embedding-3-large";
     this.dimensions = config.dimensions ?? 1536;
+    const isOllama = config.provider === "ollama";
     this.client = new OpenAI({
-      apiKey: config.apiKey ?? "",
-      baseURL:
-        config.provider === "ollama"
-          ? (config.baseUrl ?? "http://localhost:11434/v1")
-          : config.baseUrl,
+      apiKey: isOllama ? (config.apiKey ?? "ollama") : (config.apiKey ?? ""),
+      baseURL: isOllama ? (config.baseUrl ?? "http://localhost:11434/v1") : config.baseUrl,
     });
   }
 

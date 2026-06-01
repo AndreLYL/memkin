@@ -3,7 +3,7 @@
  * Returns predefined responses based on prompt matching
  */
 
-import type { ChatMessage, LLMOpts, LLMProvider } from "./types";
+import type { ChatMessage, LLMOpts, LLMProvider } from "./types.js";
 
 /**
  * Create a mock LLM provider that returns predefined responses

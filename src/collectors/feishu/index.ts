@@ -1,2 +1,2 @@
-export { createFeishuCollector, FeishuCollector } from "./collector";
-export type { FeishuCollectorConfig } from "./types";
+export { createFeishuCollector, FeishuCollector } from "./collector.js";
+export type { FeishuCollectorConfig } from "./types.js";

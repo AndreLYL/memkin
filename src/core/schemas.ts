@@ -12,7 +12,7 @@ export const SignalConfidenceSchema = z.enum(["direct", "paraphrased", "inferred
 export const SourceRefSchema = z.object({
   platform: z.string(),
   channel: z.string(),
-  timestamp: z.string(),
+  timestamp: z.string().default(() => new Date().toISOString()),
   message_id: z.string().optional(),
   thread_id: z.string().optional(),
   file_path: z.string().optional(),
@@ -40,7 +40,7 @@ export const TimelineEntrySchema = z.object({
   confidence: SignalConfidenceSchema,
 });
 
-export const LinkTypeSchema = z.enum([
+const VALID_LINK_TYPES = [
   "works_on",
   "works_at",
   "reports_to",
@@ -48,7 +48,13 @@ export const LinkTypeSchema = z.enum([
   "depends_on",
   "mentions",
   "custom",
-]);
+] as const;
+
+export const LinkTypeSchema = z
+  .string()
+  .transform((val) =>
+    (VALID_LINK_TYPES as readonly string[]).includes(val) ? val : "custom",
+  ) as z.ZodType<(typeof VALID_LINK_TYPES)[number]>;
 
 export const LinkSchema = z.object({
   from: z.string(), // entity slug

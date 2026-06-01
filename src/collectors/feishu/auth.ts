@@ -1,4 +1,4 @@
-import { FeishuAuthError } from "./types";
+import { FeishuAuthError } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://open.feishu.cn";
 const TOKEN_PATH = "/open-apis/auth/v3/tenant_access_token/internal";

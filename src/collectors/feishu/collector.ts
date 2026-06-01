@@ -1,15 +1,15 @@
-import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../core/types";
-import { FeishuAuthManager } from "./auth";
-import { CursorStaging } from "./cursor-staging";
-import { FeishuHttpClient } from "./http-client";
-import { FeishuRateLimiter } from "./rate-limiter";
-import type { FeishuSource } from "./sources/base";
-import { CalendarSource } from "./sources/calendar";
-import { DMSource } from "./sources/dm";
-import { DocSource } from "./sources/docs";
-import { MessageSource } from "./sources/messages";
-import { TaskSource } from "./sources/tasks";
-import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types";
+import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../core/types.js";
+import { FeishuAuthManager } from "./auth.js";
+import { CursorStaging } from "./cursor-staging.js";
+import { FeishuHttpClient } from "./http-client.js";
+import { FeishuRateLimiter } from "./rate-limiter.js";
+import type { FeishuSource } from "./sources/base.js";
+import { CalendarSource } from "./sources/calendar.js";
+import { DMSource } from "./sources/dm.js";
+import { DocSource } from "./sources/docs.js";
+import { MessageSource } from "./sources/messages.js";
+import { TaskSource } from "./sources/tasks.js";
+import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types.js";
 
 export class FeishuCollector implements Collector, CursorProvider {
   readonly id = "feishu";

@@ -216,54 +216,60 @@ export async function runPipeline(
       return result;
     }
 
-    // Process each block
+    // Process blocks with concurrency
+    const CONCURRENCY = 5;
     const extractedResults: ExtractionResult[] = [];
 
-    for (const block of blocks) {
+    const processBlock = async (block: ConversationBlock, idx: number): Promise<void> => {
+      process.stdout.write(`  [${idx + 1}/${blocks.length}] filtering block ${block.block_id} ...`);
       try {
-        // Noise filter
         const filterVerdict: NoiseFilterVerdict = await filterNoise(block, opts.provider);
 
         if (filterVerdict === "skip") {
+          process.stdout.write(" skipped\n");
           result.skippedBlocks++;
           result.skippedMessages.push(...block.messages);
-          continue;
+          return;
         }
 
-        // Extract signals
+        process.stdout.write(" extracting ...");
         const blockResult: BlockResult = await extractor.extract(block);
 
         if (blockResult.status === "failed") {
+          process.stdout.write(` failed: ${blockResult.error}\n`);
           result.failedBlocks++;
           result.failedMessages.push(...block.messages);
           result.warnings.push(`Block ${block.block_id} extraction failed: ${blockResult.error}`);
-          continue;
+          return;
         }
 
         if (blockResult.status === "skipped") {
+          process.stdout.write(" skipped\n");
           result.skippedBlocks++;
           result.skippedMessages.push(...block.messages);
-          continue;
+          return;
         }
 
-        // Success - process extraction result
+        process.stdout.write(" ok\n");
         result.okBlocks++;
         result.okMessages.push(...block.messages);
-
-        // Apply privacy processing
         const processedResult = privacyProcessor.process(blockResult.data);
         extractedResults.push(processedResult);
-
-        // Track last successful message
         result.lastSuccessMessage = block.messages[block.messages.length - 1];
       } catch (err) {
-        // Non-fatal error - log and continue
+        process.stdout.write(` error: ${err instanceof Error ? err.message : String(err)}\n`);
         result.failedBlocks++;
         result.failedMessages.push(...block.messages);
         result.warnings.push(
           `Block ${block.block_id} processing error: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    };
+
+    // Run blocks in batches of CONCURRENCY
+    for (let i = 0; i < blocks.length; i += CONCURRENCY) {
+      const batch = blocks.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map((block, j) => processBlock(block, i + j)));
     }
 
     // Stage 4: Adapter.push (all results in one batch)

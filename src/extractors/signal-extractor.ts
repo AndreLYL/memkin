@@ -160,7 +160,7 @@ Output ONLY valid JSON matching ExtractionResultSchema.`;
           const response = await provider.chat(messages, {
             responseFormat: "json",
             temperature: 0.2,
-            maxTokens: 8000,
+            maxTokens: 16000,
           });
 
           // Parse and validate JSON

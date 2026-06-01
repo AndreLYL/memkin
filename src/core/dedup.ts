@@ -5,7 +5,7 @@
 
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
-import type { DedupEntry, RawMessage } from "./types";
+import type { DedupEntry, RawMessage } from "./types.js";
 
 export class DedupStore {
   private entries: Map<string, string>; // source_hash → content_hash

@@ -78,9 +78,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_pages_search_vector
-  BEFORE INSERT OR UPDATE ON pages
-  FOR EACH ROW EXECUTE FUNCTION update_page_search_vector();
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_pages_search_vector'
+  ) THEN
+    CREATE TRIGGER trg_pages_search_vector
+      BEFORE INSERT OR UPDATE ON pages
+      FOR EACH ROW EXECUTE FUNCTION update_page_search_vector();
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION update_chunk_search_vector() RETURNS trigger AS $$
 BEGIN
@@ -90,6 +96,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER chunk_search_vector_trigger
-  BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
-  FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'chunk_search_vector_trigger'
+  ) THEN
+    CREATE TRIGGER chunk_search_vector_trigger
+      BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
+      FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
+  END IF;
+END $$;

@@ -1,5 +1,5 @@
-#!/usr/bin/env bun
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
@@ -47,8 +47,16 @@ function bootstrapCollectors(sources: SourcesConfig): void {
   }
 }
 
+function expandDataDir(dir: string): string {
+  if (dir.startsWith("~/")) return resolve(homedir(), dir.slice(2));
+  if (dir === "~") return homedir();
+  return dir;
+}
+
 async function createStores(config: ReturnType<typeof loadConfig>) {
-  const db = await Database.create(config.store.data_dir);
+  const dataDir = expandDataDir(config.store.data_dir);
+  mkdirSync(dataDir, { recursive: true });
+  const db = await Database.create(dataDir);
   const pages = new PageStore(db.pg);
   const chunks = new ChunkStore(db.pg);
   const embedding = new EmbeddingService(db.pg, {
@@ -77,6 +85,26 @@ program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
   .version("0.1.0");
+
+program
+  .command("init")
+  .description("Interactive setup wizard - generates memoark.yaml")
+  .option("--auto", "Automatic mode, no prompts")
+  .option("--force", "Overwrite existing configuration")
+  .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .action(async (options) => {
+    try {
+      const { runInit } = await import("./setup/index.js");
+      await runInit({
+        auto: options.auto,
+        force: options.force,
+        configPath: options.config,
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
 
 /**
  * Extract command - main pipeline execution
@@ -119,14 +147,20 @@ program
       let provider: ReturnType<typeof createLLMProvider> | undefined;
       if (!options.dryRun) {
         const llmConfig = config.llm;
-        if (!llmConfig.api_key && !process.env.OPENAI_API_KEY) {
+        const envKey =
+          llmConfig.provider === "anthropic"
+            ? process.env.ANTHROPIC_API_KEY
+            : process.env.OPENAI_API_KEY;
+        if (!llmConfig.api_key && !envKey) {
+          const envVarName =
+            llmConfig.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
           console.error(
-            "Error: No API key configured. Set api_key in memoark.yaml or OPENAI_API_KEY env var.",
+            `Error: No API key configured. Set api_key in memoark.yaml or ${envVarName} env var.`,
           );
           process.exit(1);
         }
         if (!llmConfig.api_key) {
-          llmConfig.api_key = process.env.OPENAI_API_KEY;
+          llmConfig.api_key = envKey;
         }
         provider = createLLMProvider(llmConfig);
       } else {
@@ -281,7 +315,7 @@ program
       }
     } else {
       warnings.push(`Configuration file not found: ${configPath}`);
-      warnings.push("Create one with: memoark config init");
+      warnings.push("Create one with: memoark init");
     }
 
     // Check state directory
@@ -359,105 +393,22 @@ const configCmd = program.command("config").description("Manage configuration");
 
 configCmd
   .command("init")
-  .description("Generate memoark.yaml template")
-  .action(() => {
-    const template = `# Memoark Configuration
-# Save this file as memoark.yaml in your project directory
-
-# Privacy configuration
-privacy:
-  enabled: true
-  mode: reversible  # reversible or irreversible
-  redact_phone: true
-  redact_id_card: true
-  redact_bank_card: true
-  redact_email: false
-  redact_url: false
-  blocked_words: []
-  replacement: "[REDACTED]"
-
-# LLM provider configuration
-llm:
-  provider: openai  # openai or mock
-  model: gpt-4o-mini
-  # base_url: https://api.openai.com/v1  # Optional, for custom endpoints
-  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
-
-# Block builder configuration
-block_builder:
-  block_gap_minutes: 30  # Gap between messages to start a new block
-  max_block_tokens: 4000  # Maximum tokens per block
-  max_block_messages: 100  # Maximum messages per block
-
-# Source configuration
-sources:
-  claude-code:
-    enabled: true
-    # base_dir: ~/.claude/projects/
-  codex:
-    enabled: true
-    # base_dir: ~/.codex/
-  hermes:
-    enabled: true
-    # base_dir: ~/.openclaw/agents/
-  feishu:
-    enabled: false
-    app_id: \${FEISHU_APP_ID}
-    app_secret: \${FEISHU_APP_SECRET}
-    # base_url: https://open.feishu.cn  # Optional, defaults to feishu.cn
-    # rate_limit_qps: 5
-    sources:
-      messages:
-        enabled: false
-        chat_ids: []
-        # lookback_days: 30
-      calendar:
-        enabled: false
-        calendar_ids: []
-      docs:
-        enabled: false
-        doc_folders: []
-      tasks:
-        enabled: false
-      dm:
-        enabled: false
-        dm_chat_ids: []
-        self_open_id: ""
-
-# Adapter configuration
-adapters:
-  file:
-    enabled: false
-    output_dir: ./output
-  gbrain:
-    enabled: false
-    output_dir: ./gbrain-output
-
-# Store (PGLite embedded PostgreSQL)
-store:
-  data_dir: ~/.memoark/data
-
-# Embedding configuration
-embedding:
-  provider: openai           # openai | ollama
-  model: text-embedding-3-large
-  dimensions: 1536
-  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
-  # base_url: http://localhost:11434  # For Ollama
-
-# Server configuration
-server:
-  http_port: 3927
-`;
-
-    const outputPath = resolve(process.cwd(), "memoark.yaml");
-    writeFileSync(outputPath, template, "utf-8");
-    console.log(`✓ Configuration template created: ${outputPath}`);
-    console.log("");
-    console.log("Next steps:");
-    console.log("  1. Edit memoark.yaml with your configuration");
-    console.log("  2. Set LLM API key environment variable (OPENAI_API_KEY or ANTHROPIC_API_KEY)");
-    console.log("  3. Run: memoark extract --source claude-code");
+  .description("Generate memoark.yaml (alias for 'memoark init')")
+  .option("--auto", "Automatic mode, no prompts")
+  .option("--force", "Overwrite existing configuration")
+  .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .action(async (options) => {
+    try {
+      const { runInit } = await import("./setup/index.js");
+      await runInit({
+        auto: options.auto,
+        force: options.force,
+        configPath: options.config,
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
   });
 
 /**

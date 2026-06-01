@@ -3,7 +3,7 @@
  * Uses fetch to call Anthropic Messages API directly
  */
 
-import type { ChatMessage, LLMOpts, LLMProvider } from "./types";
+import type { ChatMessage, LLMOpts, LLMProvider } from "./types.js";
 
 interface AnthropicConfig {
   apiKey: string;
@@ -31,20 +31,34 @@ export function createAnthropicProvider(config: AnthropicConfig): LLMProvider {
         model,
         messages: anthropicMessages,
         max_tokens: opts?.maxTokens ?? 4096,
+        thinking: { type: "disabled" },
       };
 
       if (system) requestBody.system = system;
       if (opts?.temperature !== undefined) requestBody.temperature = opts.temperature;
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180_000);
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        throw new Error(
+          `Anthropic API request failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        clearTimeout(timeout);
+      }
 
       const data = (await response.json()) as {
         error?: { message: string };
@@ -60,11 +74,16 @@ export function createAnthropicProvider(config: AnthropicConfig): LLMProvider {
       }
 
       let content = data.content
-        .filter((b) => b.type === "text")
+        .filter((b) => b.type === "text" && b.text && b.text.trim().length > 0)
         .map((b) => b.text ?? "")
         .join("");
 
       content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+
+      if (!content) {
+        throw new Error("Anthropic API returned empty text content");
+      }
+
       return content;
     },
   };

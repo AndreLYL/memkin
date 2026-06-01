@@ -3,7 +3,7 @@
  * Defines how platform-specific parsers communicate with AgentSessionCollector.
  */
 
-import type { RawMessage } from "../../core/types";
+import type { RawMessage } from "../../core/types.js";
 
 /**
  * Metadata extracted from a session (first line or header of a session file).
