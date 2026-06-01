@@ -1,15 +1,15 @@
-import type { RawMessage } from "../../../core/types";
-import type { CursorStaging } from "../cursor-staging";
-import type { IFeishuHttpClient } from "../http-client";
-import type { FeishuDocSourceConfig, FeishuDriveFile, SourceCheckpoint } from "../types";
-import type { FeishuSource } from "./base";
+import type { RawMessage } from "../../../core/types.js";
+import type { CursorStaging } from "../cursor-staging.js";
+import type { FeishuHttpClient } from "../http-client.js";
+import type { FeishuDocSourceConfig, FeishuDriveFile, SourceCheckpoint } from "../types.js";
+import type { FeishuSource } from "./base.js";
 
 export class DocSource implements FeishuSource {
   readonly name = "docs";
   private readonly deepFolders: Set<string>;
 
   constructor(
-    private readonly client: IFeishuHttpClient,
+    private readonly client: FeishuHttpClient,
     private readonly config: FeishuDocSourceConfig,
   ) {
     this.deepFolders = new Set(config.doc_deep_extract_folders ?? []);

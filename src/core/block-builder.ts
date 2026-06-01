@@ -1,4 +1,4 @@
-import type { ConversationBlock, RawMessage } from "./types";
+import type { ConversationBlock, RawMessage } from "./types.js";
 
 export interface BlockBuilderConfig {
   block_gap_minutes?: number;

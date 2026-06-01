@@ -1,14 +1,14 @@
-import type { RawMessage } from "../../../core/types";
-import type { CursorStaging } from "../cursor-staging";
-import type { IFeishuHttpClient } from "../http-client";
-import type { FeishuCalendarEvent, FeishuCalendarSyncData, SourceCheckpoint } from "../types";
-import type { FeishuSource } from "./base";
+import type { RawMessage } from "../../../core/types.js";
+import type { CursorStaging } from "../cursor-staging.js";
+import type { FeishuHttpClient } from "../http-client.js";
+import type { FeishuCalendarEvent, FeishuCalendarSyncData, SourceCheckpoint } from "../types.js";
+import type { FeishuSource } from "./base.js";
 
 export class CalendarSource implements FeishuSource {
   readonly name = "calendar";
 
   constructor(
-    private readonly client: IFeishuHttpClient,
+    private readonly client: FeishuHttpClient,
     private readonly calendarIds: string[],
   ) {}
 

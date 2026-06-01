@@ -3,11 +3,11 @@
  * Creates provider instances based on configuration
  */
 
-import type { LLMConfig } from "../../core/config";
-import { createAnthropicProvider } from "./anthropic";
-import { createMockProvider } from "./mock";
-import { createOpenAIProvider } from "./openai";
-import type { LLMProvider } from "./types";
+import type { LLMConfig } from "../../core/config.js";
+import { createAnthropicProvider } from "./anthropic.js";
+import { createMockProvider } from "./mock.js";
+import { createOpenAIProvider } from "./openai.js";
+import type { LLMProvider } from "./types.js";
 
 export function createLLMProvider(config: LLMConfig): LLMProvider {
   const { provider, model, api_key, base_url } = config;
@@ -44,7 +44,7 @@ export function createLLMProvider(config: LLMConfig): LLMProvider {
   }
 }
 
-export { createAnthropicProvider } from "./anthropic";
-export { createMockProvider } from "./mock";
-export { createOpenAIProvider } from "./openai";
-export type { ChatMessage, LLMOpts, LLMProvider } from "./types";
+export { createAnthropicProvider } from "./anthropic.js";
+export { createMockProvider } from "./mock.js";
+export { createOpenAIProvider } from "./openai.js";
+export type { ChatMessage, LLMOpts, LLMProvider } from "./types.js";

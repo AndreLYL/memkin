@@ -1,6 +1,6 @@
-import type { RawMessage } from "../../../core/types";
-import type { CursorStaging } from "../cursor-staging";
-import type { SourceCheckpoint } from "../types";
+import type { RawMessage } from "../../../core/types.js";
+import type { CursorStaging } from "../cursor-staging.js";
+import type { SourceCheckpoint } from "../types.js";
 
 export interface FeishuSource {
   readonly name: string;

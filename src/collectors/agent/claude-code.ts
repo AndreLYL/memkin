@@ -1,8 +1,8 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import type { RawMessage } from "../../core/types";
-import { AgentSessionCollector } from "./collector";
-import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types";
+import type { RawMessage } from "../../core/types.js";
+import { AgentSessionCollector } from "./collector.js";
+import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types.js";
 
 export class ClaudeCodeParser implements SessionParser {
   readonly platformId = "claude-code";

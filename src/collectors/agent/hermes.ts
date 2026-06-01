@@ -1,8 +1,8 @@
 import * as os from "node:os";
 import * as path from "node:path";
-import type { RawMessage } from "../../core/types";
-import { AgentSessionCollector } from "./collector";
-import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types";
+import type { RawMessage } from "../../core/types.js";
+import { AgentSessionCollector } from "./collector.js";
+import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types.js";
 
 export class HermesParser implements SessionParser {
   readonly platformId = "hermes";
@@ -56,7 +56,7 @@ export class HermesParser implements SessionParser {
   }
 
   private extractAgentName(filePath: string): string {
-    const match = filePath.match(/agents\/([^/]+)\/sessions\//);
+    const match = filePath.match(/agents[/\\]([^/\\]+)[/\\]sessions[/\\]/);
     if (match) return match[1];
 
     const parts = filePath.split(path.sep);
@@ -74,7 +74,7 @@ export function hermesLayout(baseDir?: string): SessionLayout {
     glob: "*/sessions/*.jsonl",
     sessionIdFromPath: (filePath: string) => path.basename(filePath, ".jsonl"),
     channelFromPath: (filePath: string, sessionId: string) => {
-      const match = filePath.match(/([^/]+)\/sessions\//);
+      const match = filePath.match(/([^/\\]+)[/\\]sessions[/\\]/);
       const agentName = match ? match[1] : "unknown";
       return `${agentName}/${sessionId}`;
     },

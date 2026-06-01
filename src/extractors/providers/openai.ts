@@ -1,9 +1,11 @@
 /**
  * OpenAI-compatible LLM Provider
- * Uses fetch to call OpenAI API directly, supports custom base_url for proxies/local servers
+ * Uses fetch to call OpenAI API directly, supports custom base_url for proxies/local servers.
+ * Auto-detects unsupported parameters (temperature, response_format) on first call
+ * and falls back gracefully for third-party proxy compatibility.
  */
 
-import type { ChatMessage, LLMOpts, LLMProvider } from "./types";
+import type { ChatMessage, LLMOpts, LLMProvider } from "./types.js";
 
 interface OpenAIConfig {
   apiKey: string;
@@ -11,111 +13,118 @@ interface OpenAIConfig {
   baseUrl?: string;
 }
 
-const DEFAULT_TIMEOUT_MS = 120_000;
-const DEFAULT_MAX_RETRIES = 2;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+interface ApiResponse {
+  error?: { message: string; type?: string; code?: string };
+  choices?: Array<{ message?: { content?: string } }>;
 }
 
-/**
- * Create an OpenAI-compatible LLM provider
- * Supports OpenAI API, Anthropic proxy, Ollama, TokenFree, and other compatible services
- *
- * @param config - Configuration object
- * @param config.apiKey - API key for authentication
- * @param config.model - Model name (e.g. 'gpt-4', 'gpt-4o-mini')
- * @param config.baseUrl - Base URL for API (default: https://api.openai.com)
- * @returns OpenAI-compatible LLM provider
- */
 export function createOpenAIProvider(config: OpenAIConfig): LLMProvider {
-  const { apiKey, model, baseUrl = "https://api.openai.com" } = config;
+  const { apiKey, model } = config;
+  // Normalise base_url: strip trailing slash and trailing /v1 so we always append /v1/...
+  const baseUrl = (config.baseUrl ?? "https://api.openai.com")
+    .replace(/\/+$/, "")
+    .replace(/\/v1$/, "");
+  const url = `${baseUrl}/v1/chat/completions`;
+
+  // Track which optional features the endpoint supports (auto-detected on first use)
+  let supportsTemperature: boolean | null = null;
+  let supportsJsonFormat: boolean | null = null;
+
+  async function doFetch(body: Record<string, unknown>): Promise<ApiResponse> {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+    return (await response.json()) as ApiResponse;
+  }
+
+  function buildBody(messages: ChatMessage[], opts?: LLMOpts): Record<string, unknown> {
+    const body: Record<string, unknown> = { model, messages };
+    if (opts?.maxTokens !== undefined) body.max_tokens = opts.maxTokens;
+    if (opts?.temperature !== undefined && supportsTemperature !== false) {
+      body.temperature = opts.temperature;
+    }
+    if (opts?.responseFormat === "json" && supportsJsonFormat !== false) {
+      body.response_format = { type: "json_object" };
+    }
+    return body;
+  }
+
+  function isApiError(data: ApiResponse): boolean {
+    return Boolean(data.error);
+  }
+
+  function extractContent(data: ApiResponse): string {
+    if (!data.choices || data.choices.length === 0) {
+      throw new Error("API returned no choices in response");
+    }
+    const choice = data.choices[0];
+    if (!choice.message) {
+      throw new Error("API response choice has no message");
+    }
+    let content = choice.message.content ?? "";
+    content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+    return content;
+  }
 
   return {
     async chat(messages: ChatMessage[], opts?: LLMOpts): Promise<string> {
-      const url = `${baseUrl}/v1/chat/completions`;
+      // First attempt: with all supported optional params
+      const body = buildBody(messages, opts);
+      const data = await doFetch(body);
 
-      // Build request body
-      const requestBody: Record<string, unknown> = {
-        model,
-        messages,
-      };
-
-      // Add optional parameters if provided
-      if (opts?.temperature !== undefined) {
-        requestBody.temperature = opts.temperature;
+      if (!isApiError(data)) {
+        // Success — mark features as supported if we sent them
+        if (body.temperature !== undefined) supportsTemperature = true;
+        if (body.response_format !== undefined) supportsJsonFormat = true;
+        return extractContent(data);
       }
 
-      if (opts?.maxTokens !== undefined) {
-        requestBody.max_tokens = opts.maxTokens;
+      // API error — try stripping optional params one at a time
+      const errorMsg = data.error?.message ?? "";
+      const errorCode = data.error?.code ?? "";
+      const errorType = data.error?.type ?? "";
+
+      const isParamError =
+        errorCode === "bad_response_status_code" ||
+        errorType === "bad_response_status_code" ||
+        errorType === "invalid_request_error" ||
+        /temperature|response_format|json/i.test(errorMsg);
+
+      if (!isParamError) {
+        throw new Error(`API error: ${errorMsg}`);
       }
 
-      let lastError: unknown;
+      // Retry without optional params
+      const retryBody: Record<string, unknown> = { model, messages };
+      if (opts?.maxTokens !== undefined) retryBody.max_tokens = opts.maxTokens;
 
-      for (let attempt = 0; attempt <= DEFAULT_MAX_RETRIES; attempt++) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal,
-          });
-
-          const raw = await response.text();
-          let data: {
-            error?: { message: string };
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-
-          try {
-            data = JSON.parse(raw);
-          } catch {
-            throw new Error(`API returned non-JSON response: ${raw.slice(0, 300)}`);
-          }
-
-          if (!response.ok) {
-            const message = data.error?.message ?? raw.slice(0, 300) ?? response.statusText;
-            throw new Error(`API HTTP ${response.status}: ${message}`);
-          }
-
-          // Check for API errors
-          if (data.error) {
-            throw new Error(`API error: ${data.error.message}`);
-          }
-
-          // Check for valid response structure
-          if (!data.choices || data.choices.length === 0) {
-            throw new Error("API returned no choices in response");
-          }
-
-          const choice = data.choices[0];
-          if (!choice.message) {
-            throw new Error("API response choice has no message");
-          }
-
-          let content = choice.message.content ?? "";
-          content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
-          return content;
-        } catch (error) {
-          lastError = error;
-          if (attempt >= DEFAULT_MAX_RETRIES) break;
-          await sleep(1000 * 2 ** attempt);
-        } finally {
-          clearTimeout(timeout);
+      // Try without response_format first (most common culprit)
+      if (body.response_format !== undefined) {
+        const noFormatBody = { ...body };
+        delete noFormatBody.response_format;
+        const retryData = await doFetch(noFormatBody);
+        if (!isApiError(retryData)) {
+          supportsJsonFormat = false;
+          if (noFormatBody.temperature !== undefined) supportsTemperature = true;
+          return extractContent(retryData);
         }
       }
 
-      throw new Error(
-        `API request failed after ${DEFAULT_MAX_RETRIES + 1} attempts: ${
-          lastError instanceof Error ? lastError.message : String(lastError)
-        }`,
-      );
+      // Try with only required params (no temperature, no response_format)
+      const minimalData = await doFetch(retryBody);
+      if (!isApiError(minimalData)) {
+        if (body.temperature !== undefined) supportsTemperature = false;
+        if (body.response_format !== undefined) supportsJsonFormat = false;
+        return extractContent(minimalData);
+      }
+
+      // Everything failed
+      throw new Error(`API error: ${minimalData.error?.message ?? errorMsg}`);
     },
   };
 }

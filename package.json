@@ -4,14 +4,24 @@
   "description": "Local-first personal memory extraction and storage",
   "type": "module",
   "bin": {
-    "memoark": "./src/cli.ts"
+    "memoark": "./bin/memoark.mjs"
   },
+  "main": "./dist/cli.js",
+  "exports": {
+    ".": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "bun src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest --watch",
-    "build": "bun build src/cli.ts --outfile dist/cli.js --target bun",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc && node scripts/post-build.mjs",
+    "prepublishOnly": "npm run build",
     "lint": "biome check src/ tests/",
     "lint:fix": "biome check --fix src/ tests/",
     "format": "biome format --write src/ tests/",
@@ -53,6 +63,7 @@
     "url": "https://github.com/AndreLYL/memoark.git"
   },
   "engines": {
+    "node": ">=18.0.0",
     "bun": ">=1.0.0"
   }
 }
