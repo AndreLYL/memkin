@@ -57,27 +57,37 @@ describe("GraphStore", () => {
   it("traverse BFS returns connected nodes", async () => {
     await graph.addLink("entities/alice", "projects/memoark", "works_on");
     await graph.addLink("entities/bob", "projects/memoark", "works_on");
-    const nodes = await graph.traverse("entities/alice", { depth: 2, direction: "out" });
-    const slugs = nodes.map((n) => n.slug);
+    const result = await graph.traverse("entities/alice", { depth: 2, direction: "out" });
+    expect(result.focus.slug).toBe("entities/alice");
+    expect(result.focus.title).toBe("Alice");
+    const slugs = result.nodes.map((n) => n.slug);
     expect(slugs).toContain("projects/memoark");
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toEqual({
+      from_slug: "entities/alice",
+      to_slug: "projects/memoark",
+      link_type: "works_on",
+    });
   });
 
   it("traverse respects depth limit", async () => {
     await graph.addLink("entities/alice", "entities/bob", "collaborates");
     await graph.addLink("entities/bob", "projects/memoark", "works_on");
-    const nodes = await graph.traverse("entities/alice", { depth: 1, direction: "out" });
-    const slugs = nodes.map((n) => n.slug);
+    const result = await graph.traverse("entities/alice", { depth: 1, direction: "out" });
+    const slugs = result.nodes.map((n) => n.slug);
     expect(slugs).toContain("entities/bob");
     expect(slugs).not.toContain("projects/memoark");
+    expect(result.edges).toHaveLength(1);
   });
 
   it("traverse both directions", async () => {
     await graph.addLink("entities/alice", "projects/memoark", "works_on");
     await graph.addLink("entities/bob", "entities/alice", "reports_to");
-    const nodes = await graph.traverse("entities/alice", { depth: 1, direction: "both" });
-    const slugs = nodes.map((n) => n.slug);
+    const result = await graph.traverse("entities/alice", { depth: 1, direction: "both" });
+    const slugs = result.nodes.map((n) => n.slug);
     expect(slugs).toContain("projects/memoark");
     expect(slugs).toContain("entities/bob");
+    expect(result.edges).toHaveLength(2);
   });
 
   it("links cascade on page delete", async () => {
