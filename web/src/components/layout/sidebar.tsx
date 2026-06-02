@@ -1,35 +1,111 @@
 import { NavLink } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../api/client";
 
 const NAV_ITEMS = [
-  { to: "/", icon: "📊", label: "Dashboard" },
-  { to: "/graph", icon: "🕸️", label: "Graph" },
-  { to: "/pages", icon: "📄", label: "Pages" },
-  { to: "/search", icon: "🔍", label: "Search" },
+  { to: "/", label: "Dashboard", icon: "📊" },
+  { to: "/timeline", label: "Timeline", icon: "⏱️" },
+  { to: "/graph", label: "Graph", icon: "🕸️" },
+  { to: "/entities", label: "All Entities", icon: "📄" },
+  { to: "/search", label: "Search", icon: "🔍" },
 ];
 
+const CATEGORIES = [
+  { label: "People", type: "person", color: "var(--color-person)" },
+  { label: "Projects", type: "project", color: "var(--color-project)" },
+  { label: "Decisions", type: "decision", color: "var(--color-decision)" },
+  { label: "Knowledge", type: "knowledge", color: "var(--color-knowledge)" },
+  { label: "Tasks", type: "task", color: "var(--color-task)" },
+];
+
+function navLinkClass({ isActive }: { isActive: boolean }) {
+  return `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+    isActive
+      ? "bg-accent-muted/20 text-accent"
+      : "text-fg-muted hover:text-fg-default hover:bg-bg-overlay"
+  }`;
+}
+
 export function Sidebar() {
+  const { data: stats } = useQuery({ queryKey: ["stats"], queryFn: api.stats });
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: api.health,
+    refetchInterval: 30000,
+  });
+
+  const typeCount = (type: string) => {
+    if (!stats?.pages_by_type) return 0;
+    if (type === "knowledge") {
+      return Object.entries(stats.pages_by_type)
+        .filter(([t]) => t === "knowledge" || t === "concept" || t.startsWith("discovery-"))
+        .reduce((sum, [, count]) => sum + count, 0);
+    }
+    return stats.pages_by_type[type] ?? 0;
+  };
+
   return (
-    <nav className="w-14 bg-sidebar-bg border-r border-border flex flex-col items-center gap-5 pt-4 pb-4 min-h-screen">
-      <div className="w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-neon-cyan to-neon-purple">
-        M
+    <nav className="w-[200px] shrink-0 bg-bg-inset border-r border-border-default flex flex-col min-h-screen">
+      <div className="flex items-center gap-2 px-4 py-4">
+        <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold text-fg-default bg-accent-muted">
+          M
+        </div>
+        <span className="text-sm font-semibold text-fg-default">Memoark</span>
       </div>
-      {NAV_ITEMS.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.to === "/"}
-          className={({ isActive }) =>
-            `w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-opacity ${
-              isActive
-                ? "bg-neon-purple/10 border border-neon-purple/30 opacity-100"
-                : "opacity-40 hover:opacity-70"
-            }`
-          }
-          title={item.label}
-        >
-          {item.icon}
-        </NavLink>
-      ))}
+
+      <div className="px-2 space-y-0.5">
+        {NAV_ITEMS.map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass}>
+            <span className="text-sm">{item.icon}</span>
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </div>
+
+      <div className="px-4 mt-6">
+        <div className="text-[10px] uppercase tracking-widest text-fg-subtle mb-2">Categories</div>
+        <div className="space-y-1">
+          {CATEGORIES.map((cat) => (
+            <NavLink
+              key={cat.type}
+              to={`/search?type=${cat.type}`}
+              className="flex items-center justify-between px-2 py-1 rounded text-sm text-fg-muted hover:text-fg-default hover:bg-bg-overlay transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                <span>{cat.label}</span>
+              </div>
+              <span className="text-xs text-fg-subtle">{typeCount(cat.type)}</span>
+            </NavLink>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-4 mt-6">
+        <div className="text-[10px] uppercase tracking-widest text-fg-subtle mb-2">Sources</div>
+        <div className="space-y-1">
+          {health?.sources.map((src) => (
+            <div key={src.name} className="flex items-center justify-between px-2 py-1 text-sm text-fg-muted">
+              <span>{src.name}</span>
+              <span className={src.status === "healthy" ? "text-decision" : src.status === "error" ? "text-task" : "text-fg-subtle"}>
+                {src.status === "healthy" ? "✓" : src.status === "error" ? "✗" : "—"}
+              </span>
+            </div>
+          ))}
+          {(!health?.sources || health.sources.length === 0) && (
+            <div className="text-xs text-fg-subtle px-2">No sources configured</div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1" />
+
+      <div className="px-2 pb-4">
+        <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-fg-subtle hover:text-fg-muted cursor-pointer rounded-md hover:bg-bg-overlay transition-colors">
+          <span>⚙</span>
+          <span>Settings</span>
+        </div>
+      </div>
     </nav>
   );
 }

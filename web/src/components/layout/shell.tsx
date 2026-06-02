@@ -3,7 +3,7 @@ import { Sidebar } from "./sidebar";
 
 export function Shell() {
   return (
-    <div className="flex min-h-screen bg-deep-bg">
+    <div className="flex min-h-screen bg-bg-canvas text-fg-default">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
         <Outlet />
