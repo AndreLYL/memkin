@@ -82,11 +82,11 @@ export class PageStore {
 
   async listPages(opts?: {
     type?: string;
+    exclude_types?: string[];
     limit?: number;
     sort?: string;
     order?: string;
   }): Promise<Page[]> {
-    let sql = "SELECT * FROM pages";
     const params: unknown[] = [];
     const conditions: string[] = [];
 
@@ -94,18 +94,40 @@ export class PageStore {
       conditions.push(`type = $${params.length + 1}`);
       params.push(opts.type);
     }
-    if (conditions.length > 0) {
-      sql += ` WHERE ${conditions.join(" AND ")}`;
+    if (opts?.exclude_types && opts.exclude_types.length > 0) {
+      conditions.push(`type != ALL($${params.length + 1}::text[])`);
+      params.push(opts.exclude_types);
     }
-    const sortCol = ["updated_at", "created_at", "title"].includes(opts?.sort ?? "")
-      ? (opts?.sort ?? "updated_at")
-      : "updated_at";
+
+    const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
     const sortDir = opts?.order === "asc" ? "ASC" : "DESC";
-    sql += ` ORDER BY ${sortCol} ${sortDir}`;
+
+    let sql: string;
+    if (opts?.sort === "backlinks") {
+      sql = `SELECT p.* FROM pages p
+        LEFT JOIN (
+          SELECT to_page_id, COUNT(*) AS cnt FROM links GROUP BY to_page_id
+        ) lc ON lc.to_page_id = p.id${whereClause}
+        ORDER BY COALESCE(lc.cnt, 0) ${sortDir}`;
+    } else if (opts?.sort === "signal_time") {
+      sql = `SELECT * FROM pages${whereClause}
+        ORDER BY COALESCE(
+          frontmatter->'source'->>'timestamp',
+          frontmatter->'first_seen'->>'timestamp',
+          created_at::text
+        ) ${sortDir}`;
+    } else {
+      const sortCol = ["updated_at", "created_at", "title"].includes(opts?.sort ?? "")
+        ? (opts?.sort ?? "updated_at")
+        : "updated_at";
+      sql = `SELECT * FROM pages${whereClause} ORDER BY ${sortCol} ${sortDir}`;
+    }
+
     if (opts?.limit) {
       sql += ` LIMIT $${params.length + 1}`;
       params.push(opts.limit);
     }
+
     const result = await this.pg.query<PageRow>(sql, params);
     return result.rows.map((r) => this.rowToPage(r));
   }

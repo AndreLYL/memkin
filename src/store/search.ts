@@ -6,6 +6,16 @@ export interface SearchResult {
   type: string;
   snippet: string;
   score: number;
+  highlights: string[];
+}
+
+export interface SearchFilterOpts {
+  limit?: number;
+  type?: string[];
+  from?: string;
+  to?: string;
+  platform?: string;
+  exclude_types?: string[];
 }
 
 interface SearchEngineOpts {
@@ -46,7 +56,7 @@ export class SearchEngine {
     this.embedText = opts?.embedText;
   }
 
-  async search(query: string, opts?: { limit?: number }): Promise<SearchResult[]> {
+  async search(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
     const limit = opts?.limit ?? 20;
 
     const tsquery = query
@@ -58,6 +68,48 @@ export class SearchEngine {
       .join(" & ");
 
     if (!tsquery) return [];
+
+    const conditions: string[] = ["p.search_vector @@ to_tsquery('simple', $1)"];
+    const params: unknown[] = [tsquery];
+    let paramIndex = 2;
+
+    if (opts?.type && opts.type.length > 0) {
+      conditions.push(`p.type = ANY($${paramIndex}::text[])`);
+      params.push(opts.type);
+      paramIndex++;
+    }
+
+    if (opts?.exclude_types && opts.exclude_types.length > 0) {
+      conditions.push(`p.type != ALL($${paramIndex}::text[])`);
+      params.push(opts.exclude_types);
+      paramIndex++;
+    }
+
+    if (opts?.from) {
+      conditions.push(
+        `COALESCE(p.frontmatter->'source'->>'timestamp', p.frontmatter->'first_seen'->>'timestamp', p.created_at::text)::timestamptz >= $${paramIndex}::timestamptz`,
+      );
+      params.push(opts.from);
+      paramIndex++;
+    }
+
+    if (opts?.to) {
+      conditions.push(
+        `COALESCE(p.frontmatter->'source'->>'timestamp', p.frontmatter->'first_seen'->>'timestamp', p.created_at::text)::timestamptz <= ($${paramIndex}::date + interval '1 day')::timestamptz`,
+      );
+      params.push(opts.to);
+      paramIndex++;
+    }
+
+    if (opts?.platform) {
+      conditions.push(
+        `COALESCE(p.frontmatter->'source'->>'platform', p.frontmatter->'first_seen'->>'platform') = $${paramIndex}`,
+      );
+      params.push(opts.platform);
+      paramIndex++;
+    }
+
+    params.push(limit);
 
     const result = await this.pg.query<PageSearchRow>(
       `SELECT
@@ -71,10 +123,10 @@ export class SearchEngine {
            ''
          ) AS snippet
        FROM pages p
-       WHERE p.search_vector @@ to_tsquery('simple', $1)
+       WHERE ${conditions.join(" AND ")}
        ORDER BY page_rank DESC
-       LIMIT $2`,
-      [tsquery, limit],
+       LIMIT $${paramIndex}`,
+      params,
     );
 
     return result.rows.map((row) => ({
@@ -83,10 +135,11 @@ export class SearchEngine {
       type: row.type,
       snippet: row.snippet,
       score: Number(row.page_rank),
+      highlights: row.snippet ? [row.snippet] : [],
     }));
   }
 
-  async query(query: string, opts?: { limit?: number }): Promise<SearchResult[]> {
+  async query(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
     const limit = opts?.limit ?? 20;
     const [ftsResults, vectorResults] = await Promise.all([
       this.ftsChunkSearch(query),
@@ -160,10 +213,24 @@ export class SearchEngine {
       }
     }
 
-    return [...scoreMap.values()]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
-      .map(({ chunk_source: _, ...rest }) => rest);
+    let results = [...scoreMap.values()].sort((a, b) => b.score - a.score);
+
+    // Post-filter by type and exclude_types
+    if (opts?.type && opts.type.length > 0) {
+      const typeSet = new Set(opts.type);
+      results = results.filter((r) => typeSet.has(r.type));
+    }
+
+    if (opts?.exclude_types && opts.exclude_types.length > 0) {
+      const excludeSet = new Set(opts.exclude_types);
+      results = results.filter((r) => !excludeSet.has(r.type));
+    }
+
+    return results.slice(0, limit).map(({ chunk_source: _, snippet, ...rest }) => ({
+      ...rest,
+      snippet,
+      highlights: snippet ? [snippet] : [],
+    }));
   }
 
   private async ftsChunkSearch(

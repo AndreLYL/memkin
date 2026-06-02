@@ -7,6 +7,14 @@ import type { PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import type { EventBus } from "./event-bus.js";
+
+export interface DaemonStatus {
+  running: boolean;
+  uptime_seconds: number | null;
+  last_run: string | null;
+  next_scheduled: string | null;
+}
 
 export interface StoreContext {
   db: Database;
@@ -17,6 +25,9 @@ export interface StoreContext {
   tags: TagStore;
   timeline: TimelineStore;
   embedding: EmbeddingService;
+  getDaemonStatus?: () => DaemonStatus;
+  eventBus?: EventBus;
+  runExtract?: (source?: string) => Promise<{ written: number; skipped: number; errors: number }>;
 }
 
 function missing(c: { json: (body: unknown, status?: number) => Response }, name: string) {
@@ -29,10 +40,47 @@ export function createApiApp(stores: StoreContext): Hono {
   app.get("/health", async (c) => {
     const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");
     const chunks = await stores.db.pg.query("SELECT COUNT(*) AS c FROM content_chunks");
+
+    const sourcesResult = await stores.db.pg.query(`
+      SELECT
+        COALESCE(frontmatter->>'platform', 'unknown') AS platform,
+        COUNT(*)::int AS signals_total,
+        MAX(
+          COALESCE(
+            frontmatter->'source'->>'timestamp',
+            frontmatter->'first_seen'->>'timestamp'
+          )
+        ) AS last_sync
+      FROM pages
+      WHERE frontmatter->>'platform' IS NOT NULL
+      GROUP BY platform
+    `);
+
+    const sources = (
+      sourcesResult.rows as Array<{
+        platform: string;
+        signals_total: number;
+        last_sync: string | null;
+      }>
+    ).map((row) => ({
+      name: row.platform,
+      platform: row.platform,
+      status: row.last_sync ? ("healthy" as const) : ("never_run" as const),
+      last_sync: row.last_sync,
+      last_error: null,
+      signals_total: row.signals_total,
+    }));
+
+    const daemon: DaemonStatus = stores.getDaemonStatus
+      ? stores.getDaemonStatus()
+      : { running: false, uptime_seconds: null, last_run: null, next_scheduled: null };
+
     return c.json({
       status: "ok",
       pages: Number((pages.rows[0] as Record<string, unknown>).c),
       chunks: Number((chunks.rows[0] as Record<string, unknown>).c),
+      daemon,
+      sources,
     });
   });
 
@@ -44,9 +92,13 @@ export function createApiApp(stores: StoreContext): Hono {
       limit = Number.isFinite(n) && n >= 0 ? n : undefined;
     }
 
+    const excludeTypesRaw = c.req.query("exclude_types");
+    const exclude_types = excludeTypesRaw ? excludeTypesRaw.split(",") : undefined;
+
     return c.json(
       await stores.pages.listPages({
         type: c.req.query("type"),
+        exclude_types,
         limit,
         sort: c.req.query("sort"),
         order: c.req.query("order"),
@@ -57,7 +109,25 @@ export function createApiApp(stores: StoreContext): Hono {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     const page = await stores.pages.getPage(slug);
-    return page ? c.json(page) : c.json({ error: "Not found" }, 404);
+    if (!page) return c.json({ error: "Not found" }, 404);
+
+    const includeRaw = c.req.query("include");
+    if (!includeRaw) return c.json(page);
+
+    const includes = new Set(includeRaw.split(","));
+    const response: Record<string, unknown> = { ...page };
+
+    if (includes.has("links")) {
+      response.links = await stores.graph.getLinksEnriched(slug);
+    }
+    if (includes.has("backlinks")) {
+      response.backlinks = await stores.graph.getBacklinksEnriched(slug);
+    }
+    if (includes.has("timeline")) {
+      response.timeline = await stores.timeline.getTimeline(slug);
+    }
+
+    return c.json(response);
   });
   app.put("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
@@ -75,16 +145,40 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json({ ok: true });
   });
 
-  app.get("/search", async (c) =>
-    c.json(
+  app.get("/search", async (c) => {
+    const typeParam = c.req.query("type");
+    const excludeTypesParam = c.req.query("exclude_types");
+    return c.json(
       await stores.search.search(c.req.query("q") ?? "", {
         limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
+        type: typeParam ? typeParam.split(",") : undefined,
+        exclude_types: excludeTypesParam ? excludeTypesParam.split(",") : undefined,
+        from: c.req.query("from") ?? undefined,
+        to: c.req.query("to") ?? undefined,
+        platform: c.req.query("platform") ?? undefined,
       }),
-    ),
-  );
+    );
+  });
   app.post("/query", async (c) => {
-    const body = await c.req.json<{ query?: string; limit?: number }>();
-    return c.json(await stores.search.query(body.query ?? "", { limit: body.limit }));
+    const body = await c.req.json<{
+      query?: string;
+      limit?: number;
+      type?: string;
+      from?: string;
+      to?: string;
+      platform?: string;
+      exclude_types?: string;
+    }>();
+    return c.json(
+      await stores.search.query(body.query ?? "", {
+        limit: body.limit,
+        type: body.type ? body.type.split(",") : undefined,
+        exclude_types: body.exclude_types ? body.exclude_types.split(",") : undefined,
+        from: body.from,
+        to: body.to,
+        platform: body.platform,
+      }),
+    );
   });
 
   app.get("/stats", async (c) => {
@@ -175,6 +269,112 @@ export function createApiApp(stores: StoreContext): Hono {
     await stores.timeline.addEntry(slug, await c.req.json());
     return c.json({ ok: true });
   });
+  app.get("/timeline/feed", async (c) => {
+    const fromParam = c.req.query("from");
+    const toParam = c.req.query("to");
+    const groupBy = c.req.query("group_by") === "type" ? "type" : "channel";
+    const typeParam = c.req.query("type");
+    const platformParam = c.req.query("platform");
+    const excludeTypesParam = c.req.query("exclude_types");
+    const cursor = c.req.query("cursor");
+    const limitDays = Math.min(Number(c.req.query("limit")) || 7, 31);
+
+    const now = new Date();
+    const to = toParam ?? now.toISOString().slice(0, 10);
+    const defaultFrom = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+    const from = cursor ?? fromParam ?? defaultFrom;
+
+    const params: unknown[] = [from, to];
+    const conditions: string[] = [
+      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz >= $1::timestamptz`,
+      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz <= ($2::date + interval '1 day')::timestamptz`,
+    ];
+
+    if (typeParam) {
+      const types = typeParam.split(",");
+      params.push(types);
+      conditions.push(`type = ANY($${params.length}::text[])`);
+    }
+    if (excludeTypesParam) {
+      const excludeTypes = excludeTypesParam.split(",");
+      params.push(excludeTypes);
+      conditions.push(`type != ALL($${params.length}::text[])`);
+    }
+    if (platformParam) {
+      params.push(platformParam);
+      conditions.push(
+        `COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform') = $${params.length}`,
+      );
+    }
+
+    const sql = `
+    SELECT slug, type, title,
+           LEFT(compiled_truth, 200) AS snippet,
+           COALESCE(
+             frontmatter->'source'->>'timestamp',
+             frontmatter->'first_seen'->>'timestamp',
+             created_at::text
+           ) AS signal_time,
+           COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform', 'manual') AS platform,
+           COALESCE(frontmatter->'source'->>'channel', frontmatter->'first_seen'->>'channel', '—') AS channel,
+           COALESCE(frontmatter->'source'->>'channel_name', frontmatter->'first_seen'->>'channel_name', '') AS channel_name
+    FROM pages
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY signal_time DESC
+  `;
+
+    const result = await stores.db.pg.query(sql, params);
+    const rows = result.rows as Array<{
+      slug: string;
+      type: string;
+      title: string;
+      snippet: string;
+      signal_time: string;
+      platform: string;
+      channel: string;
+      channel_name: string;
+    }>;
+
+    // Group by day, then by channel or type
+    const dayMap = new Map<string, Map<string, typeof rows>>();
+    for (const row of rows) {
+      const day = row.signal_time.slice(0, 10);
+      if (!dayMap.has(day)) dayMap.set(day, new Map());
+      const groupKey =
+        groupBy === "type" ? row.type : `${row.channel_name || row.channel} (${row.platform})`;
+      const groups = dayMap.get(day)!;
+      if (!groups.has(groupKey)) groups.set(groupKey, []);
+      groups.get(groupKey)!.push(row);
+    }
+
+    const sortedDays = [...dayMap.keys()].sort((a, b) => b.localeCompare(a));
+    const pagedDays = sortedDays.slice(0, limitDays);
+    const nextCursor = sortedDays.length > limitDays ? sortedDays[limitDays] : null;
+
+    const days = pagedDays.map((date) => {
+      const groups = dayMap.get(date)!;
+      return {
+        date,
+        groups: [...groups.entries()].map(([key, signals]) => ({
+          key,
+          platform: signals[0].platform,
+          channel: signals[0].channel,
+          count: signals.length,
+          signals: signals.map((s) => ({
+            slug: s.slug,
+            type: s.type,
+            title: s.title,
+            snippet: s.snippet,
+            date: s.signal_time,
+            platform: s.platform,
+            channel: s.channel,
+          })),
+        })),
+      };
+    });
+
+    return c.json({ days, next_cursor: nextCursor });
+  });
   app.get("/chunks", async (c) => c.json(await stores.chunks.getChunks(c.req.query("slug") ?? "")));
   app.post("/embed", async (c) =>
     c.json(
@@ -183,6 +383,104 @@ export function createApiApp(stores: StoreContext): Hono {
       }),
     ),
   );
+
+  let runningPipeline: string | null = null;
+
+  app.post("/extract", async (c) => {
+    if (!stores.runExtract) {
+      return c.json({ error: "Extract not configured" }, 501);
+    }
+    const body = await c.req.json<{ source?: string }>().catch(() => ({}));
+    const source = (body as { source?: string }).source ?? "all";
+
+    if (runningPipeline) {
+      return c.json({ error: "Pipeline already running", source: runningPipeline }, 409);
+    }
+
+    runningPipeline = source;
+
+    if (stores.eventBus) {
+      stores.eventBus.emit("pipeline:start", {
+        platform: source,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    stores
+      .runExtract(source === "all" ? undefined : source)
+      .then((stats) => {
+        if (stores.eventBus) {
+          stores.eventBus.emit("pipeline:end", {
+            platform: source,
+            stats,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })
+      .catch((err) => {
+        if (stores.eventBus) {
+          stores.eventBus.emit("pipeline:error", {
+            platform: source,
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })
+      .finally(() => {
+        runningPipeline = null;
+      });
+
+    return c.json({ started: true, source });
+  });
+
+  app.get("/events", async (c) => {
+    if (!stores.eventBus) {
+      return c.json({ error: "SSE not available" }, 501);
+    }
+
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const send = (event: string, data: unknown) => {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
+
+        const onSignalNew = (data: unknown) => send("signal:new", data);
+        const onPipelineStart = (data: unknown) => send("pipeline:start", data);
+        const onPipelineEnd = (data: unknown) => send("pipeline:end", data);
+        const onPipelineError = (data: unknown) => send("pipeline:error", data);
+
+        stores.eventBus!.on("signal:new", onSignalNew);
+        stores.eventBus!.on("pipeline:start", onPipelineStart);
+        stores.eventBus!.on("pipeline:end", onPipelineEnd);
+        stores.eventBus!.on("pipeline:error", onPipelineError);
+
+        const keepalive = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(": keepalive\n\n"));
+          } catch {
+            clearInterval(keepalive);
+          }
+        }, 30000);
+
+        c.req.raw.signal.addEventListener("abort", () => {
+          clearInterval(keepalive);
+          stores.eventBus!.off("signal:new", onSignalNew);
+          stores.eventBus!.off("pipeline:start", onPipelineStart);
+          stores.eventBus!.off("pipeline:end", onPipelineEnd);
+          stores.eventBus!.off("pipeline:error", onPipelineError);
+        });
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  });
 
   app.get("/provenance", async (c) => {
     const channel = c.req.query("channel");

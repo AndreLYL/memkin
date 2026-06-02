@@ -49,15 +49,70 @@ export interface SearchResult {
   title: string;
   type: string;
   snippet: string;
+  highlights: string[];
   score: number;
+}
+
+export interface DaemonStatus {
+  running: boolean;
+  uptime_seconds: number | null;
+  last_run: string | null;
+  next_scheduled: string | null;
+}
+
+export interface SourceStatus {
+  name: string;
+  platform: string;
+  status: "healthy" | "error" | "never_run";
+  last_sync: string | null;
+  last_error: string | null;
+  signals_total: number;
+}
+
+export interface HealthResponse {
+  status: string;
+  pages: number;
+  chunks: number;
+  daemon: DaemonStatus;
+  sources: SourceStatus[];
 }
 
 export const api = {
   stats: () => fetchJSON<StatsResponse>("/stats"),
 
-  pages: (opts?: { type?: string; limit?: number; sort?: string; order?: string }) => {
+  health: () => fetchJSON<HealthResponse>("/health"),
+
+  extract: (source?: string) =>
+    fetchJSON<{ started: boolean; source: string }>("/extract", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(source ? { source } : {}),
+    }),
+
+  timelineFeed: (opts?: {
+    from?: string; to?: string; group_by?: string;
+    type?: string; platform?: string; exclude_types?: string;
+    cursor?: string; limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.from) params.set("from", opts.from);
+    if (opts?.to) params.set("to", opts.to);
+    if (opts?.group_by) params.set("group_by", opts.group_by);
+    if (opts?.type) params.set("type", opts.type);
+    if (opts?.platform) params.set("platform", opts.platform);
+    if (opts?.exclude_types) params.set("exclude_types", opts.exclude_types);
+    if (opts?.cursor) params.set("cursor", opts.cursor);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return fetchJSON<{ days: unknown[]; next_cursor: string | null }>(
+      `/timeline/feed${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  pages: (opts?: { type?: string; exclude_types?: string; limit?: number; sort?: string; order?: string }) => {
     const params = new URLSearchParams();
     if (opts?.type) params.set("type", opts.type);
+    if (opts?.exclude_types) params.set("exclude_types", opts.exclude_types);
     if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
     if (opts?.sort) params.set("sort", opts.sort);
     if (opts?.order) params.set("order", opts.order);
@@ -65,8 +120,13 @@ export const api = {
     return fetchJSON<Page[]>(`/pages${qs ? `?${qs}` : ""}`);
   },
 
-  pageBySlug: (slug: string) =>
-    fetchJSON<Page>(`/pages/by-slug?slug=${encodeURIComponent(slug)}`),
+  pageBySlug: (slug: string, include?: string) => {
+    const params = new URLSearchParams({ slug });
+    if (include) params.set("include", include);
+    return fetchJSON<Page & { links?: unknown[]; backlinks?: unknown[]; timeline?: unknown[] }>(
+      `/pages/by-slug?${params.toString()}`,
+    );
+  },
 
   chunks: (slug: string) =>
     fetchJSON<ChunkRow[]>(`/chunks?slug=${encodeURIComponent(slug)}`),
@@ -85,10 +145,21 @@ export const api = {
   timeline: (slug: string) =>
     fetchJSON<TimelineEntry[]>(`/timeline?slug=${encodeURIComponent(slug)}`),
 
-  query: (q: string) =>
+  search: (q: string, opts?: { type?: string; from?: string; to?: string; platform?: string; exclude_types?: string; limit?: number }) => {
+    const params = new URLSearchParams({ q });
+    if (opts?.type) params.set("type", opts.type);
+    if (opts?.from) params.set("from", opts.from);
+    if (opts?.to) params.set("to", opts.to);
+    if (opts?.platform) params.set("platform", opts.platform);
+    if (opts?.exclude_types) params.set("exclude_types", opts.exclude_types);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    return fetchJSON<SearchResult[]>(`/search?${params.toString()}`);
+  },
+
+  query: (q: string, opts?: { type?: string; from?: string; to?: string; platform?: string; exclude_types?: string; limit?: number }) =>
     fetchJSON<SearchResult[]>("/query", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query: q }),
+      body: JSON.stringify({ query: q, ...opts }),
     }),
 };

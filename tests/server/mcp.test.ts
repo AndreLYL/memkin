@@ -68,9 +68,14 @@ describe("MCP server", () => {
     expect(await tools.search({ query: "Alice" })).toHaveLength(1);
     expect(await tools.get_links({ slug: "entities/alice" })).toHaveLength(1);
     expect(await tools.get_backlinks({ slug: "projects/memoark" })).toHaveLength(1);
-    expect(
-      await tools.traverse_graph({ slug: "entities/alice", depth: 1, direction: "out" }),
-    ).toHaveLength(1);
+    const traverseResult = await tools.traverse_graph({
+      slug: "entities/alice",
+      depth: 1,
+      direction: "out",
+    });
+    expect(traverseResult).toHaveProperty("focus");
+    expect(traverseResult).toHaveProperty("nodes");
+    expect(traverseResult).toHaveProperty("edges");
     expect(await tools.get_tags({ slug: "entities/alice" })).toEqual(["person"]);
     expect(await tools.get_timeline({ slug: "entities/alice" })).toHaveLength(1);
     expect(await tools.get_chunks({ slug: "entities/alice" })).toHaveLength(1);

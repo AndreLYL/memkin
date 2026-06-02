@@ -73,6 +73,7 @@ export interface PipelineResult {
   failedMessages: RawMessage[];
   lastSuccessMessage?: RawMessage;
   warnings: string[];
+  adapterStats: { written: number; skipped: number; errors: number };
 }
 
 /**
@@ -97,6 +98,7 @@ export async function runPipeline(
     skippedMessages: [],
     failedMessages: [],
     warnings: [],
+    adapterStats: { written: 0, skipped: 0, errors: 0 },
   };
 
   try {
@@ -306,10 +308,30 @@ export async function runPipeline(
       }
     }
 
+    // Stage 2.5: Person slug canonicalization
+    if (opts.identityResolver && extractedResults.length > 0) {
+      for (let i = 0; i < extractedResults.length; i++) {
+        try {
+          const { result: canonicalized, aliases } =
+            await opts.identityResolver.canonicalizeExtractionResult(extractedResults[i]);
+          canonicalized.personAliases = Object.fromEntries(aliases);
+          extractedResults[i] = canonicalized;
+        } catch (err) {
+          result.warnings.push(
+            `Person canonicalization failed (continuing with original slugs): ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+
     // Stage 4: Adapter.push (all results in one batch)
     if (extractedResults.length > 0) {
       try {
         const pushResult = await adapter.push(extractedResults);
+
+        result.adapterStats.written += pushResult.written;
+        result.adapterStats.skipped += pushResult.skipped;
+        result.adapterStats.errors += pushResult.errors.length;
 
         // Log adapter errors as warnings
         for (const error of pushResult.errors) {
@@ -349,6 +371,86 @@ export async function runPipeline(
     // Catch-all for unexpected errors
     result.fatal = true;
     result.error = `Unexpected pipeline error: ${err instanceof Error ? err.message : String(err)}`;
+    return result;
+  }
+}
+
+/**
+ * Simplified pipeline result for testing
+ */
+export interface SimplePipelineResult {
+  status: "success" | "error";
+  warnings: string[];
+  error?: string;
+}
+
+/**
+ * Simplified pipeline options for testing
+ */
+export interface SimplePipelineOpts {
+  blocks: ConversationBlock[];
+  extractor: { extract: (block: ConversationBlock) => Promise<ExtractionResult> };
+  adapter: Adapter;
+  identityResolver?: IdentityResolver;
+}
+
+/**
+ * Simplified pipeline runner for testing purposes
+ * Skips stages like dedup, cursor management, noise filtering, scoring
+ * Focuses on core extraction → canonicalization → adapter flow
+ */
+export async function runSimplePipeline(opts: SimplePipelineOpts): Promise<SimplePipelineResult> {
+  const result: SimplePipelineResult = {
+    status: "success",
+    warnings: [],
+  };
+
+  try {
+    // Extract from each block
+    const extractedResults: ExtractionResult[] = [];
+
+    for (const block of opts.blocks) {
+      try {
+        const extractionResult = await opts.extractor.extract(block);
+        extractedResults.push(extractionResult);
+      } catch (err) {
+        result.warnings.push(
+          `Block extraction error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    // Stage 2.5: Person slug canonicalization
+    if (opts.identityResolver && extractedResults.length > 0) {
+      for (let i = 0; i < extractedResults.length; i++) {
+        try {
+          const { result: canonicalized, aliases } =
+            await opts.identityResolver.canonicalizeExtractionResult(extractedResults[i]);
+          canonicalized.personAliases = Object.fromEntries(aliases);
+          extractedResults[i] = canonicalized;
+        } catch (err) {
+          result.warnings.push(
+            `Person canonicalization failed (continuing with original slugs): ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+
+    // Push to adapter
+    if (extractedResults.length > 0) {
+      try {
+        await opts.adapter.push(extractedResults);
+      } catch (err) {
+        result.status = "error";
+        result.error = `Adapter error: ${err instanceof Error ? err.message : String(err)}`;
+        return result;
+      }
+    }
+
+    return result;
+  } catch (err) {
+    result.status = "error";
+    result.error = `Pipeline error: ${err instanceof Error ? err.message : String(err)}`;
     return result;
   }
 }
