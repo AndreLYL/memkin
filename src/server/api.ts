@@ -8,6 +8,13 @@ import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 
+export interface DaemonStatus {
+  running: boolean;
+  uptime_seconds: number | null;
+  last_run: string | null;
+  next_scheduled: string | null;
+}
+
 export interface StoreContext {
   db: Database;
   pages: PageStore;
@@ -17,6 +24,7 @@ export interface StoreContext {
   tags: TagStore;
   timeline: TimelineStore;
   embedding: EmbeddingService;
+  getDaemonStatus?: () => DaemonStatus;
 }
 
 function missing(c: { json: (body: unknown, status?: number) => Response }, name: string) {
@@ -29,10 +37,47 @@ export function createApiApp(stores: StoreContext): Hono {
   app.get("/health", async (c) => {
     const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");
     const chunks = await stores.db.pg.query("SELECT COUNT(*) AS c FROM content_chunks");
+
+    const sourcesResult = await stores.db.pg.query(`
+      SELECT
+        COALESCE(frontmatter->>'platform', 'unknown') AS platform,
+        COUNT(*)::int AS signals_total,
+        MAX(
+          COALESCE(
+            frontmatter->'source'->>'timestamp',
+            frontmatter->'first_seen'->>'timestamp'
+          )
+        ) AS last_sync
+      FROM pages
+      WHERE frontmatter->>'platform' IS NOT NULL
+      GROUP BY platform
+    `);
+
+    const sources = (
+      sourcesResult.rows as Array<{
+        platform: string;
+        signals_total: number;
+        last_sync: string | null;
+      }>
+    ).map((row) => ({
+      name: row.platform,
+      platform: row.platform,
+      status: row.last_sync ? ("healthy" as const) : ("never_run" as const),
+      last_sync: row.last_sync,
+      last_error: null,
+      signals_total: row.signals_total,
+    }));
+
+    const daemon: DaemonStatus = stores.getDaemonStatus
+      ? stores.getDaemonStatus()
+      : { running: false, uptime_seconds: null, last_run: null, next_scheduled: null };
+
     return c.json({
       status: "ok",
       pages: Number((pages.rows[0] as Record<string, unknown>).c),
       chunks: Number((chunks.rows[0] as Record<string, unknown>).c),
+      daemon,
+      sources,
     });
   });
 
@@ -44,9 +89,13 @@ export function createApiApp(stores: StoreContext): Hono {
       limit = Number.isFinite(n) && n >= 0 ? n : undefined;
     }
 
+    const excludeTypesRaw = c.req.query("exclude_types");
+    const exclude_types = excludeTypesRaw ? excludeTypesRaw.split(",") : undefined;
+
     return c.json(
       await stores.pages.listPages({
         type: c.req.query("type"),
+        exclude_types,
         limit,
         sort: c.req.query("sort"),
         order: c.req.query("order"),
