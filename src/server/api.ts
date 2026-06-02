@@ -106,7 +106,25 @@ export function createApiApp(stores: StoreContext): Hono {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     const page = await stores.pages.getPage(slug);
-    return page ? c.json(page) : c.json({ error: "Not found" }, 404);
+    if (!page) return c.json({ error: "Not found" }, 404);
+
+    const includeRaw = c.req.query("include");
+    if (!includeRaw) return c.json(page);
+
+    const includes = new Set(includeRaw.split(","));
+    const response: Record<string, unknown> = { ...page };
+
+    if (includes.has("links")) {
+      response.links = await stores.graph.getLinksEnriched(slug);
+    }
+    if (includes.has("backlinks")) {
+      response.backlinks = await stores.graph.getBacklinksEnriched(slug);
+    }
+    if (includes.has("timeline")) {
+      response.timeline = await stores.timeline.getTimeline(slug);
+    }
+
+    return c.json(response);
   });
   app.put("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
