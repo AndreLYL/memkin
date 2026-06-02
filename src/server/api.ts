@@ -142,16 +142,40 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json({ ok: true });
   });
 
-  app.get("/search", async (c) =>
-    c.json(
+  app.get("/search", async (c) => {
+    const typeParam = c.req.query("type");
+    const excludeTypesParam = c.req.query("exclude_types");
+    return c.json(
       await stores.search.search(c.req.query("q") ?? "", {
         limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
+        type: typeParam ? typeParam.split(",") : undefined,
+        exclude_types: excludeTypesParam ? excludeTypesParam.split(",") : undefined,
+        from: c.req.query("from") ?? undefined,
+        to: c.req.query("to") ?? undefined,
+        platform: c.req.query("platform") ?? undefined,
       }),
-    ),
-  );
+    );
+  });
   app.post("/query", async (c) => {
-    const body = await c.req.json<{ query?: string; limit?: number }>();
-    return c.json(await stores.search.query(body.query ?? "", { limit: body.limit }));
+    const body = await c.req.json<{
+      query?: string;
+      limit?: number;
+      type?: string;
+      from?: string;
+      to?: string;
+      platform?: string;
+      exclude_types?: string;
+    }>();
+    return c.json(
+      await stores.search.query(body.query ?? "", {
+        limit: body.limit,
+        type: body.type ? body.type.split(",") : undefined,
+        exclude_types: body.exclude_types ? body.exclude_types.split(",") : undefined,
+        from: body.from,
+        to: body.to,
+        platform: body.platform,
+      }),
+    );
   });
 
   app.get("/stats", async (c) => {
@@ -241,6 +265,110 @@ export function createApiApp(stores: StoreContext): Hono {
     if (!slug) return missing(c, "slug");
     await stores.timeline.addEntry(slug, await c.req.json());
     return c.json({ ok: true });
+  });
+  app.get("/timeline/feed", async (c) => {
+    const fromParam = c.req.query("from");
+    const toParam = c.req.query("to");
+    const groupBy = c.req.query("group_by") === "type" ? "type" : "channel";
+    const typeParam = c.req.query("type");
+    const platformParam = c.req.query("platform");
+    const excludeTypesParam = c.req.query("exclude_types");
+    const cursor = c.req.query("cursor");
+    const limitDays = Math.min(Number(c.req.query("limit")) || 7, 31);
+
+    const now = new Date();
+    const to = toParam ?? now.toISOString().slice(0, 10);
+    const defaultFrom = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+    const from = cursor ?? fromParam ?? defaultFrom;
+
+    const params: unknown[] = [from, to];
+    const conditions: string[] = [
+      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz >= $1::timestamptz`,
+      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz <= ($2::date + interval '1 day')::timestamptz`,
+    ];
+
+    if (typeParam) {
+      const types = typeParam.split(",");
+      params.push(types);
+      conditions.push(`type = ANY($${params.length}::text[])`);
+    }
+    if (excludeTypesParam) {
+      const excludeTypes = excludeTypesParam.split(",");
+      params.push(excludeTypes);
+      conditions.push(`type != ALL($${params.length}::text[])`);
+    }
+    if (platformParam) {
+      params.push(platformParam);
+      conditions.push(`COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform') = $${params.length}`);
+    }
+
+    const sql = `
+    SELECT slug, type, title,
+           LEFT(compiled_truth, 200) AS snippet,
+           COALESCE(
+             frontmatter->'source'->>'timestamp',
+             frontmatter->'first_seen'->>'timestamp',
+             created_at::text
+           ) AS signal_time,
+           COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform', 'manual') AS platform,
+           COALESCE(frontmatter->'source'->>'channel', frontmatter->'first_seen'->>'channel', '—') AS channel,
+           COALESCE(frontmatter->'source'->>'channel_name', frontmatter->'first_seen'->>'channel_name', '') AS channel_name
+    FROM pages
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY signal_time DESC
+  `;
+
+    const result = await stores.db.pg.query(sql, params);
+    const rows = result.rows as Array<{
+      slug: string;
+      type: string;
+      title: string;
+      snippet: string;
+      signal_time: string;
+      platform: string;
+      channel: string;
+      channel_name: string;
+    }>;
+
+    // Group by day, then by channel or type
+    const dayMap = new Map<string, Map<string, typeof rows>>();
+    for (const row of rows) {
+      const day = row.signal_time.slice(0, 10);
+      if (!dayMap.has(day)) dayMap.set(day, new Map());
+      const groupKey =
+        groupBy === "type" ? row.type : `${row.channel_name || row.channel} (${row.platform})`;
+      const groups = dayMap.get(day)!;
+      if (!groups.has(groupKey)) groups.set(groupKey, []);
+      groups.get(groupKey)!.push(row);
+    }
+
+    const sortedDays = [...dayMap.keys()].sort((a, b) => b.localeCompare(a));
+    const pagedDays = sortedDays.slice(0, limitDays);
+    const nextCursor = sortedDays.length > limitDays ? sortedDays[limitDays] : null;
+
+    const days = pagedDays.map((date) => {
+      const groups = dayMap.get(date)!;
+      return {
+        date,
+        groups: [...groups.entries()].map(([key, signals]) => ({
+          key,
+          platform: signals[0].platform,
+          channel: signals[0].channel,
+          count: signals.length,
+          signals: signals.map((s) => ({
+            slug: s.slug,
+            type: s.type,
+            title: s.title,
+            snippet: s.snippet,
+            date: s.signal_time,
+            platform: s.platform,
+            channel: s.channel,
+          })),
+        })),
+      };
+    });
+
+    return c.json({ days, next_cursor: nextCursor });
   });
   app.get("/chunks", async (c) => c.json(await stores.chunks.getChunks(c.req.query("slug") ?? "")));
   app.post("/embed", async (c) =>
