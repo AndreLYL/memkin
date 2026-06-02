@@ -7,6 +7,7 @@ import type { PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import type { EventBus } from "./event-bus.js";
 
 export interface DaemonStatus {
   running: boolean;
@@ -25,6 +26,8 @@ export interface StoreContext {
   timeline: TimelineStore;
   embedding: EmbeddingService;
   getDaemonStatus?: () => DaemonStatus;
+  eventBus?: EventBus;
+  runExtract?: (source?: string) => Promise<{ written: number; skipped: number; errors: number }>;
 }
 
 function missing(c: { json: (body: unknown, status?: number) => Response }, name: string) {
@@ -378,6 +381,103 @@ export function createApiApp(stores: StoreContext): Hono {
       }),
     ),
   );
+
+  let runningPipeline: string | null = null;
+
+  app.post("/extract", async (c) => {
+    if (!stores.runExtract) {
+      return c.json({ error: "Extract not configured" }, 501);
+    }
+    const body = await c.req.json<{ source?: string }>().catch(() => ({}));
+    const source = (body as { source?: string }).source ?? "all";
+
+    if (runningPipeline) {
+      return c.json({ error: "Pipeline already running", source: runningPipeline }, 409);
+    }
+
+    runningPipeline = source;
+
+    if (stores.eventBus) {
+      stores.eventBus.emit("pipeline:start", {
+        platform: source,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    stores.runExtract(source === "all" ? undefined : source)
+      .then((stats) => {
+        if (stores.eventBus) {
+          stores.eventBus.emit("pipeline:end", {
+            platform: source,
+            stats,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })
+      .catch((err) => {
+        if (stores.eventBus) {
+          stores.eventBus.emit("pipeline:error", {
+            platform: source,
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })
+      .finally(() => {
+        runningPipeline = null;
+      });
+
+    return c.json({ started: true, source });
+  });
+
+  app.get("/events", async (c) => {
+    if (!stores.eventBus) {
+      return c.json({ error: "SSE not available" }, 501);
+    }
+
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const send = (event: string, data: unknown) => {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
+
+        const onSignalNew = (data: unknown) => send("signal:new", data);
+        const onPipelineStart = (data: unknown) => send("pipeline:start", data);
+        const onPipelineEnd = (data: unknown) => send("pipeline:end", data);
+        const onPipelineError = (data: unknown) => send("pipeline:error", data);
+
+        stores.eventBus!.on("signal:new", onSignalNew);
+        stores.eventBus!.on("pipeline:start", onPipelineStart);
+        stores.eventBus!.on("pipeline:end", onPipelineEnd);
+        stores.eventBus!.on("pipeline:error", onPipelineError);
+
+        const keepalive = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(": keepalive\n\n"));
+          } catch {
+            clearInterval(keepalive);
+          }
+        }, 30000);
+
+        c.req.raw.signal.addEventListener("abort", () => {
+          clearInterval(keepalive);
+          stores.eventBus!.off("signal:new", onSignalNew);
+          stores.eventBus!.off("pipeline:start", onPipelineStart);
+          stores.eventBus!.off("pipeline:end", onPipelineEnd);
+          stores.eventBus!.off("pipeline:error", onPipelineError);
+        });
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  });
 
   app.get("/provenance", async (c) => {
     const channel = c.req.query("channel");
