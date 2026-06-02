@@ -9,16 +9,35 @@ import type { ExtractionResult, SignificanceVerdict } from "./types.js";
 // Base schemas
 export const SignalConfidenceSchema = z.enum(["direct", "paraphrased", "inferred", "speculative"]);
 
+// Coerce null → undefined for optional string fields (LLM sometimes outputs null)
+const optionalString = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v == null ? undefined : v));
+
+// Accept both full ISO datetime and date-only strings like "2026-05-27"
+const optionalDatetime = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => {
+    if (v == null) return undefined;
+    // If already full ISO datetime, keep as-is
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return v;
+    // If date-only "YYYY-MM-DD", append midnight UTC
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
+    return undefined;
+  });
+
 export const SourceRefSchema = z.object({
   platform: z.string(),
   channel: z.string(),
   timestamp: z.string().default(() => new Date().toISOString()),
-  message_id: z.string().optional(),
-  thread_id: z.string().optional(),
-  file_path: z.string().optional(),
+  message_id: optionalString,
+  thread_id: optionalString,
+  file_path: optionalString,
   line_range: z.object({ start: z.number(), end: z.number() }).optional(),
-  attachment_id: z.string().optional(),
-  url: z.string().optional(),
+  attachment_id: optionalString,
+  url: optionalString,
   raw_hash: z.string().default(""),
   quote: z.string().default(""),
 });
@@ -66,12 +85,12 @@ export const LinkSchema = z.object({
 
 export const DecisionSchema = z.object({
   summary: z.string(),
-  reasoning: z.string().optional(),
+  reasoning: optionalString,
   alternatives: z.array(z.string()).optional(),
-  entities: z.array(z.string()), // slugs
-  date: z.string(), // ISO 8601
-  valid_at: z.string().optional(), // ISO 8601
-  invalid_at: z.string().optional(), // ISO 8601
+  entities: z.array(z.string()),
+  date: z.string(),
+  valid_at: optionalDatetime,
+  invalid_at: optionalDatetime,
   confidence: SignalConfidenceSchema,
   source: SourceRefSchema,
 });
@@ -79,11 +98,11 @@ export const DecisionSchema = z.object({
 export const TaskSignalSchema = z.object({
   title: z.string(),
   status: z.enum(["open", "in_progress", "done", "cancelled"]),
-  owner: z.string().optional(),
-  project: z.string().optional(),
-  due_date: z.string().optional(), // ISO 8601
-  valid_at: z.string().optional(), // ISO 8601
-  invalid_at: z.string().optional(), // ISO 8601
+  owner: optionalString,
+  project: optionalString,
+  due_date: optionalDatetime,
+  valid_at: optionalDatetime,
+  invalid_at: optionalDatetime,
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
 });
@@ -114,8 +133,8 @@ export const KnowledgeSchema = z
     content: z.string().min(1),
     source_type: KnowledgeSourceTypeSchema,
     related_entities: z.array(z.string()),
-    valid_at: z.string().datetime().optional(),
-    invalid_at: z.string().datetime().optional(),
+    valid_at: optionalDatetime,
+    invalid_at: optionalDatetime,
     source: SourceRefSchema,
     confidence: SignalConfidenceSchema,
   })
