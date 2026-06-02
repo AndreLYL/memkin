@@ -28,12 +28,7 @@ export interface StoreAdapterContext {
 }
 
 export interface StoreAdapterOpts {
-  onPageWritten?: (info: {
-    slug: string;
-    type: string;
-    title: string;
-    summary: string;
-  }) => void;
+  onPageWritten?: (info: { slug: string; type: string; title: string; summary: string }) => void;
 }
 
 export class StoreAdapter implements Adapter {
@@ -49,7 +44,12 @@ export class StoreAdapter implements Adapter {
     this.onPageWritten = opts?.onPageWritten;
   }
 
-  private notifyPageWritten(page: { slug: string; type: string; title: string; compiled_truth: string }): void {
+  private notifyPageWritten(page: {
+    slug: string;
+    type: string;
+    title: string;
+    compiled_truth: string;
+  }): void {
     if (!this.onPageWritten) return;
     this.onPageWritten({
       slug: page.slug,

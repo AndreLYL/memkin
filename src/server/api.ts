@@ -302,7 +302,9 @@ export function createApiApp(stores: StoreContext): Hono {
     }
     if (platformParam) {
       params.push(platformParam);
-      conditions.push(`COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform') = $${params.length}`);
+      conditions.push(
+        `COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform') = $${params.length}`,
+      );
     }
 
     const sql = `
@@ -404,7 +406,8 @@ export function createApiApp(stores: StoreContext): Hono {
       });
     }
 
-    stores.runExtract(source === "all" ? undefined : source)
+    stores
+      .runExtract(source === "all" ? undefined : source)
       .then((stats) => {
         if (stores.eventBus) {
           stores.eventBus.emit("pipeline:end", {

@@ -126,9 +126,10 @@ export class GraphStore {
       [slug],
     );
     return (result.rows as EnrichedLinkRawRow[]).map((r) => {
-      const frontmatter = typeof r.page_frontmatter === "string"
-        ? JSON.parse(r.page_frontmatter)
-        : r.page_frontmatter;
+      const frontmatter =
+        typeof r.page_frontmatter === "string"
+          ? JSON.parse(r.page_frontmatter)
+          : r.page_frontmatter;
 
       return {
         from_slug: r.from_slug,
@@ -156,9 +157,10 @@ export class GraphStore {
       [slug],
     );
     return (result.rows as EnrichedLinkRawRow[]).map((r) => {
-      const frontmatter = typeof r.page_frontmatter === "string"
-        ? JSON.parse(r.page_frontmatter)
-        : r.page_frontmatter;
+      const frontmatter =
+        typeof r.page_frontmatter === "string"
+          ? JSON.parse(r.page_frontmatter)
+          : r.page_frontmatter;
 
       return {
         from_slug: r.from_slug,
@@ -215,11 +217,13 @@ export class GraphStore {
             [current],
           );
           neighbors.push(...out.rows.map((r) => ({ slug: r.slug, link_type: r.link_type })));
-          edges.push(...out.rows.map((r) => ({
-            from_slug: current,
-            to_slug: r.slug,
-            link_type: r.link_type,
-          })));
+          edges.push(
+            ...out.rows.map((r) => ({
+              from_slug: current,
+              to_slug: r.slug,
+              link_type: r.link_type,
+            })),
+          );
         }
 
         if (direction === "in" || direction === "both") {
@@ -229,11 +233,13 @@ export class GraphStore {
             [current],
           );
           neighbors.push(...inc.rows.map((r) => ({ slug: r.slug, link_type: r.link_type })));
-          edges.push(...inc.rows.map((r) => ({
-            from_slug: r.slug,
-            to_slug: current,
-            link_type: r.link_type,
-          })));
+          edges.push(
+            ...inc.rows.map((r) => ({
+              from_slug: r.slug,
+              to_slug: current,
+              link_type: r.link_type,
+            })),
+          );
         }
 
         for (const n of neighbors) {

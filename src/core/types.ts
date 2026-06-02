@@ -150,6 +150,7 @@ export interface ExtractionResult {
   tasks: TaskSignal[];
   discoveries: Discovery[];
   knowledge: Knowledge[];
+  personAliases?: Record<string, string[]>;
 }
 
 export interface SignificanceVerdict {

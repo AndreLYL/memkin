@@ -226,13 +226,11 @@ export class SearchEngine {
       results = results.filter((r) => !excludeSet.has(r.type));
     }
 
-    return results
-      .slice(0, limit)
-      .map(({ chunk_source: _, snippet, ...rest }) => ({
-        ...rest,
-        snippet,
-        highlights: snippet ? [snippet] : [],
-      }));
+    return results.slice(0, limit).map(({ chunk_source: _, snippet, ...rest }) => ({
+      ...rest,
+      snippet,
+      highlights: snippet ? [snippet] : [],
+    }));
   }
 
   private async ftsChunkSearch(

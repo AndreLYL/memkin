@@ -77,4 +77,10 @@ export class IdentityResolver {
   private isUnresolvedId(contact: string): boolean {
     return contact.startsWith("ou_");
   }
+
+  async canonicalizeExtractionResult(
+    result: import("./types.js").ExtractionResult,
+  ): Promise<{ result: import("./types.js").ExtractionResult; aliases: Map<string, string[]> }> {
+    return { result, aliases: new Map() };
+  }
 }
