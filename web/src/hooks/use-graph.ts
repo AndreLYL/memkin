@@ -14,3 +14,11 @@ export function useAllLinks() {
     queryFn: api.allLinks,
   });
 }
+
+export function useTraverse(slug: string | null, depth: number = 1) {
+  return useQuery({
+    queryKey: ["traverse", slug, depth],
+    queryFn: () => api.traverse(slug!, depth, "both"),
+    enabled: !!slug,
+  });
+}
