@@ -77,7 +77,7 @@ One system, multiple sources. Currently supports AI agent sessions (Claude Code,
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) >= 1.0.0
+- [Bun](https://bun.sh) >= 1.0.0 — install with `curl -fsSL https://bun.sh/install | bash`
 - (Optional) [Ollama](https://ollama.ai) for local embeddings
 
 ### Installation
@@ -86,57 +86,64 @@ One system, multiple sources. Currently supports AI agent sessions (Claude Code,
 git clone https://github.com/AndreLYL/memoark.git
 cd memoark
 bun install
+npm link          # registers the `memoark` command globally
 ```
 
 ### Initialize Configuration
 
-```bash
-bun src/cli.ts config init
-```
-
-Edit `memoark.yaml` and set your LLM API key:
+Run the interactive setup wizard — it auto-detects your data sources, hardware, and guides you through LLM + embedding configuration:
 
 ```bash
-export OPENAI_API_KEY=your-api-key
+memoark init
 ```
+
+The wizard will:
+- Detect available data sources (Claude Code, Codex, Hermes)
+- Assess your hardware to recommend local (Ollama) or remote (OpenAI) embedding
+- Guide you through LLM provider / model / API key setup
+- Test the connection before saving
+- Register the `memoark` command if not already done
 
 ### Check Environment
 
 ```bash
-bun src/cli.ts doctor
+memoark doctor
 ```
 
 ### Run Your First Extraction
 
 ```bash
-# Extract from Claude Code and store directly to PGLite
-bun src/cli.ts extract --source claude-code
+# Extract from Claude Code
+memoark extract --source claude-code
 
-# Extract from all sources
-bun src/cli.ts extract --source all
+# Extract from Codex
+memoark extract --source codex
 
-# Dry run (no LLM calls)
-bun src/cli.ts extract --source claude-code --dry-run
+# Extract from all enabled sources
+memoark extract --source all
+
+# Dry run (no LLM calls, just scan data volume)
+memoark extract --source claude-code --dry-run
 ```
 
 ### Search Your Memory
 
 ```bash
 # Hybrid search (FTS + vector)
-bun src/cli.ts search "auth middleware decision"
+memoark search "auth middleware decision"
 
 # FTS-only search
-bun src/cli.ts search "JWT token" --mode fts
+memoark search "JWT token" --mode fts
 ```
 
 ### Start the Server
 
 ```bash
-# HTTP API
-bun src/cli.ts serve
+# HTTP API (default port 3927)
+memoark serve
 
-# MCP stdio (for AI agent integration)
-bun src/cli.ts serve --mcp
+# MCP stdio (for AI agent integration — Claude Code, Cursor, etc.)
+memoark serve --mcp
 ```
 
 ## Architecture
