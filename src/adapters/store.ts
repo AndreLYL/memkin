@@ -27,15 +27,36 @@ export interface StoreAdapterContext {
   timeline: TimelineStore;
 }
 
+export interface StoreAdapterOpts {
+  onPageWritten?: (info: {
+    slug: string;
+    type: string;
+    title: string;
+    summary: string;
+  }) => void;
+}
+
 export class StoreAdapter implements Adapter {
   id = "store";
   name = "Memoark Store Adapter";
   description = "Writes extraction results directly to PGLite stores";
 
   private stores: StoreAdapterContext;
+  private onPageWritten?: StoreAdapterOpts["onPageWritten"];
 
-  constructor(stores: StoreAdapterContext) {
+  constructor(stores: StoreAdapterContext, opts?: StoreAdapterOpts) {
     this.stores = stores;
+    this.onPageWritten = opts?.onPageWritten;
+  }
+
+  private notifyPageWritten(page: { slug: string; type: string; title: string; compiled_truth: string }): void {
+    if (!this.onPageWritten) return;
+    this.onPageWritten({
+      slug: page.slug,
+      type: page.type,
+      title: page.title,
+      summary: page.compiled_truth.slice(0, 100),
+    });
   }
 
   async healthCheck(): Promise<{ ok: boolean; message: string }> {
@@ -61,7 +82,12 @@ export class StoreAdapter implements Adapter {
     for (const result of results) {
       // Process Entities
       for (const entity of result.entities) {
-        const writeResult = await this.writeEntity(entity, result.source.raw_hash, result.source);
+        const writeResult = await this.writeEntity(
+          entity,
+          result.source.raw_hash,
+          result.source,
+          result.personAliases,
+        );
         pushResult.written += writeResult.written;
         pushResult.skipped += writeResult.skipped;
         pushResult.errors.push(...writeResult.errors);
@@ -123,6 +149,7 @@ export class StoreAdapter implements Adapter {
     entity: Entity,
     sourceHash: string,
     source?: SourceRef,
+    personAliases?: Record<string, string[]>,
   ): Promise<AdapterPushResult> {
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
@@ -150,17 +177,39 @@ export class StoreAdapter implements Adapter {
         }
       }
 
+      // Handle person aliases
+      if (entity.type === "person" && personAliases?.[entity.slug]) {
+        const newAliases = personAliases[entity.slug];
+        const existingAliases = (existingPage?.frontmatter.aliases as string[]) ?? [];
+
+        // Merge and deduplicate aliases
+        const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases]));
+
+        frontmatter.aliases = mergedAliases;
+      }
+
+      const bodyParts = [`## Context\n\n${entity.context}`];
+
+      // Add aliases section to body for person entities
+      if (entity.type === "person" && frontmatter.aliases) {
+        const aliasesList = (frontmatter.aliases as string[])
+          .map((alias) => `- ${alias}`)
+          .join("\n");
+        bodyParts.unshift(`## Aliases\n\n${aliasesList}`);
+      }
+
       const content = `---
 ${yamlStringify(frontmatter).trimEnd()}
 ---
 
-## Context
-
-${entity.context}
+${bodyParts.join("\n\n")}
 `;
 
       // Write page
       const page = await this.stores.pages.putPage(entity.slug, content);
+
+      // Notify callback
+      this.notifyPageWritten(page);
 
       // Rechunk
       await this.stores.chunks.rechunk(page.id, page.compiled_truth);
@@ -233,6 +282,9 @@ ${parts.join("\n")}`;
 
       // Write page
       const page = await this.stores.pages.putPage(slug, content);
+
+      // Notify callback
+      this.notifyPageWritten(page);
 
       // Rechunk
       await this.stores.chunks.rechunk(page.id, page.compiled_truth);
@@ -316,6 +368,9 @@ ${yamlStringify(frontmatter).trimEnd()}
       // Write page
       const page = await this.stores.pages.putPage(slug, content);
 
+      // Notify callback
+      this.notifyPageWritten(page);
+
       // Rechunk
       await this.stores.chunks.rechunk(page.id, page.compiled_truth);
 
@@ -377,6 +432,9 @@ ${parts.join("\n")}`;
 
       // Write page
       const page = await this.stores.pages.putPage(slug, content);
+
+      // Notify callback
+      this.notifyPageWritten(page);
 
       // Rechunk
       await this.stores.chunks.rechunk(page.id, page.compiled_truth);
@@ -468,6 +526,9 @@ ${parts.join("\n")}`;
 
       // Write page
       const page = await this.stores.pages.putPage(slug, content);
+
+      // Notify callback
+      this.notifyPageWritten(page);
 
       // Rechunk
       await this.stores.chunks.rechunk(page.id, page.compiled_truth);
