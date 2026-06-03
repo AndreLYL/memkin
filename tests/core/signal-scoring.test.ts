@@ -212,4 +212,13 @@ describe("scoreBlock — combined and decision", () => {
     expect(score.combined).toBeGreaterThan(0.15);
     expect(score.decision).not.toBe("drop");
   });
+
+  test("extra guard does NOT drop short structured block (calendar/task)", () => {
+    const cb = makeCB({
+      source_type: "structured",
+      interaction_tags: [],
+      canonical_markdown: "Team standup",
+    });
+    expect(scoreBlock(cb).decision).not.toBe("drop");
+  });
 });
