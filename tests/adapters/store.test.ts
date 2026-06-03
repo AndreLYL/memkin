@@ -477,4 +477,132 @@ To context`,
       expect(links.some((l) => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
     });
   });
+
+  describe("push - person aliases", () => {
+    it("should write person entity with aliases in frontmatter and body", async () => {
+      const entity: Entity = {
+        slug: "person/wang-jiandu",
+        name: "王建都",
+        type: "person",
+        context: "A test person entity with aliases.",
+        confidence: "direct",
+      };
+
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [entity],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+        personAliases: {
+          "person/wang-jiandu": ["person/wang-jian-du", "王建都"],
+        },
+      };
+
+      const pushResult = await adapter.push([result]);
+
+      expect(pushResult.written).toBeGreaterThan(0);
+      expect(pushResult.errors).toHaveLength(0);
+
+      // Verify page was created with aliases
+      const page = await pages.getPage("person/wang-jiandu");
+      expect(page).not.toBeNull();
+      expect(page?.frontmatter.aliases).toEqual(["person/wang-jian-du", "王建都"]);
+
+      // Verify aliases section in body
+      expect(page?.compiled_truth).toContain("## Aliases");
+      expect(page?.compiled_truth).toContain("- person/wang-jian-du");
+      expect(page?.compiled_truth).toContain("- 王建都");
+    });
+
+    it("should append new aliases without duplicates on update", async () => {
+      const entity: Entity = {
+        slug: "person/test-person",
+        name: "Test Person",
+        type: "person",
+        context: "Test person for alias update.",
+        confidence: "direct",
+      };
+
+      // First push with one alias
+      const source1 = createSourceRef();
+      const result1: ExtractionResult = {
+        source: source1,
+        entities: [entity],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+        personAliases: {
+          "person/test-person": ["person/test-person-old"],
+        },
+      };
+
+      await adapter.push([result1]);
+
+      // Second push with overlapping and new aliases
+      const source2 = createSourceRef("test2", "test-channel-2");
+      const result2: ExtractionResult = {
+        source: source2,
+        entities: [entity],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+        personAliases: {
+          "person/test-person": ["person/test-person-old", "测试人"],
+        },
+      };
+
+      const pushResult = await adapter.push([result2]);
+
+      expect(pushResult.written).toBeGreaterThan(0);
+      expect(pushResult.errors).toHaveLength(0);
+
+      // Verify aliases are merged without duplicates
+      const page = await pages.getPage("person/test-person");
+      expect(page?.frontmatter.aliases).toEqual(["person/test-person-old", "测试人"]);
+    });
+
+    it("should handle non-person entity without alias handling", async () => {
+      const entity: Entity = {
+        slug: "project/test-project",
+        name: "Test Project",
+        type: "project",
+        context: "A project entity should not have aliases.",
+        confidence: "direct",
+      };
+
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [entity],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      const pushResult = await adapter.push([result]);
+
+      expect(pushResult.written).toBeGreaterThan(0);
+      expect(pushResult.errors).toHaveLength(0);
+
+      // Verify no aliases in frontmatter
+      const page = await pages.getPage("project/test-project");
+      expect(page).not.toBeNull();
+      expect(page?.frontmatter.aliases).toBeUndefined();
+
+      // Verify no aliases section in body
+      expect(page?.compiled_truth).not.toContain("## Aliases");
+    });
+  });
 });
