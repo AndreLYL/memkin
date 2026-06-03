@@ -116,7 +116,6 @@ export class Scheduler {
             skippedMessages: [],
             failedMessages: [],
             warnings: [],
-            adapterStats: { written: 0, skipped: 0, errors: 0 },
           };
           this.onTick?.(sourceId, fakeResult, duration_ms);
         }
