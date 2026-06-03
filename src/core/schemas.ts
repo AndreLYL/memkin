@@ -85,6 +85,9 @@ export const LinkSchema = z.object({
   type: LinkTypeSchema,
   context: z.string(),
   confidence: SignalConfidenceSchema,
+  source: SourceRefSchema.optional().transform((v) =>
+    v ?? { platform: "", channel: "", timestamp: new Date().toISOString(), raw_hash: "", quote: "" },
+  ),
 });
 
 export const DecisionSchema = z.object({

@@ -31,7 +31,7 @@ export class FeishuCollector implements Collector, CursorProvider {
 
     if (config.sources.messages?.enabled) {
       this.sources.push(
-        new MessageSource(this.client, config.sources.messages.chat_ids, {
+        new MessageSource(this.client, config.sources.messages.chat_ids ?? [], {
           lookbackDays: config.sources.messages.lookback_days ?? 30,
           overlapMs: config.sources.messages.overlap_ms,
         }),
@@ -52,7 +52,7 @@ export class FeishuCollector implements Collector, CursorProvider {
 
     if (config.sources.dm?.enabled) {
       this.sources.push(
-        new DMSource(this.client, config.sources.dm.dm_chat_ids, {
+        new DMSource(this.client, config.sources.dm.dm_chat_ids ?? [], {
           lookbackDays: config.sources.dm.lookback_days ?? 30,
           selfOpenId: config.sources.dm.self_open_id,
           overlapMs: config.sources.dm.overlap_ms,
