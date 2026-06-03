@@ -51,21 +51,25 @@ export function scoreBlock(cb: CanonicalisedBlock): SignalScore {
     TOTAL_WEIGHT;
 
   let decision: SignalScore["decision"];
+  let drop_reason: string | undefined;
 
   // Extra guard: extremely short, no entities, no interaction, AND low-value source → force drop
-  // Email/document sources get protection (never force-dropped by extra guard)
+  // Email/document/structured sources get protection (never force-dropped by extra guard)
   if (
     tokens < 20 &&
     entities.length === 0 &&
     cb.interaction_tags.length === 0 &&
     cb.source_type !== "email" &&
-    cb.source_type !== "document"
+    cb.source_type !== "document" &&
+    cb.source_type !== "structured"
   ) {
     decision = "drop";
+    drop_reason = "extra_guard:short_no_signal";
   } else if (combined >= 0.85) {
     decision = "admit";
   } else if (combined <= 0.15) {
     decision = "drop";
+    drop_reason = "score_below_threshold";
   } else {
     decision = "evaluate";
   }
@@ -78,6 +82,7 @@ export function scoreBlock(cb: CanonicalisedBlock): SignalScore {
     entity_density_score,
     combined,
     decision,
+    drop_reason,
   };
 }
 
