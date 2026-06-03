@@ -1,4 +1,3 @@
-import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 
 export interface SelectOption {
