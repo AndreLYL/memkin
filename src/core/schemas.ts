@@ -19,13 +19,17 @@ const optionalString = z
 const optionalDatetime = z
   .union([z.string(), z.null()])
   .optional()
-  .transform((v) => {
+  .transform((v, ctx) => {
     if (v == null) return undefined;
-    // If already full ISO datetime, keep as-is
-    if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return v;
-    // If date-only "YYYY-MM-DD", append midnight UTC
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
-    return undefined;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const normalized = `${v}T00:00:00.000Z`;
+      if (!Number.isNaN(Date.parse(normalized))) return normalized;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v))) {
+      return v;
+    }
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid ISO 8601 datetime" });
+    return z.NEVER;
   });
 
 export const SourceRefSchema = z.object({
