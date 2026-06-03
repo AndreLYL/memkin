@@ -5,7 +5,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { cpus, totalmem } from "node:os";
 import { join } from "node:path";
 import type { DetectedSource } from "./detect-sources.js";
@@ -114,7 +114,6 @@ function getFileSizeMB(filePath: string): number {
 
 function walkJsonl(dir: string, results: string[]): void {
   try {
-    const { readdirSync, statSync } = require("node:fs") as typeof import("node:fs");
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry);
       try {
