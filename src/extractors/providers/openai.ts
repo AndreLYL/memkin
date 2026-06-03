@@ -50,10 +50,6 @@ export function createOpenAIProvider(config: OpenAIConfig): LLMProvider {
         requestBody.max_tokens = opts.maxTokens;
       }
 
-      if (opts?.responseFormat === "json") {
-        requestBody.response_format = { type: "json_object" };
-      }
-
       let lastError: unknown;
 
       for (let attempt = 0; attempt <= DEFAULT_MAX_RETRIES; attempt++) {

@@ -108,8 +108,7 @@ export class MailSource implements FeishuSource {
       const stdout = await this.client.execShortcut("mail", "message", [
         "--message-id",
         messageId,
-        "--html",
-        "false",
+        "--html=false",
       ]);
       const parsed = JSON.parse(stdout);
       const raw = parsed?.data ?? parsed;
