@@ -20,6 +20,9 @@ graphify-out/
 .env.local
 .env.*.local
 
+# Local config (may contain API keys)
+memoark.yaml
+
 # IDE
 .vscode/
 .idea/

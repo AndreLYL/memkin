@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS content_chunks (
   chunk_text      TEXT NOT NULL,
   chunk_source    TEXT NOT NULL DEFAULT 'compiled_truth',
   token_count     INTEGER,
-  embedding       vector(768),
-  model           TEXT NOT NULL DEFAULT 'nomic-embed-text',
+  embedding       vector(1536),
+  model           TEXT NOT NULL DEFAULT 'text-embedding-3-large',
   embedded_at     TIMESTAMPTZ,
   search_vector   TSVECTOR,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -78,10 +78,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_pages_search_vector ON pages;
-CREATE TRIGGER trg_pages_search_vector
-  BEFORE INSERT OR UPDATE ON pages
-  FOR EACH ROW EXECUTE FUNCTION update_page_search_vector();
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_pages_search_vector'
+  ) THEN
+    CREATE TRIGGER trg_pages_search_vector
+      BEFORE INSERT OR UPDATE ON pages
+      FOR EACH ROW EXECUTE FUNCTION update_page_search_vector();
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION update_chunk_search_vector() RETURNS trigger AS $$
 BEGIN
@@ -91,42 +96,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS chunk_search_vector_trigger ON content_chunks;
-CREATE TRIGGER chunk_search_vector_trigger
-  BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
-  FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
-
--- Provenance migration (idempotent)
-DO $$
-BEGIN
+DO $$ BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'links' AND column_name = 'provenance'
+    SELECT 1 FROM pg_trigger WHERE tgname = 'chunk_search_vector_trigger'
   ) THEN
-    ALTER TABLE links ADD COLUMN provenance JSONB;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'links' AND column_name = 'source_hash'
-  ) THEN
-    ALTER TABLE links ADD COLUMN source_hash TEXT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'timeline_entries' AND column_name = 'provenance'
-  ) THEN
-    ALTER TABLE timeline_entries ADD COLUMN provenance JSONB;
+    CREATE TRIGGER chunk_search_vector_trigger
+      BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
+      FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
   END IF;
 END $$;
-
-CREATE TABLE IF NOT EXISTS identity_cache (
-  platform     TEXT NOT NULL,
-  external_id  TEXT NOT NULL,
-  display_name TEXT NOT NULL,
-  slug_hint    TEXT,
-  raw_data     JSONB,
-  resolved_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (platform, external_id)
-);

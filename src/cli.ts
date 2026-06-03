@@ -1,23 +1,19 @@
-#!/usr/bin/env bun
-import { cpSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   createClaudeCodeCollector,
   createCodexCollector,
   createFeishuCollector,
   createHermesCollector,
-  FeishuCollector,
   getAllCollectors,
   getCollector,
   registerCollector,
   resetRegistry,
 } from "./collectors/index.js";
 import { loadConfig, type SourcesConfig } from "./core/config.js";
-import { IdentityResolver } from "./core/identity-resolver.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
@@ -32,7 +28,7 @@ import { SearchEngine } from "./store/search.js";
 import { TagStore } from "./store/tags.js";
 import { TimelineStore } from "./store/timeline.js";
 
-async function bootstrapCollectors(sources: SourcesConfig): Promise<void> {
+function bootstrapCollectors(sources: SourcesConfig): void {
   resetRegistry();
   const agentConfigs = {
     "claude-code": { factory: createClaudeCodeCollector, config: sources["claude-code"] },
@@ -47,14 +43,19 @@ async function bootstrapCollectors(sources: SourcesConfig): Promise<void> {
   }
 
   if (sources.feishu?.enabled !== false && sources.feishu?.app_id) {
-    const feishuCollector = await createFeishuCollector(sources.feishu);
-    registerCollector(feishuCollector);
+    registerCollector(createFeishuCollector(sources.feishu));
   }
 }
 
+function expandDataDir(dir: string): string {
+  if (dir.startsWith("~/")) return resolve(homedir(), dir.slice(2));
+  if (dir === "~") return homedir();
+  return dir;
+}
+
 async function createStores(config: ReturnType<typeof loadConfig>) {
-  const dataDir = config.store.data_dir.replace(/^~/, process.env.HOME ?? "~");
-  mkdirSync(resolve(dataDir), { recursive: true });
+  const dataDir = expandDataDir(config.store.data_dir);
+  mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir);
   const pages = new PageStore(db.pg);
   const chunks = new ChunkStore(db.pg);
@@ -78,53 +79,34 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
   };
 }
 
-function timestampForPath(date = new Date()): string {
-  return date.toISOString().replace(/[:.]/g, "-");
-}
-
-function backupStoreAndState(config: ReturnType<typeof loadConfig>): {
-  dataBackup?: string;
-  stateBackup?: string;
-} {
-  const stamp = timestampForPath();
-  const dataDir = resolve(config.store.data_dir.replace(/^~/, process.env.HOME ?? "~"));
-  const stateDir = resolve(process.cwd(), ".memoark");
-  const result: { dataBackup?: string; stateBackup?: string } = {};
-
-  if (existsSync(dataDir)) {
-    const dataBackup = `${dataDir}.bak.${stamp}`;
-    cpSync(dataDir, dataBackup, { recursive: true });
-    result.dataBackup = dataBackup;
-  }
-
-  if (existsSync(stateDir)) {
-    const stateBackup = `${stateDir}.bak.${stamp}`;
-    cpSync(stateDir, stateBackup, { recursive: true });
-    result.stateBackup = stateBackup;
-  }
-
-  return result;
-}
-
-function removeCursor(source: string): void {
-  const cursorPath = statePath("cursors.yaml");
-  if (!existsSync(cursorPath)) return;
-
-  const raw = readFileSync(cursorPath, "utf-8");
-  const data = parseYaml(raw) as Record<string, unknown> | null;
-  if (!data || typeof data !== "object") return;
-  if (!(source in data)) return;
-
-  delete data[source];
-  writeFileSync(cursorPath, stringifyYaml(data), "utf-8");
-}
-
 const program = new Command();
 
 program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
-  .version("0.2.0");
+  .version("0.1.0");
+
+program
+  .command("init")
+  .description("Interactive setup wizard - generates memoark.yaml")
+  .option("--auto", "Automatic mode, no prompts")
+  .option("--force", "Overwrite existing configuration")
+  .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .option("--no-tui", "Use non-TUI fallback")
+  .action(async (options) => {
+    try {
+      const { runInit } = await import("./setup/index.js");
+      await runInit({
+        auto: options.auto,
+        force: options.force,
+        configPath: options.config,
+        tui: options.tui,
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
 
 /**
  * Extract command - main pipeline execution
@@ -153,7 +135,7 @@ program
       ensureStateDir();
 
       // Bootstrap collectors from config
-      await bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources);
 
       // Determine which sources to process
       let sourceIds: string[];
@@ -167,14 +149,20 @@ program
       let provider: ReturnType<typeof createLLMProvider> | undefined;
       if (!options.dryRun) {
         const llmConfig = config.llm;
-        if (!llmConfig.api_key && !process.env.OPENAI_API_KEY) {
+        const envKey =
+          llmConfig.provider === "anthropic"
+            ? process.env.ANTHROPIC_API_KEY
+            : process.env.OPENAI_API_KEY;
+        if (!llmConfig.api_key && !envKey) {
+          const envVarName =
+            llmConfig.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
           console.error(
-            "Error: No API key configured. Set api_key in memoark.yaml or OPENAI_API_KEY env var.",
+            `Error: No API key configured. Set api_key in memoark.yaml or ${envVarName} env var.`,
           );
           process.exit(1);
         }
         if (!llmConfig.api_key) {
-          llmConfig.api_key = process.env.OPENAI_API_KEY;
+          llmConfig.api_key = envKey;
         }
         provider = createLLMProvider(llmConfig);
       } else {
@@ -203,22 +191,6 @@ program
       let stores: Awaited<ReturnType<typeof createStores>> | undefined;
       if (adapter === "store") {
         stores = await createStores(config);
-      }
-
-      // Create identity resolver with feishu backend if available
-      let identityDb: Awaited<ReturnType<typeof Database.create>> | undefined;
-      let identityResolver: IdentityResolver | undefined;
-      const pg = stores?.db.pg;
-      const feishuCollector = getCollector("feishu");
-      const identityBackend =
-        feishuCollector instanceof FeishuCollector
-          ? feishuCollector.getIdentityBackend()
-          : undefined;
-      if (pg) {
-        identityResolver = new IdentityResolver(pg, identityBackend);
-      } else {
-        identityDb = await Database.create(config.store.data_dir);
-        identityResolver = new IdentityResolver(identityDb.pg, identityBackend);
       }
 
       // Parse relative since values
@@ -271,7 +243,6 @@ program
             format: format as "json" | "markdown",
             adapter: adapter as "store" | "file" | "gbrain" | "stdout",
             stores,
-            identityResolver,
             dryRun: options.dryRun || false,
             since: sinceValue,
             limit,
@@ -308,9 +279,6 @@ program
       // Close stores if they were created
       if (stores) {
         await stores.db.close();
-      }
-      if (identityDb) {
-        await identityDb.close();
       }
 
       if (anyFailed) {
@@ -349,7 +317,7 @@ program
       }
     } else {
       warnings.push(`Configuration file not found: ${configPath}`);
-      warnings.push("Create one with: memoark config init");
+      warnings.push("Create one with: memoark init");
     }
 
     // Check state directory
@@ -378,7 +346,7 @@ program
       }
 
       // Check sources
-      await bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources);
       for (const collector of getAllCollectors()) {
         const health = await collector.healthCheck();
         if (health.ok) {
@@ -421,232 +389,30 @@ program
   });
 
 /**
- * Store subcommand group
- */
-const storeCmd = program.command("store").description("Manage the local PGLite store");
-
-storeCmd
-  .command("purge-source <source>")
-  .description("Delete stored signals and incremental state for one source")
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
-  .option("--yes", "Apply the purge. Without this flag, only print the deletion plan.")
-  .option("--keep-cursor", "Keep the source cursor in .memoark/cursors.yaml")
-  .option(
-    "--keep-dedup",
-    "Keep .memoark/dedup.jsonl. Legacy dedup entries are not source-scoped, so this can skip old messages on rebuild.",
-  )
-  .action(async (source, options) => {
-    const config = loadConfig(options.config);
-    ensureStateDir();
-    const stores = await createStores(config);
-    const platform = String(source);
-
-    try {
-      const pages = await stores.db.pg.query<{ c: number }>(
-        `SELECT COUNT(*)::int AS c
-         FROM pages
-         WHERE frontmatter->'source'->>'platform' = $1
-            OR frontmatter->'first_seen'->>'platform' = $1`,
-        [platform],
-      );
-      const links = await stores.db.pg.query<{ c: number }>(
-        `SELECT COUNT(*)::int AS c
-         FROM links
-         WHERE provenance->>'platform' = $1`,
-        [platform],
-      );
-      const timeline = await stores.db.pg.query<{ c: number }>(
-        `SELECT COUNT(*)::int AS c
-         FROM timeline_entries
-         WHERE provenance->>'platform' = $1 OR source = $1`,
-        [platform],
-      );
-
-      console.log(`Source purge plan: ${platform}`);
-      console.log(`  Pages: ${pages.rows[0]?.c ?? 0}`);
-      console.log(`  Links: ${links.rows[0]?.c ?? 0}`);
-      console.log(`  Timeline entries: ${timeline.rows[0]?.c ?? 0}`);
-      if (!options.keepCursor) console.log("  Cursor: remove source cursor");
-      if (!options.keepDedup) {
-        console.log("  Dedup: reset .memoark/dedup.jsonl after backup");
-      }
-
-      if (!options.yes) {
-        console.log("\nDry run only. Re-run with --yes to apply.");
-        return;
-      }
-
-      const backups = backupStoreAndState(config);
-      if (backups.dataBackup) console.log(`Backup created: ${backups.dataBackup}`);
-      if (backups.stateBackup) console.log(`State backup created: ${backups.stateBackup}`);
-
-      await stores.db.pg.query("BEGIN");
-      const deletedTimeline = await stores.db.pg.query<{ c: number }>(
-        `WITH deleted AS (
-           DELETE FROM timeline_entries
-           WHERE provenance->>'platform' = $1 OR source = $1
-           RETURNING 1
-         )
-         SELECT COUNT(*)::int AS c FROM deleted`,
-        [platform],
-      );
-      const deletedLinks = await stores.db.pg.query<{ c: number }>(
-        `WITH deleted AS (
-           DELETE FROM links
-           WHERE provenance->>'platform' = $1
-           RETURNING 1
-         )
-         SELECT COUNT(*)::int AS c FROM deleted`,
-        [platform],
-      );
-      const deletedPages = await stores.db.pg.query<{ c: number }>(
-        `WITH deleted AS (
-           DELETE FROM pages
-           WHERE frontmatter->'source'->>'platform' = $1
-              OR frontmatter->'first_seen'->>'platform' = $1
-           RETURNING 1
-         )
-         SELECT COUNT(*)::int AS c FROM deleted`,
-        [platform],
-      );
-      await stores.db.pg.query("COMMIT");
-
-      if (!options.keepCursor) {
-        removeCursor(platform);
-      }
-      if (!options.keepDedup) {
-        writeFileSync(statePath("dedup.jsonl"), "", "utf-8");
-      }
-
-      console.log("Purge complete:");
-      console.log(`  Deleted pages: ${deletedPages.rows[0]?.c ?? 0}`);
-      console.log(`  Deleted links: ${deletedLinks.rows[0]?.c ?? 0}`);
-      console.log(`  Deleted timeline entries: ${deletedTimeline.rows[0]?.c ?? 0}`);
-    } catch (error) {
-      try {
-        await stores.db.pg.query("ROLLBACK");
-      } catch {
-        // Ignore rollback failures; the original error is more useful.
-      }
-      console.error("Purge failed:", error instanceof Error ? error.message : String(error));
-      process.exit(1);
-    } finally {
-      await stores.db.close();
-    }
-  });
-
-/**
  * Config subcommand group
  */
 const configCmd = program.command("config").description("Manage configuration");
 
 configCmd
   .command("init")
-  .description("Generate memoark.yaml template")
-  .action(() => {
-    const template = `# Memoark Configuration
-# Save this file as memoark.yaml in your project directory
-
-# Privacy configuration
-privacy:
-  enabled: true
-  mode: reversible  # reversible or irreversible
-  redact_phone: true
-  redact_id_card: true
-  redact_bank_card: true
-  redact_email: false
-  redact_url: false
-  blocked_words: []
-  replacement: "[REDACTED]"
-
-# LLM provider configuration
-llm:
-  provider: openai  # openai or mock
-  model: gpt-4o-mini
-  # base_url: https://api.openai.com/v1  # Optional, for custom endpoints
-  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
-
-# Block builder configuration
-block_builder:
-  block_gap_minutes: 30  # Gap between messages to start a new block
-  max_block_tokens: 4000  # Maximum tokens per block
-  max_block_messages: 100  # Maximum messages per block
-
-# Source configuration
-sources:
-  claude-code:
-    enabled: true
-    # base_dir: ~/.claude/projects/
-  codex:
-    enabled: true
-    # base_dir: ~/.codex/
-  hermes:
-    enabled: true
-    # base_dir: ~/.openclaw/agents/
-  feishu:
-    enabled: false
-    app_id: \${FEISHU_APP_ID}
-    app_secret: \${FEISHU_APP_SECRET}
-    # base_url: https://open.feishu.cn  # Optional, defaults to feishu.cn
-    # rate_limit_qps: 5
-    sources:
-      messages:
-        enabled: false
-        chat_ids: []
-        # lookback_days: 30
-      calendar:
-        enabled: false
-        calendar_ids: []
-      docs:
-        enabled: false
-        doc_folders: []
-      tasks:
-        enabled: false
-      dm:
-        enabled: false
-        dm_chat_ids: []
-        self_open_id: ""
-      message_search:
-        enabled: false
-        chat_types:
-          - p2p
-        # lookback_days: 3
-        # page_size: 50
-
-# Adapter configuration
-adapters:
-  file:
-    enabled: false
-    output_dir: ./output
-  gbrain:
-    enabled: false
-    output_dir: ./gbrain-output
-
-# Store (PGLite embedded PostgreSQL)
-store:
-  data_dir: ~/.memoark/data
-
-# Embedding configuration
-embedding:
-  provider: ollama
-  model: nomic-embed-text
-  dimensions: 768
-  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
-  # base_url: http://localhost:11434  # For Ollama
-
-# Server configuration
-server:
-  http_port: 3927
-`;
-
-    const outputPath = resolve(process.cwd(), "memoark.yaml");
-    writeFileSync(outputPath, template, "utf-8");
-    console.log(`✓ Configuration template created: ${outputPath}`);
-    console.log("");
-    console.log("Next steps:");
-    console.log("  1. Edit memoark.yaml with your configuration");
-    console.log("  2. Set LLM API key environment variable (OPENAI_API_KEY or ANTHROPIC_API_KEY)");
-    console.log("  3. Run: memoark extract --source claude-code");
+  .description("Generate memoark.yaml (alias for 'memoark init')")
+  .option("--auto", "Automatic mode, no prompts")
+  .option("--force", "Overwrite existing configuration")
+  .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .option("--no-tui", "Use non-TUI fallback")
+  .action(async (options) => {
+    try {
+      const { runInit } = await import("./setup/index.js");
+      await runInit({
+        auto: options.auto,
+        force: options.force,
+        configPath: options.config,
+        tui: options.tui,
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
   });
 
 /**
@@ -678,7 +444,7 @@ sourcesCmd
   .action(async (name, options) => {
     try {
       const config = loadConfig(options.config);
-      await bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources);
 
       const collector = getCollector(name);
       if (!collector) {
@@ -705,134 +471,17 @@ program
   .description("Start Memoark HTTP API or MCP stdio server")
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
-  .option("--no-fetch", "Disable auto-fetch scheduler")
-  .option("--fetch-only", "Run scheduler only, no HTTP/MCP server")
   .action(async (options) => {
     const config = loadConfig(options.config);
     const stores = await createStores(config);
-
     if (options.mcp) {
       const server = createMcpServer(stores);
       await server.connect(new StdioServerTransport());
       return;
     }
-
-    // --- Scheduler integration ---
-    const { Scheduler, RunHistory, DaemonLogger, AlertWriter, classifyResult } = await import(
-      "./daemon/index.js"
-    );
-    const { createPipelineRuntime } = await import("./core/pipeline-factory.js");
-
-    let scheduler: InstanceType<typeof Scheduler> | undefined;
-    const schedulerConfig = config.scheduler;
-
-    if (schedulerConfig?.enabled && options.fetch !== false) {
-      await bootstrapCollectors(config.sources);
-      ensureStateDir();
-
-      const dataDir = config.store.data_dir.replace(/^~/, homedir());
-      const stateDir = resolve(dataDir, "..");
-      const runtime = await createPipelineRuntime(config, stores.db.pg, stateDir);
-      const history = new RunHistory(stateDir);
-      const logger = new DaemonLogger(stateDir);
-      const alertWriter = new AlertWriter(new PageStore(stores.db.pg));
-
-      scheduler = new Scheduler(schedulerConfig, stateDir);
-
-      scheduler.setRunSource(async (sourceId: string) => {
-        const collector = getCollector(sourceId);
-        if (!collector) throw new Error(`Unknown source: ${sourceId}`);
-        const result = await runPipeline(runtime.config, {
-          source: collector,
-          provider: runtime.provider,
-          format: "json" as const,
-          adapter: "store" as const,
-          stores,
-          identityResolver: runtime.identity_resolver,
-        });
-        if (result.okBlocks > 0) {
-          await stores.embedding.embedStale();
-        }
-        return result;
-      });
-
-      scheduler.setOnTick(
-        (
-          sourceId: string,
-          result: import("./core/pipeline.js").PipelineResult,
-          duration_ms: number,
-        ) => {
-          const classified = classifyResult(result);
-          logger.log(
-            classified === "failed" ? "error" : "info",
-            sourceId,
-            `${classified} — ${result.okBlocks}ok/${result.failedBlocks}fail, ${duration_ms}ms`,
-          );
-          history.append({
-            ts: Date.now(),
-            source: sourceId,
-            result: classified,
-            msgs: result.totalMessages,
-            blocks: result.totalBlocks,
-            ok: result.okBlocks,
-            skipped: result.skippedBlocks,
-            failed: result.failedBlocks,
-            duration_ms,
-          });
-          alertWriter.update(scheduler?.getAlertDetails() ?? []);
-        },
-      );
-    }
-
-    const cleanup = () => {
-      scheduler?.stop();
-      process.exit(0);
-    };
-    process.on("SIGINT", cleanup);
-    process.on("SIGTERM", cleanup);
-
-    if (options.fetchOnly) {
-      if (scheduler) {
-        await scheduler.start();
-        console.log(`Scheduler started — ${scheduler.getSourceIds().length} sources`);
-      }
-      console.log("Memoark fetch-only daemon running. Press Ctrl+C to stop.");
-      await new Promise(() => {});
-      return;
-    }
-
-    // --- HTTP server (start BEFORE scheduler so port is immediately available) ---
-    const { Hono } = await import("hono");
-    const { serveStatic } = await import("hono/bun");
-    const { readFileSync: readFile } = await import("node:fs");
-    const api = createApiApp(stores);
-    const app = new Hono();
-    app.route("/api", api);
-
-    const distDir = "./web/dist";
-    const hasFrontend = existsSync(`${distDir}/index.html`);
-
-    if (hasFrontend) {
-      app.use("/assets/*", serveStatic({ root: distDir }));
-
-      app.get("*", (c) => {
-        if (c.req.path.startsWith("/api/")) {
-          return c.json({ error: "Not found" }, 404);
-        }
-        return c.html(readFile(`${distDir}/index.html`, "utf-8"));
-      });
-    }
-
+    const app = createApiApp(stores);
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
-    console.log(
-      `Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}${scheduler ? " (scheduler active)" : ""}`,
-    );
-
-    // Start scheduler AFTER HTTP is ready
-    if (scheduler) {
-      await scheduler.start();
-      console.log(`Scheduler started — ${scheduler.getSourceIds().length} sources`);
-    }
+    console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
   });
 
 program
@@ -866,121 +515,6 @@ program
     });
     console.log(`Embedded ${result.embedded} chunks, errors ${result.errors}`);
     await stores.db.close();
-  });
-
-/**
- * Daemon subcommand group
- */
-const daemon = program.command("daemon").description("Manage background fetch daemon");
-
-daemon
-  .command("start")
-  .description("Start daemon in background (detached)")
-  .option("-c, --config <path>", "Path to config file")
-  .action(async (options) => {
-    const { spawn } = await import("node:child_process");
-    const args = [process.argv[1], "serve", "--fetch-only"];
-    if (options.config) args.push("-c", options.config);
-
-    const child = spawn(process.execPath, args, {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.unref();
-
-    const config = loadConfig(options.config);
-    const dataDir = config.store.data_dir.replace(/^~/, homedir());
-    const stateDir = resolve(dataDir, "..");
-    mkdirSync(stateDir, { recursive: true });
-    writeFileSync(join(stateDir, "daemon.pid"), String(child.pid));
-    console.log(`Daemon started (PID: ${child.pid})`);
-  });
-
-daemon
-  .command("stop")
-  .description("Stop the running daemon")
-  .option("-c, --config <path>", "Path to config file")
-  .action(async (options) => {
-    const config = loadConfig(options.config);
-    const dataDir = config.store.data_dir.replace(/^~/, homedir());
-    const stateDir = resolve(dataDir, "..");
-    const pidFile = join(stateDir, "daemon.pid");
-
-    if (!existsSync(pidFile)) {
-      console.log("No daemon PID file found. Is the daemon running?");
-      return;
-    }
-
-    const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-    try {
-      process.kill(pid, "SIGTERM");
-      unlinkSync(pidFile);
-      console.log(`Daemon stopped (PID: ${pid})`);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ESRCH") {
-        unlinkSync(pidFile);
-        console.log("Daemon was not running (stale PID file removed)");
-      } else {
-        throw err;
-      }
-    }
-  });
-
-daemon
-  .command("restart")
-  .description("Restart the daemon")
-  .option("-c, --config <path>", "Path to config file")
-  .action(async (options) => {
-    await daemon.commands
-      .find((c: any) => c.name() === "stop")
-      ?.parseAsync(["-c", options.config || ""].filter(Boolean), { from: "user" });
-    await new Promise((r) => setTimeout(r, 500));
-    await daemon.commands
-      .find((c: any) => c.name() === "start")
-      ?.parseAsync(["-c", options.config || ""].filter(Boolean), { from: "user" });
-  });
-
-daemon
-  .command("status")
-  .description("Show scheduler status and recent run history")
-  .option("-c, --config <path>", "Path to config file")
-  .action(async (options) => {
-    const config = loadConfig(options.config);
-    const dataDir = config.store.data_dir.replace(/^~/, homedir());
-    const stateDir = resolve(dataDir, "..");
-    const statePath = join(stateDir, "scheduler-state.json");
-
-    if (!existsSync(statePath)) {
-      console.log("No scheduler state found. Has the daemon run?");
-      return;
-    }
-
-    const state = JSON.parse(readFileSync(statePath, "utf-8"));
-
-    const uptime = Date.now() - state.daemon_started_at;
-    const uptimeHrs = (uptime / 3600000).toFixed(1);
-    const lastHb = new Date(state.last_heartbeat_at).toLocaleString();
-    console.log(`Daemon uptime: ${uptimeHrs}h | Last heartbeat: ${lastHb}\n`);
-
-    console.log("Sources:");
-    for (const [id, s] of Object.entries(state.sources) as Array<[string, any]>) {
-      const lastRun = s.last_run_at ? new Date(s.last_run_at).toLocaleString() : "never";
-      const status =
-        s.consecutive_failures > 0
-          ? `FAILING (${s.consecutive_failures}x)`
-          : s.consecutive_partials > 0
-            ? `PARTIAL (${s.consecutive_partials}x)`
-            : "OK";
-      const error = s.last_error ? ` — ${s.last_error}` : "";
-      console.log(`  ${id}: ${status} | last: ${lastRun}${error}`);
-    }
-
-    const { RunHistory } = await import("./daemon/run-history.js");
-    const history = new RunHistory(stateDir);
-    const stats = history.stats24h();
-    console.log(
-      `\n24h stats: ${stats.total_runs} runs, ${stats.total_msgs} msgs, ${stats.ok_blocks}ok/${stats.skipped_blocks}skip/${stats.failed_blocks}fail blocks`,
-    );
   });
 
 program.parse(process.argv);

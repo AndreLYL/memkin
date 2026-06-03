@@ -21,13 +21,11 @@ export class EmbeddingService {
     config: EmbeddingConfig,
   ) {
     this.model = config.model ?? "text-embedding-3-large";
-    this.dimensions = config.dimensions ?? 768;
+    this.dimensions = config.dimensions ?? 1536;
+    const isOllama = config.provider === "ollama";
     this.client = new OpenAI({
-      apiKey: config.apiKey ?? "",
-      baseURL:
-        config.provider === "ollama"
-          ? (config.baseUrl ?? "http://localhost:11434/v1")
-          : config.baseUrl,
+      apiKey: isOllama ? (config.apiKey ?? "ollama") : (config.apiKey ?? ""),
+      baseURL: isOllama ? (config.baseUrl ?? "http://localhost:11434/v1") : config.baseUrl,
     });
   }
 
@@ -66,11 +64,7 @@ export class EmbeddingService {
           );
           embedded++;
         }
-      } catch (err) {
-        console.error(
-          `embedding: batch ${i}-${i + batch.length} failed:`,
-          err instanceof Error ? err.message : err,
-        );
+      } catch (_err) {
         errors += batch.length;
       }
     }

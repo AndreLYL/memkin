@@ -1,8 +1,8 @@
 // src/collectors/agent/collector.ts
 import * as fs from "node:fs/promises";
 import fg from "fast-glob";
-import type { Collector, FetchOpts, RawMessage } from "../../core/types";
-import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types";
+import type { Collector, FetchOpts, RawMessage } from "../../core/types.js";
+import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types.js";
 
 export class AgentSessionCollector implements Collector {
   readonly id: string;

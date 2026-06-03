@@ -1,6 +1,6 @@
-import type { FeishuAuthManager } from "./auth";
-import type { FeishuRateLimiter } from "./rate-limiter";
-import { FeishuApiError } from "./types";
+import type { FeishuAuthManager } from "./auth.js";
+import type { FeishuRateLimiter } from "./rate-limiter.js";
+import { FeishuApiError } from "./types.js";
 
 const BASE_URL = "https://open.feishu.cn";
 const MAX_RETRIES = 3;

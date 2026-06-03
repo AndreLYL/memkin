@@ -111,6 +111,20 @@ describe("HermesParser", () => {
     expect(msg?.metadata?.agent_name).toBe("researcher");
   });
 
+  it("should extract agent_name from Windows filePath", () => {
+    const ctx: SessionParseContext = {
+      ...baseContext,
+      filePath: "C:\\Users\\me\\.openclaw\\agents\\researcher\\sessions\\abc.jsonl",
+    };
+    const line = {
+      type: "message",
+      message: { role: "user", content: [{ type: "text", text: "hello" }] },
+      timestamp: "2024-02-01T14:00:00Z",
+    };
+    const msg = parser.parseRecord(line, ctx);
+    expect(msg?.metadata?.agent_name).toBe("researcher");
+  });
+
   it("should return null for assistant message with no text content", () => {
     const line = {
       type: "message",

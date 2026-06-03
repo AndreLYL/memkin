@@ -1,8 +1,8 @@
-import type { RawMessage } from "../../../core/types";
-import type { CursorStaging } from "../cursor-staging";
-import type { IFeishuHttpClient } from "../http-client";
-import type { FeishuMessage, SourceCheckpoint } from "../types";
-import type { FeishuSource } from "./base";
+import type { RawMessage } from "../../../core/types.js";
+import type { CursorStaging } from "../cursor-staging.js";
+import type { FeishuHttpClient } from "../http-client.js";
+import type { FeishuMessage, SourceCheckpoint } from "../types.js";
+import type { FeishuSource } from "./base.js";
 
 interface MessageSourceOpts {
   lookbackDays: number;
@@ -14,7 +14,7 @@ export class MessageSource implements FeishuSource {
   private readonly overlapMs: number;
 
   constructor(
-    private readonly client: IFeishuHttpClient,
+    private readonly client: FeishuHttpClient,
     private readonly chatIds: string[],
     private readonly opts: MessageSourceOpts,
   ) {
@@ -25,59 +25,39 @@ export class MessageSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
-    const chatResults = await Promise.allSettled(
-      this.chatIds.map((chatId) => this.fetchChat(checkpoint, chatId)),
-    );
+    for (const chatId of this.chatIds) {
+      try {
+        const startMs = this.resolveStartTime(checkpoint, chatId);
+        const endMs = Date.now();
+        const startSec = Math.floor((startMs - this.overlapMs) / 1000).toString();
+        const endSec = Math.floor(endMs / 1000).toString();
 
-    for (let i = 0; i < this.chatIds.length; i++) {
-      const chatId = this.chatIds[i];
-      const settled = chatResults[i];
+        let maxCreateTime = 0;
 
-      if (settled.status === "rejected") {
-        console.error(`[MessageSource] Failed to fetch chat ${chatId}:`, settled.reason);
-        continue;
-      }
+        for await (const page of this.client.paginate<FeishuMessage>("/open-apis/im/v1/messages", {
+          container_id_type: "chat",
+          container_id: chatId,
+          start_time: startSec,
+          end_time: endSec,
+        })) {
+          for (const msg of page.items) {
+            const createTimeMs = Number.parseInt(msg.create_time, 10);
+            if (createTimeMs > maxCreateTime) {
+              maxCreateTime = createTimeMs;
+            }
 
-      const { messages, maxCreateTime } = settled.value;
-      for (const msg of messages) {
-        yield msg;
-      }
-
-      if (maxCreateTime > 0) {
-        cursorStaging.stage("messages", chatId, { last_sync_at: maxCreateTime });
-        cursorStaging.commit("messages", chatId);
-      }
-    }
-  }
-
-  private async fetchChat(
-    checkpoint: SourceCheckpoint | null,
-    chatId: string,
-  ): Promise<{ messages: RawMessage[]; maxCreateTime: number }> {
-    const startMs = this.resolveStartTime(checkpoint, chatId);
-    const endMs = Date.now();
-    const startSec = Math.floor((startMs - this.overlapMs) / 1000).toString();
-    const endSec = Math.floor(endMs / 1000).toString();
-
-    const messages: RawMessage[] = [];
-    let maxCreateTime = 0;
-
-    for await (const page of this.client.paginate<FeishuMessage>("/open-apis/im/v1/messages", {
-      container_id_type: "chat",
-      container_id: chatId,
-      start_time: startSec,
-      end_time: endSec,
-    })) {
-      for (const msg of page.items) {
-        const createTimeMs = Number.parseInt(msg.create_time, 10);
-        if (createTimeMs > maxCreateTime) {
-          maxCreateTime = createTimeMs;
+            yield this.mapMessage(msg, chatId);
+          }
         }
-        messages.push(this.mapMessage(msg, chatId));
+
+        if (maxCreateTime > 0) {
+          cursorStaging.stage("messages", chatId, { last_sync_at: maxCreateTime });
+          cursorStaging.commit("messages", chatId);
+        }
+      } catch (err) {
+        console.error(`[MessageSource] Failed to fetch chat ${chatId}:`, err);
       }
     }
-
-    return { messages, maxCreateTime };
   }
 
   async healthCheck(): Promise<boolean> {

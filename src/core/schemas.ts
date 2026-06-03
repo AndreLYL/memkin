@@ -3,27 +3,45 @@
  * Corresponds to types in types.ts but with runtime validation
  */
 
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { ExtractionResult, SignificanceVerdict } from "./types.js";
 
 // Base schemas
 export const SignalConfidenceSchema = z.enum(["direct", "paraphrased", "inferred", "speculative"]);
 
+// Coerce null → undefined for optional string fields (LLM sometimes outputs null)
+const optionalString = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v == null ? undefined : v));
+
+// Accept both full ISO datetime and date-only strings like "2026-05-27"
+const optionalDatetime = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v, ctx) => {
+    if (v == null) return undefined;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const normalized = `${v}T00:00:00.000Z`;
+      if (!Number.isNaN(Date.parse(normalized))) return normalized;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(v) && !Number.isNaN(Date.parse(v))) {
+      return v;
+    }
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid ISO 8601 datetime" });
+    return z.NEVER;
+  });
+
 export const SourceRefSchema = z.object({
   platform: z.string(),
   channel: z.string(),
-  channel_name: z.string().optional(),
-  timestamp: z.string(),
-  start_time: z.string().optional(),
-  end_time: z.string().optional(),
-  message_id: z.string().optional(),
-  message_ids: z.array(z.string()).optional(),
-  thread_id: z.string().optional(),
-  file_path: z.string().optional(),
+  timestamp: z.string().default(() => new Date().toISOString()),
+  message_id: optionalString,
+  thread_id: optionalString,
+  file_path: optionalString,
   line_range: z.object({ start: z.number(), end: z.number() }).optional(),
-  attachment_id: z.string().optional(),
-  url: z.string().optional(),
+  attachment_id: optionalString,
+  url: optionalString,
   raw_hash: z.string().default(""),
   quote: z.string().default(""),
 });
@@ -45,23 +63,21 @@ export const TimelineEntrySchema = z.object({
   confidence: SignalConfidenceSchema,
 });
 
-const KNOWN_LINK_TYPES = [
+const VALID_LINK_TYPES = [
   "works_on",
   "works_at",
   "reports_to",
   "collaborates",
   "depends_on",
   "mentions",
-  "approves",
-  "uses",
   "custom",
 ] as const;
 
 export const LinkTypeSchema = z
   .string()
-  .transform((v) =>
-    (KNOWN_LINK_TYPES as readonly string[]).includes(v) ? v : "custom",
-  ) as unknown as z.ZodType<(typeof KNOWN_LINK_TYPES)[number]>;
+  .transform((val) =>
+    (VALID_LINK_TYPES as readonly string[]).includes(val) ? val : "custom",
+  ) as z.ZodType<(typeof VALID_LINK_TYPES)[number]>;
 
 export const LinkSchema = z.object({
   from: z.string(), // entity slug
@@ -69,17 +85,26 @@ export const LinkSchema = z.object({
   type: LinkTypeSchema,
   context: z.string(),
   confidence: SignalConfidenceSchema,
-  source: SourceRefSchema,
+  source: SourceRefSchema.optional().transform(
+    (v) =>
+      v ?? {
+        platform: "",
+        channel: "",
+        timestamp: new Date().toISOString(),
+        raw_hash: "",
+        quote: "",
+      },
+  ),
 });
 
 export const DecisionSchema = z.object({
   summary: z.string(),
-  reasoning: z.string().optional(),
+  reasoning: optionalString,
   alternatives: z.array(z.string()).optional(),
-  entities: z.array(z.string()), // slugs
-  date: z.string(), // ISO 8601
-  valid_at: z.string().optional(), // ISO 8601
-  invalid_at: z.string().optional(), // ISO 8601
+  entities: z.array(z.string()),
+  date: z.string(),
+  valid_at: optionalDatetime,
+  invalid_at: optionalDatetime,
   confidence: SignalConfidenceSchema,
   source: SourceRefSchema,
 });
@@ -87,25 +112,19 @@ export const DecisionSchema = z.object({
 export const TaskSignalSchema = z.object({
   title: z.string(),
   status: z.enum(["open", "in_progress", "done", "cancelled"]),
-  owner: z.string().optional(),
-  project: z.string().optional(),
-  due_date: z.string().optional(), // ISO 8601
-  valid_at: z.string().optional(), // ISO 8601
-  invalid_at: z.string().optional(), // ISO 8601
+  owner: optionalString,
+  project: optionalString,
+  due_date: optionalDatetime,
+  valid_at: optionalDatetime,
+  invalid_at: optionalDatetime,
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
 });
 
-const KNOWN_DISCOVERY_TYPES = ["procedure", "preference", "pattern", "insight", "risk"] as const;
-
 export const DiscoverySchema = z.object({
   summary: z.string(),
   detail: z.string().optional(),
-  type: z
-    .string()
-    .transform((v) =>
-      (KNOWN_DISCOVERY_TYPES as readonly string[]).includes(v) ? v : "insight",
-    ) as unknown as z.ZodType<(typeof KNOWN_DISCOVERY_TYPES)[number]>,
+  type: z.enum(["procedure", "preference", "pattern", "insight"]),
   entities: z.array(z.string()), // slugs
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
@@ -119,9 +138,7 @@ function normalizeTopicSlug(raw: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-  if (slug.length >= 3) return slug;
-  const hash = createHash("sha256").update(raw).digest("hex").slice(0, 12);
-  return slug ? `${slug}-${hash}` : hash;
+  return slug || "uncategorized";
 }
 
 export const KnowledgeSchema = z
@@ -130,8 +147,8 @@ export const KnowledgeSchema = z
     content: z.string().min(1),
     source_type: KnowledgeSourceTypeSchema,
     related_entities: z.array(z.string()),
-    valid_at: z.string().optional(),
-    invalid_at: z.string().optional(),
+    valid_at: optionalDatetime,
+    invalid_at: optionalDatetime,
     source: SourceRefSchema,
     confidence: SignalConfidenceSchema,
   })

@@ -43,7 +43,7 @@ LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、
 
 ### 前置条件
 
-- [Bun](https://bun.sh) >= 1.0.0
+- [Bun](https://bun.sh) >= 1.0.0 — 安装命令：`curl -fsSL https://bun.sh/install | bash`
 - （可选）[Ollama](https://ollama.ai) 本地嵌入
 
 ### 安装
@@ -52,37 +52,43 @@ LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、
 git clone https://github.com/AndreLYL/memoark.git
 cd memoark
 bun install
+npm link          # 注册 memoark 全局命令
 ```
 
 ### 初始化配置
 
-```bash
-bun src/cli.ts config init
-```
-
-设置 LLM API key：
+运行交互式向导 — 自动检测数据源、硬件配置，引导完成 LLM + Embedding 配置：
 
 ```bash
-export OPENAI_API_KEY=your-api-key
+memoark init
 ```
+
+向导会自动完成：
+- 检测本机已有的数据源（Claude Code、Codex、Hermes）
+- 评估硬件配置，推荐本地（Ollama）或远程（OpenAI）Embedding
+- 引导配置 LLM provider / model / API key，并测试连通性
+- 自动注册 `memoark` 命令（如未完成）
 
 ### 检查环境
 
 ```bash
-bun src/cli.ts doctor
+memoark doctor
 ```
 
 ### 运行提取
 
 ```bash
-# 从 Claude Code 提取，直接存入 PGLite
-bun src/cli.ts extract --source claude-code
+# 从 Claude Code 提取
+memoark extract --source claude-code
 
-# 从所有数据源提取
-bun src/cli.ts extract --source all
+# 从 Codex 提取
+memoark extract --source codex
 
-# 干跑模式（不调用 LLM）
-bun src/cli.ts extract --source claude-code --dry-run
+# 从所有启用的数据源提取
+memoark extract --source all
+
+# 干跑模式（不调用 LLM，仅扫描数据量）
+memoark extract --source claude-code --dry-run
 ```
 
 ### 飞书私聊/群聊提取
@@ -158,20 +164,20 @@ bun src/cli.ts extract --source feishu --adapter store --since 3d
 
 ```bash
 # 混合搜索（全文 + 向量）
-bun src/cli.ts search "认证中间件决策"
+memoark search "认证中间件决策"
 
 # 仅全文搜索
-bun src/cli.ts search "JWT token" --mode fts
+memoark search "JWT token" --mode fts
 ```
 
 ### 启动服务器
 
 ```bash
-# HTTP API
-bun src/cli.ts serve
+# HTTP API（默认端口 3927）
+memoark serve
 
-# MCP stdio（AI Agent 集成）
-bun src/cli.ts serve --mcp
+# MCP stdio（AI Agent 集成 — Claude Code、Cursor 等）
+memoark serve --mcp
 ```
 
 ## 架构

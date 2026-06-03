@@ -77,7 +77,7 @@ One system, multiple sources. Currently supports AI agent sessions (Claude Code,
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) >= 1.0.0
+- [Bun](https://bun.sh) >= 1.0.0 — install with `curl -fsSL https://bun.sh/install | bash`
 - (Optional) [Ollama](https://ollama.ai) for local embeddings
 
 ### Installation
@@ -86,60 +86,64 @@ One system, multiple sources. Currently supports AI agent sessions (Claude Code,
 git clone https://github.com/AndreLYL/memoark.git
 cd memoark
 bun install
+npm link          # registers the `memoark` command globally
 ```
 
 ### Initialize Configuration
 
-```bash
-bun src/cli.ts config init
-```
-
-Edit `memoark.yaml` and set your LLM API key:
+Run the interactive setup wizard — it auto-detects your data sources, hardware, and guides you through LLM + embedding configuration:
 
 ```bash
-export OPENAI_API_KEY=your-api-key
+memoark init
 ```
+
+The wizard will:
+- Detect available data sources (Claude Code, Codex, Hermes)
+- Assess your hardware to recommend local (Ollama) or remote (OpenAI) embedding
+- Guide you through LLM provider / model / API key setup
+- Test the connection before saving
+- Register the `memoark` command if not already done
 
 ### Check Environment
 
 ```bash
-bun src/cli.ts doctor
+memoark doctor
 ```
 
 ### Run Your First Extraction
 
 ```bash
-# Extract from Claude Code and store directly to PGLite
-bun src/cli.ts extract --source claude-code
+# Extract from Claude Code
+memoark extract --source claude-code
 
-# Extract from Feishu
-bun src/cli.ts extract --source feishu
+# Extract from Codex
+memoark extract --source codex
 
-# Extract from all sources
-bun src/cli.ts extract --source all
+# Extract from all enabled sources
+memoark extract --source all
 
-# Dry run (no LLM calls)
-bun src/cli.ts extract --source claude-code --dry-run
+# Dry run (no LLM calls, just scan data volume)
+memoark extract --source claude-code --dry-run
 ```
 
 ### Search Your Memory
 
 ```bash
 # Hybrid search (FTS + vector)
-bun src/cli.ts search "auth middleware decision"
+memoark search "auth middleware decision"
 
 # FTS-only search
-bun src/cli.ts search "JWT token" --mode fts
+memoark search "JWT token" --mode fts
 ```
 
 ### Start the Server
 
 ```bash
-# HTTP API
-bun src/cli.ts serve
+# HTTP API (default port 3927)
+memoark serve
 
-# MCP stdio (for AI agent integration)
-bun src/cli.ts serve --mcp
+# MCP stdio (for AI agent integration — Claude Code, Cursor, etc.)
+memoark serve --mcp
 ```
 
 ## Architecture
@@ -336,29 +340,6 @@ sources:
     enabled: true
   hermes:
     enabled: true
-  feishu:
-    enabled: false
-    app_id: ${FEISHU_APP_ID}
-    app_secret: ${FEISHU_APP_SECRET}
-    auth_mode: bot               # bot | user
-    sources:
-      messages:
-        enabled: true
-        chat_ids: []             # empty = auto-discover all joined groups
-        lookback_days: 30
-      calendar:
-        enabled: false
-        calendar_ids: []
-      docs:
-        enabled: false
-        doc_folders: []
-      tasks:
-        enabled: false
-      dm:
-        enabled: false
-        dm_chat_ids: []
-      mail:
-        enabled: false           # user mode only
 
 # Store (PGLite)
 store:
@@ -401,12 +382,9 @@ Extracts session data from OpenClaw Hermes agents.
 
 ### Feishu (Lark)
 
-Extracts data from Feishu/Lark workplace platform via Open API.
+Extracts messages from Feishu/Lark workplace platform.
 
-- **Auth**: Bot mode (app credentials) or User mode (lark-cli OAuth)
-- **Sources**: Group messages, DMs, calendar events, cloud docs/wiki, tasks, mail
-- **Features**: Auto-discovery of chat IDs, incremental sync via cursor checkpoints, identity resolution (OpenID → display name), rate limiting (50 QPS token bucket), automatic pagination, retry with exponential backoff
-- **User mode extras**: DM direction detection, mail extraction (user_access_token required)
+- **Data**: Group messages, DMs, calendar events, docs, tasks
 
 ## Roadmap
 
@@ -433,17 +411,15 @@ Extracts data from Feishu/Lark workplace platform via Open API.
 - [x] MCP Server with 17 stdio tools
 - [x] CLI serve, search, embed commands
 
-### Phase 3 — Query & Interface (In Progress)
+### Phase 3 — Query & Interface (Next)
 
 - [ ] Natural language Q&A over stored memories
-- [x] Web UI — Timeline view
-- [x] Web UI — Knowledge graph visualization
-- [x] Web UI — Dashboard, Search, Page detail
+- [ ] Web UI — Timeline view
+- [ ] Web UI — Knowledge graph visualization
 
 ### Phase 4 — New Data Sources
 
 - [ ] WeChat chat history
-- [ ] Signal / Telegram
 - [ ] More platforms based on community demand
 
 ## Tech Stack
@@ -458,7 +434,7 @@ Extracts data from Feishu/Lark workplace platform via Open API.
 | Web Framework | Hono |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| Tests | Vitest (675+ tests) |
+| Tests | Vitest (800+ tests) |
 
 ## Development
 
