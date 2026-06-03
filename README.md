@@ -97,6 +97,21 @@ Start a Claude Code session and ask *"what's the current state of the memoark pr
 **Auto-written work log**
 Browse your timeline like a diary that writes itself — what you decided, what you shipped, and across which platforms.
 
+## Why Memoark
+
+| | Memoark | Pure RAG / vector search | Note apps (Obsidian / Notion) | GBrain | OpenHuman |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Local-first & private | ✅ | depends | depends | ✅ | ✅ |
+| Open source | ✅ | varies | partial | partial | ✅ |
+| Feishu work capture (DM/group/email/meeting/task) | ✅ | ❌ | manual | ❌ | ❌ |
+| AI-agent sessions as a source | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Agent-native: read **and** write over MCP | ✅ | ❌ | ❌ | ✅ | partial |
+| Entity + relationship knowledge graph | ✅ | ❌ | manual | ✅ | partial |
+| Structured signal extraction (not just chunks) | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Focused MCP surface (17 tools, not 40+) | ✅ | n/a | n/a | ❌ (40+) | varies |
+
+> Pure RAG gives you vectors but no entities or relationships, so answers lack context. Note apps are powerful but rely on manual upkeep. GBrain is capable but heavy, with a sprawling MCP surface. Memoark keeps it local, focused, and agent-native — with Feishu work as a first-class source.
+
 ## Quick Start
 
 ### Prerequisites
@@ -549,6 +564,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and guidelines.
 ## Contributing
 
 Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
+
+## Community & Support
+
+- 🐛 Found a bug or have a feature request? [Open an issue](https://github.com/AndreLYL/memoark/issues).
+- 💡 Questions and ideas are welcome in the issue tracker.
 
 ## License
 
