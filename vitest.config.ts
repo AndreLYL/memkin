@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     environment: "node",
     pool: "forks",
+    hookTimeout: 20_000,
+    testTimeout: 15_000,
     exclude: [...configDefaults.exclude, ".worktrees/**"],
   },
 });

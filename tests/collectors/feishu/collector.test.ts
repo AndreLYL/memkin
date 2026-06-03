@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFeishuCollector, FeishuCollector } from "../../../src/collectors/feishu/collector";
+import { createFeishuCollector } from "../../../src/collectors/feishu/collector";
 import type { FeishuCollectorConfig } from "../../../src/collectors/feishu/types";
 import type { RawMessage } from "../../../src/core/types";
 
