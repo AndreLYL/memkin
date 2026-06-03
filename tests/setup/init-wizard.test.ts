@@ -2,8 +2,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Readable, Writable } from "node:stream";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getConfigPath, isFirstRun, runInit } from "../../src/setup/init-wizard.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getConfigPath, isFirstRun, runInit, shouldUseTui } from "../../src/setup/init-wizard.js";
 
 const OPENAI_API_KEY_PLACEHOLDER = "$" + "{OPENAI_API_KEY}";
 
@@ -77,15 +77,39 @@ describe("init wizard", () => {
 
   it("runs the interactive flow with injected input", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ choices: [{ message: { content: "ok" } }] }),
+    }) as unknown as typeof fetch;
     const input = Readable.from(["\n", "\n", "\n", "\n", "\n", "\n", "\n"]);
     const output = new MemoryWritable();
 
-    await runInit({ input, output });
+    try {
+      await runInit({ input, output });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
 
     const yaml = readFileSync("memoark.yaml", "utf-8");
     expect(yaml).toContain("provider: openai");
     expect(yaml).toContain("model: gpt-4o-mini");
     expect(yaml).toContain(`api_key: ${OPENAI_API_KEY_PLACEHOLDER}`);
     expect(output.text()).toContain("Welcome to Memoark Setup");
+  });
+
+  it("selects TUI only for TTY interactive init", () => {
+    const ttyInput = { isTTY: true } as NodeJS.ReadStream;
+    const ttyOutput = { isTTY: true } as NodeJS.WriteStream;
+    const pipeInput = { isTTY: false } as NodeJS.ReadStream;
+    const pipeOutput = { isTTY: false } as NodeJS.WriteStream;
+
+    expect(shouldUseTui({ auto: true }, ttyInput, ttyOutput, {})).toBe(false);
+    expect(shouldUseTui({ tui: false }, ttyInput, ttyOutput, {})).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMOARK_NO_TUI: "1" })).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMOARK_NO_TUI: "true" })).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMOARK_NO_TUI: "yes" })).toBe(false);
+    expect(shouldUseTui({}, pipeInput, ttyOutput, {})).toBe(false);
+    expect(shouldUseTui({}, ttyInput, pipeOutput, {})).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, {})).toBe(true);
   });
 });

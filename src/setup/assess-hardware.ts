@@ -97,9 +97,7 @@ export function detectHardware(): HardwareProfile {
   else if (platform === "linux") gpuName = detectGpuLinux();
   else if (platform === "win32") gpuName = detectGpuWindows();
 
-  const hasNvidiaGpu = Boolean(
-    gpuName && /nvidia/i.test(gpuName)
-  );
+  const hasNvidiaGpu = Boolean(gpuName && /nvidia/i.test(gpuName));
 
   return { cpuModel, cpuCores, memoryGB, hasAppleSilicon, hasNvidiaGpu, gpuName, arch, platform };
 }
@@ -152,10 +150,10 @@ export function estimateDataVolume(sources: DetectedSource[]): DataVolumeEstimat
 
 // Benchmarks (seconds per chunk on each hardware type)
 const SECONDS_PER_CHUNK: Record<string, number> = {
-  apple_silicon: 0.05,  // M1/M2/M3 Metal GPU — very fast
-  nvidia_gpu: 0.08,     // NVIDIA CUDA
-  intel_cpu: 0.8,       // Intel CPU only — slow
-  amd_cpu: 0.6,         // AMD CPU only
+  apple_silicon: 0.05, // M1/M2/M3 Metal GPU — very fast
+  nvidia_gpu: 0.08, // NVIDIA CUDA
+  intel_cpu: 0.8, // Intel CPU only — slow
+  amd_cpu: 0.6, // AMD CPU only
   other: 1.0,
 };
 
@@ -167,17 +165,14 @@ function getSecondsPerChunk(hw: HardwareProfile): number {
   return SECONDS_PER_CHUNK.other;
 }
 
-export function assessEmbedding(
-  hw: HardwareProfile,
-  data: DataVolumeEstimate,
-): AssessmentResult {
+export function assessEmbedding(hw: HardwareProfile, data: DataVolumeEstimate): AssessmentResult {
   const secsPerChunk = getSecondsPerChunk(hw);
   const estimatedSeconds = data.estimatedChunks * secsPerChunk;
   const estimatedMinutes = Math.round(estimatedSeconds / 60);
 
   // Decision thresholds
-  const TOO_SLOW_MINUTES = 30;   // > 30 min → recommend OpenAI
-  const LOW_MEMORY_GB = 8;       // < 8GB RAM → risk of OOM with local model
+  const TOO_SLOW_MINUTES = 30; // > 30 min → recommend OpenAI
+  const LOW_MEMORY_GB = 8; // < 8GB RAM → risk of OOM with local model
 
   let recommendation: EmbeddingRecommendation;
   let reason: string;

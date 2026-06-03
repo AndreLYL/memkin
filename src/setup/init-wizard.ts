@@ -3,8 +3,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
-import { createLLMProvider } from "../extractors/providers/index.js";
 import { runEmbeddingAssessment } from "./assess-hardware.js";
+import {
+  checkOllamaModel,
+  checkOllamaRunning,
+  testEmbeddingConnection,
+  testLLMConnection,
+} from "./connection-tests.js";
 import { type DetectedApiKeys, detectApiKeys } from "./detect-api-keys.js";
 import { detectCurrentRuntime } from "./detect-runtime.js";
 import { type DetectedSource, detectSources } from "./detect-sources.js";
@@ -16,8 +21,10 @@ export interface InitOptions {
   auto?: boolean;
   force?: boolean;
   configPath?: string;
+  tui?: boolean;
   input?: Readable;
   output?: Writable;
+  env?: NodeJS.ProcessEnv;
 }
 
 type SourceConfig = NonNullable<PartialConfig["sources"]>;
@@ -121,11 +128,7 @@ interface LLMConfigInput {
   apiKey?: string;
 }
 
-async function collectLLMConfig(
-  prompt: Prompt,
-  output: Writable,
-  keys: DetectedApiKeys,
-): Promise<LLMConfigInput> {
+async function collectLLMConfig(prompt: Prompt, keys: DetectedApiKeys): Promise<LLMConfigInput> {
   const providerDefault = keys.anthropic && !keys.openai ? 1 : 0;
   const providerChoice = await prompt.select(
     "Select LLM Provider",
@@ -157,67 +160,6 @@ async function collectLLMConfig(
         detectedKeyPlaceholder(provider, keys);
 
   return { provider, model, baseUrl: baseUrl || undefined, apiKey };
-}
-
-async function testLLMConnection(cfg: LLMConfigInput): Promise<{ ok: boolean; error?: string }> {
-  if (cfg.provider === "mock") return { ok: true };
-  if (!cfg.apiKey) return { ok: false, error: "No API key provided" };
-
-  try {
-    const llmProvider = createLLMProvider({
-      provider: cfg.provider,
-      model: cfg.model,
-      base_url: cfg.baseUrl,
-      api_key: cfg.apiKey,
-    });
-    await llmProvider.chat([{ role: "user", content: "hi" }], { maxTokens: 5 });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-async function testEmbeddingConnection(
-  baseUrl: string,
-  apiKey: string,
-): Promise<{ ok: boolean; error?: string }> {
-  if (!apiKey) return { ok: false, error: "No API key provided" };
-  try {
-    const url = `${baseUrl.replace(/\/$/, "")}/embeddings`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ model: "text-embedding-3-large", input: "test" }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    const data = (await res.json()) as { error?: { message: string } };
-    if (data.error) return { ok: false, error: data.error.message };
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-async function checkOllamaRunning(): Promise<boolean> {
-  try {
-    const res = await fetch("http://localhost:11434/api/tags", { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function checkOllamaModel(model: string): Promise<boolean> {
-  try {
-    const res = await fetch("http://localhost:11434/api/tags", { signal: AbortSignal.timeout(3000) });
-    const data = (await res.json()) as { models?: Array<{ name: string }> };
-    return (data.models ?? []).some((m) => m.name.startsWith(model));
-  } catch {
-    return false;
-  }
 }
 
 async function setupOllama(prompt: Prompt, output: Writable): Promise<void> {
@@ -294,7 +236,7 @@ async function buildInteractiveConfig(
   // Collect LLM config with connection test loop
   let llmCfg: LLMConfigInput;
   while (true) {
-    llmCfg = await collectLLMConfig(prompt, output, keys);
+    llmCfg = await collectLLMConfig(prompt, keys);
 
     if (llmCfg.provider === "mock") break;
 
@@ -325,7 +267,10 @@ async function buildInteractiveConfig(
   if (hw.hasAppleSilicon) write(output, "  GPU:    Apple Silicon (Metal)");
   else if (hw.hasNvidiaGpu) write(output, `  GPU:    ${hw.gpuName}`);
   else write(output, "  GPU:    None detected");
-  write(output, `  Data:   ${data.jsonlFiles} JSONL files, ~${data.totalSizeMB}MB, ~${data.estimatedChunks} chunks`);
+  write(
+    output,
+    `  Data:   ${data.jsonlFiles} JSONL files, ~${data.totalSizeMB}MB, ~${data.estimatedChunks} chunks`,
+  );
   write(output, "");
 
   // Show recommendation
@@ -371,10 +316,7 @@ async function buildInteractiveConfig(
     let embeddingApiKey: string | undefined;
 
     const reuseKey = llmIsOpenAICompatible
-      ? await prompt.confirm(
-          `Reuse the same API key and base URL from LLM config?`,
-          true,
-        )
+      ? await prompt.confirm(`Reuse the same API key and base URL from LLM config?`, true)
       : false;
 
     if (reuseKey && llmIsOpenAICompatible) {
@@ -546,10 +488,36 @@ function printNextSteps(output: Writable): void {
   write(output, '  memoark search "your query"');
 }
 
+function envDisablesTui(env: NodeJS.ProcessEnv): boolean {
+  const value = env.MEMOARK_NO_TUI?.toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
+export function shouldUseTui(
+  options: Pick<InitOptions, "auto" | "tui">,
+  input: { isTTY?: boolean },
+  output: { isTTY?: boolean },
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (options.auto) return false;
+  if (options.tui === false) return false;
+  if (envDisablesTui(env)) return false;
+  return input.isTTY === true && output.isTTY === true;
+}
+
 export async function runInit(options: InitOptions = {}): Promise<void> {
   const output = options.output ?? process.stdout;
   const input = options.input ?? process.stdin;
   const configPath = getConfigPath(options.configPath);
+
+  if (
+    shouldUseTui(options, input as { isTTY?: boolean }, output as { isTTY?: boolean }, options.env)
+  ) {
+    const { runConfigCenter } = await import("../config-center/index.js");
+    await runConfigCenter({ configPath, force: options.force, input, output });
+    return;
+  }
+
   const prompt = options.auto ? undefined : createPrompt(input, output);
 
   try {
