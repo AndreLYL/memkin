@@ -116,7 +116,7 @@ export function buildEntityHintsSection(text: string): string {
     const overflow = values.length > 5 ? ` (+${values.length - 5} more)` : "";
     lines.push(`- ${type}s: ${preview}${overflow}`);
   }
-  return "\n\n" + lines.join("\n");
+  return `\n\n${lines.join("\n")}`;
 }
 
 /**
