@@ -1,5 +1,4 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { FeishuCollector, getCollector } from "../collectors/index.js";
 import { createLLMProvider } from "../extractors/providers/index.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import type { Config } from "./config.js";
@@ -41,13 +40,7 @@ export async function createPipelineRuntime(
   }
   const provider = createLLMProvider(llmConfig);
 
-  let identity_resolver: IdentityResolver | undefined;
-  const feishuCollector = getCollector("feishu");
-  if (feishuCollector instanceof FeishuCollector) {
-    identity_resolver = new IdentityResolver(pg, feishuCollector.getIdentityBackend());
-  } else {
-    identity_resolver = new IdentityResolver(pg);
-  }
+  const identity_resolver = new IdentityResolver(pg);
 
   return {
     config: buildPipelineConfig(config, output_dir),

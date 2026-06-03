@@ -30,6 +30,7 @@ memoark.yaml
 *.swo
 *~
 .DS_Store
+.superpowers/
 
 # Logs
 *.log
