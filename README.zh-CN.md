@@ -1,43 +1,92 @@
 <p align="center">
   <h1 align="center">Memoark</h1>
-  <p align="center"><strong>把散落的对话变成可搜索的私人记忆。本地优先，AI 驱动。</strong></p>
+  <p align="center"><strong>把你的飞书工作与 AI Agent 会话，沉淀成一份私有、本地的核心记忆，让你的 Agent 真正懂你。</strong></p>
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | 中文
+  <a href="README.md">English</a> | 简体中文
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-black">
+  <img alt="Language: TypeScript" src="https://img.shields.io/badge/lang-TypeScript-3178c6">
+  <img alt="Tests: 800+" src="https://img.shields.io/badge/tests-800%2B-success">
 </p>
 
 ---
 
 ## 痛点
 
-你的对话散落在各处 — Claude Code、飞书、微信、会议、邮件。每天你做出决策、发现洞察、讨论想法，分布在十几个平台上。但当你需要回忆当时说了什么、在哪里决定的、为什么选择那个方案 — 找不到了。
+你的工作记忆有两个家，而你的 AI Agent 一个都够不着。
 
-**你不是记忆力差，你是信息碎片化。**
+- **飞书**承载你的工作关系网 — 私信、群聊、邮件、会议、任务。这是你*在做什么*、*和谁一起做*。
+- **AI Agent**（Claude Code、Codex、OpenClaw）承载你的构建过程 — 每次编程会话里的决策、发现和踩过的坑。
+
+但每次打开新的 Agent 会话，它都一无所知。你得重新解释你是谁、项目是什么、上周决定了什么、为什么。上下文明明*就在某处* — 埋在你再也不会翻的聊天记录和会话日志里。
+
+**你不是记忆力差，你是信息碎片化 — 而你的 Agent 每天都在为此买单。**
 
 ## 解决方案
 
-Memoark 是一个**本地优先的个人记忆系统**。它从多个平台采集你的对话，提取结构化信号（实体、决策、任务、发现、知识、关系），存入统一的可搜索知识图谱 — 一切都在你自己的机器上。
+Memoark 是一个**本地优先的个人记忆系统**，建立在两条同等重要的输入流之上 —— 你的**飞书工作**和你的 **AI Agent 会话**。它把两者提取成结构化信号（实体、决策、任务、发现、知识、关系），汇入你自己机器上一个统一、可搜索的知识图谱，再通过 **MCP** 把这份记忆喂回给任何 Agent。
+
+结果是：你的 Agent 既**写入**又**读取**同一份记忆 —— 让 Claude Code、Codex 以及任何 MCP 客户端，终于*懂你和你的工作*。
+
+```
+        飞书工作流                  AI Agent 会话
+   (私信 / 群聊 / 邮件             (Claude Code / Codex
+    会议 / 任务)                    / OpenClaw)
+           │                               │
+           └───────────────┬───────────────┘
+                           ▼   采集 + 抽取（本地）
+                  ┌──────────────────┐
+                  │   你的核心记忆    │  实体 · 决策 · 任务
+                  │  (PGLite, 本地)   │  知识 · 时间线 · 图谱
+                  └────────┬─────────┘
+                           ▼  MCP
+                   你的 Agent 懂你
+                           │
+                           └──── Agent 用得越多，记忆越懂你 ───┘
+```
+
+> "我昨天在飞书和同事讨论了一个方案，今天在 Claude Code 里实现了一部分，下周还有个评审会。"
+>
+> Memoark 自动把这三件事串起来 —— 跨平台、跨时间 —— 并在你需要时把完整脉络交给 Agent。
 
 ## 核心特性
 
-**私密 & 本地优先**
-数据永远不离开你的机器。PGLite 嵌入式数据库，Ollama 本地向量嵌入，无云依赖。
+**🛰️ 飞书全量采集**
+你的工作在飞书里。Memoark 覆盖 **7 个源** —— 私信、群聊、邮件、日历、文档、任务、消息搜索 —— 把你的工作关系网变成结构化记忆。
 
-**AI 驱动信号提取**
+**🤖 让 Agent 懂你（MCP）**
+把 Memoark 作为任何 MCP Agent 的记忆层 —— Claude Code、Cursor、Windsurf。**17 个内置工具**让 Agent 查询你的历史、读取实体页面、写回新知识。Agent 既是记忆的生产者，也是消费者。
+
+**🔒 私密 & 本地优先**
+数据永远不离开你的机器。PGLite 嵌入式数据库，可选 Ollama 本地向量嵌入，无云依赖。
+
+**🧠 AI 驱动信号提取**
 LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、时间线、决策、任务、发现、知识、关系。
 
-**混合语义搜索**
+**🔍 混合语义搜索**
 全文搜索（tsvector）+ 向量检索（pgvector），通过 RRF（Reciprocal Rank Fusion）融合排序。支持自然语言提问。
 
-**MCP 服务器**
-17 个内置工具，让任何支持 MCP 的 AI Agent（Claude Code、Cursor、Windsurf）可以把 Memoark 作为记忆层使用。
+**🕸️ 知识图谱 + Web UI**
+看见人、项目、决策之间的关联。内置 Web UI 提供 Dashboard、时间线、力导向知识图谱和搜索。
 
-**REST API**
+**🔌 REST API**
 基于 Hono 的 HTTP API，暴露所有存储操作。
 
-**多平台采集**
-一套系统，多个数据源。支持 Claude Code、Codex、Hermes 等 AI Agent 会话，以及飞书。
+## 使用场景
+
+**几秒钟让 Agent 接手一个项目**
+打开 Claude Code 会话，问一句 *"memoark 这个项目现在进展如何？"* —— Agent 直接从你的记忆里拉出聚合的决策、待办任务和最近时间线，无需你重新解释。
+
+**回忆某人、某件事**
+*"我上周和同事聊了什么？"* —— Memoark 把飞书私信、会议、后续任务串成一个答案。
+
+**自动生成的工作日志**
+像翻日记一样浏览你的时间线 —— 你做了什么决策、交付了什么、跨了哪些平台，全部自动写好。
 
 ## 快速开始
 
@@ -178,6 +227,31 @@ memoark serve
 
 # MCP stdio（AI Agent 集成 — Claude Code、Cursor 等）
 memoark serve --mcp
+```
+
+### 接入你的 Agent（MCP）
+
+让任何 MCP 客户端指向 Memoark，即可读写你的记忆。以 Claude Code 为例：
+
+```json
+{
+  "mcpServers": {
+    "memoark": {
+      "command": "memoark",
+      "args": ["serve", "--mcp"]
+    }
+  }
+}
+```
+
+然后就可以让 Agent *"在我的记忆里搜一下 auth 重构的决策"* 或 *"项目 X 还有哪些未完成任务？"* —— 它会从你的本地记忆作答。
+
+### 浏览 Web UI
+
+```bash
+cd web
+bun install
+bun run dev        # Dashboard、时间线、知识图谱、搜索
 ```
 
 ## 架构
@@ -347,10 +421,12 @@ server:
 
 | 数据源 | 路径 | 说明 |
 |--------|------|------|
+| **飞书（Lark）** | API + lark-cli | 核心工作源 —— 7 个源：群聊、私信、邮件、日历、文档、任务、消息搜索 |
 | **Claude Code** | `~/.claude/projects/` | Claude Code Agent 对话记录 |
 | **Codex** | `~/.codex/` | OpenAI Codex CLI 会话 |
 | **Hermes** | `~/.openclaw/agents/` | OpenClaw Hermes Agent 会话 |
-| **飞书** | API | 飞书消息、日历、文档、任务、邮件 |
+
+> 飞书优先：它承载的是工作本身 —— 需求讨论、技术方案、团队决策。私信和最近会话需要先完成 `lark-cli` 用户态登录并启用 `message_search`（详见上方配置）。
 
 ## 路线图
 
@@ -374,15 +450,29 @@ server:
 - [x] MCP 服务器（17 个 stdio 工具）
 - [x] CLI serve、search、embed 命令
 
-### Phase 3 — 查询 & 界面（进行中）
+### Phase 3 — Web UI（已完成）
 
+- [x] Dashboard
+- [x] 时间线视图
+- [x] 知识图谱可视化（力导向）
+- [x] 搜索界面
+- [x] 实体 / 页面详情
+
+### Phase 4 — 上下文感知提取（规划中）
+
+- [ ] ContextBuffer —— 跨 block 共享上下文
+- [ ] 加权准入评分（替换二元噪声过滤）
+- [ ] NarrativeAssembler —— 按实体聚合叙事
+
+### Phase 5 — 巩固与常驻服务（规划中）
+
+- [ ] 记忆巩固（dream cycle）：实体合并、链接修复、模式发现
+- [ ] 常驻后台服务 + 定时采集
 - [ ] 自然语言问答
-- [x] Web UI — 时间线视图
-- [x] Web UI — 知识图谱可视化
-- [x] Web UI — Dashboard、搜索、页面详情
 
-### Phase 4 — 新数据源
+### Phase 6 — 同步与新数据源（规划中）
 
+- [ ] Obsidian 双向同步
 - [ ] 微信聊天记录
 - [ ] 更多平台（社区驱动）
 
@@ -396,15 +486,17 @@ server:
 | 向量搜索 | pgvector |
 | 嵌入 | OpenAI / Ollama |
 | Web 框架 | Hono |
+| Web UI | React + Vite |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| 测试 | Vitest（400+ 测试） |
+| 测试 | Vitest（800+ 测试） |
 
 ## 开发
 
 ```bash
 bun run test              # 全量测试
 bun run test:watch        # 监听模式
+bun run typecheck         # 类型检查
 bun run lint              # 代码检查
 bun run lint:fix          # 自动修复
 ```

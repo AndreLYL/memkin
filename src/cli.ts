@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -79,12 +80,16 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
   };
 }
 
+const { version: pkgVersion } = createRequire(import.meta.url)("../package.json") as {
+  version: string;
+};
+
 const program = new Command();
 
 program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
-  .version("0.1.0");
+  .version(pkgVersion);
 
 program
   .command("init")
