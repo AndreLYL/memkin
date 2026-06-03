@@ -136,18 +136,31 @@ npm link          # registers the `memoark` command globally
 
 ### Initialize Configuration
 
-Run the interactive setup wizard — it auto-detects your data sources, hardware, and guides you through LLM + embedding configuration:
+`memoark init` launches an **interactive configuration center** — a full-screen TUI (built with React + ink) that lets you generate and edit `memoark.yaml` without hand-writing YAML:
 
 ```bash
 memoark init
 ```
 
-The wizard will:
-- Detect available data sources (Claude Code, Codex, Hermes)
-- Assess your hardware to recommend local (Ollama) or remote (OpenAI) embedding
-- Guide you through LLM provider / model / API key setup
-- Test the connection before saving
-- Register the `memoark` command if not already done
+**Config center features:**
+- 📋 **Sectioned editing**: Overview, LLM, Embedding, Sources, Privacy, Block Builder, and more
+- ⌨️ **Keyboard-driven**: ↑/↓ or Tab to move between fields, Enter to edit, Ctrl+S to save, q / Esc to quit (auto-saves if dirty)
+- 🔌 **Live connection checks**: validates your LLM / embedding API key and connectivity as you edit
+- 💡 **Smart recommendations**: suggests local (Ollama) vs remote (OpenAI) embedding based on your hardware
+- 🔒 **Secret masking**: API keys are always shown masked
+- 🧭 **Auto-detection**: finds existing data sources (Claude Code, Codex, Hermes) and registers the `memoark` command
+
+**Run modes:**
+
+| Command / environment | Behavior |
+|---|---|
+| `memoark init` (in a TTY) | Full-screen TUI config center |
+| `memoark init --no-tui` | Linear question-and-answer wizard (fallback) |
+| `memoark init --auto` | Fully automatic, no prompts, uses detected defaults |
+| `memoark init --force` | Overwrite an existing configuration |
+| `MEMOARK_NO_TUI=1` | Force-disable the TUI (also auto-falls back in non-TTY environments) |
+
+> `memoark config init` is equivalent to `memoark init`. A few advanced settings (e.g. Feishu) currently need to be edited directly in `memoark.yaml` (see [Configuration](#configuration)).
 
 ### Check Environment
 
@@ -355,7 +368,7 @@ memoark doctor
 
 ### `memoark config init`
 
-Generate a configuration template.
+Equivalent to `memoark init` — launches the interactive configuration center to generate / edit `memoark.yaml` (supports `--auto` / `--no-tui` / `--force`).
 
 ```bash
 memoark config init

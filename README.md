@@ -127,17 +127,31 @@ npm link          # 注册 memoark 全局命令
 
 ### 初始化配置
 
-运行交互式向导 — 自动检测数据源、硬件配置，引导完成 LLM + Embedding 配置：
+`memoark init` 启动一个**交互式配置中心**（基于 React + ink 的全屏 TUI），让你零手写地生成 / 编辑 `memoark.yaml`：
 
 ```bash
 memoark init
 ```
 
-向导会自动完成：
-- 检测本机已有的数据源（Claude Code、Codex、Hermes）
-- 评估硬件配置，推荐本地（Ollama）或远程（OpenAI）Embedding
-- 引导配置 LLM provider / model / API key，并测试连通性
-- 自动注册 `memoark` 命令（如未完成）
+**配置中心特性：**
+- 📋 **分区编辑**：Overview、LLM、Embedding、数据源、隐私、分块（Block Builder）等分区
+- ⌨️ **键盘操作**：↑/↓ 或 Tab 切换字段，Enter 编辑，Ctrl+S 保存，q / Esc 退出（有改动会自动保存）
+- 🔌 **实时连接测试**：编辑 LLM / Embedding 时自动校验 API key 与连通性
+- 💡 **智能推荐**：根据本机硬件推荐本地（Ollama）或远程（OpenAI）Embedding
+- 🔒 **密钥脱敏**：API key 始终掩码显示
+- 🧭 **自动检测**：识别已有数据源（Claude Code、Codex、Hermes）并注册 `memoark` 命令
+
+**运行模式：**
+
+| 命令 / 环境 | 行为 |
+|---|---|
+| `memoark init`（TTY 终端下） | 全屏 TUI 配置中心 |
+| `memoark init --no-tui` | 逐项问答式向导（线性 fallback） |
+| `memoark init --auto` | 全自动，无提示，用检测到的默认值生成 |
+| `memoark init --force` | 覆盖已有配置 |
+| `MEMOARK_NO_TUI=1` | 强制禁用 TUI（非 TTY 环境也会自动 fallback） |
+
+> `memoark config init` 与 `memoark init` 等价。飞书等少数高级配置目前需直接编辑 `memoark.yaml`（见下方飞书章节）。
 
 ### 检查环境
 
@@ -381,7 +395,7 @@ memoark embed --limit 100     # 限制批量大小
 
 ### `memoark config init`
 
-生成配置模板。
+等价于 `memoark init` —— 启动交互式配置中心生成 / 编辑 `memoark.yaml`（支持 `--auto` / `--no-tui` / `--force`）。
 
 ### `memoark sources list` / `memoark sources test <name>`
 
