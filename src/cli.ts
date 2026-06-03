@@ -742,7 +742,7 @@ program
       scheduler.setRunSource(async (sourceId: string) => {
         const collector = getCollector(sourceId);
         if (!collector) throw new Error(`Unknown source: ${sourceId}`);
-        return runPipeline(runtime.config, {
+        const result = await runPipeline(runtime.config, {
           source: collector,
           provider: runtime.provider,
           format: "json" as const,
@@ -750,6 +750,10 @@ program
           stores,
           identityResolver: runtime.identity_resolver,
         });
+        if (result.okBlocks > 0) {
+          await stores.embedding.embedStale();
+        }
+        return result;
       });
 
       scheduler.setOnTick(
@@ -778,9 +782,6 @@ program
           alertWriter.update(scheduler?.getAlertDetails() ?? []);
         },
       );
-
-      await scheduler.start();
-      logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
     }
 
     const cleanup = () => {
@@ -791,12 +792,16 @@ program
     process.on("SIGTERM", cleanup);
 
     if (options.fetchOnly) {
+      if (scheduler) {
+        await scheduler.start();
+        logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
+      }
       console.log("Memoark fetch-only daemon running. Press Ctrl+C to stop.");
       await new Promise(() => {});
       return;
     }
 
-    // --- HTTP server ---
+    // --- HTTP server (start BEFORE scheduler so port is immediately available) ---
     const { Hono } = await import("hono");
     const { serveStatic } = await import("hono/bun");
     const { readFileSync: readFile } = await import("node:fs");
@@ -822,6 +827,12 @@ program
     console.log(
       `Memoark ${hasFrontend ? "full-stack" : "HTTP API"} listening on http://localhost:${server.port}${scheduler ? " (scheduler active)" : ""}`,
     );
+
+    // Start scheduler AFTER HTTP is ready
+    if (scheduler) {
+      await scheduler.start();
+      logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
+    }
   });
 
 program

@@ -68,7 +68,7 @@ export class Scheduler {
   }
 
   async start(): Promise<void> {
-    await this.tick();
+    this.tick();
     this.timer = setInterval(() => this.tick(), this.tick_interval_ms);
   }
 
