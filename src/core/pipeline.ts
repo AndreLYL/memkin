@@ -24,6 +24,7 @@ import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
   BlockResult,
+  CanonicalisedBlock,
   Collector,
   ConversationBlock,
   ExtractionResult,
@@ -239,7 +240,7 @@ export async function runPipeline(
 
     // Pre-filter blocks (CPU-cheap stages A-C)
     const extractedResults: ExtractionResult[] = [];
-    const blocksToExtract: ConversationBlock[] = [];
+    const blocksToExtract: CanonicalisedBlock[] = [];
 
     for (const block of blocks) {
       const l1Verdict = filterNoiseL1(block);
@@ -269,18 +270,19 @@ export async function runPipeline(
       blocksToExtract,
       async (
         cb,
-      ): Promise<{ block: ConversationBlock; blockResult?: BlockResult; error?: string }> => {
+      ): Promise<{ cb: CanonicalisedBlock; blockResult?: BlockResult; error?: string }> => {
         try {
           const blockResult = await extractor.extract(cb);
-          return { block: cb, blockResult };
+          return { cb, blockResult };
         } catch (err) {
-          return { block: cb, error: err instanceof Error ? err.message : String(err) };
+          return { cb, error: err instanceof Error ? err.message : String(err) };
         }
       },
       concurrency,
     );
 
-    for (const { block, blockResult, error } of blockResults) {
+    for (const { cb, blockResult, error } of blockResults) {
+      const block = cb.block;
       if (error) {
         result.failedBlocks++;
         result.failedMessages.push(...block.messages);
