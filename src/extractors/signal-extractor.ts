@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractQuickEntities } from "../core/entity-extract.js";
 import { parseExtractionResult } from "../core/schemas.js";
 import type {
   BlockResult,
@@ -91,6 +92,31 @@ export interface SignalExtractor {
 function loadPrompt(filename: string): string {
   const path = join(__dirname, "prompts", filename);
   return readFileSync(path, "utf-8");
+}
+
+/**
+ * Build a "Detected Structural Signals" hint section from quick-entity extraction.
+ * Returns empty string when no entities are found (no section injected).
+ * Exported for unit testing.
+ */
+export function buildEntityHintsSection(text: string): string {
+  const entities = extractQuickEntities(text);
+  if (entities.length === 0) return "";
+
+  const byType = new Map<string, string[]>();
+  for (const e of entities) {
+    const list = byType.get(e.type) ?? [];
+    list.push(e.value);
+    byType.set(e.type, list);
+  }
+
+  const lines: string[] = ["## Detected Structural Signals", ""];
+  for (const [type, values] of byType) {
+    const preview = values.slice(0, 5).join(", ");
+    const overflow = values.length > 5 ? ` (+${values.length - 5} more)` : "";
+    lines.push(`- ${type}s: ${preview}${overflow}`);
+  }
+  return "\n\n" + lines.join("\n");
 }
 
 /**
@@ -185,6 +211,7 @@ export function createSignalExtractor(provider: LLMProvider): SignalExtractor {
       }
 
       // Build prompt with context
+      const entityHints = buildEntityHintsSection(conversationText);
       const userPrompt = `${signalExtractPrompt}
 
 ## Conversation Block
@@ -197,7 +224,7 @@ export function createSignalExtractor(provider: LLMProvider): SignalExtractor {
 
 ## Messages
 
-${conversationText}
+${conversationText}${entityHints}
 
 ## Instructions
 
