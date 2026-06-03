@@ -23,6 +23,12 @@
   <a href="#roadmap">Roadmap</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/web-ui-graph.jpeg" alt="Memoark knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
+  <br>
+  <em>Your work, as a living knowledge graph — people, decisions, tasks, and knowledge, connected.</em>
+</p>
+
 ---
 
 ## The Problem
