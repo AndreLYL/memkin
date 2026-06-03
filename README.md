@@ -1,11 +1,23 @@
 <p align="center">
   <h1 align="center">Memoark</h1>
-  <p align="center"><strong>Turn your scattered conversations into one private, searchable memory. Local-first, AI-powered.</strong></p>
+  <p align="center"><strong>Turn your Feishu work and AI-agent sessions into one private memory your agents can actually use. Local-first, you own it.</strong></p>
+</p>
+
+<p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-black">
+  <img alt="Language: TypeScript" src="https://img.shields.io/badge/lang-TypeScript-3178c6">
+  <img alt="Tests: 800+" src="https://img.shields.io/badge/tests-800%2B-success">
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> •
   <a href="#features">Features</a> •
+  <a href="#use-cases">Use Cases</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#cli-reference">CLI Reference</a> •
   <a href="#roadmap">Roadmap</a>
@@ -15,63 +27,75 @@
 
 ## The Problem
 
-Your conversations are everywhere — Claude Code, Feishu, WeChat, meetings, emails. Every day, you make decisions, discover insights, and discuss ideas across a dozen platforms. But when you need to recall what was said, where it was decided, or why you chose that approach — it's gone. Buried in chat logs you'll never scroll through again.
+Your work memory has two homes, and your AI agents can't reach either.
 
-**You don't have a memory problem. You have a fragmentation problem.**
+- **Feishu (Lark)** holds your working relationships — DMs, group chats, emails, meetings, tasks. This is *what* you work on and *who* you work with.
+- **AI agents** (Claude Code, Codex, OpenClaw) hold your building process — the decisions, discoveries, and dead-ends from every coding session.
+
+But every time you open a new agent session, it knows nothing. You re-explain who you are, what the project is, what was decided last week, and why. The context is *somewhere* — buried in chat logs and session transcripts you'll never scroll through again.
+
+**You don't have a memory problem. You have a fragmentation problem — and your agents pay for it every day.**
 
 ## The Solution
 
-Memoark is a **local-first personal memory system** that collects your conversations from multiple platforms, extracts structured signals (entities, decisions, tasks, discoveries, relationships), and stores them in a unified, searchable knowledge graph — all on your own machine.
+Memoark is a **local-first personal memory system** built on two equal input streams — your **Feishu work** and your **AI-agent sessions**. It extracts structured signals (entities, decisions, tasks, discoveries, knowledge, relationships) into one searchable knowledge graph on your own machine, then serves that memory back to any agent over **MCP**.
+
+The result: your agents both **write to** and **read from** the same memory — so Claude Code, Codex, and any MCP client finally *know you and your work*.
 
 ```
-   WeChat          Feishu         Claude Code        Codex          Hermes
-     │               │                │                │               │
-     └───────────────┴────────────────┴────────────────┴───────────────┘
-                                      │
-                                      ▼
-                            ┌───────────────────┐
-                            │     Memoark        │
-                            │                   │
-                            │  Extract → Store  │
-                            │  Search  → Query  │
-                            │                   │
-                            └───────────────────┘
-                                      │
-                      ┌───────────────┼───────────────┐
-                      ▼               ▼               ▼
-                   Timeline      Knowledge        Natural
-                   Recall        Graph             Language Q&A
+        Feishu work                 AI-agent sessions
+   (DMs / groups / email           (Claude Code / Codex
+    meetings / tasks)                / OpenClaw)
+           │                               │
+           └───────────────┬───────────────┘
+                           ▼   collect + extract (local)
+                  ┌──────────────────┐
+                  │  Your core memory │  entities · decisions · tasks
+                  │   (PGLite, local) │  knowledge · timeline · graph
+                  └────────┬─────────┘
+                           ▼  MCP
+                  Your agents know you
+                           │
+                           └──── the more agents work, the better it knows you ───┘
 ```
 
-> "I discussed a technical proposal with a colleague on WeChat yesterday, implemented part of it in Claude Code today, and have a Feishu review meeting next week."
+> "I discussed a proposal with a colleague on Feishu yesterday, implemented part of it in Claude Code today, and have a review meeting next week."
 >
-> Memoark connects these three events automatically — across platforms, across time.
+> Memoark connects these three events automatically — across platforms, across time — and hands the whole thread to your agent on demand.
 
 ## Features
 
-**Private & Local-First**
-Your data never leaves your machine. PGLite embedded database, local vector embeddings via Ollama, no cloud dependency. You own your memory.
+**🛰️ Full Feishu (Lark) Capture**
+Your work lives in Feishu. Memoark collects across **7 sources** — DMs, group chats, email, calendar, docs, tasks, and message search — turning your working relationships into structured memory.
 
-**AI-Powered Signal Extraction**
-LLM-driven pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
+**🤖 Agents That Know You (MCP)**
+Use Memoark as the memory layer for any MCP agent — Claude Code, Cursor, Windsurf. **17 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
 
-**Hybrid Semantic Search**
-Full-text search + vector retrieval with Reciprocal Rank Fusion (RRF). Ask questions in natural language — powered by PGLite FTS + pgvector embeddings.
+**🔒 Private & Local-First**
+Your data never leaves your machine. PGLite embedded database, optional local embeddings via Ollama, no cloud dependency. You own your memory.
 
-**Knowledge Graph**
-See the connections between people, projects, decisions, and ideas. Graph traversal with BFS, backlink tracking, and link-type filtering.
+**🧠 AI-Powered Signal Extraction**
+An LLM pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
 
-**Timeline Recall**
-Browse your activity history like an auto-written diary — what you did, when, and across which platforms.
+**🔍 Hybrid Semantic Search**
+Full-text search + vector retrieval fused with Reciprocal Rank Fusion (RRF). Ask in natural language — powered by PGLite FTS + pgvector.
 
-**MCP Server**
-Use Memoark as a memory layer for any AI agent that supports MCP — Claude Code, Cursor, Windsurf. 17 built-in tools for pages, search, graph, tags, timeline, and embeddings.
+**🕸️ Knowledge Graph + Web UI**
+See the connections between people, projects, and decisions. Browse a built-in web UI with dashboard, timeline, force-directed graph, and search.
 
-**REST API**
+**🔌 REST API**
 Full Hono-powered HTTP API for all store operations. Integrate with any client.
 
-**Multi-Platform Collection**
-One system, multiple sources. Currently supports AI agent sessions (Claude Code, Codex, Hermes) and Feishu (Lark).
+## Use Cases
+
+**Onboard your agent to a project in seconds**
+Start a Claude Code session and ask *"what's the current state of the memoark project?"* — your agent pulls the aggregated decisions, open tasks, and recent timeline straight from your memory, no re-explaining.
+
+**Recall a person or a thread**
+*"What did I discuss with my colleague last week?"* — Memoark stitches together the Feishu DMs, the meeting, and the follow-up task into one answer.
+
+**Auto-written work log**
+Browse your timeline like a diary that writes itself — what you decided, what you shipped, and across which platforms.
 
 ## Quick Start
 
@@ -113,11 +137,11 @@ memoark doctor
 ### Run Your First Extraction
 
 ```bash
+# Extract from Feishu (your work source)
+memoark extract --source feishu --since 3d
+
 # Extract from Claude Code
 memoark extract --source claude-code
-
-# Extract from Codex
-memoark extract --source codex
 
 # Extract from all enabled sources
 memoark extract --source all
@@ -125,6 +149,8 @@ memoark extract --source all
 # Dry run (no LLM calls, just scan data volume)
 memoark extract --source claude-code --dry-run
 ```
+
+> Feishu requires a one-time `lark-cli` user login and a `feishu` block in `memoark.yaml`. See [Configuration](#configuration) for the full Feishu setup, including DM vs. group capture paths.
 
 ### Search Your Memory
 
@@ -146,41 +172,65 @@ memoark serve
 memoark serve --mcp
 ```
 
+### Connect Your Agent (MCP)
+
+Point any MCP client at Memoark so it can read and write your memory. For Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "memoark": {
+      "command": "memoark",
+      "args": ["serve", "--mcp"]
+    }
+  }
+}
+```
+
+Then ask your agent things like *"search my memory for the auth refactor decision"* or *"what tasks are still open on project X?"* — it answers from your local memory.
+
+### Browse the Web UI
+
+```bash
+cd web
+bun install
+bun run dev        # dashboard, timeline, knowledge graph, search
+```
+
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Data Sources                             │
-│  Claude Code  │  Codex  │  Hermes  │  Feishu  │  WeChat        │
-└───────┬───────┴────┬────┴────┬─────┴────┬─────┴────┬───────────┘
-        └────────────┴────────┴──────────┴──────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │   Signal Extraction │
-                    │   Pipeline          │
-                    │                    │
-                    │  Collector          │
-                    │  → Dedup            │
-                    │  → Block Builder    │
-                    │  → Noise Filter     │
-                    │  → Signal Extractor │
-                    │  → Privacy          │
-                    └─────────┬──────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │   Storage Layer     │
-                    │                    │
-                    │  PGLite + pgvector │
-                    │  (Embedded PG)     │
-                    └─────────┬──────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-     ┌────────▼──────┐ ┌─────▼──────┐ ┌──────▼───────┐
-     │   CLI          │ │  MCP       │ │  REST API    │
-     │   Management   │ │  Server    │ │  (Hono)      │
-     │   & Extraction │ │  (stdio)   │ │              │
-     └────────────────┘ └────────────┘ └──────────────┘
+│   Feishu (DMs · groups · email · calendar · docs · tasks)       │
+│   AI Agents (Claude Code · Codex · Hermes)                      │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                      ┌─────────▼──────────┐
+                      │   Signal Extraction │
+                      │   Pipeline          │
+                      │                    │
+                      │  Collector          │
+                      │  → Dedup            │
+                      │  → Block Builder    │
+                      │  → Noise Filter     │
+                      │  → Signal Extractor │
+                      │  → Privacy          │
+                      └─────────┬──────────┘
+                                │
+                      ┌─────────▼──────────┐
+                      │   Storage Layer     │
+                      │  PGLite + pgvector │
+                      │  (Embedded PG)     │
+                      └─────────┬──────────┘
+                                │
+            ┌───────────────────┼───────────────────┐
+            │           │               │           │
+   ┌────────▼─────┐ ┌───▼────┐ ┌────────▼───┐ ┌─────▼──────┐
+   │     CLI       │ │  MCP   │ │  REST API  │ │  Web UI    │
+   │  Management   │ │ Server │ │   (Hono)   │ │  (React)   │
+   │  & Extraction │ │(stdio) │ │            │ │            │
+   └───────────────┘ └────────┘ └────────────┘ └────────────┘
 ```
 
 ### Signal Extraction Pipeline
@@ -226,7 +276,7 @@ Extract signals from data sources.
 
 ```bash
 memoark extract \
-  --source <name>              # claude-code, codex, hermes, feishu, all
+  --source <name>              # feishu, claude-code, codex, hermes, all
   --format json|markdown       # Output format (default: json)
   --adapter store|file|gbrain|stdout  # Output target (default: store)
   --output <dir>               # Output directory for file adapter
@@ -334,6 +384,25 @@ block_builder:
 
 # Data Sources
 sources:
+  # Feishu (Lark) — your primary work source
+  feishu:
+    enabled: true
+    auth_mode: user            # user mode enables DM + message search
+    app_id: ${FEISHU_APP_ID}
+    app_secret: ${FEISHU_APP_SECRET}
+    sources:
+      messages:                # group chats via OpenAPI
+        enabled: true
+        chat_ids: []
+        lookback_days: 3
+      message_search:          # DMs + recent chats via lark-cli
+        enabled: true
+        chat_types: [p2p]      # add `group` to include groups
+        lookback_days: 3
+      calendar: { enabled: true }
+      docs: { enabled: true }
+      tasks: { enabled: true }
+  # AI agent sessions
   claude-code:
     enabled: true
   codex:
@@ -357,7 +426,17 @@ server:
   http_port: 3927
 ```
 
+> **Feishu DM vs. group capture:** `messages` uses the OpenAPI chat/message endpoints (best for known group `chat_id`s), while `message_search` uses `lark-cli im messages-search` in user mode (required for recent DMs and 1:1 bot chats). Enable both for full coverage, and complete the `lark-cli` user login first.
+
 ## Supported Sources
+
+### Feishu (Lark)
+
+Your primary work source — group messages, DMs, email, calendar events, docs, and tasks.
+
+- **Auth**: `lark-cli` user-mode login (for DMs / message search) + app credentials
+- **Data**: 7 sources — group chats, DMs, email, calendar, docs, tasks, message search
+- **Why first**: Feishu carries the work itself — requirements, technical proposals, team decisions
 
 ### Claude Code
 
@@ -379,12 +458,6 @@ Extracts session data from OpenClaw Hermes agents.
 
 - **Location**: `~/.openclaw/agents/`
 - **Data**: Multi-agent sessions with automatic sub-agent discovery
-
-### Feishu (Lark)
-
-Extracts messages from Feishu/Lark workplace platform.
-
-- **Data**: Group messages, DMs, calendar events, docs, tasks
 
 ## Roadmap
 
@@ -411,14 +484,29 @@ Extracts messages from Feishu/Lark workplace platform.
 - [x] MCP Server with 17 stdio tools
 - [x] CLI serve, search, embed commands
 
-### Phase 3 — Query & Interface (Next)
+### Phase 3 — Web UI (Complete)
 
+- [x] Dashboard
+- [x] Timeline view
+- [x] Knowledge graph visualization (force-directed)
+- [x] Search interface
+- [x] Entity / page detail views
+
+### Phase 4 — Context-Aware Extraction (Planned)
+
+- [ ] ContextBuffer — share context across conversation blocks
+- [ ] Weighted admission scoring (replaces binary noise filter)
+- [ ] Narrative assembler — aggregate signals into per-entity narratives
+
+### Phase 5 — Consolidation & Daemon (Planned)
+
+- [ ] Memory consolidation ("dream cycle"): entity merge, link repair, pattern discovery
+- [ ] Resident background service with scheduled extraction
 - [ ] Natural language Q&A over stored memories
-- [ ] Web UI — Timeline view
-- [ ] Web UI — Knowledge graph visualization
 
-### Phase 4 — New Data Sources
+### Phase 6 — Sync & New Sources (Planned)
 
+- [ ] Obsidian bidirectional sync
 - [ ] WeChat chat history
 - [ ] More platforms based on community demand
 
@@ -432,6 +520,7 @@ Extracts messages from Feishu/Lark workplace platform.
 | Vector Search | pgvector |
 | Embeddings | OpenAI / Ollama |
 | Web Framework | Hono |
+| Web UI | React + Vite |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
 | Tests | Vitest (800+ tests) |
@@ -444,6 +533,9 @@ bun run test
 
 # Watch mode
 bun run test:watch
+
+# Type-check
+bun run typecheck
 
 # Lint
 bun run lint
