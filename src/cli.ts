@@ -794,7 +794,7 @@ program
     if (options.fetchOnly) {
       if (scheduler) {
         await scheduler.start();
-        logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
+        console.log(`Scheduler started — ${scheduler.getSourceIds().length} sources`);
       }
       console.log("Memoark fetch-only daemon running. Press Ctrl+C to stop.");
       await new Promise(() => {});
@@ -831,7 +831,7 @@ program
     // Start scheduler AFTER HTTP is ready
     if (scheduler) {
       await scheduler.start();
-      logger.log("info", "scheduler", `started — ${scheduler.getSourceIds().length} sources`);
+      console.log(`Scheduler started — ${scheduler.getSourceIds().length} sources`);
     }
   });
 
