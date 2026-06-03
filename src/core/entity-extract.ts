@@ -41,7 +41,10 @@ export function extractQuickEntities(text: string): QuickEntity[] {
     const re = new RegExp(regex.source, regex.flags);
     match = re.exec(text);
     while (match !== null) {
-      if (type === "email" && isInsideUrl(match.index)) continue;
+      if (type === "email" && isInsideUrl(match.index)) {
+        match = re.exec(text);
+        continue;
+      }
       const key = `${type}:${match[0]}`;
       if (!seen.has(key)) {
         seen.add(key);
