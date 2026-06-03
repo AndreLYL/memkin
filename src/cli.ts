@@ -92,6 +92,7 @@ program
   .option("--auto", "Automatic mode, no prompts")
   .option("--force", "Overwrite existing configuration")
   .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .option("--no-tui", "Use non-TUI fallback")
   .action(async (options) => {
     try {
       const { runInit } = await import("./setup/index.js");
@@ -99,6 +100,7 @@ program
         auto: options.auto,
         force: options.force,
         configPath: options.config,
+        tui: options.tui,
       });
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
@@ -397,6 +399,7 @@ configCmd
   .option("--auto", "Automatic mode, no prompts")
   .option("--force", "Overwrite existing configuration")
   .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .option("--no-tui", "Use non-TUI fallback")
   .action(async (options) => {
     try {
       const { runInit } = await import("./setup/index.js");
@@ -404,6 +407,7 @@ configCmd
         auto: options.auto,
         force: options.force,
         configPath: options.config,
+        tui: options.tui,
       });
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));

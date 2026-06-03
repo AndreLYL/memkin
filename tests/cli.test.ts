@@ -5,6 +5,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -34,6 +35,24 @@ function runCli(args: string[], options: Parameters<typeof spawnSync>[2] = {}) {
 }
 
 describe("CLI", () => {
+  describe("build output", () => {
+    test.skipIf(!existsSync(DIST_CLI))(
+      "includes runtime assets required by the compiled CLI",
+      () => {
+        expect(existsSync(join(PROJECT_ROOT, "dist", "store", "schema.sql"))).toBe(true);
+        expect(existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "system.md"))).toBe(
+          true,
+        );
+        expect(
+          existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "signal-extract.md")),
+        ).toBe(true);
+        expect(
+          existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "significance.md")),
+        ).toBe(true);
+      },
+    );
+  });
+
   describe("memoark --help", () => {
     test("shows main help with version and description", () => {
       const result = runCli(["--help"]);
@@ -81,7 +100,8 @@ describe("CLI", () => {
 
     test("defaults to claude-code source and fails on missing API key", () => {
       const { OPENAI_API_KEY, ANTHROPIC_API_KEY, DBE_API_KEY, ...cleanEnv } = process.env;
-      const result = runCli(["extract"], {
+      const missingConfig = join(tmpdir(), `memoark-missing-${Date.now()}.yaml`);
+      const result = runCli(["extract", "--config", missingConfig], {
         env: cleanEnv,
       });
 
@@ -152,6 +172,7 @@ describe("CLI", () => {
       const result = runCli(["config", "init", "--help"]);
 
       expect(result.status).toBe(0);
+      expect(result.stdout).toContain("--no-tui");
     });
 
     test("reports successful config creation", () => {
