@@ -36,6 +36,7 @@ interface ChunkSearchRow {
   type: string;
   snippet: string;
   chunk_source: string;
+  updated_at: string | null;
 }
 
 interface CountRow {
@@ -45,6 +46,19 @@ interface CountRow {
 const RRF_K = 60;
 const COMPILED_TRUTH_BOOST = 2.0;
 const BACKLINK_BOOST_FACTOR = 0.05;
+const FRESHNESS_HALF_LIFE_DAYS = 90;
+const FRESHNESS_BOOST_FACTOR = 0.3;
+
+/**
+ * Compute freshness multiplier using exponential decay.
+ * Returns 1.0 for missing timestamps (no effect).
+ * Exported for unit testing.
+ */
+export function freshnessMultiplier(updatedAt: string | null): number {
+  if (!updatedAt) return 1.0;
+  const ageDays = (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+  return 1 + FRESHNESS_BOOST_FACTOR * Math.exp(-ageDays / FRESHNESS_HALF_LIFE_DAYS);
+}
 
 export class SearchEngine {
   private embedText?: (text: string) => Promise<number[]>;
@@ -155,6 +169,7 @@ export class SearchEngine {
         snippet: string;
         score: number;
         chunk_source: string;
+        updated_at: string | null;
       }
     >();
 
@@ -165,6 +180,7 @@ export class SearchEngine {
         type: string;
         snippet: string;
         chunk_source: string;
+        updated_at: string | null;
       }>,
     ) => {
       for (let rank = 0; rank < results.length; rank++) {
@@ -180,6 +196,7 @@ export class SearchEngine {
             snippet: existing?.snippet || r.snippet,
             score: newScore,
             chunk_source: r.chunk_source,
+            updated_at: r.updated_at,
           });
         } else {
           existing.score = newScore;
@@ -213,6 +230,11 @@ export class SearchEngine {
       }
     }
 
+    // Apply freshness boost
+    for (const entry of scoreMap.values()) {
+      entry.score *= freshnessMultiplier(entry.updated_at);
+    }
+
     let results = [...scoreMap.values()].sort((a, b) => b.score - a.score);
 
     // Post-filter by type and exclude_types
@@ -226,7 +248,7 @@ export class SearchEngine {
       results = results.filter((r) => !excludeSet.has(r.type));
     }
 
-    return results.slice(0, limit).map(({ chunk_source: _, snippet, ...rest }) => ({
+    return results.slice(0, limit).map(({ chunk_source: _, updated_at: __, snippet, ...rest }) => ({
       ...rest,
       snippet,
       highlights: snippet ? [snippet] : [],
@@ -236,7 +258,14 @@ export class SearchEngine {
   private async ftsChunkSearch(
     query: string,
   ): Promise<
-    Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>
+    Array<{
+      slug: string;
+      title: string;
+      type: string;
+      snippet: string;
+      chunk_source: string;
+      updated_at: string | null;
+    }>
   > {
     const tsquery = query
       .trim()
@@ -249,7 +278,7 @@ export class SearchEngine {
     if (!tsquery) return [];
 
     const result = await this.pg.query<ChunkSearchRow>(
-      `SELECT p.slug, p.title, p.type, cc.chunk_source,
+      `SELECT p.slug, p.title, p.type, cc.chunk_source, p.updated_at,
          ts_rank(cc.search_vector, to_tsquery('simple', $1)) AS chunk_rank,
          ts_headline('simple', cc.chunk_text, to_tsquery('simple', $1),
            'MaxWords=30, MinWords=15, StartSel=**, StopSel=**') AS snippet
@@ -264,13 +293,20 @@ export class SearchEngine {
   private async vectorSearch(
     query: string,
   ): Promise<
-    Array<{ slug: string; title: string; type: string; snippet: string; chunk_source: string }>
+    Array<{
+      slug: string;
+      title: string;
+      type: string;
+      snippet: string;
+      chunk_source: string;
+      updated_at: string | null;
+    }>
   > {
     if (!this.embedText) return [];
     const queryVec = await this.embedText(query);
     const vecStr = `[${queryVec.join(",")}]`;
     const result = await this.pg.query<ChunkSearchRow>(
-      `SELECT p.slug, p.title, p.type, cc.chunk_source,
+      `SELECT p.slug, p.title, p.type, cc.chunk_source, p.updated_at,
          cc.chunk_text AS snippet, 1 - (cc.embedding <=> $1::vector) AS cosine_sim
        FROM content_chunks cc JOIN pages p ON p.id = cc.page_id
        WHERE cc.embedding IS NOT NULL
