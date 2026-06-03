@@ -44,3 +44,6 @@ tests/temp/
 
 # Local isolated worktrees
 .worktrees/
+
+# Implementation plans (managed in separate repo: AndreLYL/memoark_spec)
+docs/superpowers/plans/
