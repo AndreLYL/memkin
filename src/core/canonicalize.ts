@@ -150,7 +150,7 @@ function canonicalizeStructured(messages: RawMessage[]): string {
       if (Array.isArray(meta.assignees))
         metaLines.push(`Assignees: ${(meta.assignees as string[]).join(", ")}`);
 
-      const metaBlock = metaLines.length > 0 ? metaLines.join("\n") + "\n\n" : "";
+      const metaBlock = metaLines.length > 0 ? `${metaLines.join("\n")}\n\n` : "";
       return `${metaBlock}${msg.content.trim()}`;
     })
     .join("\n\n");

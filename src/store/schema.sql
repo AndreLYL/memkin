@@ -130,3 +130,8 @@ CREATE TABLE IF NOT EXISTS identity_cache (
   resolved_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (platform, external_id)
 );
+
+-- Person slug canonicalization uses platform = 'canonical':
+--   external_id = model-produced slug or display name
+--   display_name = canonical person slug (e.g. 'person/wang-jiandu')
+--   slug_hint = original entity.name for collision detection
