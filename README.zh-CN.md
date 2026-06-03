@@ -14,6 +14,12 @@
   <img alt="Tests: 800+" src="https://img.shields.io/badge/tests-800%2B-success">
 </p>
 
+<p align="center">
+  <img src="docs/assets/web-ui-graph.jpeg" alt="Memoark 知识图谱 —— 实体、决策、任务、知识在你的工作中相互连接" width="850">
+  <br>
+  <em>把你的工作变成一张活的知识图谱 —— 人、决策、任务、知识，全部连起来。</em>
+</p>
+
 ---
 
 ## 痛点
