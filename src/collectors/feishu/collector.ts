@@ -54,7 +54,7 @@ export class FeishuCollector implements Collector, CursorProvider {
       this.sources.push(
         new DMSource(this.client, config.sources.dm.dm_chat_ids ?? [], {
           lookbackDays: config.sources.dm.lookback_days ?? 30,
-          selfOpenId: config.sources.dm.self_open_id,
+          selfOpenId: config.sources.dm.self_open_id ?? "",
           overlapMs: config.sources.dm.overlap_ms,
         }),
       );
