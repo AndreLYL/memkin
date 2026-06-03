@@ -25,39 +25,59 @@ export class MessageSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
-    for (const chatId of this.chatIds) {
-      try {
-        const startMs = this.resolveStartTime(checkpoint, chatId);
-        const endMs = Date.now();
-        const startSec = Math.floor((startMs - this.overlapMs) / 1000).toString();
-        const endSec = Math.floor(endMs / 1000).toString();
+    const chatResults = await Promise.allSettled(
+      this.chatIds.map((chatId) => this.fetchChat(checkpoint, chatId)),
+    );
 
-        let maxCreateTime = 0;
+    for (let i = 0; i < this.chatIds.length; i++) {
+      const chatId = this.chatIds[i];
+      const settled = chatResults[i];
 
-        for await (const page of this.client.paginate<FeishuMessage>("/open-apis/im/v1/messages", {
-          container_id_type: "chat",
-          container_id: chatId,
-          start_time: startSec,
-          end_time: endSec,
-        })) {
-          for (const msg of page.items) {
-            const createTimeMs = Number.parseInt(msg.create_time, 10);
-            if (createTimeMs > maxCreateTime) {
-              maxCreateTime = createTimeMs;
-            }
+      if (settled.status === "rejected") {
+        console.error(`[MessageSource] Failed to fetch chat ${chatId}:`, settled.reason);
+        continue;
+      }
 
-            yield this.mapMessage(msg, chatId);
-          }
-        }
+      const { messages, maxCreateTime } = settled.value;
+      for (const msg of messages) {
+        yield msg;
+      }
 
-        if (maxCreateTime > 0) {
-          cursorStaging.stage("messages", chatId, { last_sync_at: maxCreateTime });
-          cursorStaging.commit("messages", chatId);
-        }
-      } catch (err) {
-        console.error(`[MessageSource] Failed to fetch chat ${chatId}:`, err);
+      if (maxCreateTime > 0) {
+        cursorStaging.stage("messages", chatId, { last_sync_at: maxCreateTime });
+        cursorStaging.commit("messages", chatId);
       }
     }
+  }
+
+  private async fetchChat(
+    checkpoint: SourceCheckpoint | null,
+    chatId: string,
+  ): Promise<{ messages: RawMessage[]; maxCreateTime: number }> {
+    const startMs = this.resolveStartTime(checkpoint, chatId);
+    const endMs = Date.now();
+    const startSec = Math.floor((startMs - this.overlapMs) / 1000).toString();
+    const endSec = Math.floor(endMs / 1000).toString();
+
+    const messages: RawMessage[] = [];
+    let maxCreateTime = 0;
+
+    for await (const page of this.client.paginate<FeishuMessage>("/open-apis/im/v1/messages", {
+      container_id_type: "chat",
+      container_id: chatId,
+      start_time: startSec,
+      end_time: endSec,
+    })) {
+      for (const msg of page.items) {
+        const createTimeMs = Number.parseInt(msg.create_time, 10);
+        if (createTimeMs > maxCreateTime) {
+          maxCreateTime = createTimeMs;
+        }
+        messages.push(this.mapMessage(msg, chatId));
+      }
+    }
+
+    return { messages, maxCreateTime };
   }
 
   async healthCheck(): Promise<boolean> {

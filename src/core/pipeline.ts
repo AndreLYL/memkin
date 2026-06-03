@@ -14,6 +14,7 @@ import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
+import { pMap } from "./concurrency.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
@@ -23,6 +24,7 @@ import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
   BlockResult,
+  CanonicalisedBlock,
   Collector,
   ConversationBlock,
   ExtractionResult,
@@ -40,6 +42,7 @@ export interface PipelineConfig {
   max_block_messages: number;
   privacy: PrivacyConfig;
   output_dir: string;
+  llm_concurrency?: number;
 }
 
 /**
@@ -235,76 +238,87 @@ export async function runPipeline(
       return result;
     }
 
-    // Process each block
+    // Pre-filter blocks (CPU-cheap stages A-C)
     const extractedResults: ExtractionResult[] = [];
+    const blocksToExtract: CanonicalisedBlock[] = [];
 
     for (const block of blocks) {
-      try {
-        // Stage A: L1 rule-based filter (no LLM)
-        const l1Verdict = filterNoiseL1(block);
+      const l1Verdict = filterNoiseL1(block);
 
-        if (l1Verdict === "skip") {
-          result.skippedBlocks++;
-          result.skippedMessages.push(...block.messages);
-          continue;
+      if (l1Verdict === "skip") {
+        result.skippedBlocks++;
+        result.skippedMessages.push(...block.messages);
+        continue;
+      }
+
+      const cb = canonicalize(block);
+      const score = scoreBlock(cb);
+      const scoreVerdict = mapScoreDecision(score);
+
+      if (l1Verdict !== "escalate" && scoreVerdict === "skip") {
+        result.skippedBlocks++;
+        result.skippedMessages.push(...block.messages);
+        continue;
+      }
+
+      blocksToExtract.push(cb);
+    }
+
+    // Stage D: Concurrent LLM extraction
+    const concurrency = config.llm_concurrency ?? 3;
+    const blockResults = await pMap(
+      blocksToExtract,
+      async (
+        cb,
+      ): Promise<{ cb: CanonicalisedBlock; blockResult?: BlockResult; error?: string }> => {
+        try {
+          const blockResult = await extractor.extract(cb);
+          return { cb, blockResult };
+        } catch (err) {
+          return { cb, error: err instanceof Error ? err.message : String(err) };
         }
+      },
+      concurrency,
+    );
 
-        // Stage B: Canonicalize (source-aware cleaning + interaction tagging)
-        const cb = canonicalize(block);
-
-        // Stage C: 5-dim scoring (cheap, no LLM)
-        const score = scoreBlock(cb);
-        const scoreVerdict = mapScoreDecision(score);
-
-        // L1 "escalate" bypasses score gate — always extract
-        if (l1Verdict !== "escalate" && scoreVerdict === "skip") {
-          result.skippedBlocks++;
-          result.skippedMessages.push(...block.messages);
-          continue;
-        }
-
-        // Stage D: LLM extraction (only blocks that passed/escalated)
-        const blockResult: BlockResult = await extractor.extract(cb);
-
-        if (blockResult.status === "failed") {
-          result.failedBlocks++;
-          result.failedMessages.push(...block.messages);
-          result.warnings.push(`Block ${block.block_id} extraction failed: ${blockResult.error}`);
-          continue;
-        }
-
-        if (blockResult.status === "skipped") {
-          result.skippedBlocks++;
-          result.skippedMessages.push(...block.messages);
-          continue;
-        }
-
-        // Success - check for empty extraction
-        if (blockResult.status === "ok") {
-          // Empty extraction guard
-          if (isEmptyExtraction(blockResult.data)) {
-            result.skippedBlocks++;
-            result.skippedMessages.push(...block.messages);
-            continue;
-          }
-
-          result.okBlocks++;
-          result.okMessages.push(...block.messages);
-
-          // Apply privacy processing
-          const processedResult = privacyProcessor.process(blockResult.data);
-          extractedResults.push(processedResult);
-
-          // Track last successful message
-          result.lastSuccessMessage = block.messages[block.messages.length - 1];
-        }
-      } catch (err) {
-        // Non-fatal error - log and continue
+    for (const { cb, blockResult, error } of blockResults) {
+      const block = cb.block;
+      if (error) {
         result.failedBlocks++;
         result.failedMessages.push(...block.messages);
-        result.warnings.push(
-          `Block ${block.block_id} processing error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        result.warnings.push(`Block ${block.block_id} processing error: ${error}`);
+        continue;
+      }
+
+      if (!blockResult || blockResult.status === "failed") {
+        result.failedBlocks++;
+        result.failedMessages.push(...block.messages);
+        if (blockResult?.error) {
+          result.warnings.push(`Block ${block.block_id} extraction failed: ${blockResult.error}`);
+        }
+        continue;
+      }
+
+      if (blockResult.status === "skipped") {
+        result.skippedBlocks++;
+        result.skippedMessages.push(...block.messages);
+        continue;
+      }
+
+      if (blockResult.status === "ok") {
+        if (isEmptyExtraction(blockResult.data)) {
+          result.skippedBlocks++;
+          result.skippedMessages.push(...block.messages);
+          continue;
+        }
+
+        result.okBlocks++;
+        result.okMessages.push(...block.messages);
+
+        const processedResult = privacyProcessor.process(blockResult.data);
+        extractedResults.push(processedResult);
+
+        result.lastSuccessMessage = block.messages[block.messages.length - 1];
       }
     }
 
