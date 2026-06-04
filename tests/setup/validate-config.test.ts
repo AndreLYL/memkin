@@ -51,4 +51,32 @@ describe("validate setup config", () => {
     expect(result.errors).toContain("Feishu App ID is required when Feishu is enabled");
     expect(result.errors).toContain("Feishu App Secret is required when Feishu is enabled");
   });
+
+  it("requires explicit security settings for public MCP HTTP exposure", () => {
+    const result = validateConfig({
+      llm: { provider: "openai", model: "gpt-4o-mini" },
+      sources: { "claude-code": { enabled: true } },
+      mcp: {
+        expose_legacy_tools: false,
+        http: {
+          enabled: true,
+          bind_host: "0.0.0.0",
+          port: 3928,
+          allowed_origins: [],
+          allowed_hosts: [],
+          auth_token_env: "",
+          read_only: false,
+        },
+      },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain(
+      "MCP HTTP allowed_origins must contain at least one trusted origin",
+    );
+    expect(result.errors).toContain(
+      "MCP HTTP allowed_hosts must contain at least one trusted host",
+    );
+    expect(result.errors).toContain("MCP HTTP public bind requires auth_token_env");
+  });
 });

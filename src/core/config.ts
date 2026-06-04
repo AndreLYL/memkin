@@ -144,7 +144,22 @@ export interface EmbeddingConfig {
  */
 export interface ServerConfig {
   http_port: number;
-  mcp_transport: "stdio" | "sse";
+  mcp_transport: "stdio" | "sse" | "streamable_http";
+}
+
+export interface McpHttpConfig {
+  enabled: boolean;
+  bind_host: string;
+  port: number;
+  allowed_origins: string[];
+  allowed_hosts: string[];
+  auth_token_env?: string;
+  read_only: boolean;
+}
+
+export interface McpConfig {
+  expose_legacy_tools: boolean;
+  http: McpHttpConfig;
 }
 
 export interface SchedulerSourceConfig {
@@ -171,6 +186,7 @@ export interface Config {
   store: StoreConfig;
   embedding: EmbeddingConfig;
   server: ServerConfig;
+  mcp: McpConfig;
   scheduler?: SchedulerConfig;
 }
 
@@ -215,6 +231,18 @@ const DEFAULT_CONFIG: Config = {
   server: {
     http_port: 3927,
     mcp_transport: "stdio",
+  },
+  mcp: {
+    expose_legacy_tools: false,
+    http: {
+      enabled: false,
+      bind_host: "127.0.0.1",
+      port: 3928,
+      allowed_origins: ["http://127.0.0.1:3928", "http://localhost:3928"],
+      allowed_hosts: ["127.0.0.1:3928", "localhost:3928"],
+      auth_token_env: "",
+      read_only: true,
+    },
   },
 };
 

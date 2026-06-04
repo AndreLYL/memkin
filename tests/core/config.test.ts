@@ -53,6 +53,15 @@ describe("Config loader", () => {
     expect(config.block_builder.max_block_messages).toBe(100);
 
     expect(config.adapters).toEqual({});
+    expect(config.mcp).toMatchObject({
+      expose_legacy_tools: false,
+      http: {
+        enabled: false,
+        bind_host: "127.0.0.1",
+        port: 3928,
+        read_only: true,
+      },
+    });
   });
 
   it("should load and parse valid YAML config file", () => {

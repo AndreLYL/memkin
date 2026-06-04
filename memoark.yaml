@@ -1,9 +1,6 @@
-# Memoark Configuration
-
-# Privacy configuration
 privacy:
   enabled: true
-  mode: reversible  # reversible or irreversible
+  mode: reversible
   redact_phone: true
   redact_id_card: true
   redact_bank_card: true
@@ -11,31 +8,27 @@ privacy:
   redact_url: false
   blocked_words: []
   replacement: "[REDACTED]"
-
-# LLM provider configuration
 llm:
   provider: openai
-  model: MiniMax-M2.5
-  base_url: https://api.tokenflying.top
-  api_key: ${TOKENFREE_API_KEY}
-
-# Block builder configuration
+  model: gpt-5.4-mini
+  base_url: https://www.packyapi.com
+  api_key: sk-6dPZ4jjAGrzYaXdNYOHQP1zZ1VpnFD4ruQGVC7OFnLO4oR57
 block_builder:
-  block_gap_minutes: 30  # Gap between messages to start a new block
-  max_block_tokens: 4000  # Maximum tokens per block
-  max_block_messages: 100  # Maximum messages per block
-
-# Source configuration
+  block_gap_minutes: 30
+  max_block_tokens: 4000
+  max_block_messages: 100
+adapters: {}
 sources:
   claude-code:
     enabled: true
+    base_dir: /Users/mac/.claude/projects
   codex:
     enabled: true
+    base_dir: /Users/mac/.codex
   hermes:
     enabled: true
   feishu:
     enabled: true
-    auth_mode: user
     app_id: cli_a9f10f0545f9dcb3
     app_secret: unused-in-user-mode
     sources:
@@ -43,6 +36,14 @@ sources:
         enabled: true
         chat_ids: []
         lookback_days: 3
+      calendar:
+        enabled: false
+        calendar_ids: []
+      docs:
+        enabled: false
+        doc_folders: []
+      tasks:
+        enabled: false
       dm:
         enabled: true
         dm_chat_ids: []
@@ -53,27 +54,15 @@ sources:
           - p2p
         lookback_days: 3
         page_size: 50
-
-# Adapter configuration
-adapters:
-  file:
-    enabled: false
-    output_dir: ./output
-  gbrain:
-    enabled: false
-    output_dir: ./gbrain-output
-
-# Store (PGLite embedded PostgreSQL)
+    auth_mode: user
 store:
-  data_dir: /Users/yinglong.li/.memoark/data
-
-# Embedding configuration
+  data_dir: ~/.memoark/data
 embedding:
-  provider: ollama
-  model: nomic-embed-text
-  dimensions: 768
-  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
-
-# Server configuration
+  provider: openai
+  model: text-embedding-3-large
+  dimensions: 1536
+  api_key: sk-r0NYNOtKVvSqEQcY5qQcTZrtjCI5w5upx9qWwZpxcwyBrGNL
+  base_url: https://yunwu.ai/v1
 server:
   http_port: 3927
+  mcp_transport: stdio
