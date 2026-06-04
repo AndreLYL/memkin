@@ -41,6 +41,14 @@ const DECISION_KEYWORDS = ["确定", "同意", "方案", "决定", "批准", "�
 
 const TASK_KEYWORDS = ["负责", "deadline", "截止", "完成时间", "交付", "你来", "你做", "分配给"];
 
+const EMAIL_SKIP_PATTERNS = [
+  /auto[- ]?reply/i,
+  /out of office/i,
+  /自动回复/,
+  /会议取消/,
+  /会议已取消/,
+];
+
 /**
  * Check if a message content is emoji-only
  */
@@ -61,8 +69,25 @@ function isEmojiOnly(content: string): boolean {
  * L1: Rule-based filtering
  * Returns 'skip' if noise detected, 'escalate' if high-priority, null to continue to L2
  */
-function filterL1(block: ConversationBlock): NoiseFilterVerdict | null {
+export function filterNoiseL1(block: ConversationBlock): NoiseFilterVerdict | null {
   const allContent = block.messages.map((m) => m.content).join(" ");
+  const channel = block.channel ?? "";
+
+  // Email channel rules
+  if (channel.startsWith("mail/")) {
+    const isAutoSkip = EMAIL_SKIP_PATTERNS.some((re) => re.test(allContent));
+    if (isAutoSkip) return "skip";
+
+    const hasDecisionKeywords = DECISION_KEYWORDS.some((kw) => allContent.includes(kw));
+    if (hasDecisionKeywords) return "escalate";
+
+    return null;
+  }
+
+  // Document and structured channels always pass through to L2
+  if (channel.startsWith("docs/") || channel.startsWith("calendar/") || channel === "tasks") {
+    return null;
+  }
 
   // System notifications
   const isSystemNotification = SYSTEM_KEYWORDS.some((keyword) => allContent.includes(keyword));
@@ -105,9 +130,13 @@ async function filterL2(
   block: ConversationBlock,
   provider: LLMProvider,
 ): Promise<NoiseFilterVerdict> {
-  // Load prompt template
-  const promptPath = join(__dirname, "prompts", "significance.md");
-  const promptTemplate = readFileSync(promptPath, "utf-8");
+  let promptTemplate: string;
+  try {
+    const promptPath = join(__dirname, "prompts", "significance.md");
+    promptTemplate = readFileSync(promptPath, "utf-8");
+  } catch {
+    return "pass";
+  }
 
   // Format conversation block for prompt
   const blockSummary = {
@@ -148,9 +177,18 @@ async function filterL2(
     let s = response.trim();
     s = s.replace(/^`{3,}(?:json|JSON)?\s*\n?/, "");
     s = s.replace(/\n?\s*`{3,}\s*$/, "");
-    parsed = JSON.parse(s.trim());
+    try {
+      parsed = JSON.parse(s.trim());
+    } catch {
+      return "pass";
+    }
   }
-  const verdict = SignificanceVerdictSchema.parse(parsed);
+
+  const result = SignificanceVerdictSchema.safeParse(parsed);
+  if (!result.success) {
+    return "pass";
+  }
+  const verdict = result.data;
 
   // Apply filtering rules
   if (!verdict.worth_processing) {
@@ -177,7 +215,7 @@ export function filterNoise(
   provider?: LLMProvider,
 ): NoiseFilterVerdict | Promise<NoiseFilterVerdict> {
   // L1: Rule-based filtering
-  const l1Verdict = filterL1(block);
+  const l1Verdict = filterNoiseL1(block);
 
   if (l1Verdict !== null) {
     // L1 made a decision, return immediately
@@ -191,4 +229,12 @@ export function filterNoise(
 
   // L2: LLM-based judgment
   return filterL2(block, provider);
+}
+
+/**
+ * Map a SignalScore decision to a NoiseFilterVerdict
+ */
+export function mapScoreDecision(score: { decision: string }): NoiseFilterVerdict {
+  if (score.decision === "drop") return "skip";
+  return "pass";
 }

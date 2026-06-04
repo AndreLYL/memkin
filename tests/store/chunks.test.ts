@@ -9,7 +9,7 @@ describe("ChunkStore", () => {
   let chunks: ChunkStore;
 
   beforeEach(async () => {
-    db = await Database.create();
+    db = await Database.create(undefined, { embeddingDimensions: 768 });
     pages = new PageStore(db.pg);
     chunks = new ChunkStore(db.pg);
   });

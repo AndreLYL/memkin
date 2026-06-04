@@ -8,11 +8,13 @@ import { FileAdapter } from "../adapters/file.js";
 import { GBrainAdapter } from "../adapters/gbrain.js";
 import { StdoutAdapter } from "../adapters/stdout.js";
 import { StoreAdapter, type StoreAdapterContext } from "../adapters/store.js";
-import { filterNoise, type NoiseFilterVerdict } from "../extractors/noise-filter.js";
+import { filterNoiseL1, mapScoreDecision, type NoiseFilterVerdict } from "../extractors/noise-filter.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
 import { BlockBuilder } from "./block-builder.js";
+import { canonicalize } from "./canonicalize.js";
+import { scoreBlock } from "./signal-scoring.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
@@ -223,7 +225,18 @@ export async function runPipeline(
     const processBlock = async (block: ConversationBlock, idx: number): Promise<void> => {
       process.stdout.write(`  [${idx + 1}/${blocks.length}] filtering block ${block.block_id} ...`);
       try {
-        const filterVerdict: NoiseFilterVerdict = await filterNoise(block, opts.provider);
+        // L1: rule-based filter
+        const l1Verdict = filterNoiseL1(block);
+        let filterVerdict: NoiseFilterVerdict;
+
+        if (l1Verdict !== null) {
+          filterVerdict = l1Verdict;
+        } else {
+          // L2 replaced by signal scoring: canonicalize → scoreBlock → gate
+          const cb = canonicalize(block);
+          const score = scoreBlock(cb);
+          filterVerdict = mapScoreDecision(score);
+        }
 
         if (filterVerdict === "skip") {
           process.stdout.write(" skipped\n");
@@ -245,6 +258,23 @@ export async function runPipeline(
 
         if (blockResult.status === "skipped") {
           process.stdout.write(" skipped\n");
+          result.skippedBlocks++;
+          result.skippedMessages.push(...block.messages);
+          return;
+        }
+
+        // Empty extraction guard: all signal arrays empty → skip
+        const d = blockResult.data;
+        if (
+          d.entities.length === 0 &&
+          d.timeline.length === 0 &&
+          d.links.length === 0 &&
+          d.decisions.length === 0 &&
+          d.tasks.length === 0 &&
+          d.discoveries.length === 0 &&
+          d.knowledge.length === 0
+        ) {
+          process.stdout.write(" empty → skipped\n");
           result.skippedBlocks++;
           result.skippedMessages.push(...block.messages);
           return;
