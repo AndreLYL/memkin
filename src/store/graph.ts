@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { compactSourceRef } from "../core/source-ref.js";
 import type { SourceRef } from "../core/types.js";
 
 export interface LinkRow {
@@ -76,7 +77,7 @@ export class GraphStore {
         toSlug,
         type,
         context ?? "",
-        provenance ? JSON.stringify(provenance) : null,
+        provenance ? JSON.stringify(compactSourceRef(provenance)) : null,
         sourceHash ?? null,
       ],
     );

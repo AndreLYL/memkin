@@ -74,4 +74,81 @@ describe("SearchEngine — FTS", () => {
     const results = await search.search("machine learning");
     expect(results.some((r) => r.slug === "entities/bob")).toBe(true);
   });
+
+  it("search and query apply platform, source_type, and participant filters consistently", async () => {
+    const wechat = await pageStore.putPage(
+      "projects/memoark-wechat-deploy",
+      [
+        "---",
+        "title: Memoark WeChat Deploy",
+        "type: decision",
+        "source:",
+        "  platform: wechat",
+        "  source_type: dm",
+        "  channel: dm/wechat/wxid_zhangsan",
+        "  channel_name: 张三",
+        "  timestamp: 2026-06-04T10:00:00.000Z",
+        "  raw_hash: wx-hash",
+        "  quote: 微信里确认部署方案",
+        "  participants:",
+        "    - name: 张三",
+        "      role: participant",
+        "---",
+        "Memoark deployment uses PGLite for local storage.",
+      ].join("\n"),
+    );
+    await chunkStore.rechunk(wechat.id, wechat.compiled_truth);
+
+    const feishu = await pageStore.putPage(
+      "projects/memoark-feishu-deploy",
+      [
+        "---",
+        "title: Memoark Feishu Deploy",
+        "type: decision",
+        "source:",
+        "  platform: feishu",
+        "  source_type: group",
+        "  channel: group/feishu/oc_project",
+        "  channel_name: 项目群",
+        "  timestamp: 2026-06-04T11:00:00.000Z",
+        "  raw_hash: fs-hash",
+        "  quote: 飞书群确认部署方案",
+        "  participants:",
+        "    - name: 李四",
+        "      role: participant",
+        "---",
+        "Memoark deployment uses cloud Postgres for shared staging.",
+      ].join("\n"),
+    );
+    await chunkStore.rechunk(feishu.id, feishu.compiled_truth);
+
+    const searchResults = await search.search("Memoark deployment", {
+      platform: "wechat",
+      source_type: "dm",
+      participant: "张三",
+    });
+    const queryResults = await search.query("Memoark deployment", {
+      platform: "wechat",
+      source_type: "dm",
+      participant: "张三",
+    });
+
+    expect(searchResults.map((r) => r.slug)).toEqual(["projects/memoark-wechat-deploy"]);
+    expect(queryResults.map((r) => r.slug)).toEqual(["projects/memoark-wechat-deploy"]);
+    expect(searchResults[0].provenance?.platform).toBe("wechat");
+    expect(queryResults[0].provenance?.participants?.[0]?.name).toBe("张三");
+  });
+
+  it("clamps oversized search and query limits", async () => {
+    for (let i = 0; i < 55; i++) {
+      const page = await pageStore.putPage(
+        `test/clamp-${i}`,
+        `---\ntitle: Clamp ${i}\ntype: note\n---\nclampword appears in this memory ${i}.`,
+      );
+      await chunkStore.rechunk(page.id, page.compiled_truth);
+    }
+
+    expect(await search.search("clampword", { limit: 999 })).toHaveLength(50);
+    expect(await search.query("clampword", { limit: 999 })).toHaveLength(50);
+  });
 });
