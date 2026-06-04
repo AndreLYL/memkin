@@ -68,6 +68,8 @@ cold — 每个 entity 的叙述性摘要 page，长期归档
 
 各类型写入时：`expires_at = created_at + interval '${hot_days} days'`（见 §4 hot→warm 列）。`expires_at IS NULL` 表示永不自动降级。
 
+> **hot_days 与 halflife_days 的关系**：§4 中 hot_days 的值与 Spec 1 `halflife_days` 列的值相同（decision 均为 90，knowledge 均为 365）。这是有意为之——超过 halflife 的信号已过"重要性减半"点，正好是从 hot 降到 warm 的合理时机。两列服务不同目的：halflife_days 用于 query 分数加权，hot_days（即 expires_at 阈值）用于 tier 轮转触发。
+
 ### 3.3 Migration 002（依赖 Spec 1 的 runner）
 
 ```sql
@@ -155,7 +157,10 @@ async function consolidateHotToWarm(stores): Promise<void> {
 
   // 2. 永不压缩类型（decision/reference/entity）→ 仅改 tier='warm'，不合并
   // 3. 可压缩类型 → 按 (关联 entity, type) 分组合并为一条 warm page
-  //    - 用 graph.getBacklinks 找每个信号 page 关联的 entity
+  //    - 方向：信号 page → entity page（addLink(signalSlug, entitySlug)），
+  //      所以要找信号的 entity 应用 getLinks(signalSlug)，不是 getBacklinks
+  //    - 避免 N+1：批量 SQL JOIN（links WHERE from_page_id IN (过期 page id 列表)），
+  //      一次拿到所有信号的 to_slug（即 entity slug），然后在内存中分组
   //    - 合并：内容拼接，保留最早 created_at，原 page.consolidated_into 指向新 warm page
   //    - 原 page 改 tier='warm' 或软引用到聚合 page
 }

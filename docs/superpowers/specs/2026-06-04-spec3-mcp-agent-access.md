@@ -72,7 +72,7 @@ At session start, call `get_session_context` to load working memory.
 ```markdown
 ## 近期工作概览（最近7天）
 
-**活跃项目**：project:memoark, project:feishu-integration
+**活跃项目**：project/memoark, project/feishu-integration
 **关键决策**（最近3条）：
 - 2026-06-04 采用 gbrain 式 entity-as-page，沿用 links 锚定
 - 2026-06-02 选 PGLite 替代 Redis（运维成本）
@@ -81,7 +81,7 @@ At session start, call `get_session_context` to load working memory.
 **已知偏好**：
 - 偏好中文文档；深夜工作习惯
 
-如需细节：recall("关键词") 或 get_entity_profile("project:memoark")
+如需细节：query("关键词") 或 get_entity_profile("project/memoark")
 ```
 
 ### 3.3 数据来源（基于真实 stores）
@@ -133,6 +133,8 @@ list_signals_by_entity: async ({ entity_slug, signal_types, limit }) => {
 
 `getBacklinksEnriched` 已返回 page 的 title/type/frontmatter（`src/store/graph.ts:149`），无需额外查询。
 
+> **限制**：`EnrichedLinkRow.page` 只包含 `{ title, type, frontmatter }`，**不含 `compiled_truth`（正文）**。此工具定位为"信号列表"（轻量元数据），Agent 按需对感兴趣的 slug 调用 `get_page` 拿正文。如需批量正文，实施时可扩展为 JOIN 查询，或接受当前"两步：list → get_page"的使用模式。
+
 ### 4.3 `get_entity_profile`
 
 组合 entity page + backlinks + timeline：
@@ -150,6 +152,8 @@ get_entity_profile: async ({ entity_slug }) => {
 ```
 
 返回结构化档案：基本信息 + 关键决策 + 相关偏好 + 近期 timeline。
+
+> **timeline 范围限制**：`getTimeline(entity_slug)` 只返回直接附加在 entity page 上的 timeline entries（`WHERE pages.slug = entity_slug`）。大部分 timeline entry 附加在 decision/task page 上，不直接挂在 entity page。因此 entity profile 的 timeline 可能不完整，不代表该 entity 的全部活动历史。如需完整活动时间线，需先用 backlinks 找到所有相关 page，再对每个 page 拉 timeline——计算量较高，留作后续增强。
 
 ---
 
@@ -216,8 +220,8 @@ When you make a significant decision or discovery, save it with:
 
 1. `bun test` 全部通过（含 3 个新工具的测试）
 2. `get_session_context()` 返回 < 800 token 的有意义概览
-3. `list_signals_by_entity("project:memoark")` 通过 backlinks 返回正确信号列表
-4. `get_entity_profile("project:memoark")` 返回结构化档案（基本信息+决策+偏好+timeline）
+3. `list_signals_by_entity("project/memoark")` 通过 backlinks 返回正确信号列表
+4. `get_entity_profile("project/memoark")` 返回结构化档案（基本信息+决策+偏好+timeline）
 5. `query("PGLite 决策")` 结果中 tier='hot' 的 page 排序优先于 tier='cold'
 6. 现有 17 个工具行为不变（Web UI 不受影响）
 7. CLAUDE.md 模板更新，引导 Agent 优先使用高层工具
