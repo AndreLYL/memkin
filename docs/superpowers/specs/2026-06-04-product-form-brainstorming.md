@@ -126,6 +126,16 @@ interface ReferenceSignal {
 
 ---
 
+## 八、Spec 文件索引
+
+| Spec | 文件 | 状态 |
+|---|---|---|
+| Spec 1：信号类型重构 + Entity 架构 | `2026-06-04-spec1-signal-types-entity-architecture.md` | 待审查 |
+| Spec 2：记忆生命周期 | `2026-06-04-spec2-memory-lifecycle.md` | 待审查 |
+| Spec 3：MCP Agent 取用层 | `2026-06-04-spec3-mcp-agent-access.md` | 待审查 |
+
+---
+
 ## 七、关键共识备忘
 
 - gbrain 的设计哲学和 Memoark 高度一致：一个人的工作记忆，服务于所有与这个人协作的 Agent（Claude/Codex/Hermes/OpenClaw 等），是多 Agent 共享记忆层，不是单 Agent 专属
