@@ -8,16 +8,20 @@ import { FileAdapter } from "../adapters/file.js";
 import { GBrainAdapter } from "../adapters/gbrain.js";
 import { StdoutAdapter } from "../adapters/stdout.js";
 import { StoreAdapter, type StoreAdapterContext } from "../adapters/store.js";
-import { filterNoiseL1, mapScoreDecision, type NoiseFilterVerdict } from "../extractors/noise-filter.js";
+import {
+  filterNoiseL1,
+  mapScoreDecision,
+  type NoiseFilterVerdict,
+} from "../extractors/noise-filter.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
-import { scoreBlock } from "./signal-scoring.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
+import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
   BlockResult,
