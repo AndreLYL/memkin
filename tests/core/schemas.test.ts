@@ -7,6 +7,8 @@ import {
   KnowledgeSchema,
   parseExtractionResult,
   parseSignificanceVerdict,
+  SourceRefCoreSchema,
+  SourceRefSchema,
 } from "../../src/core/schemas.js";
 import type { ExtractionResult, SignificanceVerdict } from "../../src/core/types.js";
 
@@ -190,6 +192,77 @@ describe("ExtractionResult schema validation", () => {
     };
 
     expect(() => parseExtractionResult(data)).toThrow();
+  });
+});
+
+describe("SourceRef v2 schema", () => {
+  it("requires SourceRefCore fields in the strict core schema", () => {
+    expect(() =>
+      SourceRefCoreSchema.parse({
+        platform: "wechat",
+        channel: "dm/wechat/wxid_123",
+        timestamp: "2026-06-04T10:00:00.000Z",
+        raw_hash: "hash-123",
+        quote: "部署方案已确认",
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      SourceRefCoreSchema.parse({
+        platform: "wechat",
+        channel: "dm/wechat/wxid_123",
+        timestamp: "2026-06-04T10:00:00.000Z",
+        quote: "缺少 raw_hash",
+      }),
+    ).toThrow();
+  });
+
+  it("accepts SourceRef v2 extension fields", () => {
+    const parsed = SourceRefSchema.parse({
+      platform: "feishu",
+      source_type: "dm",
+      channel: "dm/feishu/oc_123",
+      channel_name: "张三",
+      timestamp: "2026-06-04T10:00:00.000Z",
+      start_time: "2026-06-04T09:55:00.000Z",
+      end_time: "2026-06-04T10:05:00.000Z",
+      external_id: "om_001",
+      message_ids: ["om_001", "om_002"],
+      thread_id: "thread_001",
+      conversation_id: "oc_123",
+      author: { id: "ou_alice", name: "Alice", role: "author" },
+      participants: [
+        { id: "ou_alice", name: "Alice", role: "sender" },
+        { id: "ou_bob", name: "Bob", role: "participant" },
+      ],
+      account_id: "account_1",
+      tenant_id: "tenant_1",
+      sensitivity: "high",
+      raw_hash: "hash-123",
+      quote: "我们决定本周上线",
+      metadata: { chat_type: "p2p" },
+    });
+
+    expect(parsed.source_type).toBe("dm");
+    expect(parsed.channel_name).toBe("张三");
+    expect(parsed.message_ids).toEqual(["om_001", "om_002"]);
+    expect(parsed.participants?.[0]).toEqual({
+      id: "ou_alice",
+      name: "Alice",
+      role: "sender",
+    });
+    expect(parsed.metadata).toEqual({ chat_type: "p2p" });
+  });
+
+  it("keeps legacy SourceRef compatibility for raw_hash and quote", () => {
+    const parsed = SourceRefSchema.parse({
+      platform: "slack",
+      channel: "#engineering",
+      timestamp: "2026-05-19T12:00:00Z",
+    });
+
+    expect(parsed.raw_hash).toBe("");
+    expect(parsed.quote).toBe("");
   });
 });
 

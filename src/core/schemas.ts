@@ -32,18 +32,45 @@ const optionalDatetime = z
     return z.NEVER;
   });
 
-export const SourceRefSchema = z.object({
+export const SourceParticipantSchema = z.object({
+  id: optionalString,
+  name: z.string(),
+  role: z.enum(["author", "sender", "recipient", "participant"]).optional(),
+});
+
+export const SourceRefCoreSchema = z.object({
   platform: z.string(),
   channel: z.string(),
+  timestamp: z.string(),
+  raw_hash: z.string(),
+  quote: z.string(),
+});
+
+export const SourceRefSchema = z.object({
+  platform: z.string(),
+  source_type: z.string().optional(),
+  channel: z.string(),
+  channel_name: optionalString,
   timestamp: z.string().default(() => new Date().toISOString()),
+  start_time: optionalString,
+  end_time: optionalString,
+  external_id: optionalString,
   message_id: optionalString,
+  message_ids: z.array(z.string()).optional(),
   thread_id: optionalString,
+  conversation_id: optionalString,
+  author: SourceParticipantSchema.optional(),
+  participants: z.array(SourceParticipantSchema).optional(),
+  account_id: optionalString,
+  tenant_id: optionalString,
   file_path: optionalString,
   line_range: z.object({ start: z.number(), end: z.number() }).optional(),
   attachment_id: optionalString,
   url: optionalString,
+  sensitivity: z.enum(["normal", "high"]).optional(),
   raw_hash: z.string().default(""),
   quote: z.string().default(""),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 // Signal schemas
@@ -70,6 +97,8 @@ const VALID_LINK_TYPES = [
   "collaborates",
   "depends_on",
   "mentions",
+  "approves",
+  "uses",
   "custom",
 ] as const;
 
@@ -124,7 +153,7 @@ export const TaskSignalSchema = z.object({
 export const DiscoverySchema = z.object({
   summary: z.string(),
   detail: z.string().optional(),
-  type: z.enum(["procedure", "preference", "pattern", "insight"]),
+  type: z.enum(["procedure", "preference", "pattern", "insight", "risk"]),
   entities: z.array(z.string()), // slugs
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
