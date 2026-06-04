@@ -20,6 +20,7 @@ import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
 import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
+import { createMcpHttpApp } from "./server/mcp-http.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
 import { EmbeddingService } from "./store/embedding.js";
@@ -478,12 +479,38 @@ program
   .description("Start Memoark HTTP API or MCP stdio server")
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
+  .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
   .action(async (options) => {
     const config = loadConfig(options.config);
     const stores = await createStores(config);
     if (options.mcp) {
-      const server = createMcpServer(stores);
+      const server = createMcpServer(stores, {
+        exposeLegacyTools: config.mcp.expose_legacy_tools,
+      });
       await server.connect(new StdioServerTransport());
+      return;
+    }
+    if (
+      options.mcpHttp ||
+      config.mcp.http.enabled ||
+      config.server.mcp_transport === "streamable_http"
+    ) {
+      const tokenEnv = config.mcp.http.auth_token_env;
+      const app = createMcpHttpApp(stores, {
+        allowedOrigins: config.mcp.http.allowed_origins,
+        allowedHosts: config.mcp.http.allowed_hosts,
+        authToken: tokenEnv ? process.env[tokenEnv] : undefined,
+        exposeLegacyTools: config.mcp.expose_legacy_tools,
+        readOnly: config.mcp.http.read_only,
+      });
+      const server = Bun.serve({
+        hostname: config.mcp.http.bind_host,
+        port: config.mcp.http.port,
+        fetch: app.fetch,
+      });
+      console.log(
+        `Memoark MCP Streamable HTTP listening on http://${config.mcp.http.bind_host}:${server.port}/mcp`,
+      );
       return;
     }
     const app = createApiApp(stores);
