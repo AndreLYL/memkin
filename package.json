@@ -17,6 +17,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "setup": "bun install && cd web && bun install",
     "dev": "bun src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest --watch",
