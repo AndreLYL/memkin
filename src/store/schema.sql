@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS content_chunks (
   chunk_text      TEXT NOT NULL,
   chunk_source    TEXT NOT NULL DEFAULT 'compiled_truth',
   token_count     INTEGER,
-  embedding       vector(1536),
+  embedding       vector(__EMBEDDING_DIM__),
   model           TEXT NOT NULL DEFAULT 'text-embedding-3-large',
   embedded_at     TIMESTAMPTZ,
   search_vector   TSVECTOR,
@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS links (
   to_page_id      INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   link_type       TEXT NOT NULL DEFAULT '',
   context         TEXT NOT NULL DEFAULT '',
+  provenance      JSONB,
+  source_hash     TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(from_page_id, to_page_id, link_type)
 );
@@ -64,6 +66,7 @@ CREATE TABLE IF NOT EXISTS timeline_entries (
   summary         TEXT NOT NULL,
   detail          TEXT NOT NULL DEFAULT '',
   source          TEXT NOT NULL DEFAULT '',
+  provenance      JSONB,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(page_id, date, summary)
 );
@@ -103,5 +106,24 @@ DO $$ BEGIN
     CREATE TRIGGER chunk_search_vector_trigger
       BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
       FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
+  END IF;
+END $$;
+
+-- Identity cache for person slug canonicalization
+CREATE TABLE IF NOT EXISTS identity_cache (
+  platform      TEXT NOT NULL,
+  external_id   TEXT NOT NULL,
+  display_name  TEXT NOT NULL,
+  slug_hint     TEXT,
+  resolved_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (platform, external_id)
+);
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'identity_cache' AND column_name = 'slug_hint'
+  ) THEN
+    ALTER TABLE identity_cache ADD COLUMN slug_hint TEXT;
   END IF;
 END $$;

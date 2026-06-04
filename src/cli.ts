@@ -57,7 +57,9 @@ function expandDataDir(dir: string): string {
 async function createStores(config: ReturnType<typeof loadConfig>) {
   const dataDir = expandDataDir(config.store.data_dir);
   mkdirSync(dataDir, { recursive: true });
-  const db = await Database.create(dataDir);
+  const db = await Database.create(dataDir, {
+    embeddingDimensions: config.embedding.dimensions,
+  });
   const pages = new PageStore(db.pg);
   const chunks = new ChunkStore(db.pg);
   const embedding = new EmbeddingService(db.pg, {

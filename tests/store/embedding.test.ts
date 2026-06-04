@@ -34,7 +34,7 @@ describe("EmbeddingService", () => {
   let embedder: EmbeddingService;
 
   beforeEach(async () => {
-    db = await Database.create();
+    db = await Database.create(undefined, { embeddingDimensions: 768 });
     pageStore = new PageStore(db.pg);
     chunkStore = new ChunkStore(db.pg);
     embedder = new EmbeddingService(db.pg, {
