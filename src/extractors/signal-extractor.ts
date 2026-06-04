@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseExtractionResult } from "../core/schemas.js";
+import { compactRecord, compactSourceRef } from "../core/source-ref.js";
 import type {
   BlockResult,
   CanonicalisedBlock,
@@ -21,6 +22,7 @@ import type {
   ExtractionResult,
   RawMessage,
   SourceRef,
+  SourceType,
 } from "../core/types.js";
 import type { ChatMessage, LLMProvider } from "./providers/types.js";
 
@@ -130,23 +132,118 @@ function hashBlock(block: ConversationBlock): string {
   return createHash("sha256").update(data).digest("hex").slice(0, 16);
 }
 
-function buildSourceRef(block: ConversationBlock): SourceRef {
-  return {
+function inferSourceType(channel: string, fallback?: SourceType): SourceType {
+  if (fallback) return fallback;
+  if (channel.startsWith("dm/")) return "dm";
+  if (channel.startsWith("group/")) return "group";
+  if (channel.startsWith("mail/")) return "email";
+  if (channel.startsWith("docs/") || channel.startsWith("doc/")) return "document";
+  if (channel.startsWith("calendar/")) return "calendar";
+  if (channel.startsWith("task/") || channel === "tasks") return "task";
+  if (channel.startsWith("agent/")) return "agent_session";
+  return "chat";
+}
+
+function firstMetadataValue(messages: RawMessage[], keys: string[]): string | undefined {
+  for (const message of messages) {
+    for (const key of keys) {
+      const value = message.metadata?.[key];
+      if (typeof value === "string" && value.length > 0) return value;
+    }
+  }
+  return undefined;
+}
+
+function collectMessageIds(messages: RawMessage[]): string[] | undefined {
+  const ids = messages
+    .map((message) => message.metadata?.message_id)
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+  const unique = Array.from(new Set(ids));
+  return unique.length > 0 ? unique : undefined;
+}
+
+function collectMetadata(block: ConversationBlock): Record<string, unknown> | undefined {
+  const metadata = compactRecord({
+    block_id: block.block_id,
+    ...Object.assign({}, ...block.messages.map((message) => message.metadata ?? {})),
+  });
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+export function buildSourceRef(input: ConversationBlock | CanonicalisedBlock): SourceRef {
+  const block = "block" in input ? input.block : input;
+  const sourceType = inferSourceType(
+    block.channel,
+    "source_type" in input ? input.source_type : undefined,
+  );
+  const messageIds = collectMessageIds(block.messages);
+  const firstMessage = block.messages[0];
+
+  return compactSourceRef({
     platform: block.platform,
+    source_type: sourceType,
     channel: block.channel,
+    channel_name: firstMetadataValue(block.messages, [
+      "channel_name",
+      "chat_name",
+      "conversation_name",
+      "contact_name",
+    ]),
     timestamp: block.start_time,
     start_time: block.start_time,
     end_time: block.end_time,
     thread_id: block.thread_id,
-    message_ids: block.messages.map((m) => m.metadata?.message_id as string).filter(Boolean),
+    conversation_id: firstMetadataValue(block.messages, [
+      "conversation_id",
+      "chat_id",
+      "session_id",
+      "thread_id",
+    ]),
+    external_id: firstMetadataValue(block.messages, [
+      "external_id",
+      "doc_token",
+      "event_id",
+      "task_id",
+      "mail_id",
+    ]),
+    message_id: messageIds?.length === 1 ? messageIds[0] : undefined,
+    message_ids: messageIds,
+    author: firstMessage
+      ? {
+          name: firstMessage.contact,
+          role: firstMessage.direction === "sent" ? "author" : "sender",
+        }
+      : undefined,
+    participants: block.participants.map((name) => ({ name, role: "participant" as const })),
+    account_id: firstMetadataValue(block.messages, ["account_id"]),
+    tenant_id: firstMetadataValue(block.messages, ["tenant_id", "tenant_key"]),
+    sensitivity: firstMetadataValue(block.messages, ["sensitivity"]) as
+      | "normal"
+      | "high"
+      | undefined,
+    metadata: collectMetadata(block),
     raw_hash: hashBlock(block),
     quote: "",
-  };
+  });
 }
 
 function stampSourceRefs(result: ExtractionResult, canonical: SourceRef): void {
-  result.source = { ...canonical, quote: result.source.quote || canonical.quote };
-  const stamp = (s: SourceRef) => ({ ...canonical, quote: s.quote || canonical.quote });
+  const stamp = (s: SourceRef) =>
+    compactSourceRef({
+      ...canonical,
+      external_id: s.external_id ?? canonical.external_id,
+      message_id: s.message_id ?? canonical.message_id,
+      file_path: s.file_path ?? canonical.file_path,
+      line_range: s.line_range ?? canonical.line_range,
+      attachment_id: s.attachment_id ?? canonical.attachment_id,
+      url: s.url ?? canonical.url,
+      quote: s.quote || canonical.quote,
+      metadata:
+        canonical.metadata || s.metadata
+          ? { ...(canonical.metadata ?? {}), ...(s.metadata ?? {}) }
+          : undefined,
+    });
+  result.source = stamp(result.source);
   for (const d of result.decisions) d.source = stamp(d.source);
   for (const t of result.tasks) t.source = stamp(t.source);
   for (const disc of result.discoveries) disc.source = stamp(disc.source);
@@ -252,7 +349,7 @@ Output ONLY valid JSON matching ExtractionResultSchema.`;
           const result = parseExtractionResult(jsonData);
 
           // System stamp: overwrite LLM-generated source fields with canonical provenance
-          const canonical = buildSourceRef(block);
+          const canonical = buildSourceRef(isCanonicalized ? (input as CanonicalisedBlock) : block);
           stampSourceRefs(result, canonical);
 
           return { status: "ok", data: result };

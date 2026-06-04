@@ -2,11 +2,15 @@ import { estimateTokens } from "./block-builder.js";
 import { extractQuickEntities } from "./entity-extract.js";
 import type { CanonicalisedBlock, InteractionTag, SignalScore, SourceType } from "./types.js";
 
-const SOURCE_WEIGHTS: Record<SourceType, number> = {
+const SOURCE_WEIGHTS: Partial<Record<SourceType, number>> = {
   email: 0.9,
   document: 0.9,
+  calendar: 0.8,
+  task: 0.8,
   structured: 0.8,
   dm: 0.7,
+  group: 0.6,
+  agent_session: 0.6,
   chat: 0.5,
 };
 
@@ -38,7 +42,7 @@ export function scoreBlock(cb: CanonicalisedBlock): SignalScore {
 
   const token_score = scoreTokens(tokens);
   const unique_words_score = scoreTTR(text);
-  const source_score = SOURCE_WEIGHTS[cb.source_type];
+  const source_score = SOURCE_WEIGHTS[cb.source_type] ?? 0.5;
   const interaction_score = scoreInteraction(cb.interaction_tags);
   const entity_density_score = tokens === 0 ? 0 : Math.min(1.0, entities.length / (tokens / 100));
 
