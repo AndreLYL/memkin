@@ -39,10 +39,7 @@ export class Database {
     return new Database(pg, dims);
   }
 
-  private static async migrateEmbeddingDimensions(
-    pg: PGlite,
-    targetDims: number,
-  ): Promise<void> {
+  private static async migrateEmbeddingDimensions(pg: PGlite, targetDims: number): Promise<void> {
     const result = await pg.query<{ atttypmod: number }>(
       `SELECT atttypmod FROM pg_attribute
        WHERE attrelid = 'content_chunks'::regclass
