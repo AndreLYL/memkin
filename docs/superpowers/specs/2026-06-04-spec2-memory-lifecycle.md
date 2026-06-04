@@ -59,12 +59,14 @@ MemPalace 永久全量保留，6个月后向量检索退化、无综合视图。
 ### 3.2 层次定义
 
 ```
-hot   (0 ~ halflife)        — 完整信号 page，全字段
-warm  (halflife ~ 2×halflife) — 同 entity 同类信号合并去重后的聚合 page
-cold  (> 2×halflife)        — 每个 entity 的叙述性摘要 page
+hot  — 完整信号 page，全字段，新鲜有效期内
+warm — 同 entity 同类信号合并去重后的聚合 page，降级后进入
+cold — 每个 entity 的叙述性摘要 page，长期归档
 ```
 
-tier 边界由各 page 的 `halflife_days`（Spec 1 已写入）动态决定，而非固定天数。
+**tier 边界由 §4 的 per-type 显式配置决定，不用统一公式。**
+
+各类型写入时：`expires_at = created_at + interval '${hot_days} days'`（见 §4 hot→warm 列）。`expires_at IS NULL` 表示永不自动降级。
 
 ### 3.3 Migration 002（依赖 Spec 1 的 runner）
 
@@ -89,32 +91,60 @@ ALTER TABLE timeline_entries ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ## 四、各类型差异化生命周期
 
 ```
-page.type        | hot→warm        | warm→cold       | 可压缩  | 特殊规则
------------------|-----------------|-----------------|--------|------------------
-timeline_entries | 7天后            | 90天后           | ✅     | 压缩为"事件列表摘要"
-decision         | 90天后           | 永不进 cold      | ❌     | "为什么"必须原文保留
-task             | 完成(done)后立即  | 180天后          | ✅     | open 状态长期保留
-knowledge        | 365天后          | 730天后          | ✅去重  | 同 entity 同 topic 合并
-discovery-*      | 90天后           | 365天后          | ✅     | 合并进 entity 知识摘要
-preference       | 90天后           | 365天后          | ✅合并  | 新偏好 supersede 旧偏好
-reference        | 永不降级         | 永不降级         | ❌     | dead-link 标记，不删
-entity 类 page    | 永不降级         | 永不降级         | ❌     | 实体本身是锚点
+page.type        | hot_days(expires_at) | warm→cold       | 可压缩  | 特殊规则
+-----------------|----------------------|-----------------|--------|------------------
+timeline_entries | 7天                  | 180天后          | ✅     | 压缩为"事件列表摘要"
+decision         | 90天                 | 永不进 cold      | ❌     | "为什么"必须原文保留
+task             | done后立即(NULL→0)   | 365天后          | ✅     | open 状态 expires_at=NULL
+knowledge        | 365天                | 730天后          | ✅去重  | 同 entity 同 topic 合并
+discovery-*      | 90天                 | 365天后          | ✅     | 合并进 entity 知识摘要
+preference       | 90天                 | 365天后          | ✅合并  | 新偏好 supersede 旧偏好
+reference        | NULL（永不）          | 永不进 cold      | ❌     | dead-link 标记，不删
+entity 类 page    | NULL（永不）          | 永不进 cold      | ❌     | 实体本身是锚点
 ```
 
-**永不压缩名单**：`decision`、`reference`、entity 类 page。这是对 OpenHuman 有损压缩教训的直接回应。
+**expires_at 计算**：写入时 `expires_at = created_at + interval '${hot_days} days'`；`hot_days=NULL` 时 `expires_at=NULL`（永不自动触发）。task 在状态变为 done 时主动设 `expires_at = NOW()`。
+
+**永不压缩名单**：`decision`、`reference`、entity 类 page。来自对 OpenHuman 有损压缩教训的直接回应。
 
 ---
 
 ## 五、轮转机制
 
-### 5.1 接入现有 daemon scheduler
+### 5.1 真实 Scheduler 结构与 Consolidator 的接入方式
 
-`src/daemon/scheduler.ts` 已有调度框架。新增两个 job：
+**真实结构**（`src/daemon/scheduler.ts`）：`Scheduler` 类管理多个 `SourceSchedule`（每个数据源一个 interval），`tick()` 遍历所有数据源调用 `runSource(sourceId: string)`。**没有通用 job 队列，没有 JobKind 枚举**——它只负责 pipeline 数据同步。
 
-- `consolidate_hot`：每天 02:00，处理 `tier='hot' AND expires_at < NOW()` 的 page
-- `consolidate_warm`：每周日 03:00，处理 `tier='warm'` 且年龄 > 2×halflife 的 page
+**Consolidator 作为独立模块**，不接入现有 Scheduler，而是在 daemon 启动时并列运行：
 
-新增 CLI 命令 `memoark consolidate [--hot|--warm]` 供手动触发和测试。
+```typescript
+// src/daemon/index.ts（示意）
+await scheduler.start();     // 已有：负责飞书等数据源 pipeline
+await consolidator.start();  // 新增：负责记忆生命周期轮转
+```
+
+`Consolidator` 类（新建 `src/consolidator/consolidator.ts`）内部用 `setInterval` 管理两个周期：
+
+```typescript
+class Consolidator {
+  private hotTimer: ReturnType<typeof setInterval> | null = null;
+  private warmTimer: ReturnType<typeof setInterval> | null = null;
+
+  start(): void {
+    // hot→warm：每天运行（86400000ms）
+    this.hotTimer = setInterval(() => this.consolidateHot(), 86_400_000);
+    // warm→cold：每周运行（7 × 86400000ms）
+    this.warmTimer = setInterval(() => this.consolidateWarm(), 7 * 86_400_000);
+  }
+
+  stop(): void {
+    if (this.hotTimer) clearInterval(this.hotTimer);
+    if (this.warmTimer) clearInterval(this.warmTimer);
+  }
+}
+```
+
+新增 CLI 命令 `memoark consolidate [--hot|--warm]` 直接实例化 Consolidator 并单次运行，供手动触发和测试。
 
 ### 5.2 Hot → Warm
 

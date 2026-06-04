@@ -46,6 +46,8 @@ export const HALFLIFE_DAYS: Record<FactKind, number> = {
 
 **Entity 即 page**（`src/schema.sql`）：gbrain 没有独立 entities 表，entity 就是 `pages` 表中 slug 带前缀的记录（`people/alice`、`project/memoark`），facts 通过 `entity_slug` 锚定。**这与 Memoark 当前架构高度一致**——Memoark 的 entity 也是 page，signal page 通过 `links` 表锚定到 entity page。
 
+**⚠️ pg_trgm 风险说明**：gbrain 的 entity resolution 使用 `pg_trgm` 模糊匹配（`similarity()` 函数）。Memoark 当前 schema 仅有 `CREATE EXTENSION vector`，代码库中无任何 `pg_trgm` 使用。PGLite 加载 pg_trgm 需要在 JS 侧显式引入 contrib 扩展，**可行性未验证**。本 spec 的 entity resolution（§六）已绕开 pg_trgm（只用飞书结构化元数据做精确匹配），不依赖此扩展。若未来需要模糊匹配，应先做 spike 验证 PGLite + pg_trgm 可用性，再写入 spec。
+
 **gbrain-engineer learning_type**（`src/core/schema-pack/base/gbrain-engineer.yaml`）：
 ```
 pattern | pitfall | preference | architecture | tool | operational | investigation

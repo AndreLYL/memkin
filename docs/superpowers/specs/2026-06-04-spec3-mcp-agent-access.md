@@ -153,17 +153,19 @@ get_entity_profile: async ({ entity_slug }) => {
 
 ---
 
-## 五、query/search 厘清与 tier 加权
+## 五、query 增强与 tier 加权
+
+**真实工具名**（`src/server/mcp.ts`）：语义检索是 `query`，关键词检索是 `search`。不存在 `recall` 工具。
 
 ### 5.1 职责厘清
 
-- `search`：纯检索，返回 page 列表（保留）
-- `query`：语义问答式检索（保留，作为主入口）
-- 文档化两者区别，CLAUDE.md 引导 Agent 默认用 `query`
+- `search`：全文/关键词检索，返回 page 列表（保留，不改）
+- `query`：向量语义检索（保留，作为 Agent 主入口）
+- CLAUDE.md 引导 Agent 默认用 `query`，需要精确关键词时用 `search`
 
-### 5.2 tier 加权（依赖 Spec 2）
+### 5.2 query 的 tier 加权（依赖 Spec 2）
 
-在 `SearchEngine`（`src/store/search.ts`）的排序中，对 Spec 2 的 `tier` 加权：
+在 `SearchEngine`（`src/store/search.ts`）排序阶段，对 Spec 2 引入的 `tier` 列加权：
 
 ```
 hot   → ×1.0
@@ -171,7 +173,7 @@ warm  → ×0.8
 cold  → ×0.6
 ```
 
-让最新鲜的信号优先返回。这是对现有 search 的增量改动，不重写检索核心。
+最新鲜的信号优先返回。这是对现有 search 的增量改动，不重写检索核心。
 
 ---
 
@@ -185,12 +187,19 @@ cold  → ×0.6
 
 ---
 
-## 七、PreCompact Hook（可选，降级处理）
+## 七、主动存档引导（替代 PreCompact Hook）
 
-gbrain 的 PreCompact hook 依赖 Claude Code 私有 API，跨 Agent 不通用。**本 spec 不实现 hook**，改为：
+gbrain 的 PreCompact hook 依赖 Claude Code 私有 API，跨 Agent 不通用。**本 spec 不实现 hook**。
 
-- 提供 `remember` 语义（复用 `put_page`）+ CLAUDE.md 引导 Agent 在重要节点主动存档
-- 真正的 PreCompact 自动化作为 Claude-Code-specific 增强，移出本 spec
+替代方案：在 CLAUDE.md 模板中引导 Agent 在关键节点主动调用已有的 `put_page` 工具存档：
+
+```markdown
+<!-- CLAUDE.md 引导语 -->
+When you make a significant decision or discovery, save it with:
+  put_page(slug="decisions/<slug>", content="---\ntitle: ...\ntype: decision\n---\n...")
+```
+
+没有 `remember` 这个 CLI 命令或 MCP 工具——直接用 `put_page` 即可，无需包装。
 
 ---
 
