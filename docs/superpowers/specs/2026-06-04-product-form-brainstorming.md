@@ -136,9 +136,58 @@ interface ReferenceSignal {
 
 ---
 
+## 九、代码审查修正（2026-06-04，三个 spec 已基于此重写为 v2）
+
+初版三个 spec 基于错误的架构假设，经代码审查后全部重写。**关键事实，后续不要再搞错：**
+
+### 真实存储架构（src/store/schema.sql）
+- **没有 `signals` 表。** 所有信号存为 `pages` 表记录，用 `type` 字段 + slug 前缀区分
+  - entity → `type=person/project/...`，slug=`<name>`
+  - decision → `type=decision`，slug=`decisions/<kebab>`
+  - task → `type=task`，slug=`tasks/<kebab>`
+  - discovery → `type=discovery-<subtype>`，slug=`discoveries/<kebab>`
+  - knowledge → `type=knowledge`，slug=`knowledge/<topic>/<hash12>`
+- **timeline 和 link 不是 page**：分别存 `timeline_entries` 表和 `links` 表
+- 信号元数据存在 `pages.frontmatter` JSONB
+
+### Entity 锚定已经存在（src/adapters/store.ts）
+- 写 decision/discovery/knowledge 时已调用 `graph.addLink(signalSlug, entitySlug, "mentions")` 锚定到 entity page
+- 查"某 entity 的所有信号" = `graph.getBacklinks(entitySlug)`
+- **不需要新建 entities 表或 entity_slugs[] 字段**——初版 spec 的这个设计是错的
+
+### procedure/preference 已部分存在（src/core/types.ts:125）
+- `Discovery.type = "procedure" | "preference" | "pattern" | "insight" | "risk"`
+- preference 当前埋在 discovery 子类里，Spec 1 把它提升为一等类型
+
+### 无 migration runner（src/store/database.ts）
+- 每次启动重跑整个 schema.sql（全 `CREATE TABLE IF NOT EXISTS`），对已有库不执行 ALTER
+- Spec 1 新增最小 migration runner（`schema_migrations` 表 + 编号 SQL）作为地基
+
+### 原始飞书内容根本没存（修正 Spec 2 动机）
+- pipeline 处理完只落 pages，`RawMessage` 不入库
+- 初版"清理原始内容膨胀"动机不成立，"30天 TTL"无删除对象
+- 原始内容保留层是独立子项目，移出 Spec 2，记入下方 backlog
+
+### MCP 现状（src/server/mcp.ts）
+- 17 个底层原语工具（query/search/get_page/.../get_timeline/get_health）
+- Spec 3 新增 3 个高层语义工具，不删原语（Web UI 依赖它们）
+
+### v2 修正后的类型结论
+最终信号类型（v2）：entities / timeline / decisions / tasks / knowledge / discovery / **preferences（提升）** / **references（新增）**
+- 不强行合并 discovery 和 knowledge（YAGNI，等数据验证）
+- knowledge 不加 sub_type（已有 source_type，过度设计）
+
+### Backlog（独立子项目）
+- 原始飞书内容保留层（供 pipeline 重跑）：需新建表 + 改 Collector + TTL 清理
+- Claude Code PreCompact hook 自动化（私有 API，跨 Agent 不通用）
+- 飞书文档深度提取（用户标记触发）
+
+---
+
 ## 七、关键共识备忘
 
 - gbrain 的设计哲学和 Memoark 高度一致：一个人的工作记忆，服务于所有与这个人协作的 Agent（Claude/Codex/Hermes/OpenClaw 等），是多 Agent 共享记忆层，不是单 Agent 专属
+- gbrain 是 entity-as-page 模型（无独立 entities 表），与 Memoark 现状一致——这验证了沿用 pages 模型的正确性
 - MemPalace 的"全部原始保留"策略本质是逃避决策，6个月后检索质量会退化
-- OpenHuman 的有损摘要对 decisions 信号危险，会丢失"为什么"
+- OpenHuman 的有损摘要对 decisions 信号危险，会丢失"为什么"——故 decision/reference/entity 列入永不压缩名单
 - gbrain 成熟的三个理由：①生命周期有明确操作语义（TTL+cron）②Markdown 为 canonical 源（数据库可重建）③PreCompact hook（在 context 压缩前主动存档）

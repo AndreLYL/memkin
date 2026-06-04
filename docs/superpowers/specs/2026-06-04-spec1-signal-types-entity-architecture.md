@@ -1,9 +1,11 @@
-# Spec 1: Signal Type Refactoring + Entity Architecture
+# Spec 1: 信号类型重构 + Entity 锚定强化
 
-**日期**：2026-06-04  
-**状态**：待实施  
-**依赖**：无（地基 spec）  
+**日期**：2026-06-04（v2 重写，基于真实代码）
+**状态**：待实施
+**依赖**：无（地基 spec）
 **后续**：Spec 2（记忆生命周期）、Spec 3（MCP Agent 取用层）
+
+> **v2 重写说明**：初版 spec 基于一个不存在的 `signals` 扁平表设计，与代码实际的 pages 模型完全脱节。本版基于真实存储架构重写。详见 §三。
 
 ---
 
@@ -11,19 +13,18 @@
 
 ### 当前问题
 
-Memoark 现有7种信号类型（entities, timeline, decisions, tasks, discoveries, knowledge, links），存在以下问题：
-
-1. **类型边界模糊**：`discoveries` 与 `knowledge` 语义重叠，提取时 pipeline 无法稳定区分
-2. **links 定义错误**：当前 `links` 被设计为实体关系图边，但实际需求是"有上下文的资源书签"（URL + 摘要 + 触发场景）
-3. **缺少 preferences**：用户偏好/习惯是 Agent 个性化的核心输入，现有类型无法捕获
-4. **信号游离**：所有 signal 相互独立，无法回答"关于 Project X 的所有上下文是什么"
-5. **缺少半衰期语义**：不同类型的信号重要性随时间衰减速度不同，现有 schema 无此字段
+1. **类型边界模糊**：`Discovery.type` 已包含 `procedure | preference | pattern | insight | risk`，但 `preference` 这种核心信号被埋在 discovery 子类型里，没有作为一等概念暴露；同时 discovery 和 knowledge 的语义边界不清
+2. **links 定义错位**：`Link` 类型（`src/core/types.ts:89`）是实体间关系图边（works_on/reports_to 等），但产品真正需要的"有上下文的资源书签"（文档 URL + 摘要 + 触发场景）没有任何类型承载
+3. **缺少半衰期语义**：所有信号无衰减语义，为 Spec 2 的生命周期管理打地基时无字段可用
+4. **无 migration 机制**：`src/store/database.ts` 每次启动重跑整个 `schema.sql`（全 `CREATE TABLE IF NOT EXISTS`），对已存在的库不会执行任何 schema 变更——任何加列操作都无处落地
 
 ### 目标
 
-- 定义清晰、无歧义的7种信号类型
-- 引入 entity 锚定架构，让所有 signal 可以按实体聚合查询
-- 为 Spec 2（生命周期）和 Spec 3（MCP）打好地基
+- 把 `preferences` 提升为一等信号类型（当前埋在 Discovery.type）
+- 新增 `references` 信号类型（有上下文的资源书签）
+- 为所有信号页面补充 `halflife_days` 元数据（驱动 Spec 2）
+- 引入最小可用的 migration runner，让 schema 演进可落地
+- 强化（而非重建）已有的 entity 锚定机制
 
 ---
 
@@ -36,301 +37,292 @@ Memoark 现有7种信号类型（entities, timeline, decisions, tasks, discoveri
 ```typescript
 export const HALFLIFE_DAYS: Record<FactKind, number> = {
   event:      7,    // "周二的午饭约会，过了周二就没意义了"
-  commitment: 90,   // 承诺和决策，需要较长保留
+  commitment: 90,   // 承诺和决策
   preference: 90,   // 偏好习惯，会变化但变化慢
-  belief:     365,  // 观点和假设，长期有效
-  fact:       365,  // 客观事实，长期有效
+  belief:     365,  // 观点和假设
+  fact:       365,  // 客观事实
 };
 ```
 
-**Entity 架构**（`src/schema.sql`）：
-- 没有独立 entities 表；entity 就是 `pages` 表中 slug 带前缀的记录（`people/alice`、`project/memoark`）
-- facts 通过 `entity_slug` TEXT 字段锚定到 entity page
-- Entity resolution 使用 pg_trgm 模糊匹配，**零 LLM 调用**（`src/core/entities/resolve.ts`）
-
-```typescript
-// 4步解析链
-resolveEntitySlug():
-  1. 精确 slug 匹配
-  2. pg_trgm 模糊匹配（相似度阈值 0.4）
-  3. 前缀扩展（"Alice" → people/alice-*，按 connection_count 排序）
-  4. 回退：deterministic slugify（创建 phantom stub，后续 phantom-redirect 修正）
-```
-
-**gbrain v2 页面类型精简**（15种，`src/core/schema-pack/base/gbrain-base-v2.yaml`）：
-- 从 94 种精简为 15 种
-- `guide`/`architecture` 被合并进 `note`/`writing`
-- 保留了 `atom`（单源提取片段）和 `synthesis`（LLM 派生摘要）的区分
+**Entity 即 page**（`src/schema.sql`）：gbrain 没有独立 entities 表，entity 就是 `pages` 表中 slug 带前缀的记录（`people/alice`、`project/memoark`），facts 通过 `entity_slug` 锚定。**这与 Memoark 当前架构高度一致**——Memoark 的 entity 也是 page，signal page 通过 `links` 表锚定到 entity page。
 
 **gbrain-engineer learning_type**（`src/core/schema-pack/base/gbrain-engineer.yaml`）：
 ```
 pattern | pitfall | preference | architecture | tool | operational | investigation
 ```
-`operational` 和 `tool` 是操作性流程知识的子类型——这是 Memoark `knowledge.sub_type = procedure` 的直接来源。
+`operational`/`tool` 是操作性流程知识——对应 Memoark 已有的 `Discovery.type = "procedure"`。
 
 ### 2.2 OpenHuman（tinyhumansai/openhuman）
 
-**EntityKind（15种）**（`src/openhuman/memory_entities/types.rs`）：
-```rust
-Person, Organization, Topic, Email, Url, Handle, Hashtag,
-Location, Event, Product, Datetime, Technology, Artifact, Quantity, Misc
-```
+OpenHuman **没有内容语义分类系统**，只按来源（Chat/Email/Document）和存储层分类。这印证了 Memoark 的信号语义分类（decisions/tasks/knowledge 等）是有价值的差异化设计，应当保留并强化。
 
-**双层 Entity 存储**：
-- Pipeline 层：SQLite `mem_tree_entity_index`（临时，per-chunk 索引）
-- Vault 层：Markdown 文件 `entities/<kind>/<canonical_id>.md`（持久，YAML frontmatter + 用户可编辑笔记）
+EntityKind 15种（`src/openhuman/memory_entities/types.rs`）对 Memoark 的 5 种 entity type（person/project/organization/tool/concept）是个参考，但当前 5 种已够用，不扩展。
 
-**Entity ID 格式**：`"<kind>:<value>"`，例如 `"person:alice"`、`"email:alice@example.com"`
-
-**ReflectionKind（洞察信号，`src/openhuman/subconscious/reflection.rs`）**：
-```rust
-HotnessSpike, CrossSourcePattern, DailyDigest, DueItem, Risk, Opportunity
-```
-这些是合并/分析后产生的高层信号，对应 Memoark 的 Consolidator 阶段（Spec 2 范围）。
-
-**OpenHuman 没有内容语义分类系统**：它按来源（Chat/Email/Document）和存储层（MemoryKind）分类，没有等价于 decision/task/knowledge 的信号类型。这印证了 Memoark 的信号分类是一个有价值的差异化设计。
-
-### 2.3 结论
+### 2.3 结论映射
 
 | 设计决策 | 来源 |
 |---|---|
-| 每种信号类型有 halflife_days | gbrain FactKind decay 系统 |
-| Entity 锚定（entity_slugs 字段） | gbrain facts.entity_slug 模式 |
-| Entity resolution 零 LLM，pg_trgm | gbrain resolveEntitySlug() |
-| knowledge.sub_type = procedure | gbrain engineer learning_type: operational/tool |
-| preferences 作为独立信号类型 | gbrain FactKind: preference（halflife 90d） |
-| references 独立类型（非图边） | 两个系统都没有，Memoark 原创 |
+| 各信号类型有 halflife_days | gbrain FactKind decay |
+| preferences 提升为一等类型 | gbrain FactKind: preference（halflife 90d） |
+| references 新增类型 | 两系统都没有，Memoark 原创 |
+| entity 锚定沿用 links 表 | gbrain entity-as-page + Memoark 现状 |
+| 沿用 pages 模型不另起炉灶 | gbrain pages 模型 + Memoark 现状 |
 
 ---
 
-## 三、新信号类型系统
+## 三、真实存储架构（重写基础）
 
-### 3.1 七种类型定义
+### 3.1 实际模型：pages，不是 signals
+
+`src/store/schema.sql` 定义的核心表：
+
+```sql
+pages (id, slug UNIQUE, type, title, compiled_truth, frontmatter JSONB,
+       content_hash, search_vector TSVECTOR, created_at, updated_at)
+content_chunks (id, page_id FK, chunk_index, chunk_text, embedding vector(1536), ...)
+links (id, from_page_id FK, to_page_id FK, link_type, context, created_at)
+tags (id, page_id FK, tag)
+timeline_entries (id, page_id FK, date, summary, detail, source)
+```
+
+**所有信号都存为 pages**，通过 `type` 字段 + slug 前缀区分（见 `src/adapters/store.ts`）：
+
+| 信号 | page.type | slug 格式 |
+|---|---|---|
+| entity | person/project/tool/... | `<name>` / `project-memoark` |
+| decision | `decision` | `decisions/<kebab-summary>` |
+| task | `task` | `tasks/<kebab-title>` |
+| discovery | `discovery-<subtype>` | `discoveries/<kebab-summary>` |
+| knowledge | `knowledge` | `knowledge/<topic>/<hash12>` |
+| timeline | （不是 page）写入 `timeline_entries` 表 | — |
+| link | （不是 page）写入 `links` 表 | — |
+
+**关键认知**：timeline 和 link 不是 page，是独立的关系/时序表。entity/decision/task/discovery/knowledge 才是 page。
+
+### 3.2 Entity 锚定已经存在
+
+`StoreAdapter.writeDecision/writeDiscovery/writeKnowledge`（`src/adapters/store.ts`）写信号 page 时，已经调用 `graph.addLink(signalSlug, entitySlug, "mentions", ...)` 把信号 page 连到 entity page。
+
+**这就是 entity 锚定机制。** 查询"某 entity 关联的所有信号"通过 `graph.getBacklinks(entitySlug)` 即可实现——不需要新建 `entity_slugs[]` 字段或 entities 表。
+
+初版 spec 的 `CREATE TABLE entities` 是错误的，删除。
+
+### 3.3 元数据存放：frontmatter vs 真实列
+
+信号的元数据当前存在 `pages.frontmatter` JSONB（如 `confidence`、`source_hash`、`entities`）。
+
+新增的生命周期元数据（`halflife_days`、后续 Spec 2 的 `tier`/`expires_at`）**需要被轮转任务高频查询和排序**，放 JSONB 查询效率差（无法有效建索引）。
+
+**决策**：新增为 `pages` 表的真实列，而非塞进 frontmatter。这需要 migration 机制（§五）。
+
+---
+
+## 四、信号类型变更
+
+### 4.1 类型体系（基于真实 ExtractionResult）
+
+当前 `ExtractionResult`（`src/core/types.ts:144`）：
+```typescript
+{ source, entities, timeline, links, decisions, tasks, discoveries, knowledge }
+```
+
+变更后：
+```typescript
+{ source, entities, timeline, links, decisions, tasks,
+  knowledge,        // 吸收 discovery 的 insight/pattern 子类
+  preferences,      // 从 Discovery.type 提升为一等数组
+  references }       // 全新
+```
+
+### 4.2 具体变更
+
+#### (a) preferences 提升为一等类型
+
+当前 `Discovery.type = "preference"` 被埋没。提升为独立类型：
 
 ```typescript
-type SignalType =
-  | 'entities'
-  | 'timeline'
-  | 'decisions'
-  | 'tasks'
-  | 'knowledge'
-  | 'references'
-  | 'preferences';
+export interface Preference {
+  summary: string;          // "偏好异步沟通，不喜欢临时会议"
+  detail?: string;
+  category: "communication" | "tooling" | "scheduling" | "workflow" | "other";
+  entities: string[];       // 关联 entity slugs（通常是 person）
+  source: SourceRef;
+  confidence: SignalConfidence;
+}
 ```
 
-#### entities
-人、项目、工具、组织。是所有其他 signal 的锚点。
+**当前阶段只提取显式表态**（单条消息里的明确偏好）。跨消息行为推断留给 Spec 2 Consolidator。
 
-- `kind`: `person | project | tool | organization | concept`
-- halflife: 永久（实体本身不衰减，附属的 signal 会衰减）
+存储：`page.type = "preference"`，slug = `preferences/<kebab-summary>`，halflife = 90d。
 
-#### timeline
-发生过的事件，时间点明确。
+#### (b) references 新增类型
 
-- halflife: **7天**（来自 gbrain event halflife）
-- 典型来源：飞书日历事件、群里的"今天下午3点开会"
+```typescript
+export interface Reference {
+  title: string;            // 文档标题
+  url: string;              // 核心字段
+  summary: string;          // 100字以内摘要
+  trigger?: string;         // "遇到 Claude 安装问题时查阅"
+  entities: string[];       // 关联 entity slugs
+  source: SourceRef;
+  confidence: SignalConfidence;
+}
+```
 
-#### decisions
-做出的承诺、选择、决策。包含"为什么"。
+存储：`page.type = "reference"`，slug = `references/<kebab-title>`，halflife = 永久（NULL）。URL 存 frontmatter，dead-link 检测在 Spec 2。
 
-- halflife: **90天**（来自 gbrain commitment halflife）
-- 典型来源："我们决定用 PGLite，因为运维成本低"
-- **永不进入 cold 压缩**（"为什么"是 Agent 最需要的上下文）
+#### (c) discovery 收敛
 
-#### tasks
-待办事项和行动项。
+`Discovery.type` 当前 = `procedure | preference | pattern | insight | risk`。变更：
+- `preference` → 移除（提升为一等 Preference 类型）
+- `procedure | pattern | insight | risk` → 保留在 discovery 内
 
-- halflife: **90天**
-- 状态：`open | done | cancelled`
-- 完成后立即降级到 warm，未完成长期保留
+discovery 继续作为 page（`discovery-<subtype>`），不变。这避免大改动，且 discovery 与 knowledge 的边界问题留待实际数据验证后再定，**本 spec 不强行合并 discovery 和 knowledge**（YAGNI——当前没有证据表明合并收益大于迁移成本）。
 
-#### knowledge
-事实、观点、流程知识的统一容器。
+#### (d) knowledge 不变
 
-- halflife: **365天**（来自 gbrain fact/belief halflife）
-- `sub_type`: 见下方
-- **decisions 类型的知识永不压缩**
+`Knowledge` 类型保持现状。`sub_type` 的引入推迟——当前 knowledge 已有 `source_type`（conversation/document/teaching），强行加 sub_type 是过度设计。
 
-**knowledge.sub_type：**
+### 4.3 halflife 赋值
 
-| sub_type | 定义 | 来源 |
-|---|---|---|
-| `fact` | 客观可验证的事实 | gbrain FactKind: fact |
-| `belief` | 主观观点、假设、判断（可能被推翻） | gbrain FactKind: belief |
-| `discovery` | 新发现的 insight（原 discoveries 类型） | Memoark 原有 |
-| `procedure` | Agent 可执行的操作步骤序列（含触发条件、工具、路径） | gbrain engineer: operational/tool |
+各信号 page 写入时，在新增的 `halflife_days` 列写入：
 
-#### references
-有上下文的资源书签。核心字段是 URL。
-
-- halflife: **永久**（URL 可能失效，但记录保留，标记 dead_link）
-- 核心字段：`title`、`url`、`summary`、`trigger`（什么场景下使用）
-- 典型来源：飞书群里分享的文档链接
-
-#### preferences
-用户的偏好、习惯、行为模式。
-
-- halflife: **90天**（来自 gbrain preference halflife，偏好会变化）
-- 典型来源：显式表态（"我不喜欢周一开会"）+ Consolidator 阶段的行为推断
-- **当前阶段只提取显式表态**，行为推断留给 Spec 2 的 Consolidator
-
-### 3.2 与旧类型的映射
-
-| 旧类型 | 处理方式 |
+| page.type | halflife_days |
 |---|---|
-| entities | 保留，新增 `kind` 枚举和 `aliases[]` |
-| timeline | 保留，新增 halflife 语义 |
-| decisions | 保留，新增 halflife 语义，标记永不压缩 |
-| tasks | 保留，新增 `status` 字段 |
-| discoveries | **合并**进 `knowledge.sub_type = discovery` |
-| knowledge | 保留，新增 `sub_type` 字段 |
-| links | **重定义**为 `references`，新增 url/summary/trigger 字段 |
-| （新增）preferences | 全新类型 |
+| decision | 90 |
+| task | 90 |
+| preference | 90 |
+| knowledge | 365 |
+| discovery-* | 90 |
+| reference | NULL（永久）|
+| entity (person/project/...) | NULL（永久）|
+
+timeline_entries 的 halflife（7d）在 Spec 2 处理（timeline 不是 page）。
 
 ---
 
-## 四、Entity 锚定架构
+## 五、Migration 机制（新增基础设施）
 
-### 4.1 设计原则
+审查指出：无 migration runner，加列无处落地。本 spec 引入最小可用方案。
 
-参照 gbrain 的 facts 系统：**所有 signal 都通过 `entity_slugs` 字段锚定到一个或多个 entity**。
+### 5.1 方案：编号 migration runner
 
-Entity 是知识图谱的重力中心——查询"关于 Project X 的所有上下文"时，直接按 entity_slug 过滤，而不是全局语义搜索。
-
-### 4.2 Entity slug 格式
-
-参照 gbrain slug 前缀约定，适配 Memoark/飞书场景：
+新增 `src/store/migrations/` 目录 + runner：
 
 ```
-person:<name>         e.g. person:alice, person:liyandre
-project:<name>        e.g. project:memoark, project:feishu-integration
-tool:<name>           e.g. tool:pglite, tool:bun, tool:claude-code
-organization:<name>   e.g. org:anthropic, org:bytedance
-concept:<name>        e.g. concept:vector-search, concept:mcp
+src/store/migrations/
+  001_lifecycle_columns.sql
+  index.ts          # runner
 ```
 
-### 4.3 PGLite Schema 变更
+`schema_migrations` 表记录已执行版本：
 
 ```sql
--- 新增 entities 表
-CREATE TABLE entities (
-    slug         TEXT PRIMARY KEY,
-    kind         TEXT NOT NULL CHECK (kind IN ('person','project','tool','organization','concept')),
-    display_name TEXT,
-    aliases      TEXT[] DEFAULT '{}',
-    source_hints JSONB DEFAULT '{}',   -- 来源元数据，e.g. {"feishu_open_id": "xxx"}
-    created_at   TIMESTAMPTZ DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version    INTEGER PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- pg_trgm 索引，支持模糊匹配
-CREATE INDEX entities_slug_trgm ON entities USING gin(slug gin_trgm_ops);
-CREATE INDEX entities_name_trgm ON entities USING gin(display_name gin_trgm_ops);
-
--- 现有 signals 表新增字段
-ALTER TABLE signals ADD COLUMN entity_slugs  TEXT[]   DEFAULT '{}';
-ALTER TABLE signals ADD COLUMN sub_type      TEXT;        -- knowledge 类型专用
-ALTER TABLE signals ADD COLUMN halflife_days INTEGER;     -- 由类型决定，写入时自动赋值
-ALTER TABLE signals ADD COLUMN status        TEXT;        -- tasks 类型专用: open|done|cancelled
-ALTER TABLE signals ADD COLUMN url           TEXT;        -- references 类型专用
-ALTER TABLE signals ADD COLUMN trigger_hint  TEXT;        -- references/procedure 类型专用
-
--- entity_slugs 的 GIN 索引，支持 @> 数组查询
-CREATE INDEX signals_entity_slugs_gin ON signals USING gin(entity_slugs);
 ```
 
-### 4.4 Entity Resolution Pipeline 步骤
+Runner 逻辑（在 `Database.create()` 中，schema.sql 执行后调用）：
 
-在 `SignalExtractor` 之后，`Privacy` 之前，插入 `EntityResolver`：
-
-**输入**：一个已提取的 signal（含 content 字段）  
-**输出**：同一 signal，补充 `entity_slugs[]` 字段
-
-**解析逻辑**（参照 gbrain `resolveEntitySlug()`，零 LLM）：
-
-```
-1. 从 signal 的 content 和 metadata 中识别候选名称
-   - 飞书消息：发件人（open_id → person slug）、群名（chat_id → project/concept slug）
-   - 明确提及：正则匹配 @人名、项目关键词、工具名
-
-2. 对每个候选名称：
-   a. 精确匹配 entities.slug
-   b. pg_trgm 模糊匹配（similarity > 0.4）
-   c. 前缀扩展（"Memoark" → project:memoark-*，按 signal 关联数量排序）
-   d. 回退：自动创建 stub entity（kind=concept，待后续确认）
-
-3. 返回解析成功的 slug 列表写入 entity_slugs[]
+```typescript
+async function runMigrations(pg: PGlite): Promise<void> {
+  await pg.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT NOW())`);
+  const applied = await pg.query<{version: number}>(`SELECT version FROM schema_migrations`);
+  const appliedSet = new Set(applied.rows.map(r => r.version));
+  for (const m of MIGRATIONS) {          // 按 version 升序
+    if (appliedSet.has(m.version)) continue;
+    await pg.exec(m.sql);
+    await pg.query(`INSERT INTO schema_migrations (version) VALUES ($1)`, [m.version]);
+  }
+}
 ```
 
-**飞书特化**：飞书消息自带结构化元数据（`sender_open_id`、`chat_id`、`mention_list`），可直接映射到 entity，比通用 NER 更准确。
+每条 migration 用 `ADD COLUMN IF NOT EXISTS` 保证幂等。schema.sql 仍是新库的快照来源；migration 负责已有库的演进。新列也同步写入 schema.sql（保持新库一次建全）。
 
----
-
-## 五、存量数据迁移策略
-
-### 原则
-- **不破坏现有数据**：所有新字段有默认值，旧数据继续可查
-- **不回填 entity_slugs**：存量数据的 `entity_slugs = []`，不做大规模 LLM 重新提取
-- **渐进式**：新摄入数据走完整新 pipeline，旧数据保持原样
-
-### Migration 文件
+### 5.2 Migration 001：lifecycle 列
 
 ```sql
--- migration: 0010_signal_type_refactor.sql
-
--- 1. entities 表
-CREATE TABLE IF NOT EXISTS entities (...);
-
--- 2. signals 表新增字段（均有默认值，不影响现有数据）
-ALTER TABLE signals ADD COLUMN IF NOT EXISTS entity_slugs  TEXT[] DEFAULT '{}';
-ALTER TABLE signals ADD COLUMN IF NOT EXISTS sub_type      TEXT;
-ALTER TABLE signals ADD COLUMN IF NOT EXISTS halflife_days INTEGER;
-ALTER TABLE signals ADD COLUMN IF NOT EXISTS status        TEXT DEFAULT 'open';
-ALTER TABLE signals ADD COLUMN IF NOT EXISTS url           TEXT;
-ALTER TABLE signals ADD COLUMN IF NOT EXISTS trigger_hint  TEXT;
-
--- 3. discoveries → knowledge 类型重映射
-UPDATE signals SET type = 'knowledge', sub_type = 'discovery'
-WHERE type = 'discoveries';
-
--- 4. links → references 类型重映射（内容保留，新字段为空）
-UPDATE signals SET type = 'references'
-WHERE type = 'links';
-
--- 5. 为现有各类型补充 halflife_days
-UPDATE signals SET halflife_days = 7   WHERE type = 'timeline';
-UPDATE signals SET halflife_days = 90  WHERE type IN ('decisions', 'tasks', 'preferences');
-UPDATE signals SET halflife_days = 365 WHERE type IN ('knowledge');
+-- 001_lifecycle_columns.sql
+ALTER TABLE pages ADD COLUMN IF NOT EXISTS halflife_days INTEGER;
+-- tier / expires_at 由 Spec 2 的 migration 002 添加
 ```
 
----
+### 5.3 类型重映射（在同一 migration 内）
 
-## 六、测试策略
+```sql
+-- discovery 的 preference 子类迁移为独立 preference page
+UPDATE pages SET type = 'preference'
+WHERE type = 'discovery-preference';
 
-- 现有 808 个测试用例**必须全部通过**（迁移不破坏现有行为）
-- 新增测试文件：`src/core/entity-resolver.test.ts`（覆盖4步解析链）
-- 新增测试文件：`src/core/signal-types.test.ts`（覆盖7种类型的字段验证）
-- 新增测试文件：`src/core/migration.test.ts`（覆盖 discoveries→knowledge、links→references 重映射）
+-- 为存量信号 page 补 halflife
+UPDATE pages SET halflife_days = 90  WHERE type IN ('decision','task','preference') OR type LIKE 'discovery-%';
+UPDATE pages SET halflife_days = 365 WHERE type = 'knowledge';
+```
 
----
-
-## 七、范围边界（Out of Scope）
-
-以下内容**不在本 Spec 范围内**，由后续 Spec 处理：
-
-- hot/warm/cold 三层生命周期轮转 → **Spec 2**
-- Consolidator（warm→cold 合并算法） → **Spec 2**
-- 原始飞书内容的 30 天 TTL 删除 → **Spec 2**
-- SessionStart 注入 / MCP 新工具 → **Spec 3**
-- preferences 的行为推断（跨消息统计） → **Spec 2 的 Consolidator**
-- 飞书文档深度提取（用户标记） → 独立迭代
+`references` 无存量数据（新类型），不需要重映射。
 
 ---
 
-## 八、验收标准
+## 六、Pipeline 改动
+
+当前 pipeline（`src/core/pipeline.ts`）：
+```
+Collector → Dedup → BlockBuilder → NoiseFilter → Extractor → Privacy → Formatter → Adapter
+```
+
+### 6.1 改动点
+
+1. **Extractor**（`src/extractors/signal-extractor.ts` + prompts）：LLM 输出 schema 增加 `preferences[]` 和 `references[]` 数组，从 discovery 移除 preference 子类。更新 `src/core/schemas.ts` 的 Zod 校验和 `src/core/types.ts` 的 `ExtractionResult`。
+
+2. **StoreAdapter**（`src/adapters/store.ts`）：新增 `writePreference()` 和 `writeReference()` 方法，写 page + 调 `graph.addLink()` 锚定 entity + 写 `halflife_days`。仿照已有的 `writeDiscovery()`。
+
+3. **Entity 锚定**：无需新增 pipeline 步骤——已有的 `entity-extract.ts` 和 adapter 的 `addLink` 调用已覆盖。新增的 preference/reference 在各自 write 方法里调用 `addLink`。
+
+### 6.2 不改动的部分
+
+- 不新增 EntityResolver 步骤（初版 spec 的设计，已被 §3.2 证明冗余）
+- 不改 Collector/Dedup/BlockBuilder/NoiseFilter
+
+---
+
+## 七、存量数据迁移策略
+
+- **不破坏**：所有新列 `ADD COLUMN IF NOT EXISTS` 带 NULL 默认，旧 page 继续可查
+- **轻量重映射**：仅 `discovery-preference → preference` 的 type 改名 + halflife 回填（纯 SQL，无 LLM）
+- **不回填关联**：存量信号已有 links 锚定，无需重新提取
+
+---
+
+## 八、测试策略
+
+- 现有 808 测试用例**必须全部通过**
+- 新增 `src/store/migrations/migrations.test.ts`：验证 runner 幂等、版本记录、ADD COLUMN IF NOT EXISTS
+- 新增 `src/core/preference-reference.test.ts`：验证两种新类型的 Zod 校验
+- 新增 `src/adapters/store-preference-reference.test.ts`：验证 write 方法正确写 page + link + halflife
+- 更新 extractor 的 golden 测试以包含 preferences/references 输出
+
+---
+
+## 九、范围边界（Out of Scope）
+
+- `tier`/`expires_at` 列、hot/warm/cold 轮转 → **Spec 2**
+- Consolidator、原始内容 TTL、dead-link 检测 → **Spec 2**
+- preferences 跨消息行为推断 → **Spec 2 Consolidator**
+- SessionStart 注入、新 MCP 工具 → **Spec 3**
+- discovery 与 knowledge 的合并 → 暂不做（YAGNI，等数据验证）
+- entity type 扩展（OpenHuman 15种） → 暂不做（当前5种够用）
+
+---
+
+## 十、验收标准
 
 1. `bun run typecheck` 通过
 2. `bun test` 808+ 用例全部通过
-3. 新增 migration 可在现有数据库上无损执行
-4. 新摄入的飞书消息，signal 上有正确的 `entity_slugs[]`
-5. 可以执行 `SELECT * FROM signals WHERE entity_slugs @> '["project:memoark"]'` 并返回有意义结果
+3. Migration runner 在已有数据库上执行：`pages` 表出现 `halflife_days` 列，`schema_migrations` 记录 version 1
+4. 重复启动不重复执行 migration（幂等）
+5. 新摄入的飞书消息能产出 `type='preference'` 和 `type='reference'` 的 page，且通过 links 锚定到 entity
+6. `graph.getBacklinks('project:memoark')` 能返回关联的 decision/preference/reference page
+7. 存量 `discovery-preference` page 被迁移为 `preference` type

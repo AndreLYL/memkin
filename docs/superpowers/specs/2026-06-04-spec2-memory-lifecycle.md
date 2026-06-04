@@ -1,300 +1,211 @@
 # Spec 2: 记忆生命周期（hot/warm/cold + Consolidator）
 
-**日期**：2026-06-04  
-**状态**：待实施  
-**依赖**：Spec 1（信号类型重构 + Entity 架构）必须先完成  
+**日期**：2026-06-04（v2 重写，基于真实代码）
+**状态**：待实施
+**依赖**：Spec 1（信号类型 + migration runner）必须先完成
 **后续**：Spec 3（MCP Agent 取用层）
+
+> **v2 重写说明**：初版基于不存在的 `signals` 表和 `raw_feishu_content` 表设计。本版基于真实的 pages 模型重写，并修正"清理现有膨胀"这一不成立的动机。
 
 ---
 
 ## 一、背景与动机
 
-### 当前问题
+### 当前问题（修正后）
 
-Memoark 现有所有 signal 永久保留，无任何生命周期管理：
+1. **无衰减机制**：所有信号 page 永久同权重保留，7天前的会议事件和今天的决策无区别
+2. **无压缩机制**：同一 entity 关联数百个信号 page 后，检索和概览质量退化
+3. **存储无限增长**：飞书数据持续摄入，page 数量无上限
 
-1. **无衰减机制**：7天前"周二下午3点开会"的事件和今天的决策同等权重
-2. **无压缩机制**：同一实体下积累数百条 signal 后，检索质量退化
-3. **存储无限增长**：飞书数据持续摄入，无 TTL，长期运行后数据库膨胀
-4. **原始内容无清理**：飞书原始消息（提取前的原始文本）永久保留，噪音大
+### 修正初版的错误动机
 
-### 目标
+初版 §动机#4 称"原始飞书内容永久保留、噪音大"——**这是错的**。代码中 pipeline 处理完只落 pages，**原始飞书消息根本没有持久化**（`RawMessage` 流经 pipeline 后不入库）。因此：
 
-- 引入 hot/warm/cold 三层逻辑分层，不同年龄的数据以不同精度保留
-- 实现 Consolidator：将同一实体下的旧 signal 聚合成更高层摘要
-- 原始飞书内容30天 TTL 后自动清理
-- preferences 的行为推断（跨消息统计，是显式提取的升级）
+- 不存在"清理原始内容膨胀"的问题
+- §7 的 30天 TTL 删除**没有删除对象**
+- 若要保留原始内容供重跑，需要先**新建**一套原始内容保留层——这是独立的设计决策，**移出本 spec**（见 §九）
+
+本 spec 的生命周期只作用于**已提取的信号 page**。
 
 ---
 
 ## 二、调研依据
 
-### 2.1 gbrain 生命周期系统
+### 2.1 gbrain 三层 + 衰减
 
-**三层 hot/warm/cold**（`src/core/cycle/`）：
+**hot/warm/cold**（`src/core/cycle/`）：hot（当前 session，14天 TTL）→ warm（14天后压缩）→ cold（归档，显式检索）。`memory-rotate.sh` 15分钟 cron 触发转移。
 
-```
-hot/   — 当前 session，14天 TTL，Stop hook 写入
-warm/  — 近期工作，14天后自动压缩（memory-rotate.sh）
-cold/  — 归档，需要显式检索
-```
-
-**关键机制**：
-- `memory-rotate.sh`：15分钟 cron，按 TTL 触发 hot→warm 转移
-- PreCompact hook：在 Claude Code context compaction 前主动存档，防止信息丢失
-- Markdown 为 canonical source：数据库崩了可以从 vault 5分钟重建
-
-**Facts 衰减**（`src/core/facts/decay.ts`）：
-
-```typescript
-const HALFLIFE_DAYS: Record<FactKind, number> = {
-  event:      7,
-  commitment: 90,
-  preference: 90,
-  belief:     365,
-  fact:       365,
-};
-```
-
-衰减公式（指数衰减）：
+**衰减公式**（`src/core/facts/decay.ts`）：
 ```
 score(t) = notability_weight × exp(-ln(2) × t / halflife_days)
 ```
 
-### 2.2 OpenHuman 生命周期系统
+### 2.2 OpenHuman 层级摘要树的教训
 
-**层级摘要树**（`src/openhuman/memory_tree/`）：
+OpenHuman 的 L0→L3 摘要树是**有损**的——原文压缩后丢失。**对 decision 危险**：决策的"为什么"会在合并中丢失。Memoark 的 Consolidator 必须对 decision 和 procedure 类型禁用压缩。
 
-```
-L0 → L1 → L2 → L3  (每层是下层的摘要)
-```
+### 2.3 MemPalace 的反面教训
 
-- 每层 buffer 满了（token 上限）触发 seal，向上合并
-- 合并是**有损的**：原文在压缩后不再保留
-- L0 是最细粒度（单次 session），L3 是全局摘要
-
-**OpenHuman 的关键教训**：有损摘要树对 `decisions` 类型是危险的——决策的"为什么"会在合并中丢失。Memoark 的 Consolidator 必须针对不同 sub_type 采用不同策略。
-
-**ReflectionKind**（`src/openhuman/subconscious/reflection.rs`）：
-
-```rust
-HotnessSpike, CrossSourcePattern, DailyDigest, DueItem, Risk, Opportunity
-```
-
-这些是 Consolidator 产生的高层洞察信号，是 warm→cold 阶段的输出物之一。
-
-### 2.3 MemPalace 的教训
-
-MemPalace 选择永久保留全部原始内容，依赖检索质量解决"什么重要"的问题。6个月后面临两个问题：
-1. 检索语料库膨胀，向量检索退化（高维空间的近邻搜索精度随数据量下降）
-2. 没有机制回答"项目X的当前状态是什么"——只能搜索，没有综合视图
-
-Memoark 不走这条路。
+MemPalace 永久全量保留，6个月后向量检索退化、无综合视图。Memoark 不走这条路，但也不照搬 OpenHuman 的激进有损压缩——采用**分类型差异化**策略。
 
 ---
 
-## 三、三层存储模型
+## 三、三层模型（基于 pages）
 
 ### 3.1 存储位置
 
-**三层均存储在 PGLite**，通过 `tier` 字段区分，不引入新的物理存储。
-
-选择理由：
-- Memoark 是本地优先，不需要 gbrain 那样的 markdown vault（那是为了用户手动编辑）
-- signals 是结构化数据，PGLite 的 SQL 查询比文件系统更高效
-- 单一存储避免数据同步问题
+三层均为 `pages` 表中的记录，通过新增的 `tier` 列区分。**不引入新表、不引入文件存储**。
 
 ### 3.2 层次定义
 
 ```
-hot   (0-30天)    — 完整原始 signal，所有字段保留
-warm  (30-180天)  — 同一 entity 下同类 signal 合并去重后的聚合记录
-cold  (180天+)    — 每个 entity 的叙述性摘要，高度压缩
+hot   (0 ~ halflife)        — 完整信号 page，全字段
+warm  (halflife ~ 2×halflife) — 同 entity 同类信号合并去重后的聚合 page
+cold  (> 2×halflife)        — 每个 entity 的叙述性摘要 page
 ```
 
-### 3.3 Schema 变更（依赖 Spec 1）
+tier 边界由各 page 的 `halflife_days`（Spec 1 已写入）动态决定，而非固定天数。
+
+### 3.3 Migration 002（依赖 Spec 1 的 runner）
 
 ```sql
--- Spec 1 已添加 halflife_days，本 Spec 继续添加：
-ALTER TABLE signals ADD COLUMN tier        TEXT DEFAULT 'hot'
-    CHECK (tier IN ('hot', 'warm', 'cold'));
-ALTER TABLE signals ADD COLUMN expires_at  TIMESTAMPTZ;  -- NULL = 永不过期
-ALTER TABLE signals ADD COLUMN consolidated_into INTEGER REFERENCES signals(id);
-                                                          -- warm/cold 合并时，原 hot 记录指向新的 warm 记录
+-- 002_lifecycle_tier.sql
+ALTER TABLE pages ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'hot';
+ALTER TABLE pages ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;       -- NULL = 永不降级
+ALTER TABLE pages ADD COLUMN IF NOT EXISTS consolidated_into INTEGER REFERENCES pages(id);
 
--- 原始飞书内容表（独立于 signals 表）
-ALTER TABLE raw_feishu_content ADD COLUMN IF NOT EXISTS delete_at TIMESTAMPTZ;
--- 摄入时设置 delete_at = NOW() + INTERVAL '30 days'
+CREATE INDEX IF NOT EXISTS idx_pages_tier ON pages (tier);
+CREATE INDEX IF NOT EXISTS idx_pages_expires_at ON pages (expires_at) WHERE expires_at IS NOT NULL;
+
+-- timeline_entries 也加生命周期字段（timeline 不是 page）
+ALTER TABLE timeline_entries ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'hot';
+ALTER TABLE timeline_entries ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ```
+
+写入时设 `expires_at = created_at + halflife_days`（halflife 为 NULL 的 page，expires_at 也为 NULL）。
 
 ---
 
-## 四、各类型专属生命周期规则
+## 四、各类型差异化生命周期
 
 ```
-signal type     | hot→warm触发    | warm→cold触发   | 是否可压缩      | 特殊规则
-----------------|----------------|----------------|----------------|------------------
-timeline        | 7天后           | 90天后          | ✅ 可压缩       | 压缩为"事件列表摘要"
-decisions       | 90天后          | 永不进入 cold   | ❌ 永不压缩     | "为什么"必须原文保留
-tasks           | 完成后立即降级  | 180天后          | ✅ 可压缩       | open 状态长期保留
-knowledge/fact  | 180天后         | 365天后          | ✅ 实体去重合并 | 同实体下的重复 fact 合并
-knowledge/belief| 180天后         | 365天后          | ⚠️ 标注来源后压缩| 保留"用户当时认为X"的归因
-knowledge/disc. | 90天后          | 365天后          | ✅ 可压缩       | 合并进实体知识摘要
-knowledge/proc. | 180天后         | 永不进入 cold   | ❌ 永不压缩     | 操作步骤原文保留
-references      | 永不降级        | 永不降级        | ❌             | URL 失效后标记 dead_link
-preferences     | 90天后          | 365天后          | ✅ 合并同类偏好  | 新偏好 supersede 旧偏好
+page.type        | hot→warm        | warm→cold       | 可压缩  | 特殊规则
+-----------------|-----------------|-----------------|--------|------------------
+timeline_entries | 7天后            | 90天后           | ✅     | 压缩为"事件列表摘要"
+decision         | 90天后           | 永不进 cold      | ❌     | "为什么"必须原文保留
+task             | 完成(done)后立即  | 180天后          | ✅     | open 状态长期保留
+knowledge        | 365天后          | 730天后          | ✅去重  | 同 entity 同 topic 合并
+discovery-*      | 90天后           | 365天后          | ✅     | 合并进 entity 知识摘要
+preference       | 90天后           | 365天后          | ✅合并  | 新偏好 supersede 旧偏好
+reference        | 永不降级         | 永不降级         | ❌     | dead-link 标记，不删
+entity 类 page    | 永不降级         | 永不降级         | ❌     | 实体本身是锚点
 ```
+
+**永不压缩名单**：`decision`、`reference`、entity 类 page。这是对 OpenHuman 有损压缩教训的直接回应。
 
 ---
 
 ## 五、轮转机制
 
-### 5.1 Daemon Scheduler 扩展
+### 5.1 接入现有 daemon scheduler
 
-在现有 `src/daemon/scheduler.ts` 中新增 `consolidate` job 类型：
+`src/daemon/scheduler.ts` 已有调度框架。新增两个 job：
 
-```typescript
-// 现有 job 类型
-type JobKind = 'sync' | 'extract' | ...;
+- `consolidate_hot`：每天 02:00，处理 `tier='hot' AND expires_at < NOW()` 的 page
+- `consolidate_warm`：每周日 03:00，处理 `tier='warm'` 且年龄 > 2×halflife 的 page
 
-// 新增
-type JobKind = 'sync' | 'extract' | 'consolidate_hot' | 'consolidate_warm';
-```
+新增 CLI 命令 `memoark consolidate [--hot|--warm]` 供手动触发和测试。
 
-**调度规则**：
-- `consolidate_hot`：每天凌晨2点运行，将所有 `tier=hot AND expires_at < NOW()` 的 signal 降级
-- `consolidate_warm`：每周日凌晨3点运行，将 `tier=warm` 的旧 signal 聚合为 cold 摘要
-
-### 5.2 Hot → Warm 转移逻辑
+### 5.2 Hot → Warm
 
 ```typescript
-async function consolidateHotToWarm(pg: PGlite): Promise<void> {
-    // 1. 找到所有过期的 hot signal
-    const expired = await pg.query(`
-        SELECT * FROM signals
-        WHERE tier = 'hot' AND expires_at < NOW()
-        ORDER BY entity_slugs, type, created_at
-    `);
+async function consolidateHotToWarm(stores): Promise<void> {
+  // 1. 查过期 hot page（按 type 分流）
+  const expired = await stores.pages.listExpiredHot();  // tier='hot' AND expires_at < NOW()
 
-    // 2. 按 (entity_slug, type) 分组
-    // 3. 对每组：
-    //    - decisions/knowledge(procedure)/references → 直接标记 tier=warm，不合并
-    //    - 其他类型 → 合并同组 signal 为一条 warm 记录
-    //      合并策略：内容拼接，保留最早 created_at 和所有 entity_slugs 的并集
-    // 4. 原 hot 记录的 consolidated_into 指向新 warm 记录
+  // 2. 永不压缩类型（decision/reference/entity）→ 仅改 tier='warm'，不合并
+  // 3. 可压缩类型 → 按 (关联 entity, type) 分组合并为一条 warm page
+  //    - 用 graph.getBacklinks 找每个信号 page 关联的 entity
+  //    - 合并：内容拼接，保留最早 created_at，原 page.consolidated_into 指向新 warm page
+  //    - 原 page 改 tier='warm' 或软引用到聚合 page
 }
 ```
 
-### 5.3 Warm → Cold 转移逻辑（Consolidator）
+合并产物是新的 page（`type` 保持原类型，frontmatter 标 `consolidated: true`），通过 links 继承原信号的 entity 锚定。
 
-**输入**：某 entity 下所有 `tier=warm` 且年龄 > 180 天的 signal  
-**输出**：一条 `tier=cold` 的 `knowledge/fact` signal，内容为该 entity 的叙述性摘要
+### 5.3 Warm → Cold（Consolidator）
 
 ```typescript
-async function consolidateWarmToCold(entitySlug: string, pg: PGlite): Promise<void> {
-    const warmSignals = await pg.query(`
-        SELECT * FROM signals
-        WHERE tier = 'warm'
-          AND entity_slugs @> $1
-          AND created_at < NOW() - INTERVAL '180 days'
-          AND type NOT IN ('decisions')      -- decisions 永不压缩
-          AND (type != 'knowledge' OR sub_type != 'procedure')  -- procedure 永不压缩
-    `, [`{${entitySlug}}`]);
+async function consolidateWarmToCold(entitySlug: string, stores): Promise<void> {
+  // 1. 取该 entity 关联的、可压缩的、年龄 > 2×halflife 的 warm page
+  const backlinks = await stores.graph.getBacklinks(entitySlug);
+  const candidates = backlinks.filter(canCompress);  // 排除 decision/reference
 
-    // 调用 LLM 生成摘要
-    const summary = await generateEntitySummary(entitySlug, warmSignals);
+  // 2. LLM（claude-haiku-4-5）生成该 entity 的叙述性摘要
+  const summary = await generateEntitySummary(entitySlug, candidates);
 
-    // 写入 cold 记录
-    await pg.query(`
-        INSERT INTO signals (type, sub_type, content, tier, entity_slugs, ...)
-        VALUES ('knowledge', 'fact', $1, 'cold', $2, ...)
-    `, [summary, [entitySlug]]);
-
-    // 标记原 warm 记录已合并
-    await pg.query(`
-        UPDATE signals SET consolidated_into = $1
-        WHERE id = ANY($2)
-    `, [newColdId, warmSignals.map(s => s.id)]);
+  // 3. 写一条 cold page：type='knowledge', slug=`cold/<entitySlug>`, tier='cold'
+  // 4. 原 warm page 的 consolidated_into 指向 cold page
 }
 ```
 
-**Consolidator 使用的 LLM 模型**：`claude-haiku-4-5`（速度快、成本低，参照 gbrain 的 atom 提取使用 Haiku 的做法）
+模型选 `claude-haiku-4-5`（参照 gbrain 用 Haiku 做 atom 提取，成本低速度快）。
 
 ---
 
-## 六、preferences 行为推断（跨消息统计）
+## 六、preferences 行为推断
 
-显式提取（Spec 1 已覆盖）：单条消息中的明确表态 → 直接提取为 preference signal
+显式提取（Spec 1 已覆盖）：单条消息明确表态。
 
-行为推断（本 Spec 新增）：在 `consolidate_warm` 阶段，分析某 user entity 下的 timeline/decisions/tasks 信号，推断行为模式：
+行为推断（本 spec）：在 `consolidate_warm` 阶段，统计某 person entity 关联的 timeline/task page，推断模式：
 
 ```
-推断规则示例（基于 warm tier 的统计）：
-- 如果 timeline 中 80%+ 的会议事件在 14:00-18:00 → preference: "下午开会"
-- 如果 tasks 中 90%+ 的完成时间在 22:00 后 → preference: "深夜工作习惯"
-- 如果 decisions 中重复出现某技术栈 → preference: "偏好 TypeScript/Bun"
+- timeline 中 80%+ 会议在 14:00-18:00 → preference: "偏好下午开会"（category=scheduling）
+- task 中 90%+ 完成时间 22:00 后        → preference: "深夜工作习惯"（category=workflow）
 ```
 
-推断出的 preference 会标注来源：`source: 'inferred'`（区别于显式提取的 `source: 'explicit'`）
+推断出的 preference page 在 frontmatter 标 `inferred: true`（区别于显式的 `inferred: false`），并用 confidence='inferred'。
 
 ---
 
-## 七、原始飞书内容 30 天 TTL
+## 七、references dead-link 检测
 
-```sql
--- 摄入时设置删除时间
-INSERT INTO raw_feishu_content (content, source_id, delete_at, ...)
-VALUES ($1, $2, NOW() + INTERVAL '30 days', ...);
-
--- consolidate_hot job 中同时清理过期原始内容
-DELETE FROM raw_feishu_content WHERE delete_at < NOW();
-```
-
-**例外**：用户可通过 MCP 工具 `pin_raw_content(message_id)` 标记永久保留。
-
----
-
-## 八、references 的 dead-link 检测
+在 `consolidate_warm` job 中，对 `type='reference'` 且 frontmatter 中 `last_checked_at` 超过 30 天的 page 发 HEAD 请求，结果写回 frontmatter：
 
 ```typescript
-// 在 consolidate_warm job 中，对所有 references 执行 HEAD 请求
-async function checkDeadLinks(pg: PGlite): Promise<void> {
-    const refs = await pg.query(`
-        SELECT id, url FROM signals
-        WHERE type = 'references' AND url IS NOT NULL
-        AND (last_checked_at IS NULL OR last_checked_at < NOW() - INTERVAL '30 days')
-    `);
-
-    for (const ref of refs) {
-        const alive = await checkUrlAlive(ref.url);
-        await pg.query(`
-            UPDATE signals SET
-                dead_link = $1,
-                last_checked_at = NOW()
-            WHERE id = $2
-        `, [!alive, ref.id]);
-    }
-}
+// frontmatter 更新：dead_link: boolean, last_checked_at: ISO string
 ```
+
+dead-link 不删除 page（书签记录本身有价值），仅标记。
+
+---
+
+## 八、原始内容保留（明确移出）
+
+初版假设的 `raw_feishu_content` 表不存在。"保留原始内容供 pipeline 重跑"是合理需求，但需要：
+1. 新建原始内容表（schema + migration）
+2. 改造 pipeline 在 Collector 后落原始消息
+3. 30天 TTL 清理 job
+
+这是一个**独立的子项目**，移出本 spec，记入 backlog（见头脑风暴笔记 §五未讨论问题）。本 spec 的"标记永久保留"机制相应移除。
 
 ---
 
 ## 九、范围边界（Out of Scope）
 
-- Signal 类型定义和 entity_slugs 字段 → **Spec 1**
-- SessionStart 注入 / MCP 新工具 → **Spec 3**
-- 飞书文档深度提取 → 独立迭代
-- 跨用户记忆共享 → 不在 Memoark 当前范围
+- 信号类型定义、migration runner → **Spec 1**
+- 原始飞书内容保留层 → 独立子项目（backlog）
+- SessionStart 注入、新 MCP 工具 → **Spec 3**
+- 跨用户记忆共享 → 不在范围
 
 ---
 
 ## 十、验收标准
 
 1. `bun test` 全部通过（含新增 consolidator 测试）
-2. 运行 `memoark consolidate`（新增 CLI 命令）后：
-   - `tier=hot AND expires_at < NOW()` 的 signal 数量变为0
-   - 对应 entity 下出现 `tier=warm` 的聚合记录
-3. 原始飞书内容在 `delete_at` 过后被清理，不影响已提取的 signal
-4. decisions 类型的 signal 在任何情况下不出现 `tier=cold`
-5. knowledge/procedure 类型的 signal 不出现 `tier=cold`
-6. references 中失效 URL 被标记 `dead_link=true`
+2. Migration 002 在已有库上执行：`pages` 出现 `tier`/`expires_at`/`consolidated_into` 列
+3. 运行 `memoark consolidate --hot` 后：`tier='hot' AND expires_at < NOW()` 的 page 数归零，相关 entity 下出现 tier='warm' 记录
+4. `type='decision'` 的 page 在任何情况下不出现 `tier='cold'`
+5. `type='reference'` 的 page 永远保持 `tier='hot'`（永不降级），失效 URL 的 frontmatter `dead_link=true`
+6. 运行 `memoark consolidate --warm` 后，活跃 entity 出现 `slug='cold/<entity>'` 的摘要 page
+7. 幂等：重复运行 consolidate 不产生重复聚合

@@ -1,249 +1,214 @@
 # Spec 3: MCP Agent 取用层
 
-**日期**：2026-06-04  
-**状态**：待实施  
-**依赖**：Spec 1（信号类型 + Entity 架构）、Spec 2（记忆生命周期）必须先完成  
+**日期**：2026-06-04（v2 重写，基于真实代码）
+**状态**：待实施
+**依赖**：Spec 1（信号类型）、Spec 2（生命周期 tier）必须先完成
 **定位**：让 Claude Code、Codex、Hermes、OpenClaw 等 Agent 真正"懂你"
+
+> **v2 重写说明**：初版假设的工具查询基于不存在的 signals 表。本版基于真实的 `src/server/mcp.ts`（17 个工具，全部走 pages/links/tags/timeline）重写。
 
 ---
 
 ## 一、背景与动机
 
-### 当前 MCP 现状
+### 当前 MCP 现状（真实）
 
-Memoark 已有 17 个 MCP 工具，覆盖基础 CRUD 和搜索。但存在两个问题：
+`src/server/mcp.ts` 暴露 17 个工具，全部是 page/graph/tag/timeline 的底层 CRUD：
 
-1. **无 SessionStart 注入**：Agent 每次启动都是"空白状态"，不知道用户最近在做什么
-2. **工具太多太碎**：17个工具让 Agent 不知道该调哪个，降低实际使用率
+```
+query, search, get_page, put_page, list_pages, get_chunks,
+add_link, remove_link, get_links, get_backlinks, traverse_graph,
+add_tag, remove_tag, get_tags, add_timeline_entry, get_timeline, get_health
+```
+
+**问题：**
+1. **全是底层原语**：没有一个"高层语义"工具。Agent 想了解"用户最近在干什么"，得自己组合 list_pages + get_backlinks + get_timeline，门槛高
+2. **无 SessionStart 注入**：Agent 每次启动是空白状态
+3. **query/search 并存但语义不清**：两个检索工具，Agent 不知道用哪个
 
 ### 目标
 
-- SessionStart 时自动注入"近期工作概览"（用户最近7天的工作上下文）
-- 新增3个高价值工具：按实体查询、获取实体档案、获取近期概览
-- 精简现有工具，提升 Agent 实际调用率
+- 新增 3 个高层语义工具，建立在现有原语之上
+- 提供 SessionStart 可调用的工作概览工具
+- 厘清 query/search 职责，利用 Spec 2 的 tier 做检索加权
 
 ---
 
 ## 二、调研依据
 
-### 2.1 gbrain SessionStart 模式
+### 2.1 gbrain 的高层工具与 hooks
 
-gbrain 的 `Stop hook` 和 `SessionStart hook`（`src/hooks/`）：
+gbrain 的 recall 是**单一高层入口**（`mcp__gbrain-recall__recall(query, limit)`），内部融合 semantic + FTS + RRF，Agent 不需要知道实现。降低调用门槛。
 
-- `Stop hook`：Agent session 结束时，将 session 内容写入 hot tier
-- `SessionStart hook`：新 session 开始时，从 brain 拉取近期工作概览注入 system prompt
-- `PreCompact hook`：Claude Code context compaction 前主动存档，防止信息在压缩中丢失
-
-gbrain 的 recall 工具单调用即返回混合结果（semantic + FTS + RRF）：
-```typescript
-mcp__gbrain-recall__recall(query: string, limit: number)
-```
-
-这个"单一入口"设计让 Agent 不需要知道内部实现，降低了调用门槛。
+gbrain 的 SessionStart hook 在新 session 拉取近期工作概览注入 system prompt；PreCompact hook 在 context 压缩前存档。
 
 ### 2.2 OpenHuman ReflectionKind
 
-OpenHuman 的 subconscious agent 会产生 `HotnessSpike`、`CrossSourcePattern`、`DailyDigest` 等洞察——这些是对 SessionStart 注入内容的参考。
+OpenHuman subconscious 产出 `DailyDigest`/`HotnessSpike`/`DueItem` 等高层洞察——SessionStart 注入的内容应是这种**综合快照**，不是原始信号列表。
 
-SessionStart 注入的内容不应该是原始 signal 列表，而应该是**综合后的工作状态快照**。
+### 2.3 token 成本原则
 
-### 2.3 token 成本考量
-
-Agent 的 context window 是有限资源。注入过多会：
-1. 挤占任务本身的 context 空间
-2. 增加每次调用的费用
-3. 降低 Agent 的注意力（越长的 context，早期内容越容易被忽略）
-
-gbrain 的设计原则：**懒加载优于急加载**——SessionStart 只注入精简概览，细节按需 recall。
+懒加载优于急加载：SessionStart 只注入精简概览（目标 < 800 token），细节按需 recall。
 
 ---
 
 ## 三、SessionStart 注入
 
-### 3.1 注入方式
+### 3.1 机制
 
-通过 Claude Code 的 CLAUDE.md 或 system prompt 文件，在 session 开始时引用 MCP 工具：
+通过项目 CLAUDE.md 引导 Agent 在 session 开始调用新工具：
 
 ```markdown
-<!-- CLAUDE.md 中添加 -->
-At the start of each session, call `mcp__memoark__get_session_context` to load
-your working memory. This tells you what the user has been working on recently.
+<!-- 用户项目的 CLAUDE.md 中添加 -->
+At session start, call `get_session_context` to load working memory.
 ```
 
-### 3.2 注入内容格式
+不依赖 Claude Code 私有 hook API（跨 Agent 兼容：Codex/Hermes 也能用同一工具）。
 
-`get_session_context` 工具返回内容（控制在 800 token 以内）：
+### 3.2 注入内容（< 800 token）
+
+`get_session_context` 返回 markdown：
 
 ```markdown
 ## 近期工作概览（最近7天）
 
-**活跃项目**：Memoark（信号类型重构）、飞书集成（WebHook 配置）
-
+**活跃项目**：project:memoark, project:feishu-integration
 **关键决策**（最近3条）：
-- 2026-06-04：选择 gbrain 式 entity 锚定架构，替代游离 signal 方案
-- 2026-06-02：决定用 PGLite 替代 Redis，原因：运维成本
-- 2026-05-30：信号类型从7种调整为7种（合并 discoveries，重定义 links）
+- 2026-06-04 采用 gbrain 式 entity-as-page，沿用 links 锚定
+- 2026-06-02 选 PGLite 替代 Redis（运维成本）
+**待办**（open tasks）：
+- 实施 Spec 1 信号类型重构
+**已知偏好**：
+- 偏好中文文档；深夜工作习惯
 
-**待办事项**（open tasks）：
-- 实施 Spec 1：信号类型重构（未开始）
-- 更新 CI pipeline 支持新 schema
-
-**近期 preferences**（已知偏好）：
-- 偏好中文界面和中文文档
-- 工作时间通常晚上10点后
-
----
-如需更多上下文，使用 recall("关键词") 或 get_entity_profile("entity_slug")。
+如需细节：recall("关键词") 或 get_entity_profile("project:memoark")
 ```
 
-### 3.3 内容来源逻辑
+### 3.3 数据来源（基于真实 stores）
 
 ```typescript
-async function getSessionContext(userId: string, pg: PGlite): Promise<string> {
-    const [activeProjects, recentDecisions, openTasks, preferences] = await Promise.all([
-        // 活跃项目：最近7天有关联 signal 的 project entity
-        getActiveEntities(pg, 'project', 7),
-        // 关键决策：最近3条 decisions signal
-        getRecentSignals(pg, 'decisions', 3),
-        // 待办：所有 status=open 的 tasks
-        getOpenTasks(pg),
-        // 偏好：所有 preferences signal（hot+warm tier）
-        getPreferences(pg),
-    ]);
-
-    return formatSessionContext({ activeProjects, recentDecisions, openTasks, preferences });
+async function getSessionContext(stores: StoreContext, days = 7): Promise<string> {
+  const [projects, decisions, tasks, prefs] = await Promise.all([
+    // 活跃项目：type='project' 且 tier='hot'（Spec 2）的 page，按 updated_at
+    stores.pages.listPages({ type: 'project', sort: 'updated_at', limit: 5 }),
+    // 最近决策：type='decision'，按 signal_time
+    stores.pages.listPages({ type: 'decision', sort: 'signal_time', limit: 3 }),
+    // open tasks：type='task'，frontmatter.status='open'（需在 PageStore 加过滤或后置过滤）
+    stores.pages.listPages({ type: 'task', limit: 50 }),
+    // 偏好：type='preference'（Spec 1 新类型）
+    stores.pages.listPages({ type: 'preference', limit: 10 }),
+  ]);
+  return formatSessionContext({ projects, decisions, tasks, prefs });
 }
 ```
 
+注：open task 过滤当前需后置（frontmatter JSONB），若性能不足，Spec 1/2 可考虑把 status 提为列。
+
 ---
 
-## 四、新增 MCP 工具
+## 四、新增 3 个高层工具
 
 ### 4.1 `get_session_context`
 
 ```typescript
-{
-    name: 'get_session_context',
-    description: '获取用户近期工作概览，在 session 开始时调用。返回活跃项目、关键决策、待办事项和已知偏好。',
-    inputSchema: {
-        type: 'object',
-        properties: {
-            days: { type: 'number', default: 7, description: '查看最近几天的上下文' }
-        }
-    }
-}
+// handler
+get_session_context: ({ days }: { days?: number }) =>
+  getSessionContext(stores, days ?? 7),
+// tool schema
+server.tool("get_session_context", { days: z.number().optional() }, ...)
 ```
 
 ### 4.2 `list_signals_by_entity`
 
+建立在 `graph.getBacklinks` 之上（entity 锚定已存在）：
+
 ```typescript
-{
-    name: 'list_signals_by_entity',
-    description: '获取某个实体（人/项目/工具）的所有关联信号。适合深入了解特定主题时使用。',
-    inputSchema: {
-        type: 'object',
-        required: ['entity_slug'],
-        properties: {
-            entity_slug: { type: 'string', description: '实体标识符，如 project:memoark, person:alice' },
-            signal_types: { type: 'array', items: { type: 'string' }, description: '过滤信号类型' },
-            limit: { type: 'number', default: 20 }
-        }
-    }
+list_signals_by_entity: async ({ entity_slug, signal_types, limit }) => {
+  const backlinks = await stores.graph.getBacklinksEnriched(entity_slug);
+  let signals = backlinks.map(b => ({ slug: b.from_slug, ...b.page }));
+  if (signal_types) signals = signals.filter(s => signal_types.includes(s.type));
+  return signals.slice(0, limit ?? 20);
 }
 ```
+
+`getBacklinksEnriched` 已返回 page 的 title/type/frontmatter（`src/store/graph.ts:149`），无需额外查询。
 
 ### 4.3 `get_entity_profile`
 
+组合 entity page + backlinks + timeline：
+
 ```typescript
-{
-    name: 'get_entity_profile',
-    description: '获取某个实体的综合档案：基本信息 + 关联的 decisions/knowledge/preferences 摘要。',
-    inputSchema: {
-        type: 'object',
-        required: ['entity_slug'],
-        properties: {
-            entity_slug: { type: 'string' }
-        }
-    }
+get_entity_profile: async ({ entity_slug }) => {
+  const [page, backlinks, timeline] = await Promise.all([
+    stores.pages.getPage(entity_slug),
+    stores.graph.getBacklinksEnriched(entity_slug),
+    stores.timeline.getTimeline(entity_slug),
+  ]);
+  // 按 type 分组 backlinks（decisions/knowledge/preferences/references）
+  return formatEntityProfile(page, groupByType(backlinks), timeline);
 }
 ```
 
-返回格式：
+返回结构化档案：基本信息 + 关键决策 + 相关偏好 + 近期 timeline。
 
-```markdown
-## project:memoark
+---
 
-**基本信息**：本地优先个人记忆系统，TypeScript + Bun + PGLite
+## 五、query/search 厘清与 tier 加权
 
-**关键决策**：
-- 使用 gbrain 式 entity 锚定架构
-- 信号类型：7种（entities/timeline/decisions/tasks/knowledge/references/preferences）
+### 5.1 职责厘清
 
-**相关工具**：tool:pglite, tool:bun, tool:claude-code
+- `search`：纯检索，返回 page 列表（保留）
+- `query`：语义问答式检索（保留，作为主入口）
+- 文档化两者区别，CLAUDE.md 引导 Agent 默认用 `query`
 
-**近期活动**（最近30天）：
-- 完成 Web UI 上线
-- 开始信号类型重构讨论
+### 5.2 tier 加权（依赖 Spec 2）
+
+在 `SearchEngine`（`src/store/search.ts`）的排序中，对 Spec 2 的 `tier` 加权：
+
+```
+hot   → ×1.0
+warm  → ×0.8
+cold  → ×0.6
 ```
 
-### 4.4 `recall`（增强现有工具）
-
-在现有搜索基础上，新增 entity 优先的 RRF 重排：
-
-```typescript
-// 查询流程
-1. 向量检索（语义相关性）
-2. FTS 全文检索（关键词匹配）
-3. Entity boost：查询中识别出的 entity 关联 signal 额外加权
-4. RRF 融合排序
-5. Tier boost：hot tier 结果权重 > warm > cold
-```
+让最新鲜的信号优先返回。这是对现有 search 的增量改动，不重写检索核心。
 
 ---
 
-## 五、现有17个工具的精简建议
+## 六、工具数量
 
-当前17个工具中，部分功能重叠或使用率低。建议：
+初版称"精简到 ≤12"。**修正**：现有 17 个原语各有用途（CRUD 完整性），盲目删除会破坏 Web UI 和现有集成（它们依赖这些原语）。
 
-- **保留**：recall, remember, get_timeline, get_decisions, get_tasks, get_entities
-- **新增**：get_session_context, list_signals_by_entity, get_entity_profile（本 Spec）
-- **合并**：将功能相近的 CRUD 工具合并为参数化版本
-- **目标**：最终工具数量控制在 12 个以内（降低 Agent 选择成本）
+**实际策略**：不删原语，**新增** 3 个高层工具（共 20 个），通过 CLAUDE.md 引导 Agent **优先用高层工具**（get_session_context / list_signals_by_entity / get_entity_profile / query），底层原语作为高级用法保留。
 
-具体精简方案在实施时确认（需要分析当前各工具的实际调用日志）。
+降低门槛靠"引导优先级"，不靠"删工具"。
 
 ---
 
-## 六、PreCompact Hook（可选）
+## 七、PreCompact Hook（可选，降级处理）
 
-参照 gbrain 的 PreCompact hook 设计，在 Claude Code context compaction 前自动存档：
+gbrain 的 PreCompact hook 依赖 Claude Code 私有 API，跨 Agent 不通用。**本 spec 不实现 hook**，改为：
 
-```bash
-# .claude/hooks/pre-compact.sh
-#!/bin/bash
-# 在 context 压缩前，将当前 session 的工作状态保存到 memoark
-memoark remember --session-summary "$(cat /tmp/session-context.md)"
-```
-
-这确保 Agent session 中产生的决策和发现不会因为 context 压缩而丢失。
-
-**此功能为可选**，取决于 Claude Code hooks API 的支持情况。
+- 提供 `remember` 语义（复用 `put_page`）+ CLAUDE.md 引导 Agent 在重要节点主动存档
+- 真正的 PreCompact 自动化作为 Claude-Code-specific 增强，移出本 spec
 
 ---
 
-## 七、范围边界（Out of Scope）
+## 八、范围边界（Out of Scope）
 
-- Signal 类型和 entity 架构 → **Spec 1**
-- 生命周期轮转和 Consolidator → **Spec 2**
-- 跨 Agent 共享记忆（多用户） → 不在当前范围
-- Obsidian 同步 → 独立迭代
+- 信号类型、migration → **Spec 1**
+- tier/生命周期轮转 → **Spec 2**
+- Claude Code 私有 hook 自动化 → 独立增强
+- 跨用户共享、Obsidian 同步 → 不在范围
 
 ---
 
-## 八、验收标准
+## 九、验收标准
 
-1. `get_session_context` 在新 session 中返回 < 800 token 的有意义概览
-2. `list_signals_by_entity("project:memoark")` 返回正确的关联 signal 列表
-3. `get_entity_profile` 返回结构化的实体档案
-4. `recall("PGLite 决策")` 返回结果中，相关 entity 关联的 signal 排名靠前
-5. 工具总数 ≤ 12 个
+1. `bun test` 全部通过（含 3 个新工具的测试）
+2. `get_session_context()` 返回 < 800 token 的有意义概览
+3. `list_signals_by_entity("project:memoark")` 通过 backlinks 返回正确信号列表
+4. `get_entity_profile("project:memoark")` 返回结构化档案（基本信息+决策+偏好+timeline）
+5. `query("PGLite 决策")` 结果中 tier='hot' 的 page 排序优先于 tier='cold'
+6. 现有 17 个工具行为不变（Web UI 不受影响）
+7. CLAUDE.md 模板更新，引导 Agent 优先使用高层工具
