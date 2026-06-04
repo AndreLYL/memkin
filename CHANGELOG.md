@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- SourceRef v2 core and extension fields with schema parity, compact provenance handling, participant metadata, and cross-source source type support.
+- Unified MemoryFilter support for MCP `query`, `search`, and `timeline_feed`, including platform, source type, channel, participant, date, type, exclude type, and bounded limit filters.
+- Preferred MCP memory tools: `get_page_context`, `timeline_feed`, `explore_graph`, `manage_links`, and `manage_tags`.
+- MCP contract tests using the SDK in-memory client transport to verify tool listing, tool descriptions, package version alignment, legacy tool gating, and structured errors.
+- MCP Resources for `memoark://health`, `memoark://pages`, page content, page context, and page timeline.
+- MCP Prompts for recall, weekly digest, person brief, decision log, and project handoff workflows.
+- Structured MCP tool output schemas and `structuredContent` for core read/health tools while preserving stable JSON text responses.
+- Streamable HTTP MCP app with origin, host, bearer-token, and read-only tool gating.
+- MCP eval fixtures and a contract eval runner covering tool selection constraints, source-specific tool bans, read-only mode, and source-filtered timeline behavior.
+
+### Changed
+
+- MCP tools now register with titles, descriptions, parameter descriptions, stable JSON text responses, recoverable structured errors, and package-version server metadata.
+- MCP legacy CRUD/debug tools are hidden by default and can be exposed with `mcp.expose_legacy_tools=true`.
+- `put_page` now performs idempotent writes and skips rechunking when content is unchanged.
+- Search results now include provenance when page frontmatter contains `source` or `first_seen`.
+- `memoark serve` can run MCP Streamable HTTP via `--mcp-http`, `mcp.http.enabled`, or `server.mcp_transport=streamable_http`; stdio remains the default MCP path.
+
 ## [0.2.0] - 2026-05-26
 
 ### Added
