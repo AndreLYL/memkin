@@ -57,4 +57,23 @@ describe("TagStore", () => {
     const count = await db.pg.query("SELECT COUNT(*) AS c FROM tags");
     expect(Number(count.rows[0].c)).toBe(0);
   });
+
+  it("getAllTagsGrouped returns Map<slug, string[]> for batch export", async () => {
+    await pages.putPage("a", "---\ntitle: A\ntype: t\n---\n");
+    await pages.putPage("b", "---\ntitle: B\ntype: t\n---\n");
+    await tags.addTag("a", "x");
+    await tags.addTag("a", "y");
+    await tags.addTag("b", "z");
+
+    const grouped = await tags.getAllTagsGrouped();
+
+    expect(grouped.get("a")?.sort()).toEqual(["x", "y"]);
+    expect(grouped.get("b")).toEqual(["z"]);
+    expect(grouped.has("nonexistent")).toBe(false);
+  });
+
+  it("getAllTagsGrouped returns empty Map when no tags", async () => {
+    const grouped = await tags.getAllTagsGrouped();
+    expect(grouped.size).toBe(0);
+  });
 });

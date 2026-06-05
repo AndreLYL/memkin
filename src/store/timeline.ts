@@ -52,4 +52,20 @@ export class TimelineStore {
     );
     return result.rows as TimelineEntry[];
   }
+
+  async getAllTimelineGrouped(): Promise<Map<string, TimelineEntry[]>> {
+    const result = await this.pg.query<TimelineEntry & { slug: string }>(
+      `SELECT te.*, p.slug AS slug FROM timeline_entries te
+       JOIN pages p ON p.id = te.page_id
+       ORDER BY p.slug, te.date DESC`,
+    );
+    const grouped = new Map<string, TimelineEntry[]>();
+    for (const row of result.rows) {
+      const { slug, ...entry } = row;
+      const list = grouped.get(slug);
+      if (list) list.push(entry as TimelineEntry);
+      else grouped.set(slug, [entry as TimelineEntry]);
+    }
+    return grouped;
+  }
 }
