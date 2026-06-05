@@ -50,9 +50,17 @@ function clampLimit(limit: number | undefined, defaultLimit = DEFAULT_SEARCH_LIM
   return Math.min(Math.floor(limit as number), MAX_SEARCH_LIMIT);
 }
 
+function candidateLimit(limit: number): number {
+  return Math.min(MAX_SEARCH_LIMIT, Math.max(DEFAULT_SEARCH_LIMIT, limit * 3));
+}
+
 function asArray(value: string | string[] | undefined): string[] | undefined {
   if (value === undefined) return undefined;
   return Array.isArray(value) ? value : [value];
+}
+
+function isDateOnly(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function sourceField(alias: string, field: string): string {
@@ -122,9 +130,15 @@ function addMemoryFilterConditions(
 
   if (opts?.to) {
     params.push(opts.to);
-    conditions.push(
-      `COALESCE(${sourceField(pageAlias, "timestamp")}, ${pageAlias}.created_at::text)::timestamptz <= ($${params.length}::date + interval '1 day')::timestamptz`,
-    );
+    if (isDateOnly(opts.to)) {
+      conditions.push(
+        `COALESCE(${sourceField(pageAlias, "timestamp")}, ${pageAlias}.created_at::text)::timestamptz < ($${params.length}::date + interval '1 day')`,
+      );
+    } else {
+      conditions.push(
+        `COALESCE(${sourceField(pageAlias, "timestamp")}, ${pageAlias}.created_at::text)::timestamptz <= $${params.length}::timestamptz`,
+      );
+    }
   }
 }
 
@@ -205,8 +219,8 @@ export class SearchEngine {
   async query(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
     const limit = clampLimit(opts?.limit);
     const [ftsResults, vectorResults] = await Promise.all([
-      this.ftsChunkSearch(query, opts),
-      this.vectorSearch(query, opts),
+      this.ftsChunkSearch(query, opts, candidateLimit(limit)),
+      this.vectorSearch(query, opts, candidateLimit(limit)),
     ]);
 
     const scoreMap = new Map<
@@ -291,6 +305,7 @@ export class SearchEngine {
   private async ftsChunkSearch(
     query: string,
     opts?: SearchFilterOpts,
+    limit = MAX_SEARCH_LIMIT,
   ): Promise<
     Array<{
       slug: string;
@@ -314,6 +329,7 @@ export class SearchEngine {
     const conditions = ["cc.search_vector @@ to_tsquery('simple', $1)"];
     const params: unknown[] = [tsquery];
     addMemoryFilterConditions(conditions, params, opts, "p");
+    params.push(limit);
 
     const result = await this.pg.query<ChunkSearchRow>(
       `SELECT p.slug, p.title, p.type, cc.chunk_source,
@@ -323,7 +339,7 @@ export class SearchEngine {
          ${sourceJson("p")} AS provenance
        FROM content_chunks cc JOIN pages p ON p.id = cc.page_id
        WHERE ${conditions.join(" AND ")}
-       ORDER BY chunk_rank DESC LIMIT 50`,
+       ORDER BY chunk_rank DESC LIMIT $${params.length}`,
       params,
     );
     return result.rows;
@@ -332,6 +348,7 @@ export class SearchEngine {
   private async vectorSearch(
     query: string,
     opts?: SearchFilterOpts,
+    limit = MAX_SEARCH_LIMIT,
   ): Promise<
     Array<{
       slug: string;
@@ -348,13 +365,14 @@ export class SearchEngine {
     const conditions = ["cc.embedding IS NOT NULL"];
     const params: unknown[] = [vecStr];
     addMemoryFilterConditions(conditions, params, opts, "p");
+    params.push(limit);
     const result = await this.pg.query<ChunkSearchRow>(
       `SELECT p.slug, p.title, p.type, cc.chunk_source,
          cc.chunk_text AS snippet, 1 - (cc.embedding <=> $1::vector) AS cosine_sim,
          ${sourceJson("p")} AS provenance
        FROM content_chunks cc JOIN pages p ON p.id = cc.page_id
        WHERE ${conditions.join(" AND ")}
-       ORDER BY cc.embedding <=> $1::vector LIMIT 50`,
+       ORDER BY cc.embedding <=> $1::vector LIMIT $${params.length}`,
       params,
     );
     return result.rows;
