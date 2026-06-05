@@ -1,0 +1,47 @@
+name: Feishu Notification
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    types: [opened, closed, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  notify:
+    name: Send Feishu Notification
+    runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send notification
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ACTOR: ${{ github.actor }}
+          REPO_NAME: ${{ github.repository }}
+          # Push context
+          REF: ${{ github.ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+          COMPARE_URL: ${{ github.event.compare }}
+          PUSHER_NAME: ${{ github.event.pusher.name }}
+          FORCED: ${{ github.event.forced }}
+          # PR context
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: bash scripts/feishu-notify.sh
