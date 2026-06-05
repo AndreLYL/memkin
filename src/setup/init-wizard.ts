@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Readable, Writable } from "node:stream";
 import { runEmbeddingAssessment } from "./assess-hardware.js";
 import {
@@ -447,7 +448,10 @@ function registerCommand(output: Writable): boolean {
   // Fallback: add alias to shell config (POSIX only)
   if (process.platform === "win32") return false;
 
-  const binPath = resolve(process.cwd(), "bin", "memoark.mjs");
+  // Resolve from this file's location so npx temp-dir runs produce the correct path
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const binPath = resolve(__dirname, "../../bin/memoark.mjs");
   const aliasLine = `alias memoark='node ${binPath}'`;
   const shellFiles = [".zshrc", ".bashrc", ".bash_profile"];
 
@@ -457,11 +461,10 @@ function registerCommand(output: Writable): boolean {
     try {
       let content = readFileSync(shellPath, "utf-8");
 
-      // Replace stale alias pointing to old bin/memoark (shell script, no .mjs)
-      // Match both single and double quote variants
-      const stalePattern = /alias memoark=(['"])[^'"]*bin\/memoark\1/g;
+      // Replace any stale memoark alias (covers both bin/memoark and bin/memoark.mjs variants)
+      const stalePattern = /alias memoark=(['"])[^'"]*\1/g;
       if (stalePattern.test(content)) {
-        content = content.replace(stalePattern, aliasLine);
+        content = content.replace(/alias memoark=(['"])[^'"]*\1/g, aliasLine);
         writeFileSync(shellPath, content, "utf-8");
         write(output, `[ok] Updated stale alias in ~/${file} — run: source ~/${file}`);
         return true;
