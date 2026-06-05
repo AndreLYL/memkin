@@ -159,6 +159,11 @@ export class StoreAdapter implements Adapter {
         result.skipped += 1;
         return result;
       }
+      // H4: respect user edits made via Obsidian sync
+      if (existingPage?.frontmatter.user_edited === true) {
+        result.skipped += 1;
+        return result;
+      }
 
       const frontmatter: Record<string, unknown> = {
         title: entity.name,
@@ -238,6 +243,11 @@ ${bodyParts.join("\n\n")}
       // Check for duplicate
       const existingPage = await this.stores.pages.getPage(slug);
       if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
+        result.skipped += 1;
+        return result;
+      }
+      // H4: respect user edits made via Obsidian sync
+      if (existingPage?.frontmatter.user_edited === true) {
         result.skipped += 1;
         return result;
       }
@@ -342,6 +352,11 @@ ${parts.join("\n")}`;
         result.skipped += 1;
         return result;
       }
+      // H4: respect user edits made via Obsidian sync
+      if (existingPage?.frontmatter.user_edited === true) {
+        result.skipped += 1;
+        return result;
+      }
 
       // Build markdown with frontmatter
       const frontmatter: Record<string, unknown> = {
@@ -398,6 +413,11 @@ ${yamlStringify(frontmatter).trimEnd()}
       // Check for duplicate
       const existingPage = await this.stores.pages.getPage(slug);
       if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
+        result.skipped += 1;
+        return result;
+      }
+      // H4: respect user edits made via Obsidian sync
+      if (existingPage?.frontmatter.user_edited === true) {
         result.skipped += 1;
         return result;
       }
@@ -485,6 +505,11 @@ ${parts.join("\n")}`;
       // Check for duplicate
       const existingPage = await this.stores.pages.getPage(slug);
       if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
+        result.skipped += 1;
+        return result;
+      }
+      // H4: respect user edits made via Obsidian sync
+      if (existingPage?.frontmatter.user_edited === true) {
         result.skipped += 1;
         return result;
       }
