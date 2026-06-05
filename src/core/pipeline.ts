@@ -42,6 +42,7 @@ export interface PipelineConfig {
   max_block_messages: number;
   privacy: PrivacyConfig;
   output_dir: string;
+  state_base?: string;
 }
 
 /**
@@ -191,7 +192,7 @@ export async function runPipeline(
     }
 
     const extractor = createSignalExtractor(opts.provider);
-    const privacyProcessor = new PrivacyProcessor(config.privacy);
+    const privacyProcessor = new PrivacyProcessor(config.privacy, { stateBase: config.state_base });
 
     let adapter: Adapter;
     if (opts.adapter === "store") {

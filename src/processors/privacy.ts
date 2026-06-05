@@ -46,6 +46,7 @@ interface RedactionEntry {
 export class PrivacyProcessor {
   private config: PrivacyConfig;
   private redactionMap: RedactionEntry[] = [];
+  private stateBase?: string;
 
   // L1 Patterns
   private phoneRegex = /1[3-9]\d{9}/g;
@@ -55,8 +56,9 @@ export class PrivacyProcessor {
   // L2 Patterns
   private ipRegex = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g;
 
-  constructor(config: PrivacyConfig) {
+  constructor(config: PrivacyConfig, options: { stateBase?: string } = {}) {
     this.config = config;
+    this.stateBase = options.stateBase;
   }
 
   /**
@@ -287,8 +289,8 @@ export class PrivacyProcessor {
    */
   private writeRedactionMap(): void {
     try {
-      ensureStateDir();
-      const mapPath = statePath("redaction_map.jsonl");
+      ensureStateDir(this.stateBase);
+      const mapPath = statePath("redaction_map.jsonl", this.stateBase);
 
       for (const entry of this.redactionMap) {
         appendFileSync(mapPath, `${JSON.stringify(entry)}\n`);
