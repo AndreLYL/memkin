@@ -1,10 +1,6 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { loadResource } from "../core/resource-loader.js";
 
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
@@ -30,7 +26,7 @@ export class Database {
       extensions: { vector },
     });
 
-    const schemaTemplate = readFileSync(join(__dirname, "schema.sql"), "utf-8");
+    const schemaTemplate = loadResource(import.meta.url, "schema.sql");
     const schema = schemaTemplate.replace("__EMBEDDING_DIM__", String(dims));
     await pg.exec(schema);
 

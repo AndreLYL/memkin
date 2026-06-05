@@ -10,9 +10,12 @@ const distCli = resolve(projectRoot, "dist", "cli.js");
 const srcCli = resolve(projectRoot, "src", "cli.ts");
 const args = process.argv.slice(2);
 
-// dist exists: always run via bun (cli.js uses Bun.serve which requires bun runtime)
+// dist exists: prefer Bun when available, otherwise run with the current Node process.
 if (existsSync(distCli)) {
-  const result = spawnSync("bun", [distCli, ...args], { stdio: "inherit" });
+  let result = spawnSync("bun", [distCli, ...args], { stdio: "inherit" });
+  if (result.error) {
+    result = spawnSync(process.execPath, [distCli, ...args], { stdio: "inherit" });
+  }
   process.exit(result.status ?? (result.error ? 1 : 0));
 } else if (existsSync(srcCli)) {
   const candidates = [

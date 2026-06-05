@@ -10,9 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { loadResource } from "../core/resource-loader.js";
 import { parseExtractionResult } from "../core/schemas.js";
 import { compactRecord, compactSourceRef } from "../core/source-ref.js";
 import type {
@@ -25,8 +23,6 @@ import type {
   SourceType,
 } from "../core/types.js";
 import type { ChatMessage, LLMProvider } from "./providers/types.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function extractJson(raw: string): string | null {
   // Strip leading/trailing whitespace and code fences
@@ -91,8 +87,7 @@ export interface SignalExtractor {
  * Load prompt template from file
  */
 function loadPrompt(filename: string): string {
-  const path = join(__dirname, "prompts", filename);
-  return readFileSync(path, "utf-8");
+  return loadResource(import.meta.url, `prompts/${filename}`);
 }
 
 /**
