@@ -33,6 +33,14 @@ interface TimelineFeedRow {
   provenance: SourceRef | string | null;
 }
 
+type TimelineRow = Omit<TimelineEntry, "provenance"> & {
+  provenance?: SourceRef | string | null;
+};
+
+interface InsertRow {
+  id: number;
+}
+
 const DEFAULT_TIMELINE_LIMIT = 20;
 const MAX_TIMELINE_LIMIT = 100;
 
@@ -52,6 +60,10 @@ function sourceJson(): string {
 
 function sourceField(field: string): string {
   return `COALESCE(te.provenance->>'${field}', p.frontmatter->'source'->>'${field}', p.frontmatter->'first_seen'->>'${field}')`;
+}
+
+function isDateOnly(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function parseProvenance(value: SourceRef | string | null): SourceRef | undefined {
@@ -129,9 +141,11 @@ function addFeedFilters(
 
   if (opts?.to) {
     params.push(opts.to);
-    conditions.push(
-      `te.date::timestamptz <= ($${params.length}::date + interval '1 day')::timestamptz`,
-    );
+    if (isDateOnly(opts.to)) {
+      conditions.push(`te.date::timestamptz < ($${params.length}::date + interval '1 day')`);
+    } else {
+      conditions.push(`te.date::timestamptz <= $${params.length}::timestamptz`);
+    }
   }
 }
 
@@ -148,13 +162,14 @@ export class TimelineStore {
       provenance?: SourceRef;
     },
   ): Promise<void> {
-    await this.pg.query(
+    const result = await this.pg.query<InsertRow>(
       `INSERT INTO timeline_entries (page_id, date, summary, detail, source, provenance)
        SELECT id, $2, $3, $4, $5, $6 FROM pages WHERE slug = $1
        ON CONFLICT (page_id, date, summary) DO UPDATE SET
          detail = EXCLUDED.detail,
          source = EXCLUDED.source,
-         provenance = EXCLUDED.provenance`,
+         provenance = COALESCE(EXCLUDED.provenance, timeline_entries.provenance)
+       RETURNING id`,
       [
         pageSlug,
         entry.date,
@@ -164,17 +179,23 @@ export class TimelineStore {
         entry.provenance ? JSON.stringify(compactSourceRef(entry.provenance)) : null,
       ],
     );
+    if (result.rows.length === 0) {
+      throw new Error(`Page not found: ${pageSlug}`);
+    }
   }
 
   async getTimeline(pageSlug: string): Promise<TimelineEntry[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<TimelineRow>(
       `SELECT te.* FROM timeline_entries te
        JOIN pages p ON p.id = te.page_id
        WHERE p.slug = $1
        ORDER BY te.date DESC`,
       [pageSlug],
     );
-    return result.rows as TimelineEntry[];
+    return result.rows.map((row) => ({
+      ...row,
+      provenance: parseProvenance(row.provenance ?? null),
+    }));
   }
 
   async feed(opts?: MemoryFilter & { query?: string }): Promise<TimelineFeedEntry[]> {
