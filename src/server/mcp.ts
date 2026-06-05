@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
@@ -138,6 +139,19 @@ function notFound(slug: string): ToolError {
     "NOT_FOUND",
     `Page not found: ${slug}`,
     "Call `query` or `search` first to find the correct page slug.",
+  );
+}
+
+function normalizeOptionalSourceRef(
+  provenance: SourceRef | Record<string, unknown> | undefined,
+): SourceRef | undefined | ToolError {
+  if (!provenance) return undefined;
+  const parsed = SourceRefSchema.safeParse(provenance);
+  if (parsed.success) return parsed.data;
+  return structuredError(
+    "INVALID_ARGUMENT",
+    "provenance must be a valid SourceRef object",
+    "Provide at least platform and channel; timestamp, raw_hash, and quote are filled with safe defaults when omitted.",
   );
 }
 
@@ -349,7 +363,8 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       if (isToolError(toPage)) return toPage;
 
       if (action === "add") {
-        const sourceRef = provenance as SourceRef | undefined;
+        const sourceRef = normalizeOptionalSourceRef(provenance);
+        if (isToolError(sourceRef)) return sourceRef;
         await stores.graph.addLink(
           from,
           to,
@@ -452,9 +467,11 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       if (dateError) return dateError;
       const page = await ensurePage(stores, entry.slug);
       if (isToolError(page)) return page;
+      const provenance = normalizeOptionalSourceRef(entry.provenance);
+      if (isToolError(provenance)) return provenance;
       await stores.timeline.addEntry(entry.slug, {
         ...entry,
-        provenance: entry.provenance as SourceRef | undefined,
+        provenance,
       });
       return { ok: true, slug: entry.slug, date: entry.date, summary: entry.summary };
     },
@@ -529,6 +546,37 @@ const outputSchemas = {
     legacy_tools_exposed: z.boolean().describe("Whether legacy MCP tools are exposed."),
     read_only: z.boolean().describe("Whether this server hides write tools."),
     capabilities: z.record(z.unknown()).describe("Capability flags."),
+  },
+  exploreGraph: {
+    focus: z.record(z.unknown()).describe("Focus page."),
+    nodes: z.array(z.record(z.unknown())).describe("Graph nodes."),
+    edges: z.array(z.record(z.unknown())).describe("Graph edges."),
+  },
+  putPage: {
+    ok: z.boolean().describe("Whether the write succeeded."),
+    slug: z.string().describe("Page slug."),
+    changed: z.boolean().describe("Whether content changed."),
+    content_hash: z.string().describe("Current content hash."),
+    previous_hash: z.string().optional().describe("Previous content hash, if any."),
+    updated_at: z.string().describe("Page update timestamp."),
+  },
+  timelineWrite: {
+    ok: z.boolean().describe("Whether the write succeeded."),
+    slug: z.string().describe("Page slug."),
+    date: z.string().describe("Timeline event date."),
+    summary: z.string().describe("Timeline event summary."),
+  },
+  linkWrite: {
+    ok: z.boolean().describe("Whether the write succeeded."),
+    action: z.string().describe("Performed link action."),
+    from: z.string().describe("Source slug."),
+    to: z.string().describe("Target slug."),
+  },
+  tagWrite: {
+    ok: z.boolean().describe("Whether the write succeeded."),
+    action: z.string().describe("Performed tag action."),
+    slug: z.string().describe("Page slug."),
+    tags: z.array(z.string()).describe("Managed tags."),
   },
 };
 
@@ -645,8 +693,12 @@ function registerPreferredTools(
         depth: z.number().optional().describe("Traversal depth, default 2, max 5."),
         direction: z.enum(["in", "out", "both"]).optional().describe("Traversal direction."),
       },
+      outputSchema: outputSchemas.exploreGraph,
     },
-    async (args) => text(await tools.explore_graph(args)),
+    async (args) => {
+      const value = await tools.explore_graph(args);
+      return structuredText(value, value as unknown as Record<string, unknown>);
+    },
   );
 
   if (!options.readOnly) {
@@ -697,8 +749,12 @@ function registerWriteTools(server: McpServer, tools: ReturnType<typeof createMc
         slug: z.string().describe("Stable page slug, for example `decisions/use-pglite`."),
         content: z.string().describe("Full markdown content, optionally with YAML frontmatter."),
       },
+      outputSchema: outputSchemas.putPage,
     },
-    async (args) => text(await safeWrite(() => tools.put_page(args))),
+    async (args) => {
+      const value = await safeWrite(() => tools.put_page(args));
+      return structuredText(value, value as Record<string, unknown>);
+    },
   );
 
   server.registerTool(
@@ -720,8 +776,12 @@ function registerWriteTools(server: McpServer, tools: ReturnType<typeof createMc
           .optional()
           .describe("Optional SourceRef provenance object."),
       },
+      outputSchema: outputSchemas.timelineWrite,
     },
-    async (args) => text(await safeWrite(() => tools.add_timeline_entry(args))),
+    async (args) => {
+      const value = await safeWrite(() => tools.add_timeline_entry(args));
+      return structuredText(value, value as Record<string, unknown>);
+    },
   );
 
   server.registerTool(
@@ -743,8 +803,12 @@ function registerWriteTools(server: McpServer, tools: ReturnType<typeof createMc
           .optional()
           .describe("Optional SourceRef provenance object."),
       },
+      outputSchema: outputSchemas.linkWrite,
     },
-    async (args) => text(await safeWrite(() => tools.manage_links(args))),
+    async (args) => {
+      const value = await safeWrite(() => tools.manage_links(args));
+      return structuredText(value, value as Record<string, unknown>);
+    },
   );
 
   server.registerTool(
@@ -760,8 +824,12 @@ function registerWriteTools(server: McpServer, tools: ReturnType<typeof createMc
         slug: z.string().describe("Existing page slug."),
         tags: z.array(z.string()).describe("One or more tag names."),
       },
+      outputSchema: outputSchemas.tagWrite,
     },
-    async (args) => text(await safeWrite(() => tools.manage_tags(args))),
+    async (args) => {
+      const value = await safeWrite(() => tools.manage_tags(args));
+      return structuredText(value, value as Record<string, unknown>);
+    },
   );
 }
 

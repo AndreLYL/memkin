@@ -125,7 +125,18 @@ describe("MCP contract", () => {
     const { tools } = await client.listTools();
     const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
-    for (const name of ["query", "search", "get_page_context", "timeline_feed", "get_health"]) {
+    for (const name of [
+      "query",
+      "search",
+      "get_page_context",
+      "timeline_feed",
+      "explore_graph",
+      "put_page",
+      "add_timeline_entry",
+      "manage_links",
+      "manage_tags",
+      "get_health",
+    ]) {
       expect(byName.get(name)?.outputSchema, `${name} outputSchema`).toBeTruthy();
     }
 

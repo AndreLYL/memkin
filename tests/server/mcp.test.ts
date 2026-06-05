@@ -191,5 +191,77 @@ describe("MCP server", () => {
         suggestion: "Call `query` or `search` first to find the correct page slug.",
       },
     });
+
+    expect(
+      await tools.manage_links({
+        action: "add",
+        from: "missing/from",
+        to: "missing/to",
+      }),
+    ).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "Page not found: missing/from",
+        suggestion: "Call `query` or `search` first to find the correct page slug.",
+      },
+    });
+
+    expect(
+      await tools.manage_tags({
+        action: "add",
+        slug: "missing/page",
+        tags: ["mcp"],
+      }),
+    ).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "Page not found: missing/page",
+        suggestion: "Call `query` or `search` first to find the correct page slug.",
+      },
+    });
+  });
+
+  it("write handlers validate provenance input", async () => {
+    const tools = createMcpToolHandlers(stores);
+    await tools.put_page({
+      slug: "entities/alice",
+      content: "---\ntitle: Alice\ntype: person\n---\nAlice.",
+    });
+    await tools.put_page({
+      slug: "projects/memoark",
+      content: "---\ntitle: Memoark\ntype: project\n---\nMemoark.",
+    });
+
+    expect(
+      await tools.manage_links({
+        action: "add",
+        from: "entities/alice",
+        to: "projects/memoark",
+        provenance: { channel: "missing-platform" },
+      }),
+    ).toEqual({
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: "provenance must be a valid SourceRef object",
+        suggestion:
+          "Provide at least platform and channel; timestamp, raw_hash, and quote are filled with safe defaults when omitted.",
+      },
+    });
+
+    expect(
+      await tools.add_timeline_entry({
+        slug: "entities/alice",
+        date: "2026-06-04",
+        summary: "Invalid provenance",
+        provenance: { platform: "test" },
+      }),
+    ).toEqual({
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: "provenance must be a valid SourceRef object",
+        suggestion:
+          "Provide at least platform and channel; timestamp, raw_hash, and quote are filled with safe defaults when omitted.",
+      },
+    });
   });
 });

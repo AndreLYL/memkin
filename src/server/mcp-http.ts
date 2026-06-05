@@ -115,8 +115,23 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
       exposeLegacyTools: options.exposeLegacyTools,
       readOnly: options.readOnly,
     });
-    await server.connect(transport);
-    return transport.handleRequest(c.req.raw);
+    try {
+      await server.connect(transport);
+      return transport.handleRequest(c.req.raw);
+    } catch (err) {
+      await server.close().catch(() => undefined);
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json(
+        {
+          error: {
+            code: "MCP_CONNECT_FAILED",
+            message: `Failed to connect Memoark MCP HTTP transport: ${message}`,
+            suggestion: "Retry the request; if it persists, inspect Memoark server logs.",
+          },
+        },
+        500,
+      );
+    }
   });
 
   return app;
