@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Configuration discovery now resolves `memoark.yaml` from `--config`, `MEMOARK_CONFIG`, or parent directories, and state files now anchor to the resolved config root to avoid cross-directory cursor/dedup splits.
+- Missing environment variables referenced by `${VAR}` placeholders are preserved and reported per command instead of being silently replaced with empty strings.
+- The CLI binary now falls back to the current Node runtime when Bun is unavailable, while `memoark serve` can run through `@hono/node-server`.
+- Runtime resource loading for schema and prompt files now reports explicit build asset errors when packaged files are missing.
+- Setup command registration now reports `npm link` failures before falling back to a shell alias.
 - Store writes for timeline entries, graph links, and tags now fail when target page slugs are missing instead of silently reporting success after zero-row inserts.
 - Preferred MCP tools now all declare output schemas, and write tools return structured content on successful calls.
 - MCP write tools now validate incoming provenance objects and return recoverable `INVALID_ARGUMENT` errors for invalid SourceRef input.
