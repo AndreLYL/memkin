@@ -352,6 +352,8 @@ describe("LinkType validation", () => {
       "collaborates",
       "depends_on",
       "mentions",
+      "approves",
+      "uses",
       "custom",
     ];
 
@@ -433,7 +435,7 @@ describe("TaskSignal status validation", () => {
 
 describe("Discovery type validation", () => {
   it("should accept all valid discovery types", () => {
-    const types = ["procedure", "preference", "pattern", "insight"];
+    const types = ["procedure", "preference", "pattern", "insight", "risk"];
 
     types.forEach((type) => {
       const data = {

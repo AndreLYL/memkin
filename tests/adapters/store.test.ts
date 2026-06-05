@@ -422,6 +422,37 @@ Timeline entity context`,
       const entries = await timeline.getTimeline("timeline-entity");
       expect(entries.some((e) => e.summary === "Important event occurred")).toBe(true);
     });
+
+    it("should report an error when a timeline entity page is missing", async () => {
+      const timelineEntry: TimelineEntry = {
+        date: "2024-01-20",
+        summary: "Missing entity event",
+        entities: ["missing-entity"],
+        confidence: "direct",
+        source: createSourceRef(),
+      };
+
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [],
+        timeline: [timelineEntry],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      const pushResult = await adapter.push([result]);
+
+      expect(pushResult.written).toBe(0);
+      expect(pushResult.errors).toEqual([
+        expect.objectContaining({
+          signal: "timeline:missing-entity",
+          reason: "Page not found: missing-entity",
+        }),
+      ]);
+    });
   });
 
   describe("push - links", () => {
@@ -475,6 +506,48 @@ To context`,
       // Verify link was created
       const links = await graph.getLinks("from-entity");
       expect(links.some((l) => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
+    });
+
+    it("should report an error when a link page is missing", async () => {
+      await pages.putPage(
+        "from-entity",
+        `---
+title: From Entity
+type: person
+---
+## Context
+From context`,
+      );
+
+      const link: Link = {
+        from: "from-entity",
+        to: "missing-entity",
+        type: "mentions",
+        context: "Missing target",
+        confidence: "direct",
+        source: createSourceRef(),
+      };
+
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [],
+        timeline: [],
+        links: [link],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      const pushResult = await adapter.push([result]);
+
+      expect(pushResult.written).toBe(0);
+      expect(pushResult.errors).toEqual([
+        expect.objectContaining({
+          signal: "link:from-entity-missing-entity",
+          reason: "Page not found: missing-entity",
+        }),
+      ]);
     });
   });
 });
