@@ -4,7 +4,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +49,29 @@ describe("CLI", () => {
         expect(
           existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "significance.md")),
         ).toBe(true);
+      },
+    );
+
+    test.skipIf(!existsSync(DIST_CLI))(
+      "bin falls back to current Node when Bun is unavailable",
+      () => {
+        const emptyPath = mkdtempSync(join(tmpdir(), "memoark-empty-path-"));
+        try {
+          const result = spawnSync(
+            process.execPath,
+            [join(PROJECT_ROOT, "bin", "memoark.mjs"), "--help"],
+            {
+              cwd: PROJECT_ROOT,
+              encoding: "utf-8",
+              env: { ...process.env, PATH: emptyPath },
+            },
+          );
+
+          expect(result.status).toBe(0);
+          expect(result.stdout).toContain("memoark");
+        } finally {
+          rmSync(emptyPath, { recursive: true, force: true });
+        }
       },
     );
   });

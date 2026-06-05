@@ -3,7 +3,9 @@
  * Tests redaction of sensitive data in ExtractionResult
  */
 
-import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PrivacyConfig } from "../../src/core/config.js";
 import { ensureStateDir, statePath } from "../../src/core/state.js";
@@ -196,6 +198,32 @@ describe("PrivacyProcessor", () => {
 
       expect(result.source.quote).toContain("13812345678");
     });
+  });
+
+  it("writes reversible redaction map under custom state base", () => {
+    const customBase = mkdtempSync(join(tmpdir(), "memoark-privacy-state-"));
+    const customMapPath = statePath("redaction_map.jsonl", customBase);
+    const config: PrivacyConfig = {
+      enabled: true,
+      mode: "reversible",
+      redact_phone: true,
+      redact_id_card: false,
+      redact_bank_card: false,
+      redact_email: false,
+      redact_url: false,
+      blocked_words: [],
+      replacement: "[REDACTED]",
+    };
+
+    try {
+      const customProcessor = new PrivacyProcessor(config, { stateBase: customBase });
+      customProcessor.process(baseResult);
+
+      expect(existsSync(customMapPath)).toBe(true);
+      expect(readFileSync(customMapPath, "utf-8")).toContain("13812345678");
+    } finally {
+      rmSync(customBase, { recursive: true, force: true });
+    }
   });
 
   describe("L2 Patterns - IP Address", () => {

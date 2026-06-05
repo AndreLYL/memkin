@@ -13,6 +13,7 @@ describe("buildPipelineConfig", () => {
     expect(result.output_dir).toBe("/tmp/test-output");
     expect(result.dedup_checkpoint).toContain("dedup.jsonl");
     expect(result.cursor_checkpoint).toContain("cursors.yaml");
+    expect(result.state_base).toBe(config.__context.projectRoot);
   });
 });
 
