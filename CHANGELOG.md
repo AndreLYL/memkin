@@ -25,7 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP legacy CRUD/debug tools are hidden by default and can be exposed with `mcp.expose_legacy_tools=true`.
 - `put_page` now performs idempotent writes and skips rechunking when content is unchanged.
 - Search results now include provenance when page frontmatter contains `source` or `first_seen`.
+- Timeline and graph upserts now keep latest provenance/source hash when new provenance is provided, while preserving existing provenance for provenance-less updates.
+- Date-only `to` filters now cover the full day, while datetime `to` filters use the exact timestamp bound.
+- Hybrid query chunk searches now use parameterized candidate limits instead of hard-coded SQL limits.
 - `memoark serve` can run MCP Streamable HTTP via `--mcp-http`, `mcp.http.enabled`, or `server.mcp_transport=streamable_http`; stdio remains the default MCP path.
+
+### Fixed
+
+- Store writes for timeline entries, graph links, and tags now fail when target page slugs are missing instead of silently reporting success after zero-row inserts.
+- Preferred MCP tools now all declare output schemas, and write tools return structured content on successful calls.
+- MCP write tools now validate incoming provenance objects and return recoverable `INVALID_ARGUMENT` errors for invalid SourceRef input.
+- MCP Streamable HTTP transport connection failures now return structured JSON errors instead of escaping as raw exceptions.
 
 ## [0.2.0] - 2026-05-26
 
