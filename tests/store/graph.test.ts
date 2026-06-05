@@ -108,9 +108,9 @@ describe("GraphStore", () => {
 
     expect(grouped.get("entities/alice")).toHaveLength(2);
     expect(grouped.get("entities/bob")).toHaveLength(1);
-    expect(grouped.get("entities/alice")?.find((l) => l.to_slug === "entities/bob")?.link_type).toBe(
-      "collaborates",
-    );
+    expect(
+      grouped.get("entities/alice")?.find((l) => l.to_slug === "entities/bob")?.link_type,
+    ).toBe("collaborates");
     expect(grouped.has("projects/memoark")).toBe(false);
   });
 
