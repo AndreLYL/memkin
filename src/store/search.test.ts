@@ -24,4 +24,11 @@ describe("freshnessMultiplier", () => {
     const result = freshnessMultiplier(old);
     expect(result).toBeCloseTo(1.0, 1);
   });
+
+  it("caps at 1.3 for future timestamps (clock skew, calendar events)", () => {
+    const futureOneDay = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const futureOneYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    expect(freshnessMultiplier(futureOneDay)).toBeCloseTo(1.3, 5);
+    expect(freshnessMultiplier(futureOneYear)).toBeCloseTo(1.3, 5);
+  });
 });

@@ -56,7 +56,12 @@ const FRESHNESS_BOOST_FACTOR = 0.3;
  */
 export function freshnessMultiplier(updatedAt: string | null): number {
   if (!updatedAt) return 1.0;
-  const ageDays = (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+  // Clamp to >=0 so future timestamps (clock skew, calendar events) cap at the boost ceiling
+  // instead of producing exp(-negative) > 1 which exceeds the intended 1.3 limit.
+  const ageDays = Math.max(
+    0,
+    (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24),
+  );
   return 1 + FRESHNESS_BOOST_FACTOR * Math.exp(-ageDays / FRESHNESS_HALF_LIFE_DAYS);
 }
 

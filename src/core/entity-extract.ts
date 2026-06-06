@@ -3,7 +3,9 @@ import type { QuickEntity } from "./types";
 const PATTERNS: Array<{ type: QuickEntity["type"]; regex: RegExp }> = [
   { type: "url", regex: /https?:\/\/[^\s<>\]）》]+/g },
   { type: "email", regex: /[\w.+-]+@[\w.-]+\.\w{2,}/g },
-  { type: "handle", regex: /@[\w.-]{2,}/g },
+  // Negative lookbehind blocks matching the `@domain` tail of an email (e.g. `alice@example.com`
+  // would otherwise also yield handle `@example.com`).
+  { type: "handle", regex: /(?<![\w.+-])@[\w.-]{2,}/g },
   { type: "hashtag", regex: /#[\w一-鿿]+/g },
   { type: "phone", regex: /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3,4}[-.\s]?\d{4}/g },
   { type: "ticket_id", regex: /\b\d{12,15}\b/g },
@@ -42,6 +44,8 @@ export function extractQuickEntities(text: string): QuickEntity[] {
     match = re.exec(text);
     while (match !== null) {
       if (type === "email" && isInsideUrl(match.index)) {
+        // /g regex is stateful via lastIndex — any `continue` must re-call re.exec(text)
+        // first or this loop will spin forever on the same match.
         match = re.exec(text);
         continue;
       }
