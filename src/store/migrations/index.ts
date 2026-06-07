@@ -21,6 +21,7 @@ function loadMigration(version: number, name: string): Migration {
 export const MIGRATIONS: Migration[] = [
   loadMigration(1, "lifecycle_columns"),
   loadMigration(2, "provenance_columns"),
+  loadMigration(3, "lifecycle_tier"),
 ];
 
 export async function runMigrations(pg: PGlite): Promise<void> {

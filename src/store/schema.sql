@@ -9,12 +9,17 @@ CREATE TABLE IF NOT EXISTS pages (
   frontmatter     JSONB NOT NULL DEFAULT '{}',
   content_hash    TEXT,
   halflife_days   INTEGER,
+  tier            TEXT NOT NULL DEFAULT 'hot',
+  expires_at      TIMESTAMPTZ,
+  consolidated_into INTEGER REFERENCES pages(id),
   search_vector   TSVECTOR,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pages_search_vector ON pages USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_pages_tier ON pages (tier);
+CREATE INDEX IF NOT EXISTS idx_pages_expires_at ON pages (expires_at) WHERE expires_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS content_chunks (
   id              SERIAL PRIMARY KEY,
@@ -68,6 +73,8 @@ CREATE TABLE IF NOT EXISTS timeline_entries (
   detail          TEXT NOT NULL DEFAULT '',
   source          TEXT NOT NULL DEFAULT '',
   provenance      JSONB,
+  tier            TEXT NOT NULL DEFAULT 'hot',
+  expires_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(page_id, date, summary)
 );

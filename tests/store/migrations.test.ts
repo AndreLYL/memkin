@@ -19,7 +19,7 @@ describe("migration runner", () => {
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3]);
   });
 
   it("adds halflife_days column to pages", async () => {
@@ -46,7 +46,7 @@ describe("migration runner", () => {
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3]);
   });
 
   it("remaps discovery-preference pages to preference type (first migration run)", async () => {
@@ -107,6 +107,50 @@ describe("migration runner", () => {
       expect(bySlug["knowledge/k1/abc"]).toBe(365);
       expect(bySlug["discoveries/dy1"]).toBe(90);
       expect(bySlug["person/alice"]).toBeNull(); // entity types: never expire
+    } finally {
+      await freshPg.close();
+    }
+  });
+
+  it("adds tier/expires_at/consolidated_into columns to pages", async () => {
+    const cols = await db.pg.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_name = 'pages'
+         AND column_name IN ('tier', 'expires_at', 'consolidated_into')
+       ORDER BY column_name`,
+    );
+    expect(cols.rows.map((r) => r.column_name)).toEqual([
+      "consolidated_into",
+      "expires_at",
+      "tier",
+    ]);
+  });
+
+  it("adds tier/expires_at columns to timeline_entries", async () => {
+    const cols = await db.pg.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_name = 'timeline_entries'
+         AND column_name IN ('tier', 'expires_at')
+       ORDER BY column_name`,
+    );
+    expect(cols.rows.map((r) => r.column_name)).toEqual(["expires_at", "tier"]);
+  });
+
+  it("backfills expires_at for existing hot pages with halflife_days", async () => {
+    const freshPg = new PGlite({ extensions: { vector } });
+    try {
+      const schemaSql = readFileSync(schemaPath, "utf-8");
+      await freshPg.exec(schemaSql);
+      // Insert legacy row that has halflife_days but no expires_at
+      await freshPg.query(
+        `INSERT INTO pages (slug, type, title, compiled_truth, halflife_days) VALUES ($1, $2, $3, $4, $5)`,
+        ["decisions/old", "decision", "Old decision", "content", 90],
+      );
+      await runMigrations(freshPg);
+      const result = await freshPg.query<{ expires_at: string | null }>(
+        "SELECT expires_at FROM pages WHERE slug = 'decisions/old'",
+      );
+      expect(result.rows[0].expires_at).not.toBeNull();
     } finally {
       await freshPg.close();
     }
