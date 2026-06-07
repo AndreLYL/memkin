@@ -10,6 +10,8 @@ export interface Prompt {
   secret(question: string): Promise<string>;
   confirm(question: string, defaultYes?: boolean): Promise<boolean>;
   select(question: string, options: SelectOption[], defaultIndex?: number): Promise<string>;
+  /** True once the input stream has ended — further prompts cannot receive new input. */
+  isClosed(): boolean;
   close(): void;
 }
 
@@ -174,7 +176,18 @@ export function createPrompt(
 
       render();
 
-      const onKey = (buf: Buffer | string) => {
+      let settled = false;
+      function finish(value: string) {
+        if (settled) return;
+        settled = true;
+        stdin.setRawMode?.(false);
+        input.off("data", onKey);
+        input.off("end", onEnd);
+        input.on("data", onData); // restore line-mode listener
+        resolve(value);
+      }
+
+      function onKey(buf: Buffer | string) {
         const key = buf.toString();
 
         if (key === "\x1b[A" || key === "\x1b[D") {
@@ -188,19 +201,23 @@ export function createPrompt(
           clearLines(options.length + 1);
           render();
         } else if (key === "\r" || key === "\n") {
-          stdin.setRawMode?.(false);
-          input.off("data", onKey);
-          input.on("data", onData); // restore line-mode listener
           output.write("\n");
-          resolve(options[idx].value);
+          finish(options[idx].value);
         } else if (key === "\x03") {
           // Ctrl+C
           stdin.setRawMode?.(false);
           process.exit(0);
         }
-      };
+      }
+
+      // If the input stream ends (piped/non-interactive input exhausted), resolve with
+      // the current selection instead of waiting forever for a keypress that never comes.
+      function onEnd() {
+        finish(options[idx].value);
+      }
 
       input.on("data", onKey);
+      input.once("end", onEnd);
     });
 
   const select = async (
@@ -286,6 +303,7 @@ export function createPrompt(
     secret,
     confirm,
     select,
+    isClosed: () => closed,
     close: () => {
       input.off("data", onData);
       input.off("end", onEnd);
