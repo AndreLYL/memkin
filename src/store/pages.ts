@@ -20,7 +20,7 @@ export interface Page {
 
 export interface PutPageOptions {
   halflife_days?: number | null;
-  expires_at?: Date | null;  // explicit override; null clears it; undefined = auto-compute from halflife_days
+  expires_at?: Date | null; // explicit override; null clears it; undefined = auto-compute from halflife_days
 }
 
 interface ParsedContent {
@@ -75,7 +75,7 @@ export class PageStore {
     // - undefined: auto-compute from halflife_days, or NULL if halflife_days is null
     let expiresAt: Date | null;
     if (opts?.expires_at !== undefined) {
-      expiresAt = opts.expires_at;  // Date or null, both stored as-is
+      expiresAt = opts.expires_at; // Date or null, both stored as-is
     } else if (halflifeDays !== null) {
       expiresAt = new Date(Date.now() + halflifeDays * 86_400_000);
     } else {
@@ -94,7 +94,16 @@ export class PageStore {
          halflife_days = EXCLUDED.halflife_days,
          updated_at = NOW()
        RETURNING *`,
-      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash, halflifeDays, expiresAt],
+      [
+        slug,
+        type,
+        title,
+        compiled_truth,
+        JSON.stringify(frontmatter),
+        contentHash,
+        halflifeDays,
+        expiresAt,
+      ],
     );
     return this.rowToPage(result.rows[0]);
   }
@@ -171,21 +180,17 @@ export class PageStore {
     return result.rows.map((r) => this.rowToPage(r));
   }
 
-  async updatePageTier(
-    id: number,
-    tier: string,
-    consolidatedInto?: number | null,
-  ): Promise<void> {
+  async updatePageTier(id: number, tier: string, consolidatedInto?: number | null): Promise<void> {
     if (consolidatedInto !== undefined) {
       await this.pg.query(
         `UPDATE pages SET tier = $1, consolidated_into = $2, updated_at = NOW() WHERE id = $3`,
         [tier, consolidatedInto, id],
       );
     } else {
-      await this.pg.query(
-        `UPDATE pages SET tier = $1, updated_at = NOW() WHERE id = $2`,
-        [tier, id],
-      );
+      await this.pg.query(`UPDATE pages SET tier = $1, updated_at = NOW() WHERE id = $2`, [
+        tier,
+        id,
+      ]);
     }
   }
 

@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Database } from "../../src/store/database.js";
-import { PageStore } from "../../src/store/pages.js";
-import { GraphStore } from "../../src/store/graph.js";
-import { TagStore } from "../../src/store/tags.js";
-import { TimelineStore } from "../../src/store/timeline.js";
 import { Consolidator, type ConsolidatorStores } from "../../src/consolidator/consolidator.js";
 import { canCompress, NEVER_COMPRESS_TYPES } from "../../src/consolidator/rules.js";
-import type { LLMProvider } from "../../src/extractors/providers/types.js";
+import { Database } from "../../src/store/database.js";
+import { GraphStore } from "../../src/store/graph.js";
+import { PageStore } from "../../src/store/pages.js";
+import { TagStore } from "../../src/store/tags.js";
+import { TimelineStore } from "../../src/store/timeline.js";
 
 // Helper: create a page and backdate its expires_at to simulate expiry
 export async function makeExpiredHotPage(
@@ -20,9 +19,7 @@ export async function makeExpiredHotPage(
   await pages.putPage(slug, `---\ntitle: ${slug}\ntype: ${type}\n---\n${type} content.`, {
     halflife_days: 90,
   });
-  await pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [
-    slug,
-  ]);
+  await pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [slug]);
   if (entitySlug && graph) {
     await graph.addLink(slug, entitySlug, "mentions");
   }
@@ -100,12 +97,20 @@ describe("Consolidator", () => {
         "---\ntitle: Alice\ntype: person\n---\nAlice entity.",
       );
       await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/pref1", "preference",
-        "entities/alice", stores.graph,
+        stores.pages,
+        db.pg,
+        "preferences/pref1",
+        "preference",
+        "entities/alice",
+        stores.graph,
       );
       await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/pref2", "preference",
-        "entities/alice", stores.graph,
+        stores.pages,
+        db.pg,
+        "preferences/pref2",
+        "preference",
+        "entities/alice",
+        stores.graph,
       );
 
       const consolidator = new Consolidator(stores);
@@ -119,6 +124,15 @@ describe("Consolidator", () => {
       // Both should point to the same consolidated warm page
       expect(pref1?.consolidated_into).toBe(pref2?.consolidated_into);
       expect(pref1?.consolidated_into).not.toBeNull();
+
+      // Verify the warm aggregate page has correct merged content and source_slugs
+      const warmPage = await stores.pages.getPage("warm/entities-alice/preference-consolidated");
+      expect(warmPage).not.toBeNull();
+      expect(warmPage?.compiled_truth).toContain("preferences/pref1");
+      expect(warmPage?.compiled_truth).toContain("preferences/pref2");
+      const sourceSlugs = warmPage?.frontmatter.source_slugs as string[];
+      expect(sourceSlugs).toContain("preferences/pref1");
+      expect(sourceSlugs).toContain("preferences/pref2");
     });
 
     it("does NOT merge or rewrite pages where frontmatter.user_edited === true (H4 rule)", async () => {
@@ -127,10 +141,9 @@ describe("Consolidator", () => {
         "---\ntitle: User-edited pref\ntype: preference\nuser_edited: true\n---\nHand-written content.",
         { halflife_days: 90 },
       );
-      await db.pg.query(
-        "UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1",
-        ["preferences/user-edited"],
-      );
+      await db.pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [
+        "preferences/user-edited",
+      ]);
 
       const consolidator = new Consolidator(stores);
       await consolidator.consolidateHot();
@@ -145,17 +158,22 @@ describe("Consolidator", () => {
     });
 
     it("is idempotent: running consolidateHot twice does not create duplicate warm pages", async () => {
-      await stores.pages.putPage(
+      await stores.pages.putPage("entities/bob", "---\ntitle: Bob\ntype: person\n---\nBob entity.");
+      await makeExpiredHotPage(
+        stores.pages,
+        db.pg,
+        "preferences/p1",
+        "preference",
         "entities/bob",
-        "---\ntitle: Bob\ntype: person\n---\nBob entity.",
+        stores.graph,
       );
       await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/p1", "preference",
-        "entities/bob", stores.graph,
-      );
-      await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/p2", "preference",
-        "entities/bob", stores.graph,
+        stores.pages,
+        db.pg,
+        "preferences/p2",
+        "preference",
+        "entities/bob",
+        stores.graph,
       );
 
       const consolidator = new Consolidator(stores);
