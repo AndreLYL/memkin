@@ -154,10 +154,16 @@ export const KnowledgeSourceTypeSchema = z.enum(["conversation", "document", "te
 function normalizeTopicSlug(raw: string): string {
   const slug = raw
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^a-z0-9一-鿿㐀-䶿]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
-  return slug || "uncategorized";
+  if (slug) return slug;
+  // Fallback: generate hash-based slug for pure non-latin text
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(16).padStart(12, "0").slice(0, 12);
 }
 
 export const KnowledgeSchema = z

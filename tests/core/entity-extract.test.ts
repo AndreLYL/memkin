@@ -53,4 +53,11 @@ describe("extractQuickEntities", () => {
     const emails = result.filter((e) => e.type === "email");
     expect(emails.length).toBe(0);
   });
+
+  test("does not extract @domain from an email as a handle", () => {
+    const result = extractQuickEntities("Contact alice@example.com for details");
+    expect(result).toContainEqual({ type: "email", value: "alice@example.com" });
+    const handles = result.filter((e) => e.type === "handle");
+    expect(handles).toEqual([]);
+  });
 });

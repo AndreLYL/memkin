@@ -260,15 +260,12 @@ describe("Pipeline", () => {
 
     const collector = createMockCollector(messages);
 
-    let callCount = 0;
-    // First block: always fail on extraction (both attempts)
-    // Second block: succeed on extraction
     const mockProvider = createMockProvider(new Map([["", " "]]));
-    mockProvider.chat = async (messages) => {
-      callCount++;
+    mockProvider.chat = async (msgs) => {
+      const prompt = msgs.map((m) => m.content).join(" ");
 
-      // Check if this is for block 1 (first two calls - original + retry)
-      if (callCount <= 2) {
+      // Block 1 (contains "Block 1") always fails
+      if (prompt.includes("Block 1")) {
         throw new Error("Simulated extraction failure");
       }
 

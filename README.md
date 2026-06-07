@@ -1,338 +1,433 @@
 <p align="center">
   <h1 align="center">Memoark</h1>
-  <p align="center"><strong>Turn your scattered conversations into one private, searchable memory. Local-first, AI-powered.</strong></p>
+  <p align="center"><strong>把你的飞书工作与 AI Agent 会话，沉淀成一份私有、本地的核心记忆，让你的 Agent 真正懂你。</strong></p>
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#features">Features</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#cli-reference">CLI Reference</a> •
-  <a href="#roadmap">Roadmap</a>
+  简体中文 | <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-black">
+  <img alt="Language: TypeScript" src="https://img.shields.io/badge/lang-TypeScript-3178c6">
+  <img alt="Tests: 800+" src="https://img.shields.io/badge/tests-800%2B-success">
+</p>
+
+<p align="center">
+  <img src="docs/assets/web-ui-graph.jpeg" alt="Memoark 知识图谱 —— 实体、决策、任务、知识在你的工作中相互连接" width="850">
+  <br>
+  <em>把你的工作变成一张活的知识图谱 —— 人、决策、任务、知识，全部连起来。</em>
 </p>
 
 ---
 
-## The Problem
+## 痛点
 
-Your conversations are everywhere — Claude Code, Feishu, WeChat, meetings, emails. Every day, you make decisions, discover insights, and discuss ideas across a dozen platforms. But when you need to recall what was said, where it was decided, or why you chose that approach — it's gone. Buried in chat logs you'll never scroll through again.
+你的工作记忆有两个家，而你的 AI Agent 一个都够不着。
 
-**You don't have a memory problem. You have a fragmentation problem.**
+- **飞书**承载你的工作关系网 — 私信、群聊、邮件、会议、任务。这是你*在做什么*、*和谁一起做*。
+- **AI Agent**（Claude Code、Codex、OpenClaw）承载你的构建过程 — 每次编程会话里的决策、发现和踩过的坑。
 
-## The Solution
+但每次打开新的 Agent 会话，它都一无所知。你得重新解释你是谁、项目是什么、上周决定了什么、为什么。上下文明明*就在某处* — 埋在你再也不会翻的聊天记录和会话日志里。
 
-Memoark is a **local-first personal memory system** that collects your conversations from multiple platforms, extracts structured signals (entities, decisions, tasks, discoveries, relationships), and stores them in a unified, searchable knowledge graph — all on your own machine.
+**你不是记忆力差，你是信息碎片化 — 而你的 Agent 每天都在为此买单。**
+
+## 解决方案
+
+Memoark 是一个**本地优先的个人记忆系统**，建立在两条同等重要的输入流之上 —— 你的**飞书工作**和你的 **AI Agent 会话**。它把两者提取成结构化信号（实体、决策、任务、发现、知识、关系），汇入你自己机器上一个统一、可搜索的知识图谱，再通过 **MCP** 把这份记忆喂回给任何 Agent。
+
+结果是：你的 Agent 既**写入**又**读取**同一份记忆 —— 让 Claude Code、Codex 以及任何 MCP 客户端，终于*懂你和你的工作*。
 
 ```
-   WeChat          Feishu         Claude Code        Codex          Hermes
-     │               │                │                │               │
-     └───────────────┴────────────────┴────────────────┴───────────────┘
-                                      │
-                                      ▼
-                            ┌───────────────────┐
-                            │     Memoark        │
-                            │                   │
-                            │  Extract → Store  │
-                            │  Search  → Query  │
-                            │                   │
-                            └───────────────────┘
-                                      │
-                      ┌───────────────┼───────────────┐
-                      ▼               ▼               ▼
-                   Timeline      Knowledge        Natural
-                   Recall        Graph             Language Q&A
+        飞书工作流                  AI Agent 会话
+   (私信 / 群聊 / 邮件             (Claude Code / Codex
+    会议 / 任务)                    / OpenClaw)
+           │                               │
+           └───────────────┬───────────────┘
+                           ▼   采集 + 抽取（本地）
+                  ┌──────────────────┐
+                  │   你的核心记忆    │  实体 · 决策 · 任务
+                  │  (PGLite, 本地)   │  知识 · 时间线 · 图谱
+                  └────────┬─────────┘
+                           ▼  MCP
+                   你的 Agent 懂你
+                           │
+                           └──── Agent 用得越多，记忆越懂你 ───┘
 ```
 
-> "I discussed a technical proposal with a colleague on WeChat yesterday, implemented part of it in Claude Code today, and have a Feishu review meeting next week."
+> "我昨天在飞书和同事讨论了一个方案，今天在 Claude Code 里实现了一部分，下周还有个评审会。"
 >
-> Memoark connects these three events automatically — across platforms, across time.
+> Memoark 自动把这三件事串起来 —— 跨平台、跨时间 —— 并在你需要时把完整脉络交给 Agent。
 
-## Features
+## 核心特性
 
-**Private & Local-First**
-Your data never leaves your machine. PGLite embedded database, local vector embeddings via Ollama, no cloud dependency. You own your memory.
+**🛰️ 飞书全量采集**
+你的工作在飞书里。Memoark 覆盖 **7 个源** —— 私信、群聊、邮件、日历、文档、任务、消息搜索 —— 把你的工作关系网变成结构化记忆。
 
-**AI-Powered Signal Extraction**
-LLM-driven pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
+**🤖 让 Agent 懂你（MCP）**
+把 Memoark 作为任何 MCP Agent 的记忆层 —— Claude Code、Cursor、Windsurf。**17 个内置工具**让 Agent 查询你的历史、读取实体页面、写回新知识。Agent 既是记忆的生产者，也是消费者。
 
-**Hybrid Semantic Search**
-Full-text search + vector retrieval with Reciprocal Rank Fusion (RRF). Ask questions in natural language — powered by PGLite FTS + pgvector embeddings.
+**🔒 私密 & 本地优先**
+数据永远不离开你的机器。PGLite 嵌入式数据库，可选 Ollama 本地向量嵌入，无云依赖。
 
-**Knowledge Graph**
-See the connections between people, projects, decisions, and ideas. Graph traversal with BFS, backlink tracking, and link-type filtering.
+**🧠 AI 驱动信号提取**
+LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、时间线、决策、任务、发现、知识、关系。
 
-**Timeline Recall**
-Browse your activity history like an auto-written diary — what you did, when, and across which platforms.
+**🔍 混合语义搜索**
+全文搜索（tsvector）+ 向量检索（pgvector），通过 RRF（Reciprocal Rank Fusion）融合排序。支持自然语言提问。
 
-**MCP Server**
-Use Memoark as a memory layer for any AI agent that supports MCP — Claude Code, Cursor, Windsurf. 17 built-in tools for pages, search, graph, tags, timeline, and embeddings.
+**🕸️ 知识图谱 + Web UI**
+看见人、项目、决策之间的关联。内置 Web UI 提供 Dashboard、时间线、力导向知识图谱和搜索。
 
-**REST API**
-Full Hono-powered HTTP API for all store operations. Integrate with any client.
+**🔌 REST API**
+基于 Hono 的 HTTP API，暴露所有存储操作。
 
-**Multi-Platform Collection**
-One system, multiple sources. Currently supports AI agent sessions (Claude Code, Codex, Hermes) and Feishu (Lark).
+## 使用场景
 
-## Quick Start
+**几秒钟让 Agent 接手一个项目**
+打开 Claude Code 会话，问一句 *"memoark 这个项目现在进展如何？"* —— Agent 直接从你的记忆里拉出聚合的决策、待办任务和最近时间线，无需你重新解释。
 
-### Prerequisites
+**回忆某人、某件事**
+*"我上周和同事聊了什么？"* —— Memoark 把飞书私信、会议、后续任务串成一个答案。
 
-- [Bun](https://bun.sh) >= 1.0.0 — install with `curl -fsSL https://bun.sh/install | bash`
-- (Optional) [Ollama](https://ollama.ai) for local embeddings
+**自动生成的工作日志**
+像翻日记一样浏览你的时间线 —— 你做了什么决策、交付了什么、跨了哪些平台，全部自动写好。
 
-### Installation
+## 为什么选 Memoark
+
+| | Memoark | 纯 RAG / 向量检索 | 笔记工具（Obsidian / Notion） | GBrain | OpenHuman |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 本地优先 & 私密 | ✅ | 视情况 | 视情况 | ✅ | ✅ |
+| 开源 | ✅ | 不一定 | 部分 | 部分 | ✅ |
+| 飞书工作采集（私信/群聊/邮件/会议/任务） | ✅ | ❌ | 手动 | ❌ | ❌ |
+| 把 AI Agent 会话作为数据源 | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Agent 原生：通过 MCP 既读**又**写 | ✅ | ❌ | ❌ | ✅ | 部分 |
+| 实体 + 关系知识图谱 | ✅ | ❌ | 手动 | ✅ | 部分 |
+| 结构化信号提取（不只是分块） | ✅ | ❌ | ❌ | ✅ | ✅ |
+| 精简的 MCP 工具面（17 个，而非 40+） | ✅ | 不适用 | 不适用 | ❌（40+） | 不一定 |
+
+> 纯 RAG 只有向量、没有实体和关系，回答缺乏上下文；笔记工具强大但依赖手动维护；GBrain 能力强但偏重、MCP 工具过多。Memoark 保持本地、精简、Agent 原生 —— 并把飞书工作作为一等数据源。
+
+## 快速开始
+
+### 前置条件
+
+- [Bun](https://bun.sh) >= 1.0.0 — 安装命令：`curl -fsSL https://bun.sh/install | bash`
+- （可选）[Ollama](https://ollama.ai) 本地嵌入
+
+### 安装
 
 ```bash
 git clone https://github.com/AndreLYL/memoark.git
 cd memoark
 bun install
-npm link          # registers the `memoark` command globally
+npm link          # 注册 memoark 全局命令
 ```
 
-### Initialize Configuration
+### 初始化配置
 
-Run the interactive setup wizard — it auto-detects your data sources, hardware, and guides you through LLM + embedding configuration:
+`memoark init` 启动一个**交互式配置中心**（基于 React + ink 的全屏 TUI），让你零手写地生成 / 编辑 `memoark.yaml`：
 
 ```bash
 memoark init
 ```
 
-The wizard will:
-- Detect available data sources (Claude Code, Codex, Hermes)
-- Assess your hardware to recommend local (Ollama) or remote (OpenAI) embedding
-- Guide you through LLM provider / model / API key setup
-- Test the connection before saving
-- Register the `memoark` command if not already done
+**配置中心特性：**
+- 📋 **分区编辑**：Overview、LLM、Embedding、数据源、隐私、分块（Block Builder）等分区
+- ⌨️ **键盘操作**：↑/↓ 或 Tab 切换字段，Enter 编辑，Ctrl+S 保存，q / Esc 退出（有改动会自动保存）
+- 🔌 **实时连接测试**：编辑 LLM / Embedding 时自动校验 API key 与连通性
+- 💡 **智能推荐**：根据本机硬件推荐本地（Ollama）或远程（OpenAI）Embedding
+- 🔒 **密钥脱敏**：API key 始终掩码显示
+- 🧭 **自动检测**：识别已有数据源（Claude Code、Codex、Hermes）并注册 `memoark` 命令
 
-### Check Environment
+**运行模式：**
+
+| 命令 / 环境 | 行为 |
+|---|---|
+| `memoark init`（TTY 终端下） | 全屏 TUI 配置中心 |
+| `memoark init --no-tui` | 逐项问答式向导（线性 fallback） |
+| `memoark init --auto` | 全自动，无提示，用检测到的默认值生成 |
+| `memoark init --force` | 覆盖已有配置 |
+| `MEMOARK_NO_TUI=1` | 强制禁用 TUI（非 TTY 环境也会自动 fallback） |
+
+> `memoark config init` 与 `memoark init` 等价。飞书等少数高级配置目前需直接编辑 `memoark.yaml`（见下方飞书章节）。
+
+### 检查环境
 
 ```bash
 memoark doctor
 ```
 
-### Run Your First Extraction
+### 运行提取
 
 ```bash
-# Extract from Claude Code
+# 从 Claude Code 提取
 memoark extract --source claude-code
 
-# Extract from Codex
+# 从 Codex 提取
 memoark extract --source codex
 
-# Extract from all enabled sources
+# 从所有启用的数据源提取
 memoark extract --source all
 
-# Dry run (no LLM calls, just scan data volume)
+# 干跑模式（不调用 LLM，仅扫描数据量）
 memoark extract --source claude-code --dry-run
 ```
 
-### Search Your Memory
+### 飞书私聊/群聊提取
+
+飞书消息有两条不同路径：
+
+- `sources.feishu.sources.messages` 使用 OpenAPI chat/message 接口，适合明确群聊 `chat_id` 或自动发现到的群聊。
+- `sources.feishu.sources.message_search` 使用 `lark-cli im +messages-search`，适合 user-mode 下搜索最近私聊和群聊。私聊机器人对话通常需要这条路径，否则最近三天会明显少数据。
+
+本地需要先完成 lark-cli 的飞书用户态登录，并在 `memoark.yaml` 打开 `message_search`：
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4.1-mini
+  api_key: ${TOKENFREE_API_KEY}
+
+sources:
+  feishu:
+    enabled: true
+    auth_mode: user
+    app_id: ${FEISHU_APP_ID}
+    app_secret: ${FEISHU_APP_SECRET}
+    sources:
+      messages:
+        enabled: true
+        chat_ids: []
+        lookback_days: 3
+      message_search:
+        enabled: true
+        chat_types:
+          - p2p
+          # - group
+        lookback_days: 3
+        page_size: 50
+```
+
+然后运行：
 
 ```bash
-# Hybrid search (FTS + vector)
-memoark search "auth middleware decision"
+bun src/cli.ts extract --source feishu --adapter store --since 3d
+```
 
-# FTS-only search
+`--dry-run` 只验证采集数量，不写数据库、不提交 cursor：
+
+```bash
+bun src/cli.ts extract --source feishu --adapter store --since 3d --dry-run
+```
+
+### 增量状态与重建
+
+Memoark 的增量状态分两层：
+
+- 数据库：默认在 `~/.memoark/data`，保存提取后的页面、chunk、关系和时间线。
+- 运行状态：当前仓库的 `.memoark/cursors.yaml` 和 `.memoark/dedup.jsonl`，分别保存源 cursor 和消息去重 hash。
+
+正常增量运行不要手动删这些文件。需要删除某个源的过期提取结果并重跑时，用内置命令，它会先备份数据库和 `.memoark`：
+
+```bash
+# 先预览会删除多少内容
+bun src/cli.ts store purge-source feishu
+
+# 确认后清理飞书结果、飞书 cursor，并重置旧格式 dedup
+bun src/cli.ts store purge-source feishu --yes
+
+# 再跑最近三天
+bun src/cli.ts extract --source feishu --adapter store --since 3d
+```
+
+旧版 `dedup.jsonl` 只记录 hash，没有记录来源平台，所以彻底重跑飞书时默认会备份后清空整个 dedup。后续增量会重新建立去重状态。
+
+### 搜索记忆
+
+```bash
+# 混合搜索（全文 + 向量）
+memoark search "认证中间件决策"
+
+# 仅全文搜索
 memoark search "JWT token" --mode fts
 ```
 
-### Start the Server
+### 启动服务器
 
 ```bash
-# HTTP API (default port 3927)
+# HTTP API（默认端口 3927）
 memoark serve
 
-# MCP stdio (for AI agent integration — Claude Code, Cursor, etc.)
+# MCP stdio（AI Agent 集成 — Claude Code、Cursor 等）
 memoark serve --mcp
 ```
 
-## Architecture
+### 接入你的 Agent（MCP）
+
+让任何 MCP 客户端指向 Memoark，即可读写你的记忆。以 Claude Code 为例：
+
+```json
+{
+  "mcpServers": {
+    "memoark": {
+      "command": "memoark",
+      "args": ["serve", "--mcp"]
+    }
+  }
+}
+```
+
+然后就可以让 Agent *"在我的记忆里搜一下 auth 重构的决策"* 或 *"项目 X 还有哪些未完成任务？"* —— 它会从你的本地记忆作答。
+
+### 浏览 Web UI
+
+```bash
+cd web
+bun install
+bun run dev        # Dashboard、时间线、知识图谱、搜索
+```
+
+## 架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Data Sources                             │
-│  Claude Code  │  Codex  │  Hermes  │  Feishu  │  WeChat        │
-└───────┬───────┴────┬────┴────┬─────┴────┬─────┴────┬───────────┘
-        └────────────┴────────┴──────────┴──────────┘
+│                        数据源                                    │
+│  Claude Code  │  Codex  │  Hermes  │  飞书  │  微信              │
+└───────┬───────┴────┬────┴────┬─────┴────┬───┴────┬──────────────┘
+        └────────────┴────────┴──────────┴────────┘
                               │
                     ┌─────────▼──────────┐
-                    │   Signal Extraction │
-                    │   Pipeline          │
+                    │   信号提取 Pipeline  │
                     │                    │
-                    │  Collector          │
-                    │  → Dedup            │
-                    │  → Block Builder    │
-                    │  → Noise Filter     │
-                    │  → Signal Extractor │
-                    │  → Privacy          │
+                    │  采集 → 去重        │
+                    │  → 分块 → 噪声过滤  │
+                    │  → 信号提取 → 脱敏  │
                     └─────────┬──────────┘
                               │
                     ┌─────────▼──────────┐
-                    │   Storage Layer     │
+                    │   存储层            │
                     │                    │
                     │  PGLite + pgvector │
-                    │  (Embedded PG)     │
+                    │  （嵌入式 PG）      │
                     └─────────┬──────────┘
                               │
               ┌───────────────┼───────────────┐
               │               │               │
      ┌────────▼──────┐ ┌─────▼──────┐ ┌──────▼───────┐
      │   CLI          │ │  MCP       │ │  REST API    │
-     │   Management   │ │  Server    │ │  (Hono)      │
-     │   & Extraction │ │  (stdio)   │ │              │
+     │   管理 & 提取   │ │  服务器     │ │  (Hono)      │
      └────────────────┘ └────────────┘ └──────────────┘
 ```
 
-### Signal Extraction Pipeline
+### 信号类型
 
-| Stage | Description |
-|-------|-------------|
-| **Collector** | Fetches raw messages from configured data sources |
-| **Dedup** | Eliminates duplicates via content hashing |
-| **Block Builder** | Groups messages into conversation blocks by time and topic |
-| **Noise Filter** | Scores block significance using rules (L1) + LLM (L2) |
-| **Signal Extractor** | LLM-powered extraction of entities, decisions, tasks, discoveries, knowledge, timeline, links |
-| **Privacy Processor** | Dual-track redaction — reversible or irreversible |
+| 信号类型 | 说明 | 示例 |
+|---------|------|------|
+| **实体** | 人物、项目、工具、概念 | `project/memoark`, `tool/claude-code` |
+| **时间线** | 关键事件及时间戳 | "2026-05-19: 完成多平台采集器重构" |
+| **决策** | 架构选型、技术决策及其理由 | "选择 PGLite 作为嵌入式 PostgreSQL 方案" |
+| **任务** | 待办事项及状态追踪 | `[open] 实现 token 自动刷新` |
+| **发现** | 技术洞察、bug 根因、edge case | "UUID v4 不可按字典序排序" |
+| **知识** | 可复用的事实性知识 | "PGLite 通过 WASM 在进程内运行完整 Postgres" |
+| **关系** | 实体间的依赖、引用、协作 | `project/memoark --[depends_on]--> tool/pglite` |
 
-### Extracted Signal Types
+### 存储层
 
-| Signal | Description | Example |
-|--------|-------------|---------|
-| **Entities** | People, projects, tools, concepts | `project/memoark`, `tool/claude-code` |
-| **Timeline** | Key events with timestamps | "2026-05-19: Completed multi-platform collector refactoring" |
-| **Decisions** | Technical choices with reasoning | "Chose PGLite for embedded PostgreSQL with vector support" |
-| **Tasks** | Action items with status | `[open] Implement token auto-refresh` |
-| **Discoveries** | Insights, root causes, edge cases | "UUID v4 is not lexicographically sortable" |
-| **Knowledge** | Reusable facts with provenance | "PGLite runs full Postgres in-process via WASM" |
-| **Links** | Relationships between entities | `project/memoark --[depends_on]--> tool/pglite` |
+| 组件 | 说明 |
+|------|------|
+| **PageStore** | Wiki 风格页面，YAML frontmatter，CRUD |
+| **ChunkStore** | 递归文本分块（300 词，50 词重叠），嵌入复用 |
+| **SearchEngine** | tsvector 全文搜索 + pgvector 向量搜索，RRF 融合排序 |
+| **GraphStore** | 有向链接图，BFS 遍历，链接类型过滤，反向链接 |
+| **TagStore** | 页面标签，冲突安全 upsert |
+| **TimelineStore** | 按时间排序的条目，去重 |
+| **EmbeddingService** | OpenAI / Ollama 批量嵌入，过期 chunk 检测 |
 
-### Storage Layer
-
-| Component | Description |
-|-----------|-------------|
-| **PageStore** | CRUD for wiki-style pages with YAML frontmatter |
-| **ChunkStore** | Recursive text chunking (300 words, 50-word overlap) with embedding reuse |
-| **SearchEngine** | FTS via `tsvector` + vector cosine via `pgvector`, fused with RRF scoring |
-| **GraphStore** | Directed link graph with BFS traversal, link types, backlinks |
-| **TagStore** | Page tagging with conflict-safe upserts |
-| **TimelineStore** | Chronological entries per page with dedup |
-| **EmbeddingService** | Batch embedding via OpenAI or Ollama, stale-chunk detection |
-
-## CLI Reference
+## CLI 命令
 
 ### `memoark extract`
 
-Extract signals from data sources.
+从数据源提取信号。
 
 ```bash
 memoark extract \
   --source <name>              # claude-code, codex, hermes, feishu, all
-  --format json|markdown       # Output format (default: json)
-  --adapter store|file|gbrain|stdout  # Output target (default: store)
-  --output <dir>               # Output directory for file adapter
-  --since <date>               # Process messages after this date (ISO 8601 or relative: 1d, 2h)
-  --limit <n>                  # Max messages to process
-  --dry-run                    # Test without LLM calls or writes
+  --format json|markdown       # 输出格式，默认 json
+  --adapter store|file|gbrain|stdout  # 输出目标，默认 store
+  --since <date>               # 只处理此日期之后的消息
+  --limit <n>                  # 限制消息数
+  --dry-run                    # 测试模式
 ```
 
 ### `memoark serve`
 
-Start the Memoark server.
+启动服务器。
 
 ```bash
-# HTTP API (default port from config)
-memoark serve
-
-# MCP stdio transport (for AI agent integration)
-memoark serve --mcp
+memoark serve              # HTTP API
+memoark serve --mcp        # MCP stdio 传输
 ```
 
 ### `memoark search <query>`
 
-Search your stored memory.
+搜索存储的记忆。
 
 ```bash
-# Hybrid search (FTS + vector, default)
-memoark search "authentication middleware"
-
-# FTS-only search
-memoark search "JWT token" --mode fts
-
-# Limit results
-memoark search "deployment" --limit 5
+memoark search "认证中间件"           # 混合搜索（默认）
+memoark search "JWT" --mode fts      # 仅全文搜索
+memoark search "部署" --limit 5      # 限制结果数
 ```
 
 ### `memoark embed`
 
-Generate embeddings for unembedded chunks.
+为未嵌入的 chunk 生成向量嵌入。
 
 ```bash
-# Embed all stale chunks
-memoark embed
-
-# Limit batch size
-memoark embed --limit 100
+memoark embed                  # 嵌入所有过期 chunk
+memoark embed --limit 100     # 限制批量大小
 ```
 
 ### `memoark doctor`
 
-Diagnose configuration and environment.
-
-```bash
-memoark doctor
-```
+诊断配置和环境。
 
 ### `memoark config init`
 
-Generate a configuration template.
+等价于 `memoark init` —— 启动交互式配置中心生成 / 编辑 `memoark.yaml`（支持 `--auto` / `--no-tui` / `--force`）。
 
-```bash
-memoark config init
-```
+### `memoark sources list` / `memoark sources test <name>`
 
-### `memoark sources list`
+列出或测试数据源。
 
-List available data sources.
-
-```bash
-memoark sources list
-```
-
-### `memoark sources test <name>`
-
-Test data source connectivity.
-
-```bash
-memoark sources test claude-code
-```
-
-## Configuration
+## 配置
 
 ### `memoark.yaml`
 
 ```yaml
-# Privacy
+# 隐私配置
 privacy:
   enabled: true
-  mode: reversible           # reversible | irreversible
+  mode: reversible           # reversible（可逆）| irreversible（不可逆）
   redact_phone: true
   redact_id_card: true
   redact_bank_card: true
   replacement: "[REDACTED]"
 
-# LLM (for signal extraction)
+# LLM（信号提取用）
 llm:
   provider: openai
   model: gpt-4o-mini
   api_key: ${OPENAI_API_KEY}
 
-# Block Builder
+# 分块配置
 block_builder:
   block_gap_minutes: 30
   max_block_tokens: 4000
   max_block_messages: 100
 
-# Data Sources
+# 数据源
 sources:
   claude-code:
     enabled: true
@@ -341,123 +436,113 @@ sources:
   hermes:
     enabled: true
 
-# Store (PGLite)
+# 存储（PGLite）
 store:
   data_dir: ~/.memoark/data
 
-# Embeddings
+# 嵌入
 embedding:
   provider: openai           # openai | ollama
   model: text-embedding-3-large
   dimensions: 1536
   api_key: ${OPENAI_API_KEY}
 
-# Server
+# 服务器
 server:
   http_port: 3927
 ```
 
-## Supported Sources
+## 支持的数据源
 
-### Claude Code
+| 数据源 | 路径 | 说明 |
+|--------|------|------|
+| **飞书（Lark）** | API + lark-cli | 核心工作源 —— 7 个源：群聊、私信、邮件、日历、文档、任务、消息搜索 |
+| **Claude Code** | `~/.claude/projects/` | Claude Code Agent 对话记录 |
+| **Codex** | `~/.codex/` | OpenAI Codex CLI 会话 |
+| **Hermes** | `~/.openclaw/agents/` | OpenClaw Hermes Agent 会话 |
 
-Extracts conversation transcripts from Claude Code agent sessions.
+> 飞书优先：它承载的是工作本身 —— 需求讨论、技术方案、团队决策。私信和最近会话需要先完成 `lark-cli` 用户态登录并启用 `message_search`（详见上方配置）。
 
-- **Location**: `~/.claude/projects/`
-- **Data**: Agent conversations, decisions, discoveries, session logs
+## 路线图
 
-### Codex
+### Phase 1 — 信号提取（已完成）
 
-Extracts session data from OpenAI Codex CLI.
+- [x] 多平台采集器（Claude Code、Codex、Hermes、飞书）
+- [x] LLM 驱动的噪声过滤和信号提取
+- [x] 7 类信号：实体、时间线、决策、任务、发现、知识、关系
+- [x] 双轨隐私脱敏（可逆 + 不可逆）
+- [x] JSON 和 Markdown 输出格式
 
-- **Location**: `~/.codex/`
-- **Data**: User/assistant messages with system-injection filtering
+### Phase 2 — 存储 & 服务器（已完成）
 
-### Hermes
-
-Extracts session data from OpenClaw Hermes agents.
-
-- **Location**: `~/.openclaw/agents/`
-- **Data**: Multi-agent sessions with automatic sub-agent discovery
-
-### Feishu (Lark)
-
-Extracts messages from Feishu/Lark workplace platform.
-
-- **Data**: Group messages, DMs, calendar events, docs, tasks
-
-## Roadmap
-
-### Phase 1 — Signal Extraction (Complete)
-
-- [x] Multi-platform collectors (Claude Code, Codex, Hermes, Feishu)
-- [x] LLM-powered noise filtering and signal extraction
-- [x] 7 signal types: entities, timeline, decisions, tasks, discoveries, knowledge, links
-- [x] Dual-track privacy redaction (reversible + irreversible)
-- [x] JSON and Markdown output formatters
-- [x] File, GBrain, and Stdout adapters
-- [x] CLI with extract, doctor, config, sources commands
-
-### Phase 2 — Storage & Server (Complete)
-
-- [x] PGLite embedded PostgreSQL with pgvector
-- [x] PageStore, ChunkStore, TagStore, TimelineStore, GraphStore
-- [x] Full-text search with `tsvector` (simple tokenizer for multilingual)
-- [x] Vector search with `pgvector` cosine similarity
-- [x] Hybrid RRF search fusing FTS + vector results
-- [x] EmbeddingService (OpenAI / Ollama)
-- [x] StoreAdapter — pipeline writes directly to PGLite
+- [x] PGLite 嵌入式 PostgreSQL + pgvector
+- [x] PageStore、ChunkStore、TagStore、TimelineStore、GraphStore
+- [x] 全文搜索（simple 分词器，支持中文）+ 向量搜索
+- [x] RRF 混合搜索
+- [x] EmbeddingService（OpenAI / Ollama）
+- [x] StoreAdapter — Pipeline 直接写入 PGLite
 - [x] Hono REST API
-- [x] MCP Server with 17 stdio tools
-- [x] CLI serve, search, embed commands
+- [x] MCP 服务器（17 个 stdio 工具）
+- [x] CLI serve、search、embed 命令
 
-### Phase 3 — Query & Interface (Next)
+### Phase 3 — Web UI（已完成）
 
-- [ ] Natural language Q&A over stored memories
-- [ ] Web UI — Timeline view
-- [ ] Web UI — Knowledge graph visualization
+- [x] Dashboard
+- [x] 时间线视图
+- [x] 知识图谱可视化（力导向）
+- [x] 搜索界面
+- [x] 实体 / 页面详情
 
-### Phase 4 — New Data Sources
+### Phase 4 — 上下文感知提取（规划中）
 
-- [ ] WeChat chat history
-- [ ] More platforms based on community demand
+- [ ] ContextBuffer —— 跨 block 共享上下文
+- [ ] 加权准入评分（替换二元噪声过滤）
+- [ ] NarrativeAssembler —— 按实体聚合叙事
 
-## Tech Stack
+### Phase 5 — 巩固与常驻服务（规划中）
 
-| Layer | Technology |
-|-------|-----------|
-| Language | TypeScript |
-| Runtime | Bun |
-| Database | PGLite (embedded PostgreSQL) |
-| Vector Search | pgvector |
-| Embeddings | OpenAI / Ollama |
-| Web Framework | Hono |
+- [ ] 记忆巩固（dream cycle）：实体合并、链接修复、模式发现
+- [ ] 常驻后台服务 + 定时采集
+- [ ] 自然语言问答
+
+### Phase 6 — 同步与新数据源（规划中）
+
+- [ ] Obsidian 双向同步
+- [ ] 微信聊天记录
+- [ ] 更多平台（社区驱动）
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 语言 | TypeScript |
+| 运行时 | Bun |
+| 数据库 | PGLite（嵌入式 PostgreSQL） |
+| 向量搜索 | pgvector |
+| 嵌入 | OpenAI / Ollama |
+| Web 框架 | Hono |
+| Web UI | React + Vite |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| Tests | Vitest (800+ tests) |
+| 测试 | Vitest（800+ 测试） |
 
-## Development
+## 开发
 
 ```bash
-# Run tests
-bun run test
-
-# Watch mode
-bun run test:watch
-
-# Lint
-bun run lint
-
-# Auto-fix lint issues
-bun run lint:fix
+bun run test              # 全量测试
+bun run test:watch        # 监听模式
+bun run typecheck         # 类型检查
+bun run lint              # 代码检查
+bun run lint:fix          # 自动修复
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and guidelines.
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## Contributing
+## 社区与支持
 
-Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a PR.
+- 🐛 发现 bug 或有功能建议？[提交 issue](https://github.com/AndreLYL/memoark/issues)。
+- 💡 欢迎在 issue 区交流问题和想法。
 
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
+基于 [Apache License 2.0](LICENSE) 开源。

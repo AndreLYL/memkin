@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -56,7 +57,9 @@ function expandDataDir(dir: string): string {
 async function createStores(config: ReturnType<typeof loadConfig>) {
   const dataDir = expandDataDir(config.store.data_dir);
   mkdirSync(dataDir, { recursive: true });
-  const db = await Database.create(dataDir);
+  const db = await Database.create(dataDir, {
+    embeddingDimensions: config.embedding.dimensions,
+  });
   const pages = new PageStore(db.pg);
   const chunks = new ChunkStore(db.pg);
   const embedding = new EmbeddingService(db.pg, {
@@ -79,12 +82,16 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
   };
 }
 
+const { version: pkgVersion } = createRequire(import.meta.url)("../package.json") as {
+  version: string;
+};
+
 const program = new Command();
 
 program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
-  .version("0.1.0");
+  .version(pkgVersion);
 
 program
   .command("init")
@@ -515,6 +522,74 @@ program
     });
     console.log(`Embedded ${result.embedded} chunks, errors ${result.errors}`);
     await stores.db.close();
+  });
+
+/**
+ * Obsidian sync — bidirectional export/import between PGLite and a vault.
+ * See docs/specs/memoark-2026-06-04-obsidian-sync.md
+ */
+program
+  .command("export")
+  .description("Export Memoark pages to an Obsidian vault (Markdown)")
+  .requiredOption("--vault <path>", "Obsidian vault directory")
+  .option("--force", "Ignore hash comparison, overwrite all files")
+  .option("--dry-run", "Print intended actions without writing")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (options) => {
+    const { exportToVault } = await import("./sync/obsidian.js");
+    const stores = await createStores(loadConfig(options.config));
+    try {
+      const result = await exportToVault(stores, options.vault, {
+        force: options.force,
+        dryRun: options.dryRun,
+      });
+      console.log(
+        `Exported: ${result.written} written, ${result.skipped} skipped, ${result.errors.length} errors`,
+      );
+      for (const err of result.errors) {
+        console.error(`  error: ${err.slug}: ${err.reason}`);
+      }
+      if (options.dryRun) console.log("(dry-run: no files written)");
+    } finally {
+      await stores.db.close();
+    }
+  });
+
+program
+  .command("import")
+  .description("Import an Obsidian vault back into Memoark")
+  .requiredOption("--vault <path>", "Obsidian vault directory")
+  .option("--force", "Ignore hash comparison, import all files")
+  .option("--dry-run", "Print intended actions without writing")
+  .option(
+    "--strict-conflict",
+    "Skip files where DB has changed since last sync instead of overwriting",
+  )
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (options) => {
+    const { importFromVault } = await import("./sync/obsidian.js");
+    const stores = await createStores(loadConfig(options.config));
+    try {
+      const result = await importFromVault(stores, options.vault, {
+        force: options.force,
+        dryRun: options.dryRun,
+        strictConflict: options.strictConflict,
+      });
+      console.log(
+        `Imported: ${result.imported} imported, ${result.skipped} skipped, ${result.errors.length} errors`,
+      );
+      for (const w of result.warnings) {
+        console.warn(`  warn: ${w.slug}: ${w.reason}`);
+      }
+      for (const err of result.errors) {
+        console.error(`  error: ${err.file}: ${err.reason}`);
+      }
+      if (!options.dryRun && result.imported > 0) {
+        console.log("Tip: Run 'memoark embed' to update embeddings for changed pages.");
+      }
+    } finally {
+      await stores.db.close();
+    }
   });
 
 program.parse(process.argv);

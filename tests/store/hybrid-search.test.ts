@@ -15,7 +15,7 @@ describe("SearchEngine — hybrid query", () => {
   let search: SearchEngine;
 
   beforeEach(async () => {
-    db = await Database.create();
+    db = await Database.create(undefined, { embeddingDimensions: 768 });
     pageStore = new PageStore(db.pg);
     chunkStore = new ChunkStore(db.pg);
     graphStore = new GraphStore(db.pg);

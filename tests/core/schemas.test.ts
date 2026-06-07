@@ -447,7 +447,7 @@ describe("KnowledgeSchema", () => {
       ...validKnowledge,
       topic: "飞书 API 限流",
     });
-    expect(result.topic).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    expect(result.topic).toMatch(/^[a-z0-9一-鿿]+(-[a-z0-9一-鿿]+)*$/);
     expect(result.topic).not.toBe("");
   });
 

@@ -31,7 +31,6 @@ memoark.yaml
 *~
 .DS_Store
 .superpowers/
-docs/superpowers/
 
 # Logs
 *.log
@@ -45,3 +44,6 @@ tests/temp/
 
 # Local isolated worktrees
 .worktrees/
+
+# Implementation plans (managed in separate repo: AndreLYL/memoark_spec)
+docs/superpowers/

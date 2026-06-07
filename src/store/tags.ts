@@ -30,4 +30,17 @@ export class TagStore {
     );
     return result.rows.map((r) => r.tag);
   }
+
+  async getAllTagsGrouped(): Promise<Map<string, string[]>> {
+    const result = await this.pg.query<{ slug: string; tag: string }>(
+      `SELECT p.slug, t.tag FROM tags t JOIN pages p ON p.id = t.page_id ORDER BY p.slug, t.tag`,
+    );
+    const grouped = new Map<string, string[]>();
+    for (const row of result.rows) {
+      const list = grouped.get(row.slug);
+      if (list) list.push(row.tag);
+      else grouped.set(row.slug, [row.tag]);
+    }
+    return grouped;
+  }
 }

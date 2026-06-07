@@ -239,8 +239,7 @@ describe("MailSource", () => {
     expect(client.execShortcut).toHaveBeenCalledWith("mail", "message", [
       "--message-id",
       "m1",
-      "--html",
-      "false",
+      "--html=false",
     ]);
   });
 

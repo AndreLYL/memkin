@@ -103,6 +103,23 @@ export class GraphStore {
     return result.rows as LinkRow[];
   }
 
+  async getAllLinksGrouped(): Promise<Map<string, LinkRow[]>> {
+    const result = await this.pg.query<LinkRow>(
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
+       FROM links l
+       JOIN pages pf ON pf.id = l.from_page_id
+       JOIN pages pt ON pt.id = l.to_page_id
+       ORDER BY pf.slug, pt.slug`,
+    );
+    const grouped = new Map<string, LinkRow[]>();
+    for (const row of result.rows) {
+      const list = grouped.get(row.from_slug);
+      if (list) list.push(row);
+      else grouped.set(row.from_slug, [row]);
+    }
+    return grouped;
+  }
+
   async getBacklinks(slug: string): Promise<LinkRow[]> {
     const result = await this.pg.query(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
