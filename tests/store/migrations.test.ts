@@ -1,14 +1,8 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Database } from "../../src/store/database.js";
+import { Database, loadSchemaSql } from "../../src/store/database.js";
 import { runMigrations } from "../../src/store/migrations/index.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const schemaPath = join(__dirname, "../../src/store/schema.sql");
 
 describe("migration runner", () => {
   let db: Database;
@@ -63,8 +57,7 @@ describe("migration runner", () => {
     // stamps halflife_days directly), not a re-run of this historical migration.
     const freshPg = new PGlite({ extensions: { vector } });
     try {
-      const schemaSql = readFileSync(schemaPath, "utf-8");
-      await freshPg.exec(schemaSql);
+      await freshPg.exec(loadSchemaSql());
 
       // Insert a legacy-shaped row directly (bypassing putPage, which would normalize the type)
       await freshPg.query(
@@ -92,8 +85,7 @@ describe("migration runner", () => {
     // which the application write path stamps directly).
     const freshPg = new PGlite({ extensions: { vector } });
     try {
-      const schemaSql = readFileSync(schemaPath, "utf-8");
-      await freshPg.exec(schemaSql);
+      await freshPg.exec(loadSchemaSql());
 
       await freshPg.query(
         `INSERT INTO pages (slug, type, title, compiled_truth) VALUES
