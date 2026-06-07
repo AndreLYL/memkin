@@ -176,6 +176,8 @@ function createMockExtractionResult(blockContent: string): ExtractionResult {
       },
     ],
     knowledge: [],
+    preferences: [],
+    references: [],
   };
 }
 
@@ -421,6 +423,8 @@ describe("E2E Pipeline Tests", () => {
       tasks: [],
       discoveries: [],
       knowledge: [],
+      preferences: [],
+      references: [],
     };
 
     const processed = processor.process(testResult);

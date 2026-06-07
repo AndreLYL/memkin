@@ -122,7 +122,26 @@ export interface TaskSignal {
 export interface Discovery {
   summary: string;
   detail?: string;
-  type: "procedure" | "preference" | "pattern" | "insight" | "risk";
+  type: "procedure" | "pattern" | "insight" | "risk";
+  entities: string[]; // slugs
+  source: SourceRef;
+  confidence: SignalConfidence;
+}
+
+export interface Preference {
+  summary: string; // "偏好异步沟通，不喜欢临时会议"
+  detail?: string;
+  category: "communication" | "tooling" | "scheduling" | "workflow" | "other";
+  entities: string[]; // slugs, usually a person
+  source: SourceRef;
+  confidence: SignalConfidence;
+}
+
+export interface Reference {
+  title: string; // 文档标题
+  url: string; // 核心字段
+  summary: string; // ≤100 字摘要
+  trigger?: string; // "遇到 Claude 安装问题时查阅"
   entities: string[]; // slugs
   source: SourceRef;
   confidence: SignalConfidence;
@@ -150,6 +169,8 @@ export interface ExtractionResult {
   tasks: TaskSignal[];
   discoveries: Discovery[];
   knowledge: Knowledge[];
+  preferences: Preference[];
+  references: Reference[];
   personAliases?: Record<string, string[]>;
 }
 

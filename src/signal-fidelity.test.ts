@@ -242,6 +242,8 @@ describe("AC-7: Privacy redacts Link.source.quote", () => {
       tasks: [],
       discoveries: [],
       knowledge: [],
+      preferences: [],
+      references: [],
     };
 
     const processed = processor.process(extraction);

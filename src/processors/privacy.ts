@@ -13,6 +13,8 @@ import type {
   ExtractionResult,
   Knowledge,
   Link,
+  Preference,
+  Reference,
   SourceRef,
   TaskSignal,
 } from "../core/types.js";
@@ -84,6 +86,8 @@ export class PrivacyProcessor {
       tasks: result.tasks.map((t) => this.processTask(t)),
       discoveries: result.discoveries.map((d) => this.processDiscovery(d)),
       knowledge: result.knowledge.map((k) => this.processKnowledge(k)),
+      preferences: result.preferences.map((p) => this.processPreference(p)),
+      references: result.references.map((r) => this.processReference(r)),
     };
 
     // Write redaction map if in reversible mode
@@ -178,6 +182,35 @@ export class PrivacyProcessor {
       content: this.redactText(knowledge.content, "knowledge.content"),
       topic: this.redactBlockedWordsOnly(knowledge.topic, "knowledge.topic"),
       source: this.processSourceRef(knowledge.source),
+    };
+  }
+
+  /**
+   * Process Preference - redacts summary and detail
+   */
+  private processPreference(preference: Preference): Preference {
+    return {
+      ...preference,
+      summary: this.redactText(preference.summary, "preference.summary"),
+      detail: preference.detail
+        ? this.redactText(preference.detail, "preference.detail")
+        : preference.detail,
+      source: this.processSourceRef(preference.source),
+    };
+  }
+
+  /**
+   * Process Reference - redacts summary and trigger
+   * title and url are NOT redacted (url is the core field; title is a document name)
+   */
+  private processReference(reference: Reference): Reference {
+    return {
+      ...reference,
+      summary: this.redactText(reference.summary, "reference.summary"),
+      trigger: reference.trigger
+        ? this.redactText(reference.trigger, "reference.trigger")
+        : reference.trigger,
+      source: this.processSourceRef(reference.source),
     };
   }
 
