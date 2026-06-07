@@ -239,7 +239,9 @@
       },
       "confidence": "paraphrased"
     }
-  ]
+  ],
+  "preferences": [],
+  "references": []
 }
 ```
 
@@ -255,3 +257,4 @@
 8. **Tasks**: Include owner, status, and timing information
 9. **Discoveries**: Extract both insights (learnings) and procedures (how-to)
 10. **Knowledge**: Extract reusable facts that stand alone without the original conversation context
+11. **Preferences and references**: Always include both arrays even when empty — this conversation has no shared links and no explicit standing-preference statements (the wiki-documentation comment is a one-off recommendation, correctly classified as `discovery.type=procedure`, not duplicated as a preference)

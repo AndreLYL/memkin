@@ -14,6 +14,8 @@ interface ExtractionResult {
   tasks: TaskSignal[];
   discoveries: Discovery[];
   knowledge: Knowledge[];
+  preferences: Preference[];
+  references: Reference[];
 }
 
 interface SourceRef {
@@ -82,7 +84,7 @@ interface TaskSignal {
 interface Discovery {
   summary: string;           // Brief insight
   detail?: string;           // Extended explanation
-  type: 'procedure' | 'preference' | 'pattern' | 'insight';
+  type: 'procedure' | 'pattern' | 'insight' | 'risk';
   entities: string[];        // Slugs of related entities
   source: SourceRef;
   confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
@@ -94,6 +96,25 @@ interface Knowledge {
   related_entities: string[]; // Entity slugs (may reference entities not in this block)
   valid_at?: string;          // ISO 8601, when knowledge becomes valid
   invalid_at?: string;        // ISO 8601, when knowledge expires
+  source: SourceRef;
+  confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
+}
+
+interface Preference {
+  summary: string;            // "Prefers async communication over meetings"
+  detail?: string;            // Extended explanation
+  category: 'communication' | 'tooling' | 'scheduling' | 'workflow' | 'other';
+  entities: string[];         // Slugs, usually a person
+  source: SourceRef;
+  confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
+}
+
+interface Reference {
+  title: string;              // Document/resource title
+  url: string;                // The resource URL — must appear in source text
+  summary: string;            // ≤100 chars: what the resource is about
+  trigger?: string;           // When this would be useful to recall later
+  entities: string[];         // Slugs of related entities
   source: SourceRef;
   confidence: 'direct' | 'paraphrased' | 'inferred' | 'speculative';
 }
@@ -161,6 +182,49 @@ Rules:
   1. Has an explicit decision-maker or team commitment? → Decision
   2. Would this statement hold true for a different team/project? → Knowledge
   3. If uncertain, look for verbs like "decided", "chose", "switched to" → Decision
+
+### Preference vs Discovery
+
+Preference (偏好): An explicit personal/team statement about how someone likes to work
+  ✓ "I prefer async communication over meetings"
+  ✓ "We always write tests before implementation" (framed as standing practice)
+  ✓ "I don't like being pinged after 6pm"
+
+Discovery-procedure (发现-流程): A how-to insight observed or recommended in the moment,
+not framed as someone's standing preference
+  ✓ "Document architectural decisions before implementation" (a recommendation, not "I always do X")
+
+Rules:
+  1. Explicitly framed as "I/we prefer/like/always do X" with a clear subject? → Preference
+  2. A one-off recommendation or observed practice without standing-preference framing? → Discovery
+  3. If uncertain, prefer Discovery (conservative — Preference requires explicit personal framing)
+
+### Preference category
+
+- `communication`: sync/async style, channels, tone, responsiveness expectations
+- `tooling`: preferred editors, libraries, tools, tool-related workflows
+- `scheduling`: time-of-day habits, meeting patterns, availability
+- `workflow`: process/practice preferences not covered above (review style, docs habits)
+- `other`: doesn't fit the above
+
+### References
+
+A reference is a bookmark **with context** — a shared resource plus enough information
+for an Agent to know when it would be useful to recall later.
+
+Extract a Reference when:
+  ✓ A message shares a URL/doc/named resource AND gives enough context to fill in `summary`
+  ✓ "Check this out: https://example.com/jwt-guide — covers token rotation" → Reference
+
+Do NOT extract a Reference when:
+  ✗ A bare URL with no surrounding context (nothing to put in `summary`/`trigger`)
+  ✗ The shared content IS the substance of the conversation — extract that as
+    Knowledge/Decision/Discovery instead; References are for bookmarks, not the discussion itself
+
+Reference field rules:
+  - `url`: must appear verbatim in the source text — never fabricate or guess a URL
+  - `summary`: ≤100 chars, what the resource covers
+  - `trigger`: when recalling this would help (e.g., "当排查 JWT 过期问题时")
 
 ### Knowledge source_type
 
