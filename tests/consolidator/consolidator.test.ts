@@ -208,7 +208,11 @@ describe("Consolidator", () => {
         { halflife_days: null },
       );
       await db.pg.query(
-        "UPDATE pages SET tier = 'warm', created_at = NOW() - INTERVAL '400 days' WHERE slug = $1",
+        `UPDATE pages SET
+           tier = 'warm',
+           created_at = NOW() - INTERVAL '400 days',
+           frontmatter = frontmatter || '{"created_at": "2025-01-01T00:00:00.000Z"}'::jsonb
+         WHERE slug = $1`,
         ["warm/entities-alice/preference-consolidated"],
       );
       await stores.graph.addLink(

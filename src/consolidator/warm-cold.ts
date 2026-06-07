@@ -44,7 +44,8 @@ export async function consolidateWarmToCold(
       const thresholdDays = WARM_TO_COLD_DAYS[page.type] ?? null;
       if (thresholdDays === null) continue;
 
-      const ageMs = Date.now() - new Date(page.created_at).getTime();
+      const createdAtRaw = (page.frontmatter.created_at as string | undefined) ?? page.created_at;
+      const ageMs = Date.now() - new Date(createdAtRaw).getTime();
       const ageDays = ageMs / 86_400_000;
       if (ageDays < thresholdDays) continue;
 
@@ -63,20 +64,26 @@ export async function consolidateWarmToCold(
       .map((p) => `## ${p.title}\n\n${p.compiled_truth}`)
       .join("\n\n---\n\n");
 
-    const summary = await llm.chat([
-      {
-        role: "system",
-        content:
-          "You are summarizing memory signals about a person, project, or concept. " +
-          "Write a concise narrative (under 400 words) capturing: key decisions, " +
-          "current state, important preferences and patterns, and key knowledge. " +
-          "Plain prose, no headers, no bullet points.",
-      },
-      {
-        role: "user",
-        content: `Entity: ${entity.title} (${entity.slug})\n\nSource signals:\n\n${candidateText}`,
-      },
-    ]);
+    let summary: string;
+    try {
+      summary = await llm.chat([
+        {
+          role: "system",
+          content:
+            "You are summarizing memory signals about a person, project, or concept. " +
+            "Write a concise narrative (under 400 words) capturing: key decisions, " +
+            "current state, important preferences and patterns, and key knowledge. " +
+            "Plain prose, no headers, no bullet points.",
+        },
+        {
+          role: "user",
+          content: `Entity: ${entity.title} (${entity.slug})\n\nSource signals:\n\n${candidateText}`,
+        },
+      ]);
+    } catch (err) {
+      console.warn(`warm-cold: LLM failed for entity ${entity.slug}:`, err);
+      continue;
+    }
 
     // Create or update cold page at cold/<entity.slug>
     const coldSlug = `cold/${entity.slug}`;
