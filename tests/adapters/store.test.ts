@@ -682,12 +682,10 @@ To context`,
       // open task: expires_at is computed from halflife_days (not NOW()), so it's in the future
       // It should NOT be null (halflife_days=90 gives a future expires_at)
       // But it should NOT be ~NOW() — it should be ~90 days from now
-      const expiresAt = page!.expires_at ? new Date(page!.expires_at) : null;
-      if (expiresAt) {
-        // Should be roughly 90 days in the future, not NOW()
-        const daysFromNow = (expiresAt.getTime() - Date.now()) / 86_400_000;
-        expect(daysFromNow).toBeGreaterThan(80);
-      }
+      expect(page!.expires_at).not.toBeNull();
+      const daysFromNow = (new Date(page!.expires_at!).getTime() - Date.now()) / 86_400_000;
+      expect(daysFromNow).toBeGreaterThan(80);
+      expect(daysFromNow).toBeLessThan(100);
     });
   });
 
