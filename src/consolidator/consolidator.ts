@@ -3,6 +3,7 @@ import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { consolidateHotToWarm } from "./hot-warm.js";
 
 export interface ConsolidatorStores {
   pages: PageStore;
@@ -65,9 +66,7 @@ export class Consolidator {
   }
 
   async consolidateHot(dryRun = false): Promise<number> {
-    // Implemented in Task 4
-    void dryRun;
-    return 0;
+    return consolidateHotToWarm(this.stores, dryRun);
   }
 
   async consolidateWarm(dryRun = false): Promise<Omit<ConsolidateResult, "hotToWarm">> {

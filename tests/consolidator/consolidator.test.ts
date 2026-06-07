@@ -6,6 +6,7 @@ import { TagStore } from "../../src/store/tags.js";
 import { TimelineStore } from "../../src/store/timeline.js";
 import { Consolidator, type ConsolidatorStores } from "../../src/consolidator/consolidator.js";
 import { canCompress, NEVER_COMPRESS_TYPES } from "../../src/consolidator/rules.js";
+import type { LLMProvider } from "../../src/extractors/providers/types.js";
 
 // Helper: create a page and backdate its expires_at to simulate expiry
 export async function makeExpiredHotPage(
@@ -78,5 +79,93 @@ describe("Consolidator", () => {
     const consolidator = new Consolidator(stores);
     const result = await consolidator.runOnce("hot");
     expect(result.hotToWarm).toBe(0);
+  });
+
+  describe("consolidateHot", () => {
+    it("moves expired hot pages for never-compress types to warm without merging", async () => {
+      await makeExpiredHotPage(stores.pages, db.pg, "decisions/d1", "decision");
+
+      const consolidator = new Consolidator(stores);
+      const moved = await consolidator.consolidateHot();
+      expect(moved).toBe(1);
+
+      const d1 = await stores.pages.getPage("decisions/d1");
+      expect(d1?.tier).toBe("warm");
+      expect(d1?.compiled_truth).toBe("decision content."); // content unchanged
+    });
+
+    it("merges expired hot pages for compressible types by entity+type into one warm page", async () => {
+      await stores.pages.putPage(
+        "entities/alice",
+        "---\ntitle: Alice\ntype: person\n---\nAlice entity.",
+      );
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/pref1", "preference",
+        "entities/alice", stores.graph,
+      );
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/pref2", "preference",
+        "entities/alice", stores.graph,
+      );
+
+      const consolidator = new Consolidator(stores);
+      const moved = await consolidator.consolidateHot();
+      expect(moved).toBe(2);
+
+      const pref1 = await stores.pages.getPage("preferences/pref1");
+      const pref2 = await stores.pages.getPage("preferences/pref2");
+      expect(pref1?.tier).toBe("warm");
+      expect(pref2?.tier).toBe("warm");
+      // Both should point to the same consolidated warm page
+      expect(pref1?.consolidated_into).toBe(pref2?.consolidated_into);
+      expect(pref1?.consolidated_into).not.toBeNull();
+    });
+
+    it("does NOT merge or rewrite pages where frontmatter.user_edited === true (H4 rule)", async () => {
+      await stores.pages.putPage(
+        "preferences/user-edited",
+        "---\ntitle: User-edited pref\ntype: preference\nuser_edited: true\n---\nHand-written content.",
+        { halflife_days: 90 },
+      );
+      await db.pg.query(
+        "UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1",
+        ["preferences/user-edited"],
+      );
+
+      const consolidator = new Consolidator(stores);
+      await consolidator.consolidateHot();
+
+      const page = await stores.pages.getPage("preferences/user-edited");
+      // Tier advances to warm (allowed — only content is protected)
+      expect(page?.tier).toBe("warm");
+      // Content unchanged
+      expect(page?.compiled_truth).toBe("Hand-written content.");
+      // NOT merged into a group warm page
+      expect(page?.consolidated_into).toBeNull();
+    });
+
+    it("is idempotent: running consolidateHot twice does not create duplicate warm pages", async () => {
+      await stores.pages.putPage(
+        "entities/bob",
+        "---\ntitle: Bob\ntype: person\n---\nBob entity.",
+      );
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/p1", "preference",
+        "entities/bob", stores.graph,
+      );
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/p2", "preference",
+        "entities/bob", stores.graph,
+      );
+
+      const consolidator = new Consolidator(stores);
+      await consolidator.consolidateHot();
+      const beforeCount = (await stores.pages.listPagesByTier("warm")).length;
+
+      await consolidator.consolidateHot();
+      const afterCount = (await stores.pages.listPagesByTier("warm")).length;
+
+      expect(afterCount).toBe(beforeCount); // no duplicates
+    });
   });
 });
