@@ -155,12 +155,17 @@ async function consolidateHotToWarm(stores): Promise<void> {
   // 1. 查过期 hot page（按 type 分流）
   const expired = await stores.pages.listExpiredHot();  // tier='hot' AND expires_at < NOW()
 
+  // 1.5 跳过用户手动编辑过的 page（H4 规则，obsidian-sync 引入，src/adapters/store.ts:163 等 5 处）
+  //     frontmatter.user_edited === true 的 page 不参与合并/重写，仅可改 tier 列（不改内容）
+  //     原因：合并会拼接/重写 compiled_truth，等同覆盖用户的手动编辑，与 H4 的初衷直接冲突
+
   // 2. 永不压缩类型（decision/reference/entity）→ 仅改 tier='warm'，不合并
   // 3. 可压缩类型 → 按 (关联 entity, type) 分组合并为一条 warm page
   //    - 方向：信号 page → entity page（addLink(signalSlug, entitySlug)），
   //      所以要找信号的 entity 应用 getLinks(signalSlug)，不是 getBacklinks
-  //    - 避免 N+1：批量 SQL JOIN（links WHERE from_page_id IN (过期 page id 列表)），
-  //      一次拿到所有信号的 to_slug（即 entity slug），然后在内存中分组
+  //    - 避免 N+1：复用 obsidian-sync 引入的批量分组模式
+  //      graph.getAllLinksGrouped()（src/store/graph.ts）一次性按 from_slug 分组返回所有 links，
+  //      无需对每个过期 page 单独查询；如数据量大可加 WHERE from_page_id IN (...) 的过滤版本
   //    - 合并：内容拼接，保留最早 created_at，原 page.consolidated_into 指向新 warm page
   //    - 原 page 改 tier='warm' 或软引用到聚合 page
 }
@@ -174,7 +179,8 @@ async function consolidateHotToWarm(stores): Promise<void> {
 async function consolidateWarmToCold(entitySlug: string, stores): Promise<void> {
   // 1. 取该 entity 关联的、可压缩的、年龄 > 2×halflife 的 warm page
   const backlinks = await stores.graph.getBacklinks(entitySlug);
-  const candidates = backlinks.filter(canCompress);  // 排除 decision/reference
+  const candidates = backlinks.filter((b) => canCompress(b) && !b.page?.frontmatter.user_edited);
+  // user_edited page 排除在摘要源之外：仍可被引用，但不参与"会被改写"的压缩候选
 
   // 2. LLM（claude-haiku-4-5）生成该 entity 的叙述性摘要
   const summary = await generateEntitySummary(entitySlug, candidates);
@@ -244,3 +250,4 @@ dead-link 不删除 page（书签记录本身有价值），仅标记。
 5. `type='reference'` 的 page 永远保持 `tier='hot'`（永不降级），失效 URL 的 frontmatter `dead_link=true`
 6. 运行 `memoark consolidate --warm` 后，活跃 entity 出现 `slug='cold/<entity>'` 的摘要 page
 7. 幂等：重复运行 consolidate 不产生重复聚合
+8. `frontmatter.user_edited === true` 的 page 不被 Consolidator 合并/重写覆盖（H4 规则，详见 §5.2）——验证：手动编辑一条 decision page 后运行 `consolidate --hot`，原内容保持不变
