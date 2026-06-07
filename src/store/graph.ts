@@ -163,6 +163,25 @@ export class GraphStore {
     });
   }
 
+  async getLinksForSlugs(slugs: string[]): Promise<Map<string, LinkRow[]>> {
+    if (slugs.length === 0) return new Map();
+    const result = await this.pg.query(
+      `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
+       FROM links l
+       JOIN pages pf ON pf.id = l.from_page_id
+       JOIN pages pt ON pt.id = l.to_page_id
+       WHERE pf.slug = ANY($1::text[])`,
+      [slugs],
+    );
+    const map = new Map<string, LinkRow[]>();
+    for (const row of result.rows as LinkRow[]) {
+      const existing = map.get(row.from_slug) ?? [];
+      existing.push(row);
+      map.set(row.from_slug, existing);
+    }
+    return map;
+  }
+
   async getBacklinksEnriched(slug: string): Promise<EnrichedLinkRow[]> {
     const result = await this.pg.query(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance,

@@ -624,6 +624,73 @@ To context`,
     });
   });
 
+  describe("done-task expires_at stamping", () => {
+    it("stamps expires_at=NOW() for done tasks", async () => {
+      const task: TaskSignal = {
+        title: "Finish the report",
+        status: "done",
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [task],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("tasks/finish-the-report");
+      expect(page).not.toBeNull();
+      expect(page?.expires_at).not.toBeNull();
+      const expiresAt = new Date(page!.expires_at!);
+      // expires_at should be within the last 5 seconds (stamped as NOW())
+      expect(Math.abs(Date.now() - expiresAt.getTime())).toBeLessThan(5000);
+    });
+
+    it("does NOT stamp expires_at for open tasks", async () => {
+      const task: TaskSignal = {
+        title: "Open task no expiry",
+        status: "open",
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [task],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("tasks/open-task-no-expiry");
+      expect(page).not.toBeNull();
+      // open task: expires_at is computed from halflife_days (not NOW()), so it's in the future
+      // It should NOT be null (halflife_days=90 gives a future expires_at)
+      // But it should NOT be ~NOW() — it should be ~90 days from now
+      const expiresAt = page!.expires_at ? new Date(page!.expires_at) : null;
+      if (expiresAt) {
+        // Should be roughly 90 days in the future, not NOW()
+        const daysFromNow = (expiresAt.getTime() - Date.now()) / 86_400_000;
+        expect(daysFromNow).toBeGreaterThan(80);
+      }
+    });
+  });
+
   describe("halflife_days stamping", () => {
     it("stamps halflife_days=90 on newly written decision pages", async () => {
       const decision: Decision = {

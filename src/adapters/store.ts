@@ -417,6 +417,7 @@ ${yamlStringify(frontmatter).trimEnd()}
       // Write page
       const page = await this.stores.pages.putPage(slug, content, {
         halflife_days: HALFLIFE_DAYS.task,
+        expires_at: task.status === "done" ? new Date() : undefined,
       });
 
       // Notify callback
