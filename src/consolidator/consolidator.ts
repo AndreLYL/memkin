@@ -5,6 +5,7 @@ import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { checkDeadLinks } from "./dead-link.js";
 import { consolidateHotToWarm } from "./hot-warm.js";
+import { inferPreferences } from "./infer-preferences.js";
 import { consolidateWarmToCold } from "./warm-cold.js";
 
 export interface ConsolidatorStores {
@@ -77,6 +78,7 @@ export class Consolidator {
     }
     const { warmToCold } = await consolidateWarmToCold(this.stores, this.llm, dryRun);
     const deadLinksChecked = dryRun ? 0 : await checkDeadLinks(this.stores.pages);
-    return { warmToCold, deadLinksChecked, preferencesInferred: 0 };
+    const preferencesInferred = dryRun ? 0 : await inferPreferences(this.stores, this.llm);
+    return { warmToCold, deadLinksChecked, preferencesInferred };
   }
 }
