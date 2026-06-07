@@ -3,6 +3,7 @@ import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { checkDeadLinks } from "./dead-link.js";
 import { consolidateHotToWarm } from "./hot-warm.js";
 import { consolidateWarmToCold } from "./warm-cold.js";
 
@@ -75,6 +76,7 @@ export class Consolidator {
       throw new Error("LLM provider required for warm→cold consolidation");
     }
     const { warmToCold } = await consolidateWarmToCold(this.stores, this.llm, dryRun);
-    return { warmToCold, deadLinksChecked: 0, preferencesInferred: 0 };
+    const deadLinksChecked = dryRun ? 0 : await checkDeadLinks(this.stores.pages);
+    return { warmToCold, deadLinksChecked, preferencesInferred: 0 };
   }
 }
