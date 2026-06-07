@@ -18,7 +18,10 @@ function loadMigration(version: number, name: string): Migration {
 }
 
 // Add new migrations here, in ascending version order.
-export const MIGRATIONS: Migration[] = [loadMigration(1, "lifecycle_columns")];
+export const MIGRATIONS: Migration[] = [
+  loadMigration(1, "lifecycle_columns"),
+  loadMigration(2, "provenance_columns"),
+];
 
 export async function runMigrations(pg: PGlite): Promise<void> {
   await pg.exec(`

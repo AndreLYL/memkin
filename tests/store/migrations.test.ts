@@ -25,7 +25,7 @@ describe("migration runner", () => {
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2]);
   });
 
   it("adds halflife_days column to pages", async () => {
@@ -36,13 +36,23 @@ describe("migration runner", () => {
     expect(cols.rows).toHaveLength(1);
   });
 
+  it("adds provenance/source_hash columns to links and timeline_entries", async () => {
+    const cols = await db.pg.query<{ table_name: string; column_name: string }>(
+      `SELECT table_name, column_name FROM information_schema.columns
+       WHERE (table_name = 'links' AND column_name IN ('provenance', 'source_hash'))
+          OR (table_name = 'timeline_entries' AND column_name = 'provenance')`,
+    );
+    const found = cols.rows.map((r) => `${r.table_name}.${r.column_name}`).sort();
+    expect(found).toEqual(["links.provenance", "links.source_hash", "timeline_entries.provenance"]);
+  });
+
   it("is idempotent: running migrations twice does not duplicate or error", async () => {
     await runMigrations(db.pg);
     await runMigrations(db.pg);
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2]);
   });
 
   it("remaps discovery-preference pages to preference type (first migration run)", async () => {

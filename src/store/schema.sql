@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS links (
   to_page_id      INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   link_type       TEXT NOT NULL DEFAULT '',
   context         TEXT NOT NULL DEFAULT '',
+  provenance      JSONB,
+  source_hash     TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(from_page_id, to_page_id, link_type)
 );
@@ -65,6 +67,7 @@ CREATE TABLE IF NOT EXISTS timeline_entries (
   summary         TEXT NOT NULL,
   detail          TEXT NOT NULL DEFAULT '',
   source          TEXT NOT NULL DEFAULT '',
+  provenance      JSONB,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(page_id, date, summary)
 );
