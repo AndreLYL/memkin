@@ -41,6 +41,8 @@ export async function consolidateHotToWarm(stores: HotWarmStores, dryRun = false
     const links = (linksMap.get(page.slug) ?? []).sort((a, b) =>
       a.to_slug.localeCompare(b.to_slug),
     );
+    // Primary entity: first mention alphabetically by to_slug. Pages mentioning
+    // multiple entities are anchored to one; all are recorded in mentioned_entities.
     const entityLink = links.find((l) => l.link_type === "mentions");
     const entitySlug = entityLink?.to_slug ?? "__none__";
     const key: GroupKey = `${entitySlug}::${page.type}`;
@@ -67,6 +69,12 @@ export async function consolidateHotToWarm(stores: HotWarmStores, dryRun = false
     const existingContent = existingWarm ? `${existingWarm.compiled_truth}\n\n---\n\n` : "";
     const combinedContent = existingContent + mergedContent;
 
+    // Collect all mentioned entities across all pages in this group
+    const allLinks = pages.flatMap((p) => linksMap.get(p.slug) ?? []);
+    const mentionedEntities = [...new Set(
+      allLinks.filter((l) => l.link_type === "mentions").map((l) => l.to_slug)
+    )].sort();
+
     const frontmatter: Record<string, unknown> = {
       title: `Consolidated ${type} (${entitySlug === "__none__" ? "unanchored" : entitySlug})`,
       type,
@@ -75,6 +83,12 @@ export async function consolidateHotToWarm(stores: HotWarmStores, dryRun = false
         ...((existingWarm?.frontmatter.source_slugs as string[]) ?? []),
         ...pages.map((p) => p.slug),
       ],
+      mentioned_entities: [
+        ...new Set([
+          ...((existingWarm?.frontmatter.mentioned_entities as string[]) ?? []),
+          ...mentionedEntities,
+        ]),
+      ].sort(),
       created_at:
         existingWarm?.frontmatter.created_at ??
         pages.reduce((min, p) => (p.created_at < min ? p.created_at : min), pages[0].created_at),

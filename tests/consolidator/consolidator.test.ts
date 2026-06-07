@@ -188,6 +188,46 @@ describe("Consolidator", () => {
 
       expect(afterCount).toBe(beforeCount); // no duplicates
     });
+
+    it("appends new expired hot pages to an existing warm aggregate rather than creating a duplicate", async () => {
+      await stores.pages.putPage(
+        "entities/carol",
+        "---\ntitle: Carol\ntype: person\n---\nCarol entity.",
+      );
+
+      // First batch: create two expired hot pages → produces one warm aggregate
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/carol-p1", "preference",
+        "entities/carol", stores.graph,
+      );
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/carol-p2", "preference",
+        "entities/carol", stores.graph,
+      );
+      const consolidator = new Consolidator(stores);
+      await consolidator.consolidateHot();
+
+      const warmSlug = "warm/entities-carol/preference-consolidated";
+      const warmBefore = await stores.pages.getPage(warmSlug);
+      expect(warmBefore).not.toBeNull();
+
+      // Second batch: a new hot preference arrives for the same entity
+      await makeExpiredHotPage(
+        stores.pages, db.pg, "preferences/carol-p3", "preference",
+        "entities/carol", stores.graph,
+      );
+      await consolidator.consolidateHot();
+
+      // Still only one warm aggregate (no duplicate)
+      const allWarm = await stores.pages.listPagesByTier("warm");
+      const aggregates = allWarm.filter((p) => p.slug === warmSlug);
+      expect(aggregates).toHaveLength(1);
+
+      // The aggregate now includes p3's slug in source_slugs
+      const warmAfter = await stores.pages.getPage(warmSlug);
+      const sourceSlugs = warmAfter?.frontmatter.source_slugs as string[];
+      expect(sourceSlugs).toContain("preferences/carol-p3");
+    });
   });
 
   describe("consolidateWarm", () => {

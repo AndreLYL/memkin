@@ -37,6 +37,7 @@ export async function consolidateWarmToCold(
     for (const backlink of mentionBacklinks) {
       const page = await stores.pages.getPage(backlink.from_slug);
       if (!page || page.tier !== "warm") continue;
+      if (page.consolidated_into !== null) continue; // already rolled into an aggregate
       if (!canCompress(page.type)) continue;
       if (page.frontmatter.user_edited === true) continue;
 
