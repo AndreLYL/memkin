@@ -157,4 +157,73 @@ describe("PageStore", () => {
 
     expect(updated.halflife_days).toBeNull();
   });
+
+  describe("lifecycle columns", () => {
+    it("putPage sets tier=hot and expires_at from halflife_days on insert", async () => {
+      const content = "---\ntitle: D1\ntype: decision\n---\nDecision body.";
+      const page = await store.putPage("decisions/d1", content, { halflife_days: 90 });
+      expect(page.tier).toBe("hot");
+      expect(page.expires_at).not.toBeNull();
+      const expiresAt = new Date(page.expires_at!);
+      const expected = new Date(Date.now() + 90 * 86_400_000);
+      expect(Math.abs(expiresAt.getTime() - expected.getTime())).toBeLessThan(5000);
+    });
+
+    it("putPage does NOT reset expires_at or tier on upsert conflict", async () => {
+      const content = "---\ntitle: D1\ntype: decision\n---\nOriginal.";
+      const page1 = await store.putPage("decisions/d1", content, { halflife_days: 90 });
+      const originalExpiry = page1.expires_at;
+
+      await store.updatePageTier(page1.id, "warm");
+
+      const content2 = "---\ntitle: D1\ntype: decision\n---\nUpdated.";
+      const page2 = await store.putPage("decisions/d1", content2, { halflife_days: 90 });
+      expect(page2.tier).toBe("warm"); // tier preserved
+      expect(page2.expires_at).toEqual(originalExpiry); // expires_at preserved
+    });
+
+    it("listExpiredHot returns only tier=hot pages past expires_at", async () => {
+      await store.putPage("decisions/old", "---\ntitle: Old\ntype: decision\n---\nOld.", {
+        halflife_days: 90,
+      });
+      await db.pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [
+        "decisions/old",
+      ]);
+
+      await store.putPage("decisions/fresh", "---\ntitle: Fresh\ntype: decision\n---\nFresh.", {
+        halflife_days: 90,
+      });
+
+      const expired = await store.listExpiredHot();
+      expect(expired.map((p) => p.slug)).toContain("decisions/old");
+      expect(expired.map((p) => p.slug)).not.toContain("decisions/fresh");
+    });
+
+    it("updatePageTier updates tier and optionally consolidated_into", async () => {
+      const page = await store.putPage("pref/a", "---\ntitle: A\ntype: preference\n---\nA.", {
+        halflife_days: 90,
+      });
+      const warm = await store.putPage("warm/pref-consolidated", "---\ntitle: Warm\ntype: preference\n---\nMerged.", {
+        halflife_days: null,
+      });
+
+      await store.updatePageTier(page.id, "warm", warm.id);
+
+      const updated = await store.getPage("pref/a");
+      expect(updated?.tier).toBe("warm");
+      expect(updated?.consolidated_into).toBe(warm.id);
+    });
+
+    it("listPagesByTier returns pages filtered by tier", async () => {
+      await store.putPage("a", "---\ntitle: A\ntype: decision\n---\nA.", { halflife_days: 90 });
+      await store.putPage("b", "---\ntitle: B\ntype: preference\n---\nB.", { halflife_days: 90 });
+      await db.pg.query("UPDATE pages SET tier = 'warm' WHERE slug = 'b'");
+
+      const hot = await store.listPagesByTier("hot");
+      const warm = await store.listPagesByTier("warm");
+      expect(hot.map((p) => p.slug)).toContain("a");
+      expect(warm.map((p) => p.slug)).toContain("b");
+      expect(hot.map((p) => p.slug)).not.toContain("b");
+    });
+  });
 });

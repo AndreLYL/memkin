@@ -11,12 +11,16 @@ export interface Page {
   frontmatter: Record<string, unknown>;
   content_hash: string;
   halflife_days: number | null;
+  tier: string;
+  expires_at: string | null;
+  consolidated_into: number | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface PutPageOptions {
   halflife_days?: number | null;
+  expires_at?: Date | null;  // explicit override; null clears it; undefined = auto-compute from halflife_days
 }
 
 interface ParsedContent {
@@ -35,6 +39,9 @@ interface PageRow {
   frontmatter: Record<string, unknown> | string;
   content_hash: string;
   halflife_days: number | null;
+  tier: string;
+  expires_at: string | null;
+  consolidated_into: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,13 +67,18 @@ export class PageStore {
   async putPage(slug: string, content: string, opts?: PutPageOptions): Promise<Page> {
     const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
     const contentHash = createHash("sha256").update(content).digest("hex");
-    // putPage always stamps the full lifecycle state: omitting opts.halflife_days
-    // intentionally resets the column to NULL on conflict (not a partial merge).
     const halflifeDays = opts?.halflife_days ?? null;
+    const expiresAtOverride = opts?.expires_at !== undefined ? opts.expires_at : undefined;
 
     const result = await this.pg.query<PageRow>(
-      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash, halflife_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash, halflife_days, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::integer,
+         CASE
+           WHEN $8::timestamptz IS NOT NULL THEN $8::timestamptz
+           WHEN $7::integer IS NOT NULL THEN NOW() + ($7::integer * INTERVAL '1 day')
+           ELSE NULL
+         END
+       )
        ON CONFLICT (slug) DO UPDATE SET
          type = EXCLUDED.type,
          title = EXCLUDED.title,
@@ -76,7 +88,16 @@ export class PageStore {
          halflife_days = EXCLUDED.halflife_days,
          updated_at = NOW()
        RETURNING *`,
-      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash, halflifeDays],
+      [
+        slug,
+        type,
+        title,
+        compiled_truth,
+        JSON.stringify(frontmatter),
+        contentHash,
+        halflifeDays,
+        expiresAtOverride ?? null,
+      ],
     );
     return this.rowToPage(result.rows[0]);
   }
@@ -142,6 +163,43 @@ export class PageStore {
     return result.rows.map((r) => this.rowToPage(r));
   }
 
+  async listExpiredHot(): Promise<Page[]> {
+    const result = await this.pg.query<PageRow>(
+      `SELECT * FROM pages
+       WHERE tier = 'hot'
+         AND expires_at IS NOT NULL
+         AND expires_at < NOW()
+       ORDER BY expires_at`,
+    );
+    return result.rows.map((r) => this.rowToPage(r));
+  }
+
+  async updatePageTier(
+    id: number,
+    tier: string,
+    consolidatedInto?: number | null,
+  ): Promise<void> {
+    if (consolidatedInto !== undefined) {
+      await this.pg.query(
+        `UPDATE pages SET tier = $1, consolidated_into = $2, updated_at = NOW() WHERE id = $3`,
+        [tier, consolidatedInto, id],
+      );
+    } else {
+      await this.pg.query(
+        `UPDATE pages SET tier = $1, updated_at = NOW() WHERE id = $2`,
+        [tier, id],
+      );
+    }
+  }
+
+  async listPagesByTier(tier: string): Promise<Page[]> {
+    const result = await this.pg.query<PageRow>(
+      `SELECT * FROM pages WHERE tier = $1 ORDER BY created_at`,
+      [tier],
+    );
+    return result.rows.map((r) => this.rowToPage(r));
+  }
+
   private rowToPage(row: PageRow): Page {
     return {
       id: row.id,
@@ -153,6 +211,9 @@ export class PageStore {
         typeof row.frontmatter === "string" ? JSON.parse(row.frontmatter) : row.frontmatter,
       content_hash: row.content_hash,
       halflife_days: row.halflife_days,
+      tier: row.tier ?? "hot",
+      expires_at: row.expires_at ?? null,
+      consolidated_into: row.consolidated_into ?? null,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

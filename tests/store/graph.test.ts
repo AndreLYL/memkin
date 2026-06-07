@@ -119,3 +119,41 @@ describe("GraphStore", () => {
     expect(grouped.size).toBe(0);
   });
 });
+
+describe("GraphStore.getLinksForSlugs", () => {
+  let db: Database;
+  let graph: GraphStore;
+  let pages: PageStore;
+
+  beforeEach(async () => {
+    db = await Database.create();
+    graph = new GraphStore(db.pg);
+    pages = new PageStore(db.pg);
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  it("returns links grouped by from_slug", async () => {
+    await pages.putPage("entities/alice", "---\ntitle: Alice\ntype: person\n---\nAlice.");
+    await pages.putPage("preferences/morning", "---\ntitle: Morning\ntype: preference\n---\nPref.");
+    await pages.putPage("preferences/coding", "---\ntitle: Coding\ntype: preference\n---\nPref2.");
+    await graph.addLink("preferences/morning", "entities/alice", "mentions");
+    await graph.addLink("preferences/coding", "entities/alice", "mentions");
+
+    const map = await graph.getLinksForSlugs([
+      "preferences/morning",
+      "preferences/coding",
+    ]);
+
+    expect(map.get("preferences/morning")).toHaveLength(1);
+    expect(map.get("preferences/morning")![0].to_slug).toBe("entities/alice");
+    expect(map.get("preferences/coding")).toHaveLength(1);
+  });
+
+  it("returns empty map for empty input", async () => {
+    const map = await graph.getLinksForSlugs([]);
+    expect(map.size).toBe(0);
+  });
+});
