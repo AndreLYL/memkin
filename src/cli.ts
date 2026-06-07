@@ -18,7 +18,7 @@ import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
-import { Consolidator } from "./consolidator/consolidator.js";
+import { Consolidator, type ConsolidateMode } from "./consolidator/consolidator.js";
 import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
 import { ChunkStore } from "./store/chunks.js";
@@ -607,19 +607,26 @@ program
 
       let llmProvider: ReturnType<typeof createLLMProvider> | undefined;
       if (options.warm || (!options.hot && !options.warm)) {
-        // warm→cold needs LLM; only require it when --warm or full (both) run
         const llmConfig = config.llm;
         const envKey =
           llmConfig.provider === "anthropic"
             ? process.env.ANTHROPIC_API_KEY
             : process.env.OPENAI_API_KEY;
-        if (llmConfig.api_key || envKey) {
-          if (!llmConfig.api_key) llmConfig.api_key = envKey;
+        const apiKey = llmConfig.api_key ?? envKey;
+        if (apiKey) {
+          if (!llmConfig.api_key) llmConfig.api_key = apiKey;
           llmProvider = createLLMProvider(llmConfig);
-        } else if (!options.hot) {
+        } else if (options.warm) {
+          // Explicit --warm with no LLM key: fail fast
+          console.error(
+            "Error: --warm requires an LLM API key. Set ANTHROPIC_API_KEY or configure api_key in memoark.yaml.",
+          );
+          process.exit(1);
+        } else {
+          // Full run with no LLM: skip warm→cold, run hot only
           console.warn(
-            "Warning: no LLM API key found. warm→cold consolidation will be skipped. " +
-              "Use --hot to run hot→warm only, or set ANTHROPIC_API_KEY.",
+            "Warning: no LLM API key found. Running hot→warm only. " +
+              "Set ANTHROPIC_API_KEY to enable warm→cold consolidation.",
           );
         }
       }
@@ -634,7 +641,13 @@ program
         llmProvider,
       );
 
-      const mode = options.hot ? "hot" : options.warm ? "warm" : "all";
+      const mode: ConsolidateMode = options.hot
+        ? "hot"
+        : options.warm
+          ? "warm"
+          : llmProvider
+            ? "all"
+            : "hot"; // fall back to hot-only when full run has no LLM
       const dryRun = options.dryRun ?? false;
 
       if (dryRun) console.log("DRY-RUN mode — no writes will occur\n");
