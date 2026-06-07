@@ -19,6 +19,18 @@ import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 
+// Per-type lifecycle defaults (Spec 1 §4.3). NULL = never auto-expires.
+// Spec 2's Consolidator reads halflife_days to decide hot→warm timing.
+const HALFLIFE_DAYS = {
+  decision: 90,
+  task: 90,
+  discovery: 90,
+  knowledge: 365,
+  preference: 90,
+  reference: null,
+  entity: null,
+} as const satisfies Record<string, number | null>;
+
 export interface StoreAdapterContext {
   pages: PageStore;
   chunks: ChunkStore;
@@ -206,7 +218,9 @@ ${bodyParts.join("\n\n")}
 `;
 
       // Write page
-      const page = await this.stores.pages.putPage(entity.slug, content);
+      const page = await this.stores.pages.putPage(entity.slug, content, {
+        halflife_days: HALFLIFE_DAYS.entity,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -281,7 +295,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 ${parts.join("\n")}`;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.decision,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -366,7 +382,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 `;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.task,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -431,7 +449,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 ${parts.join("\n")}`;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.discovery,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -525,7 +545,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 ${parts.join("\n")}`;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.knowledge,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);

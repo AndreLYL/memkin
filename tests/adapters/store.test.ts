@@ -477,4 +477,142 @@ To context`,
       expect(links.some((l) => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
     });
   });
+
+  describe("halflife_days stamping", () => {
+    it("stamps halflife_days=90 on newly written decision pages", async () => {
+      const decision: Decision = {
+        summary: "Adopt trunk-based development",
+        entities: [],
+        date: "2024-01-15",
+        confidence: "direct",
+        source: createSourceRef(),
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [decision],
+          tasks: [],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("decisions/adopt-trunk-based-development");
+      expect(page?.halflife_days).toBe(90);
+    });
+
+    it("stamps halflife_days=90 on newly written task pages", async () => {
+      const task: TaskSignal = {
+        title: "Write onboarding doc",
+        status: "open",
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [task],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("tasks/write-onboarding-doc");
+      expect(page?.halflife_days).toBe(90);
+    });
+
+    it("stamps halflife_days=90 on newly written discovery pages", async () => {
+      const discovery: Discovery = {
+        summary: "Local Docker DNS resolution is broken",
+        type: "pattern",
+        entities: [],
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [],
+          discoveries: [discovery],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("discoveries/local-docker-dns-resolution-is-broken");
+      expect(page?.halflife_days).toBe(90);
+    });
+
+    it("stamps halflife_days=365 on newly written knowledge pages", async () => {
+      const knowledge: Knowledge = {
+        topic: "feishu-api",
+        content: "Feishu API global rate limit is 50 QPS",
+        source_type: "document",
+        related_entities: [],
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [],
+          discoveries: [],
+          knowledge: [knowledge],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const all = await pages.listPages({ type: "knowledge" });
+      expect(all).toHaveLength(1);
+      expect(all[0].halflife_days).toBe(365);
+    });
+
+    it("stamps halflife_days=NULL (permanent) on newly written entity pages", async () => {
+      const entity: Entity = {
+        slug: "person/carol",
+        name: "Carol",
+        type: "person",
+        context: "New team member",
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [entity],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("person/carol");
+      expect(page?.halflife_days).toBeNull();
+    });
+  });
 });
