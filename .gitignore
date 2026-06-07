@@ -31,6 +31,7 @@ memoark.yaml
 *~
 .DS_Store
 .superpowers/
+docs/superpowers/
 
 # Logs
 *.log
