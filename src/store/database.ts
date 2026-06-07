@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
+import { runMigrations } from "./migrations/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +22,7 @@ export class Database {
 
     const schema = readFileSync(join(__dirname, "schema.sql"), "utf-8");
     await pg.exec(schema);
+    await runMigrations(pg);
 
     return new Database(pg);
   }
