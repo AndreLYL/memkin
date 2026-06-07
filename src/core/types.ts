@@ -221,6 +221,8 @@ export interface SignalScore {
   entity_density_score: number;
   combined: number;
   decision: "admit" | "drop" | "evaluate";
+  /** Populated when decision === "drop"; omitted otherwise. */
+  drop_reason?: string;
 }
 
 export interface QuickEntity {

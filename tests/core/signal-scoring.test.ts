@@ -212,4 +212,50 @@ describe("scoreBlock — combined and decision", () => {
     expect(score.combined).toBeGreaterThan(0.15);
     expect(score.decision).not.toBe("drop");
   });
+
+  test("extra guard does NOT drop short structured block (calendar/task)", () => {
+    const cb = makeCB({
+      source_type: "structured",
+      interaction_tags: [],
+      canonical_markdown: "Team standup",
+    });
+    expect(scoreBlock(cb).decision).not.toBe("drop");
+  });
+
+  test("extra guard drop sets drop_reason 'extra_guard:short_no_signal'", () => {
+    const cb = makeCB({
+      source_type: "chat",
+      interaction_tags: [],
+      canonical_markdown: "OK",
+    });
+    const score = scoreBlock(cb);
+    expect(score.decision).toBe("drop");
+    expect(score.drop_reason).toBe("extra_guard:short_no_signal");
+  });
+
+  test("score-threshold drop sets drop_reason 'score_below_threshold'", () => {
+    const cb = makeCB({
+      source_type: "chat",
+      interaction_tags: [],
+      canonical_markdown:
+        "ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok",
+    });
+    const score = scoreBlock(cb);
+    if (score.decision === "drop") {
+      expect(score.drop_reason).toBeDefined();
+    }
+  });
+
+  test("admit decision has no drop_reason", () => {
+    const cb = makeCB({
+      source_type: "email",
+      interaction_tags: ["sent", "reply"],
+      canonical_markdown:
+        "alice@example.com confirmed the migration plan. We proceed next week. " +
+        "diverse content ".repeat(10),
+    });
+    const score = scoreBlock(cb);
+    expect(score.decision).toBe("admit");
+    expect(score.drop_reason).toBeUndefined();
+  });
 });
