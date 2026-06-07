@@ -348,5 +348,65 @@ describe("Consolidator", () => {
       const checked = await checkDeadLinks(stores.pages, mockFetch);
       expect(checked).toBe(0); // skipped
     });
+
+    it("preserves halflife_days, expires_at, and extra frontmatter after checking", async () => {
+      const mockFetch: FetchFn = async () => ({ ok: true, status: 200 });
+
+      await stores.pages.putPage(
+        "references/preserved-ref",
+        [
+          "---",
+          "title: Preserved Reference",
+          "type: reference",
+          "url: https://example.com",
+          "confidence: direct",
+          "source_hash: abc123",
+          "---",
+          "",
+          "Body content.",
+        ].join("\n"),
+        { halflife_days: null },
+      );
+
+      // Record initial state
+      const before = await stores.pages.getPage("references/preserved-ref");
+      expect(before).not.toBeNull();
+
+      await checkDeadLinks(stores.pages, mockFetch);
+
+      const after = await stores.pages.getPage("references/preserved-ref");
+      expect(after?.halflife_days).toBe(before?.halflife_days);
+      expect(after?.tier).toBe(before?.tier);
+      expect(after?.frontmatter.confidence).toBe("direct");
+      expect(after?.frontmatter.source_hash).toBe("abc123");
+      expect(after?.frontmatter.dead_link).toBe(false);
+      expect(after?.frontmatter.last_checked_at).toBeDefined();
+    });
+
+    it("marks reference page as dead_link=true when fetchFn throws", async () => {
+      const mockFetch: FetchFn = async () => {
+        throw new Error("Network error");
+      };
+
+      await stores.pages.putPage(
+        "references/error-ref",
+        [
+          "---",
+          "title: Error Reference",
+          "type: reference",
+          "url: https://unreachable.example.com",
+          "---",
+          "",
+          "Unreachable.",
+        ].join("\n"),
+        { halflife_days: null },
+      );
+
+      const checked = await checkDeadLinks(stores.pages, mockFetch);
+      expect(checked).toBe(1);
+
+      const page = await stores.pages.getPage("references/error-ref");
+      expect(page?.frontmatter.dead_link).toBe(true);
+    });
   });
 });
