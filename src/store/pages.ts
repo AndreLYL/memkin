@@ -10,8 +10,13 @@ export interface Page {
   compiled_truth: string;
   frontmatter: Record<string, unknown>;
   content_hash: string;
+  halflife_days: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PutPageOptions {
+  halflife_days?: number | null;
 }
 
 interface ParsedContent {
@@ -29,6 +34,7 @@ interface PageRow {
   compiled_truth: string;
   frontmatter: Record<string, unknown> | string;
   content_hash: string;
+  halflife_days: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -51,22 +57,26 @@ function parseMarkdownWithFrontmatter(content: string): ParsedContent {
 export class PageStore {
   constructor(private pg: PGlite) {}
 
-  async putPage(slug: string, content: string): Promise<Page> {
+  async putPage(slug: string, content: string, opts?: PutPageOptions): Promise<Page> {
     const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
     const contentHash = createHash("sha256").update(content).digest("hex");
+    // putPage always stamps the full lifecycle state: omitting opts.halflife_days
+    // intentionally resets the column to NULL on conflict (not a partial merge).
+    const halflifeDays = opts?.halflife_days ?? null;
 
     const result = await this.pg.query<PageRow>(
-      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash, halflife_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (slug) DO UPDATE SET
          type = EXCLUDED.type,
          title = EXCLUDED.title,
          compiled_truth = EXCLUDED.compiled_truth,
          frontmatter = EXCLUDED.frontmatter,
          content_hash = EXCLUDED.content_hash,
+         halflife_days = EXCLUDED.halflife_days,
          updated_at = NOW()
        RETURNING *`,
-      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash],
+      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash, halflifeDays],
     );
     return this.rowToPage(result.rows[0]);
   }
@@ -142,6 +152,7 @@ export class PageStore {
       frontmatter:
         typeof row.frontmatter === "string" ? JSON.parse(row.frontmatter) : row.frontmatter,
       content_hash: row.content_hash,
+      halflife_days: row.halflife_days,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

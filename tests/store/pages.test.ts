@@ -121,4 +121,40 @@ describe("PageStore", () => {
     const pages = await store.listPages();
     expect(Array.isArray(pages)).toBe(true);
   });
+
+  it("putPage accepts halflife_days and persists it as a real column", async () => {
+    const content = "---\ntitle: Decision\ntype: decision\n---\nBody.";
+    const page = await store.putPage("decisions/test-decision", content, { halflife_days: 90 });
+
+    expect(page.halflife_days).toBe(90);
+
+    const row = await db.pg.query<{ halflife_days: number | null }>(
+      "SELECT halflife_days FROM pages WHERE slug = $1",
+      ["decisions/test-decision"],
+    );
+    expect(row.rows[0].halflife_days).toBe(90);
+  });
+
+  it("putPage defaults halflife_days to NULL when not provided", async () => {
+    const content = "---\ntitle: Entity\ntype: person\n---\nBody.";
+    const page = await store.putPage("person/someone", content);
+
+    expect(page.halflife_days).toBeNull();
+  });
+
+  it("putPage overwrites halflife_days on conflict with the newly provided value", async () => {
+    const content = "---\ntitle: Decision\ntype: decision\n---\nBody.";
+    await store.putPage("decisions/test-decision", content, { halflife_days: 90 });
+    const updated = await store.putPage("decisions/test-decision", content, { halflife_days: 30 });
+
+    expect(updated.halflife_days).toBe(30);
+  });
+
+  it("putPage resets halflife_days to NULL on conflict when opts is omitted", async () => {
+    const content = "---\ntitle: Decision\ntype: decision\n---\nBody.";
+    await store.putPage("decisions/test-decision", content, { halflife_days: 90 });
+    const updated = await store.putPage("decisions/test-decision", content);
+
+    expect(updated.halflife_days).toBeNull();
+  });
 });
