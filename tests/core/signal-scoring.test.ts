@@ -237,7 +237,8 @@ describe("scoreBlock — combined and decision", () => {
     const cb = makeCB({
       source_type: "chat",
       interaction_tags: [],
-      canonical_markdown: "ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok",
+      canonical_markdown:
+        "ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok ok",
     });
     const score = scoreBlock(cb);
     if (score.decision === "drop") {

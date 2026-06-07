@@ -58,10 +58,7 @@ export function freshnessMultiplier(updatedAt: string | null): number {
   if (!updatedAt) return 1.0;
   // Clamp to >=0 so future timestamps (clock skew, calendar events) cap at the boost ceiling
   // instead of producing exp(-negative) > 1 which exceeds the intended 1.3 limit.
-  const ageDays = Math.max(
-    0,
-    (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const ageDays = Math.max(0, (Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24));
   return 1 + FRESHNESS_BOOST_FACTOR * Math.exp(-ageDays / FRESHNESS_HALF_LIFE_DAYS);
 }
 
@@ -260,9 +257,7 @@ export class SearchEngine {
     }));
   }
 
-  private async ftsChunkSearch(
-    query: string,
-  ): Promise<
+  private async ftsChunkSearch(query: string): Promise<
     Array<{
       slug: string;
       title: string;
@@ -295,9 +290,7 @@ export class SearchEngine {
     return result.rows;
   }
 
-  private async vectorSearch(
-    query: string,
-  ): Promise<
+  private async vectorSearch(query: string): Promise<
     Array<{
       slug: string;
       title: string;
