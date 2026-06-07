@@ -124,8 +124,27 @@ export const TaskSignalSchema = z.object({
 export const DiscoverySchema = z.object({
   summary: z.string(),
   detail: z.string().optional(),
-  type: z.enum(["procedure", "preference", "pattern", "insight"]),
+  type: z.enum(["procedure", "pattern", "insight", "risk"]),
   entities: z.array(z.string()), // slugs
+  source: SourceRefSchema,
+  confidence: SignalConfidenceSchema,
+});
+
+export const PreferenceSchema = z.object({
+  summary: z.string(),
+  detail: optionalString,
+  category: z.enum(["communication", "tooling", "scheduling", "workflow", "other"]),
+  entities: z.array(z.string()),
+  source: SourceRefSchema,
+  confidence: SignalConfidenceSchema,
+});
+
+export const ReferenceSchema = z.object({
+  title: z.string(),
+  url: z.string(),
+  summary: z.string(),
+  trigger: optionalString,
+  entities: z.array(z.string()),
   source: SourceRefSchema,
   confidence: SignalConfidenceSchema,
 });
@@ -172,6 +191,8 @@ export const ExtractionResultSchema = z.object({
   tasks: z.array(TaskSignalSchema),
   discoveries: z.array(DiscoverySchema),
   knowledge: z.array(KnowledgeSchema).default([]),
+  preferences: z.array(PreferenceSchema).default([]),
+  references: z.array(ReferenceSchema).default([]),
 });
 
 // Significance verdict schema (L2 judgment)

@@ -139,13 +139,6 @@ function createTestResult(): ExtractionResult {
         source: createSourceRef(),
         confidence: "direct",
       },
-      {
-        summary: "Team prefers pull request review over pair programming",
-        type: "preference",
-        entities: ["backend-team"],
-        source: createSourceRef("2024-01-12T11:00:00Z"),
-        confidence: "inferred",
-      },
     ],
     knowledge: [
       {
@@ -158,6 +151,16 @@ function createTestResult(): ExtractionResult {
         confidence: "direct" as const,
       },
     ],
+    preferences: [
+      {
+        summary: "Team prefers pull request review over pair programming",
+        category: "workflow",
+        entities: ["backend-team"],
+        source: createSourceRef("2024-01-12T11:00:00Z"),
+        confidence: "inferred",
+      },
+    ],
+    references: [],
   };
 }
 
@@ -377,6 +380,8 @@ describe("MarkdownFormatter", () => {
       links: [],
       discoveries: [],
       knowledge: [],
+      preferences: [],
+      references: [],
     };
     const output = formatter.format(emptyResult);
     expect(output).toContain("No knowledge extracted.");
@@ -416,6 +421,8 @@ describe("MarkdownFormatter", () => {
       links: [],
       discoveries: [],
       knowledge: [],
+      preferences: [],
+      references: [],
     };
 
     const output = formatter.format(emptyResult);

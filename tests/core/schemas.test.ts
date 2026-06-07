@@ -5,8 +5,10 @@
 import { describe, expect, it } from "vitest";
 import {
   KnowledgeSchema,
+  PreferenceSchema,
   parseExtractionResult,
   parseSignificanceVerdict,
+  ReferenceSchema,
 } from "../../src/core/schemas.js";
 import type { ExtractionResult, SignificanceVerdict } from "../../src/core/types.js";
 
@@ -96,8 +98,24 @@ describe("ExtractionResult schema validation", () => {
       ],
       discoveries: [
         {
+          summary: "API redesign requires careful versioning",
+          type: "insight",
+          entities: ["api-redesign"],
+          confidence: "inferred",
+          source: {
+            platform: "slack",
+            channel: "#engineering",
+            timestamp: "2026-05-19T12:00:00Z",
+            raw_hash: "abc123",
+            quote: "We need to think about backwards compatibility",
+          },
+        },
+      ],
+      knowledge: [],
+      preferences: [
+        {
           summary: "Team prefers TypeScript for API development",
-          type: "preference",
+          category: "tooling",
           entities: ["api-redesign"],
           confidence: "inferred",
           source: {
@@ -109,7 +127,7 @@ describe("ExtractionResult schema validation", () => {
           },
         },
       ],
-      knowledge: [],
+      references: [],
     };
 
     const result = parseExtractionResult(validData);
@@ -360,7 +378,7 @@ describe("TaskSignal status validation", () => {
 
 describe("Discovery type validation", () => {
   it("should accept all valid discovery types", () => {
-    const types = ["procedure", "preference", "pattern", "insight"];
+    const types = ["procedure", "pattern", "insight", "risk"];
 
     types.forEach((type) => {
       const data = {
@@ -548,5 +566,105 @@ describe("ExtractionResultSchema with knowledge", () => {
     const result = parseExtractionResult(full);
     expect(result.knowledge).toHaveLength(1);
     expect(result.knowledge[0].topic).toBe("react-hooks");
+  });
+});
+
+describe("PreferenceSchema", () => {
+  it("parses a valid preference", () => {
+    const result = PreferenceSchema.parse({
+      summary: "Prefers async communication over meetings",
+      category: "communication",
+      entities: ["person/alice"],
+      source: {
+        platform: "slack",
+        channel: "#general",
+        timestamp: "2026-06-01T10:00:00Z",
+        raw_hash: "hash1",
+        quote: "I'd rather we just write things down than meet",
+      },
+      confidence: "direct",
+    });
+    expect(result.category).toBe("communication");
+    expect(result.entities).toEqual(["person/alice"]);
+  });
+
+  it("rejects an invalid category", () => {
+    expect(() =>
+      PreferenceSchema.parse({
+        summary: "Likes pizza",
+        category: "food", // not in the enum
+        entities: [],
+        source: {
+          platform: "slack",
+          channel: "#general",
+          timestamp: "2026-06-01T10:00:00Z",
+          raw_hash: "hash1",
+          quote: "q",
+        },
+        confidence: "direct",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("ReferenceSchema", () => {
+  it("parses a valid reference", () => {
+    const result = ReferenceSchema.parse({
+      title: "JWT Best Practices Guide",
+      url: "https://example.com/jwt-guide",
+      summary: "Covers token expiration and signing algorithm choices",
+      trigger: "When implementing JWT-based auth",
+      entities: ["tool/jwt"],
+      source: {
+        platform: "slack",
+        channel: "#engineering",
+        timestamp: "2026-06-01T10:00:00Z",
+        raw_hash: "hash2",
+        quote: "Check this out: https://example.com/jwt-guide",
+      },
+      confidence: "direct",
+    });
+    expect(result.url).toBe("https://example.com/jwt-guide");
+    expect(result.trigger).toBe("When implementing JWT-based auth");
+  });
+
+  it("requires url and title", () => {
+    expect(() =>
+      ReferenceSchema.parse({
+        summary: "A guide",
+        entities: [],
+        source: {
+          platform: "slack",
+          channel: "#general",
+          timestamp: "2026-06-01T10:00:00Z",
+          raw_hash: "hash2",
+          quote: "q",
+        },
+        confidence: "direct",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("ExtractionResult schema with preferences and references", () => {
+  it("accepts preferences and references arrays, defaulting to empty when absent", () => {
+    const minimal = parseExtractionResult({
+      source: {
+        platform: "slack",
+        channel: "#general",
+        timestamp: "2026-06-01T10:00:00Z",
+        raw_hash: "hash3",
+        quote: "q",
+      },
+      entities: [],
+      timeline: [],
+      links: [],
+      decisions: [],
+      tasks: [],
+      discoveries: [],
+      knowledge: [],
+    });
+    expect(minimal.preferences).toEqual([]);
+    expect(minimal.references).toEqual([]);
   });
 });

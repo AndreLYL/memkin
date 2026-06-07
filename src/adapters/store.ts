@@ -9,6 +9,8 @@ import type {
   ExtractionResult,
   Knowledge,
   Link,
+  Preference,
+  Reference,
   SourceRef,
   TaskSignal,
   TimelineEntry,
@@ -18,6 +20,18 @@ import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+
+// Per-type lifecycle defaults (Spec 1 §4.3). NULL = never auto-expires.
+// Spec 2's Consolidator reads halflife_days to decide hot→warm timing.
+const HALFLIFE_DAYS = {
+  decision: 90,
+  task: 90,
+  discovery: 90,
+  knowledge: 365,
+  preference: 90,
+  reference: null,
+  entity: null,
+} as const satisfies Record<string, number | null>;
 
 export interface StoreAdapterContext {
   pages: PageStore;
@@ -125,6 +139,22 @@ export class StoreAdapter implements Adapter {
         pushResult.errors.push(...writeResult.errors);
       }
 
+      // Process Preferences
+      for (const preference of result.preferences) {
+        const writeResult = await this.writePreference(preference);
+        pushResult.written += writeResult.written;
+        pushResult.skipped += writeResult.skipped;
+        pushResult.errors.push(...writeResult.errors);
+      }
+
+      // Process References
+      for (const reference of result.references) {
+        const writeResult = await this.writeReference(reference);
+        pushResult.written += writeResult.written;
+        pushResult.skipped += writeResult.skipped;
+        pushResult.errors.push(...writeResult.errors);
+      }
+
       // Process Timeline Entries
       for (const entry of result.timeline) {
         const writeResult = await this.appendTimelineEntry(entry);
@@ -211,7 +241,9 @@ ${bodyParts.join("\n\n")}
 `;
 
       // Write page
-      const page = await this.stores.pages.putPage(entity.slug, content);
+      const page = await this.stores.pages.putPage(entity.slug, content, {
+        halflife_days: HALFLIFE_DAYS.entity,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -291,7 +323,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 ${parts.join("\n")}`;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.decision,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -381,7 +415,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 `;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.task,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -451,7 +487,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 ${parts.join("\n")}`;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.discovery,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);
@@ -479,6 +517,144 @@ ${parts.join("\n")}`;
     } catch (error) {
       result.errors.push({
         signal: `discovery:${discovery.summary}`,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return result;
+  }
+
+  private async writePreference(preference: Preference): Promise<AdapterPushResult> {
+    const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
+
+    try {
+      const slug = `preferences/${this.kebabCase(preference.summary)}`;
+      const sourceHash = preference.source.raw_hash;
+
+      const existingPage = await this.stores.pages.getPage(slug);
+      if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
+        result.skipped += 1;
+        return result;
+      }
+
+      const frontmatter = {
+        title: preference.summary,
+        type: "preference",
+        category: preference.category,
+        entities: preference.entities,
+        confidence: preference.confidence,
+        source_hash: sourceHash,
+        source: preference.source,
+        created_at: new Date().toISOString(),
+      };
+
+      const parts: string[] = [`# ${preference.summary}`, ""];
+      if (preference.detail) {
+        parts.push("## Detail", "", preference.detail, "");
+      }
+
+      const content = `---
+${yamlStringify(frontmatter).trimEnd()}
+---
+
+${parts.join("\n")}`;
+
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.preference,
+      });
+
+      this.notifyPageWritten(page);
+      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
+      await this.stores.tags.addTag(slug, "preference");
+      await this.stores.tags.addTag(slug, preference.category);
+
+      for (const entitySlug of preference.entities) {
+        await this.stores.graph.addLink(
+          slug,
+          entitySlug,
+          "mentions",
+          "Referenced in preference",
+          preference.source,
+          sourceHash,
+        );
+      }
+
+      result.written += 1;
+    } catch (error) {
+      result.errors.push({
+        signal: `preference:${preference.summary}`,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return result;
+  }
+
+  private async writeReference(reference: Reference): Promise<AdapterPushResult> {
+    const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
+
+    try {
+      const slug = `references/${this.kebabCase(reference.title)}`;
+      const sourceHash = reference.source.raw_hash;
+
+      const existingPage = await this.stores.pages.getPage(slug);
+      if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
+        result.skipped += 1;
+        return result;
+      }
+
+      const frontmatter: Record<string, unknown> = {
+        title: reference.title,
+        type: "reference",
+        url: reference.url,
+        entities: reference.entities,
+        confidence: reference.confidence,
+        source_hash: sourceHash,
+        source: reference.source,
+        created_at: new Date().toISOString(),
+      };
+      if (reference.trigger) frontmatter.trigger = reference.trigger;
+
+      const parts = [
+        `# ${reference.title}`,
+        "",
+        `URL: ${reference.url}`,
+        "",
+        "## Summary",
+        "",
+        reference.summary,
+        "",
+      ];
+
+      const content = `---
+${yamlStringify(frontmatter).trimEnd()}
+---
+
+${parts.join("\n")}`;
+
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.reference,
+      });
+
+      this.notifyPageWritten(page);
+      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
+      await this.stores.tags.addTag(slug, "reference");
+
+      for (const entitySlug of reference.entities) {
+        await this.stores.graph.addLink(
+          slug,
+          entitySlug,
+          "mentions",
+          "Referenced in reference",
+          reference.source,
+          sourceHash,
+        );
+      }
+
+      result.written += 1;
+    } catch (error) {
+      result.errors.push({
+        signal: `reference:${reference.title}`,
         reason: error instanceof Error ? error.message : String(error),
       });
     }
@@ -550,7 +726,9 @@ ${yamlStringify(frontmatter).trimEnd()}
 ${parts.join("\n")}`;
 
       // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      const page = await this.stores.pages.putPage(slug, content, {
+        halflife_days: HALFLIFE_DAYS.knowledge,
+      });
 
       // Notify callback
       this.notifyPageWritten(page);

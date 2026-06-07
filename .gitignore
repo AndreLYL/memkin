@@ -46,4 +46,4 @@ tests/temp/
 .worktrees/
 
 # Implementation plans (managed in separate repo: AndreLYL/memoark_spec)
-docs/superpowers/plans/
+docs/superpowers/

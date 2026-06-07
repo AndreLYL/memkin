@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS pages (
   compiled_truth  TEXT NOT NULL DEFAULT '',
   frontmatter     JSONB NOT NULL DEFAULT '{}',
   content_hash    TEXT,
+  halflife_days   INTEGER,
   search_vector   TSVECTOR,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

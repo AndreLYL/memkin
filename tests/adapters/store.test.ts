@@ -8,6 +8,8 @@ import type {
   ExtractionResult,
   Knowledge,
   Link,
+  Preference,
+  Reference,
   SourceRef,
   TaskSignal,
   TimelineEntry,
@@ -86,6 +88,8 @@ describe("StoreAdapter", () => {
         tasks: [],
         discoveries: [],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -128,6 +132,8 @@ describe("StoreAdapter", () => {
         tasks: [],
         discoveries: [],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       // First push
@@ -173,6 +179,8 @@ Entity A context`,
         tasks: [],
         discoveries: [],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -222,6 +230,8 @@ Entity A context`,
         tasks: [task],
         discoveries: [],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -273,6 +283,8 @@ Entity B context`,
         tasks: [],
         discoveries: [discovery],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -329,6 +341,8 @@ Entity C context`,
         tasks: [],
         discoveries: [],
         knowledge: [knowledge],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -372,6 +386,8 @@ Entity C context`,
         tasks: [],
         discoveries: [],
         knowledge: [knowledge],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -411,6 +427,8 @@ Timeline entity context`,
         tasks: [],
         discoveries: [],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -465,6 +483,8 @@ To context`,
         tasks: [],
         discoveries: [],
         knowledge: [],
+        preferences: [],
+        references: [],
       };
 
       const pushResult = await adapter.push([result]);
@@ -475,6 +495,270 @@ To context`,
       // Verify link was created
       const links = await graph.getLinks("from-entity");
       expect(links.some((l) => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
+    });
+  });
+
+  describe("push - preferences", () => {
+    it("should write preference page with category tag, entity link, and halflife", async () => {
+      await pages.putPage(
+        "person/dave",
+        "---\ntitle: Dave\ntype: person\n---\n## Context\nDave context",
+      );
+
+      const preference: Preference = {
+        summary: "Prefers async communication over meetings",
+        detail: "Said this explicitly when scheduling was discussed",
+        category: "communication",
+        entities: ["person/dave"],
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+        preferences: [preference],
+        references: [],
+      };
+
+      const pushResult = await adapter.push([result]);
+      expect(pushResult.written).toBe(1);
+
+      const slug = "preferences/prefers-async-communication-over-meetings";
+      const page = await pages.getPage(slug);
+      expect(page).not.toBeNull();
+      expect(page?.type).toBe("preference");
+      expect(page?.halflife_days).toBe(90);
+      expect(page?.frontmatter.category).toBe("communication");
+
+      const pageTags = await tags.getTags(slug);
+      expect(pageTags).toContain("preference");
+      expect(pageTags).toContain("communication");
+
+      const links = await graph.getLinks(slug);
+      expect(links.some((l) => l.to_slug === "person/dave" && l.link_type === "mentions")).toBe(
+        true,
+      );
+    });
+
+    it("should skip duplicate preference with same source_hash", async () => {
+      const sourceRef = createSourceRef();
+      const preference: Preference = {
+        summary: "Likes written specs over verbal handoffs",
+        category: "workflow",
+        entities: [],
+        source: sourceRef,
+        confidence: "direct",
+      };
+      const result: ExtractionResult = {
+        source: sourceRef,
+        entities: [],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+        preferences: [preference],
+        references: [],
+      };
+
+      const first = await adapter.push([result]);
+      expect(first.written).toBe(1);
+
+      const second = await adapter.push([result]);
+      expect(second.skipped).toBe(1);
+      expect(second.written).toBe(0);
+    });
+  });
+
+  describe("push - references", () => {
+    it("should write reference page with url in frontmatter, entity link, and permanent halflife", async () => {
+      await pages.putPage("tool/jwt", "---\ntitle: JWT\ntype: tool\n---\n## Context\nJWT context");
+
+      const reference: Reference = {
+        title: "JWT Best Practices Guide",
+        url: "https://example.com/jwt-guide",
+        summary: "Covers token expiration and signing algorithm choices",
+        trigger: "When implementing JWT-based auth",
+        entities: ["tool/jwt"],
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+        preferences: [],
+        references: [reference],
+      };
+
+      const pushResult = await adapter.push([result]);
+      expect(pushResult.written).toBe(1);
+
+      const slug = "references/jwt-best-practices-guide";
+      const page = await pages.getPage(slug);
+      expect(page).not.toBeNull();
+      expect(page?.type).toBe("reference");
+      expect(page?.halflife_days).toBeNull(); // permanent
+      expect(page?.frontmatter.url).toBe("https://example.com/jwt-guide");
+      expect(page?.frontmatter.trigger).toBe("When implementing JWT-based auth");
+
+      const pageTags = await tags.getTags(slug);
+      expect(pageTags).toContain("reference");
+
+      const links = await graph.getLinks(slug);
+      expect(links.some((l) => l.to_slug === "tool/jwt" && l.link_type === "mentions")).toBe(true);
+    });
+  });
+
+  describe("halflife_days stamping", () => {
+    it("stamps halflife_days=90 on newly written decision pages", async () => {
+      const decision: Decision = {
+        summary: "Adopt trunk-based development",
+        entities: [],
+        date: "2024-01-15",
+        confidence: "direct",
+        source: createSourceRef(),
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [decision],
+          tasks: [],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("decisions/adopt-trunk-based-development");
+      expect(page?.halflife_days).toBe(90);
+    });
+
+    it("stamps halflife_days=90 on newly written task pages", async () => {
+      const task: TaskSignal = {
+        title: "Write onboarding doc",
+        status: "open",
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [task],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("tasks/write-onboarding-doc");
+      expect(page?.halflife_days).toBe(90);
+    });
+
+    it("stamps halflife_days=90 on newly written discovery pages", async () => {
+      const discovery: Discovery = {
+        summary: "Local Docker DNS resolution is broken",
+        type: "pattern",
+        entities: [],
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [],
+          discoveries: [discovery],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("discoveries/local-docker-dns-resolution-is-broken");
+      expect(page?.halflife_days).toBe(90);
+    });
+
+    it("stamps halflife_days=365 on newly written knowledge pages", async () => {
+      const knowledge: Knowledge = {
+        topic: "feishu-api",
+        content: "Feishu API global rate limit is 50 QPS",
+        source_type: "document",
+        related_entities: [],
+        source: createSourceRef(),
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [],
+          discoveries: [],
+          knowledge: [knowledge],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const all = await pages.listPages({ type: "knowledge" });
+      expect(all).toHaveLength(1);
+      expect(all[0].halflife_days).toBe(365);
+    });
+
+    it("stamps halflife_days=NULL (permanent) on newly written entity pages", async () => {
+      const entity: Entity = {
+        slug: "person/carol",
+        name: "Carol",
+        type: "person",
+        context: "New team member",
+        confidence: "direct",
+      };
+      await adapter.push([
+        {
+          source: createSourceRef(),
+          entities: [entity],
+          timeline: [],
+          links: [],
+          decisions: [],
+          tasks: [],
+          discoveries: [],
+          knowledge: [],
+          preferences: [],
+          references: [],
+        },
+      ]);
+
+      const page = await pages.getPage("person/carol");
+      expect(page?.halflife_days).toBeNull();
     });
   });
 });

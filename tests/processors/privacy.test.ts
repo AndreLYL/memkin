@@ -92,6 +92,8 @@ const baseResult: ExtractionResult = {
     },
   ],
   knowledge: [],
+  preferences: [],
+  references: [],
 };
 
 describe("PrivacyProcessor", () => {
@@ -560,6 +562,8 @@ describe("PrivacyProcessor", () => {
           confidence: "direct" as const,
         },
       ],
+      preferences: [],
+      references: [],
     });
 
     it("redacts phone numbers in knowledge content", () => {
