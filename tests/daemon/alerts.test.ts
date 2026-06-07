@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AlertWriter } from "../../src/daemon/alerts.js";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
@@ -10,6 +10,10 @@ describe("AlertWriter", () => {
   beforeEach(async () => {
     db = await Database.create();
     pageStore = new PageStore(db.pg);
+  });
+
+  afterEach(async () => {
+    await db?.close?.();
   });
 
   it("writes alert page when sources have alerts", async () => {
