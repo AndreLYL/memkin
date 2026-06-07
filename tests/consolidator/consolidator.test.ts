@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Consolidator, type ConsolidatorStores } from "../../src/consolidator/consolidator.js";
 import { checkDeadLinks, type FetchFn } from "../../src/consolidator/dead-link.js";
+import { inferPreferences } from "../../src/consolidator/infer-preferences.js";
 import { canCompress, NEVER_COMPRESS_TYPES } from "../../src/consolidator/rules.js";
 import type { LLMProvider } from "../../src/extractors/providers/types.js";
 import { Database } from "../../src/store/database.js";
@@ -407,6 +408,59 @@ describe("Consolidator", () => {
 
       const page = await stores.pages.getPage("references/error-ref");
       expect(page?.frontmatter.dead_link).toBe(true);
+    });
+  });
+
+  describe("preference inference", () => {
+    it("infers scheduling preference from timeline patterns via LLM", async () => {
+      const mockLlm: LLMProvider = {
+        async chat() {
+          return JSON.stringify([
+            {
+              summary: "偏好下午开会",
+              category: "scheduling",
+              confidence: "inferred",
+            },
+          ]);
+        },
+      };
+
+      await stores.pages.putPage("entities/alice", "---\ntitle: Alice\ntype: person\n---\nAlice.");
+      // Create timeline entries for the entity — all in the afternoon
+      for (let i = 0; i < 6; i++) {
+        await stores.timeline.addEntry("entities/alice", {
+          date: `2026-05-${10 + i}`,
+          summary: `Meeting at 14:0${i}`,
+          detail: `Alice's meeting at 14:0${i}`,
+        });
+      }
+
+      const inferred = await inferPreferences(stores, mockLlm);
+      expect(inferred).toBeGreaterThan(0);
+
+      const prefPage = await stores.pages.listPages({ type: "preference" });
+      const inferredPrefs = prefPage.filter((p) => p.frontmatter.inferred === true);
+      expect(inferredPrefs.length).toBeGreaterThan(0);
+    });
+
+    it("returns 0 when LLM returns empty array (no clear patterns)", async () => {
+      const mockLlm: LLMProvider = {
+        async chat() {
+          return "[]";
+        },
+      };
+
+      await stores.pages.putPage(
+        "entities/charlie",
+        "---\ntitle: Charlie\ntype: person\n---\nCharlie.",
+      );
+      await stores.timeline.addEntry("entities/charlie", {
+        date: "2026-05-10",
+        summary: "Random meeting",
+      });
+
+      const inferred = await inferPreferences(stores, mockLlm);
+      expect(inferred).toBe(0);
     });
   });
 });
