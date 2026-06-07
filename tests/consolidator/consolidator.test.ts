@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Consolidator, type ConsolidatorStores } from "../../src/consolidator/consolidator.js";
+import { checkDeadLinks, type FetchFn } from "../../src/consolidator/dead-link.js";
 import { canCompress, NEVER_COMPRESS_TYPES } from "../../src/consolidator/rules.js";
 import type { LLMProvider } from "../../src/extractors/providers/types.js";
 import { Database } from "../../src/store/database.js";
@@ -267,6 +268,85 @@ describe("Consolidator", () => {
       await expect(consolidator.consolidateWarm()).rejects.toThrow(
         "LLM provider required for warm→cold consolidation",
       );
+    });
+  });
+
+  describe("dead-link checker", () => {
+    it("marks reference page as dead_link=true when URL returns non-200", async () => {
+      const mockFetch: FetchFn = async (url) => {
+        if (url === "https://dead.example.com") return { ok: false, status: 404 };
+        return { ok: true, status: 200 };
+      };
+
+      await stores.pages.putPage(
+        "references/dead-ref",
+        [
+          "---",
+          "title: Dead Reference",
+          "type: reference",
+          "url: https://dead.example.com",
+          "dead_link: false",
+          "---",
+          "",
+          "This link is dead.",
+        ].join("\n"),
+        { halflife_days: null },
+      );
+
+      const checked = await checkDeadLinks(stores.pages, mockFetch);
+      expect(checked).toBe(1);
+
+      const page = await stores.pages.getPage("references/dead-ref");
+      expect(page?.frontmatter.dead_link).toBe(true);
+      expect(page?.frontmatter.last_checked_at).toBeDefined();
+    });
+
+    it("marks reference page as dead_link=false when URL returns 200", async () => {
+      const mockFetch: FetchFn = async () => ({ ok: true, status: 200 });
+
+      await stores.pages.putPage(
+        "references/live-ref",
+        [
+          "---",
+          "title: Live Reference",
+          "type: reference",
+          "url: https://live.example.com",
+          "dead_link: false",
+          "---",
+          "",
+          "This link works.",
+        ].join("\n"),
+        { halflife_days: null },
+      );
+
+      const checked = await checkDeadLinks(stores.pages, mockFetch);
+      expect(checked).toBe(1);
+
+      const page = await stores.pages.getPage("references/live-ref");
+      expect(page?.frontmatter.dead_link).toBe(false);
+    });
+
+    it("skips reference pages checked within the last 30 days", async () => {
+      const mockFetch: FetchFn = async () => ({ ok: true, status: 200 });
+      const recentCheck = new Date(Date.now() - 5 * 86_400_000).toISOString(); // 5 days ago
+
+      await stores.pages.putPage(
+        "references/recent-ref",
+        [
+          "---",
+          "title: Recently Checked",
+          "type: reference",
+          `url: https://example.com`,
+          `last_checked_at: "${recentCheck}"`,
+          "---",
+          "",
+          "Recent.",
+        ].join("\n"),
+        { halflife_days: null },
+      );
+
+      const checked = await checkDeadLinks(stores.pages, mockFetch);
+      expect(checked).toBe(0); // skipped
     });
   });
 });
