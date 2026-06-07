@@ -14,11 +14,11 @@ import {
   registerCollector,
   resetRegistry,
 } from "./collectors/index.js";
+import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.js";
 import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
-import { Consolidator, type ConsolidateMode } from "./consolidator/consolidator.js";
 import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
 import { ChunkStore } from "./store/chunks.js";
@@ -662,10 +662,7 @@ program
 
       await stores.db.close();
     } catch (error) {
-      console.error(
-        "Consolidate failed:",
-        error instanceof Error ? error.message : String(error),
-      );
+      console.error("Consolidate failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   });
