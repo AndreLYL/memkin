@@ -31,11 +31,7 @@ export class Consolidator {
   constructor(
     private stores: ConsolidatorStores,
     private llm?: LLMProvider,
-  ) {
-    // These will be used in Tasks 4-5
-    void this.stores;
-    void this.llm;
-  }
+  ) {}
 
   start(): void {
     this.hotTimer = setInterval(() => void this.consolidateHot(), 86_400_000);
