@@ -1,19 +1,14 @@
 import { stringify as yamlStringify } from "yaml";
 import type { GraphStore } from "../store/graph.js";
-import type { PageStore, Page } from "../store/pages.js";
-import type { TagStore } from "../store/tags.js";
+import type { Page, PageStore } from "../store/pages.js";
 import { canCompress } from "./rules.js";
 
 interface HotWarmStores {
   pages: PageStore;
   graph: GraphStore;
-  tags: TagStore;
 }
 
-export async function consolidateHotToWarm(
-  stores: HotWarmStores,
-  dryRun = false,
-): Promise<number> {
+export async function consolidateHotToWarm(stores: HotWarmStores, dryRun = false): Promise<number> {
   const expired = await stores.pages.listExpiredHot();
   if (expired.length === 0) return 0;
 
@@ -43,7 +38,9 @@ export async function consolidateHotToWarm(
   const groups = new Map<GroupKey, Page[]>();
 
   for (const page of compressible) {
-    const links = linksMap.get(page.slug) ?? [];
+    const links = (linksMap.get(page.slug) ?? []).sort((a, b) =>
+      a.to_slug.localeCompare(b.to_slug),
+    );
     const entityLink = links.find((l) => l.link_type === "mentions");
     const entitySlug = entityLink?.to_slug ?? "__none__";
     const key: GroupKey = `${entitySlug}::${page.type}`;
@@ -62,17 +59,12 @@ export async function consolidateHotToWarm(
       .join("\n\n---\n\n");
 
     // Determine a stable slug for this warm aggregate
-    const entityPart =
-      entitySlug === "__none__"
-        ? "unanchored"
-        : entitySlug.replace(/\//g, "-");
+    const entityPart = entitySlug === "__none__" ? "unanchored" : entitySlug.replace(/\//g, "-");
     const warmSlug = `warm/${entityPart}/${type}-consolidated`;
 
     // Write the warm aggregate page (upsert — idempotency: if it already exists, append)
     const existingWarm = await stores.pages.getPage(warmSlug);
-    const existingContent = existingWarm
-      ? `${existingWarm.compiled_truth}\n\n---\n\n`
-      : "";
+    const existingContent = existingWarm ? `${existingWarm.compiled_truth}\n\n---\n\n` : "";
     const combinedContent = existingContent + mergedContent;
 
     const frontmatter: Record<string, unknown> = {
@@ -85,10 +77,7 @@ export async function consolidateHotToWarm(
       ],
       created_at:
         existingWarm?.frontmatter.created_at ??
-        pages.reduce(
-          (min, p) => (p.created_at < min ? p.created_at : min),
-          pages[0].created_at,
-        ),
+        pages.reduce((min, p) => (p.created_at < min ? p.created_at : min), pages[0].created_at),
     };
 
     const warmPageContent = `---\n${yamlStringify(frontmatter).trim()}\n---\n\n${combinedContent}`;

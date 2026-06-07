@@ -203,9 +203,13 @@ describe("PageStore", () => {
       const page = await store.putPage("pref/a", "---\ntitle: A\ntype: preference\n---\nA.", {
         halflife_days: 90,
       });
-      const warm = await store.putPage("warm/pref-consolidated", "---\ntitle: Warm\ntype: preference\n---\nMerged.", {
-        halflife_days: null,
-      });
+      const warm = await store.putPage(
+        "warm/pref-consolidated",
+        "---\ntitle: Warm\ntype: preference\n---\nMerged.",
+        {
+          halflife_days: null,
+        },
+      );
 
       await store.updatePageTier(page.id, "warm", warm.id);
 
