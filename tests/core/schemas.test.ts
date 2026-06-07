@@ -5,9 +5,9 @@
 import { describe, expect, it } from "vitest";
 import {
   KnowledgeSchema,
+  PreferenceSchema,
   parseExtractionResult,
   parseSignificanceVerdict,
-  PreferenceSchema,
   ReferenceSchema,
 } from "../../src/core/schemas.js";
 import type { ExtractionResult, SignificanceVerdict } from "../../src/core/types.js";

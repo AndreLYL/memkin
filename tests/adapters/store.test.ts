@@ -580,10 +580,7 @@ To context`,
 
   describe("push - references", () => {
     it("should write reference page with url in frontmatter, entity link, and permanent halflife", async () => {
-      await pages.putPage(
-        "tool/jwt",
-        "---\ntitle: JWT\ntype: tool\n---\n## Context\nJWT context",
-      );
+      await pages.putPage("tool/jwt", "---\ntitle: JWT\ntype: tool\n---\n## Context\nJWT context");
 
       const reference: Reference = {
         title: "JWT Best Practices Guide",
