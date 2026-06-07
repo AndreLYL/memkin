@@ -18,6 +18,7 @@ import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
+import { Consolidator } from "./consolidator/consolidator.js";
 import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
 import { ChunkStore } from "./store/chunks.js";
@@ -589,6 +590,70 @@ program
       }
     } finally {
       await stores.db.close();
+    }
+  });
+
+program
+  .command("consolidate")
+  .description("Run memory lifecycle tier rotation (hot→warm and/or warm→cold)")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("--hot", "Run hot→warm rotation only")
+  .option("--warm", "Run warm→cold rotation only (requires LLM API key)")
+  .option("--dry-run", "Report what would be consolidated without writing")
+  .action(async (options) => {
+    try {
+      const config = loadConfig(options.config);
+      const stores = await createStores(config);
+
+      let llmProvider: ReturnType<typeof createLLMProvider> | undefined;
+      if (options.warm || (!options.hot && !options.warm)) {
+        // warm→cold needs LLM; only require it when --warm or full (both) run
+        const llmConfig = config.llm;
+        const envKey =
+          llmConfig.provider === "anthropic"
+            ? process.env.ANTHROPIC_API_KEY
+            : process.env.OPENAI_API_KEY;
+        if (llmConfig.api_key || envKey) {
+          if (!llmConfig.api_key) llmConfig.api_key = envKey;
+          llmProvider = createLLMProvider(llmConfig);
+        } else if (!options.hot) {
+          console.warn(
+            "Warning: no LLM API key found. warm→cold consolidation will be skipped. " +
+              "Use --hot to run hot→warm only, or set ANTHROPIC_API_KEY.",
+          );
+        }
+      }
+
+      const consolidator = new Consolidator(
+        {
+          pages: stores.pages,
+          graph: stores.graph,
+          tags: stores.tags,
+          timeline: stores.timeline,
+        },
+        llmProvider,
+      );
+
+      const mode = options.hot ? "hot" : options.warm ? "warm" : "all";
+      const dryRun = options.dryRun ?? false;
+
+      if (dryRun) console.log("DRY-RUN mode — no writes will occur\n");
+
+      const result = await consolidator.runOnce(mode, dryRun);
+
+      console.log("Consolidation complete:");
+      console.log(`  hot→warm pages moved:    ${result.hotToWarm}`);
+      console.log(`  warm→cold pages archived: ${result.warmToCold}`);
+      console.log(`  dead links checked:       ${result.deadLinksChecked}`);
+      console.log(`  preferences inferred:     ${result.preferencesInferred}`);
+
+      await stores.db.close();
+    } catch (error) {
+      console.error(
+        "Consolidate failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      process.exit(1);
     }
   });
 
