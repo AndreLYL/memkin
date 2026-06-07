@@ -68,17 +68,23 @@ export class PageStore {
     const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
     const contentHash = createHash("sha256").update(content).digest("hex");
     const halflifeDays = opts?.halflife_days ?? null;
-    const expiresAtOverride = opts?.expires_at !== undefined ? opts.expires_at : undefined;
+
+    // Compute expires_at in TS to correctly handle the three-way distinction:
+    // - explicit Date: use that value
+    // - explicit null: store NULL (clear it)
+    // - undefined: auto-compute from halflife_days, or NULL if halflife_days is null
+    let expiresAt: Date | null;
+    if (opts?.expires_at !== undefined) {
+      expiresAt = opts.expires_at;  // Date or null, both stored as-is
+    } else if (halflifeDays !== null) {
+      expiresAt = new Date(Date.now() + halflifeDays * 86_400_000);
+    } else {
+      expiresAt = null;
+    }
 
     const result = await this.pg.query<PageRow>(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash, halflife_days, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::integer,
-         CASE
-           WHEN $8::timestamptz IS NOT NULL THEN $8::timestamptz
-           WHEN $7::integer IS NOT NULL THEN NOW() + ($7::integer * INTERVAL '1 day')
-           ELSE NULL
-         END
-       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz)
        ON CONFLICT (slug) DO UPDATE SET
          type = EXCLUDED.type,
          title = EXCLUDED.title,
@@ -88,16 +94,7 @@ export class PageStore {
          halflife_days = EXCLUDED.halflife_days,
          updated_at = NOW()
        RETURNING *`,
-      [
-        slug,
-        type,
-        title,
-        compiled_truth,
-        JSON.stringify(frontmatter),
-        contentHash,
-        halflifeDays,
-        expiresAtOverride ?? null,
-      ],
+      [slug, type, title, compiled_truth, JSON.stringify(frontmatter), contentHash, halflifeDays, expiresAt],
     );
     return this.rowToPage(result.rows[0]);
   }

@@ -156,4 +156,16 @@ describe("GraphStore.getLinksForSlugs", () => {
     const map = await graph.getLinksForSlugs([]);
     expect(map.size).toBe(0);
   });
+
+  it("handles slugs with no outgoing links (returns absent key, not empty array)", async () => {
+    await pages.putPage("entities/alice", "---\ntitle: Alice\ntype: person\n---\nAlice.");
+    await pages.putPage("preferences/a", "---\ntitle: A\ntype: preference\n---\nA.");
+    await pages.putPage("preferences/no-link", "---\ntitle: No link\ntype: preference\n---\nB.");
+    await graph.addLink("preferences/a", "entities/alice", "mentions");
+
+    const map = await graph.getLinksForSlugs(["preferences/a", "preferences/no-link"]);
+
+    expect(map.get("preferences/a")).toHaveLength(1);
+    expect(map.has("preferences/no-link")).toBe(false); // absent, not empty array
+  });
 });
