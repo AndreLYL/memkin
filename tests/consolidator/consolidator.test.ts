@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Consolidator, type ConsolidatorStores } from "../../src/consolidator/consolidator.js";
 import { canCompress, NEVER_COMPRESS_TYPES } from "../../src/consolidator/rules.js";
+import type { LLMProvider } from "../../src/extractors/providers/types.js";
 import { Database } from "../../src/store/database.js";
 import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
@@ -184,6 +185,84 @@ describe("Consolidator", () => {
       const afterCount = (await stores.pages.listPagesByTier("warm")).length;
 
       expect(afterCount).toBe(beforeCount); // no duplicates
+    });
+  });
+
+  describe("consolidateWarm", () => {
+    it("creates a cold summary page for a warm entity group via LLM", async () => {
+      const mockLlm: LLMProvider = {
+        async chat() {
+          return "Alice prefers morning meetings and tends to complete work on Tuesdays.";
+        },
+      };
+
+      await stores.pages.putPage(
+        "entities/alice",
+        "---\ntitle: Alice\ntype: person\n---\nAlice entity.",
+      );
+
+      // Create a warm preference page linked to alice (simulating result of consolidateHot)
+      await stores.pages.putPage(
+        "warm/entities-alice/preference-consolidated",
+        "---\ntitle: Consolidated preference (entities/alice)\ntype: preference\nconsolidated: true\n---\nAlice likes morning standups.",
+        { halflife_days: null },
+      );
+      await db.pg.query(
+        "UPDATE pages SET tier = 'warm', created_at = NOW() - INTERVAL '400 days' WHERE slug = $1",
+        ["warm/entities-alice/preference-consolidated"],
+      );
+      await stores.graph.addLink(
+        "warm/entities-alice/preference-consolidated",
+        "entities/alice",
+        "mentions",
+      );
+
+      const consolidator = new Consolidator(stores, mockLlm);
+      const result = await consolidator.consolidateWarm();
+      expect(result.warmToCold).toBeGreaterThan(0);
+
+      const coldPage = await stores.pages.getPage("cold/entities/alice");
+      expect(coldPage).not.toBeNull();
+      expect(coldPage?.tier).toBe("cold");
+      expect(coldPage?.compiled_truth).toContain("Alice prefers morning meetings");
+    });
+
+    it("does NOT compress pages that are too young for warm→cold threshold", async () => {
+      const mockLlm: LLMProvider = {
+        async chat() {
+          return "Summary.";
+        },
+      };
+
+      await stores.pages.putPage("entities/bob", "---\ntitle: Bob\ntype: person\n---\nBob entity.");
+      // Fresh warm page (created recently, not yet past WARM_TO_COLD_DAYS threshold)
+      await stores.pages.putPage(
+        "warm/entities-bob/preference-consolidated",
+        "---\ntitle: Consolidated preference\ntype: preference\nconsolidated: true\n---\nBob likes evening calls.",
+        { halflife_days: null },
+      );
+      await db.pg.query("UPDATE pages SET tier = 'warm' WHERE slug = $1", [
+        "warm/entities-bob/preference-consolidated",
+      ]);
+      await stores.graph.addLink(
+        "warm/entities-bob/preference-consolidated",
+        "entities/bob",
+        "mentions",
+      );
+
+      const consolidator = new Consolidator(stores, mockLlm);
+      const result = await consolidator.consolidateWarm();
+      expect(result.warmToCold).toBe(0);
+
+      const coldPage = await stores.pages.getPage("cold/entities/bob");
+      expect(coldPage).toBeNull(); // too young
+    });
+
+    it("throws if consolidateWarm is called without an LLM provider", async () => {
+      const consolidator = new Consolidator(stores);
+      await expect(consolidator.consolidateWarm()).rejects.toThrow(
+        "LLM provider required for warm→cold consolidation",
+      );
     });
   });
 });

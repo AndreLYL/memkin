@@ -4,6 +4,7 @@ import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { consolidateHotToWarm } from "./hot-warm.js";
+import { consolidateWarmToCold } from "./warm-cold.js";
 
 export interface ConsolidatorStores {
   pages: PageStore;
@@ -70,8 +71,10 @@ export class Consolidator {
   }
 
   async consolidateWarm(dryRun = false): Promise<Omit<ConsolidateResult, "hotToWarm">> {
-    // Implemented in Task 5
-    void dryRun;
-    return { warmToCold: 0, deadLinksChecked: 0, preferencesInferred: 0 };
+    if (!this.llm) {
+      throw new Error("LLM provider required for warm→cold consolidation");
+    }
+    const { warmToCold } = await consolidateWarmToCold(this.stores, this.llm, dryRun);
+    return { warmToCold, deadLinksChecked: 0, preferencesInferred: 0 };
   }
 }
