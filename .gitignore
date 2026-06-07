@@ -42,6 +42,9 @@ output/
 # Test temp files
 tests/temp/
 
+# PGlite in-memory filesystem artifact
+:memory:/
+
 # Local isolated worktrees
 .worktrees/
 
