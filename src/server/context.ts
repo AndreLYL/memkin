@@ -22,9 +22,7 @@ export async function getSessionContext(stores: ContextStores, days = 7): Promis
   ]);
 
   // Filter tasks to open ones
-  const openTasks = allTasks.filter(
-    (t) => (t.frontmatter.status as string | undefined) === "open",
-  );
+  const openTasks = allTasks.filter((t) => (t.frontmatter.status as string | undefined) === "open");
 
   // Parse `since` as a Date for reliable comparison against DB timestamps
   const sinceDate = new Date(since);
@@ -67,7 +65,7 @@ export async function getSessionContext(stores: ContextStores, days = 7): Promis
 
   lines.push("");
   lines.push(
-    "如需细节：`query(\"关键词\")` 语义检索，或 `get_entity_profile(\"<entity-slug>\")` 查看人物/项目档案。",
+    '如需细节：`query("关键词")` 语义检索，或 `get_entity_profile("<entity-slug>")` 查看人物/项目档案。',
   );
 
   return lines.join("\n");
