@@ -114,6 +114,7 @@ export async function runPipeline(
     // Stage 1: Collector.fetch + Dedup.check
     const newOrModifiedMessages: RawMessage[] = [];
 
+    const t0 = Date.now();
     try {
       let accepted = 0;
       for await (const msg of opts.source.fetch({ cursor })) {
@@ -151,6 +152,8 @@ export async function runPipeline(
       result.error = `Fatal collector error: ${err instanceof Error ? err.message : String(err)}`;
       return result;
     }
+    const t1 = Date.now();
+    console.error(`[perf] stage1 collect: ${((t1 - t0) / 1000).toFixed(1)}s  messages=${newOrModifiedMessages.length}`);
 
     // Stage 2: BlockBuilder
     const blockBuilder = new BlockBuilder({
@@ -301,13 +304,17 @@ export async function runPipeline(
     };
 
     // Run blocks in batches of CONCURRENCY
+    const t2 = Date.now();
     for (let i = 0; i < blocks.length; i += CONCURRENCY) {
       const batch = blocks.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map((block, j) => processBlock(block, i + j)));
     }
+    const t3 = Date.now();
+    console.error(`[perf] stage3 extract: ${((t3 - t2) / 1000).toFixed(1)}s  blocks=${blocks.length}`);
 
     // Stage 4: Adapter.push (all results in one batch)
     if (extractedResults.length > 0) {
+      const t4 = Date.now();
       try {
         const pushResult = await adapter.push(extractedResults);
 
@@ -315,6 +322,7 @@ export async function runPipeline(
         for (const error of pushResult.errors) {
           result.warnings.push(`Adapter error for ${error.signal}: ${error.reason}`);
         }
+        console.error(`[perf] stage4 write:   ${((Date.now() - t4) / 1000).toFixed(1)}s`);
       } catch (err) {
         result.fatal = true;
         result.error = `Fatal adapter error: ${err instanceof Error ? err.message : String(err)}`;
