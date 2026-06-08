@@ -8,6 +8,7 @@ import type { PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { getSessionContext } from "./context.js";
 
 export interface StoreContext {
   db: Database;
@@ -92,6 +93,8 @@ export function createMcpToolHandlers(stores: StoreContext) {
         chunks: Number((chunks.rows[0] as Record<string, unknown>).c),
       };
     },
+    get_session_context: ({ days }: { days?: number }) =>
+      getSessionContext(stores, days ?? 7),
   };
 }
 
@@ -168,6 +171,11 @@ export function createMcpServer(stores: StoreContext): McpServer {
     text(await tools.get_timeline(args)),
   );
   server.tool("get_health", {}, async () => text(await tools.get_health()));
+  server.tool(
+    "get_session_context",
+    { days: z.number().optional() },
+    async (args) => text(await tools.get_session_context(args)),
+  );
 
   return server;
 }
