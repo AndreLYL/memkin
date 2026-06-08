@@ -9,24 +9,7 @@ import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
 import { TagStore } from "../../src/store/tags.js";
 import { TimelineStore } from "../../src/store/timeline.js";
-
-// Helper: create a page and backdate its expires_at to simulate expiry
-export async function makeExpiredHotPage(
-  pages: PageStore,
-  pg: Database["pg"],
-  slug: string,
-  type: string,
-  entitySlug?: string,
-  graph?: GraphStore,
-): Promise<void> {
-  await pages.putPage(slug, `---\ntitle: ${slug}\ntype: ${type}\n---\n${type} content.`, {
-    halflife_days: 90,
-  });
-  await pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [slug]);
-  if (entitySlug && graph) {
-    await graph.addLink(slug, entitySlug, "mentions");
-  }
-}
+import { makeExpiredHotPage } from "./helpers.js";
 
 describe("consolidator rules", () => {
   it("NEVER_COMPRESS_TYPES contains decision, reference, and entity types", () => {

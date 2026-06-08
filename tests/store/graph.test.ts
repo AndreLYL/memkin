@@ -145,7 +145,7 @@ describe("GraphStore.getLinksForSlugs", () => {
     const map = await graph.getLinksForSlugs(["preferences/morning", "preferences/coding"]);
 
     expect(map.get("preferences/morning")).toHaveLength(1);
-    expect(map.get("preferences/morning")![0].to_slug).toBe("entities/alice");
+    expect(map.get("preferences/morning")?.[0].to_slug).toBe("entities/alice");
     expect(map.get("preferences/coding")).toHaveLength(1);
   });
 
