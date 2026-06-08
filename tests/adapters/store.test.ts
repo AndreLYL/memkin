@@ -650,7 +650,7 @@ To context`,
       const page = await pages.getPage("tasks/finish-the-report");
       expect(page).not.toBeNull();
       expect(page?.expires_at).not.toBeNull();
-      const expiresAt = new Date(page!.expires_at!);
+      const expiresAt = new Date(page?.expires_at ?? "");
       // expires_at should be within the last 5 seconds (stamped as NOW())
       expect(Math.abs(Date.now() - expiresAt.getTime())).toBeLessThan(5000);
     });
@@ -682,8 +682,8 @@ To context`,
       // open task: expires_at is computed from halflife_days (not NOW()), so it's in the future
       // It should NOT be null (halflife_days=90 gives a future expires_at)
       // But it should NOT be ~NOW() — it should be ~90 days from now
-      expect(page!.expires_at).not.toBeNull();
-      const daysFromNow = (new Date(page!.expires_at!).getTime() - Date.now()) / 86_400_000;
+      expect(page?.expires_at).not.toBeNull();
+      const daysFromNow = (new Date(page?.expires_at ?? "").getTime() - Date.now()) / 86_400_000;
       expect(daysFromNow).toBeGreaterThan(80);
       expect(daysFromNow).toBeLessThan(100);
     });

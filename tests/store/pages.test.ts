@@ -164,7 +164,7 @@ describe("PageStore", () => {
       const page = await store.putPage("decisions/d1", content, { halflife_days: 90 });
       expect(page.tier).toBe("hot");
       expect(page.expires_at).not.toBeNull();
-      const expiresAt = new Date(page.expires_at!);
+      const expiresAt = new Date(page.expires_at ?? "");
       const expected = new Date(Date.now() + 90 * 86_400_000);
       expect(Math.abs(expiresAt.getTime() - expected.getTime())).toBeLessThan(5000);
     });
