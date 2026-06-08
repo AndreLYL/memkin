@@ -87,6 +87,11 @@ async function askRequired(
   while (true) {
     const answer = await prompt.ask(question, defaultValue);
     if (answer) return answer;
+    // Input exhausted (piped/non-interactive) with no value for a required field —
+    // re-prompting would loop forever, so fail loudly instead.
+    if (prompt.isClosed()) {
+      throw new Error(`No input provided for required field: ${question}`);
+    }
   }
 }
 
@@ -195,6 +200,10 @@ async function setupOllama(prompt: Prompt, output: Writable): Promise<void> {
         break;
       }
       write(output, "  [xx] Still not reachable. Make sure 'ollama serve' is running.");
+      if (prompt.isClosed()) {
+        write(output, "  [!!] Skipping Ollama setup (input ended). You can run it later.");
+        return;
+      }
     }
   } else {
     write(output, "  [ok] Ollama is running");
@@ -249,6 +258,13 @@ async function buildInteractiveConfig(
 
     write(output, `  [xx] ${test.error}`);
     write(output, "");
+
+    // Input exhausted — re-prompting for new settings would loop forever. Proceed with
+    // what was entered rather than spinning.
+    if (prompt.isClosed()) {
+      write(output, "  [!!] Proceeding with the entered settings (input ended).");
+      break;
+    }
   }
 
   const { provider: llmProvider, model: llmModel, baseUrl, apiKey } = llmCfg;

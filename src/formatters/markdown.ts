@@ -167,6 +167,61 @@ export class MarkdownFormatter implements Formatter {
       }
     }
 
+    // Preferences Section
+    const preferences = result.preferences ?? [];
+    parts.push("## Preferences");
+    parts.push("");
+    if (preferences.length === 0) {
+      parts.push("No preferences extracted.");
+    } else {
+      for (const preference of preferences) {
+        parts.push(`### ${preference.summary}`);
+        parts.push("");
+
+        if (preference.detail) {
+          parts.push(`${preference.detail}`);
+          parts.push("");
+        }
+
+        parts.push(`**Category:** ${preference.category}`);
+
+        if (preference.entities.length > 0) {
+          parts.push(`**Entities:** ${preference.entities.join(", ")}`);
+        }
+
+        parts.push(`**Confidence:** ${preference.confidence}`);
+        parts.push("");
+      }
+    }
+
+    // References Section
+    const references = result.references ?? [];
+    parts.push("## References");
+    parts.push("");
+    if (references.length === 0) {
+      parts.push("No references extracted.");
+    } else {
+      for (const reference of references) {
+        parts.push(`### ${reference.title}`);
+        parts.push("");
+        parts.push(`<${reference.url}>`);
+        parts.push("");
+        parts.push(`${reference.summary}`);
+        parts.push("");
+
+        if (reference.trigger) {
+          parts.push(`**When:** ${reference.trigger}`);
+        }
+
+        if (reference.entities.length > 0) {
+          parts.push(`**Entities:** ${reference.entities.join(", ")}`);
+        }
+
+        parts.push(`**Confidence:** ${reference.confidence}`);
+        parts.push("");
+      }
+    }
+
     return parts.join("\n");
   }
 }
