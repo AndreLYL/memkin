@@ -9,6 +9,7 @@ import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { getSessionContext } from "./context.js";
+import { getEntityProfile, listSignalsByEntity } from "./entity.js";
 
 export interface StoreContext {
   db: Database;
@@ -94,6 +95,18 @@ export function createMcpToolHandlers(stores: StoreContext) {
       };
     },
     get_session_context: ({ days }: { days?: number }) => getSessionContext(stores, days ?? 7),
+    list_signals_by_entity: ({
+      entity_slug,
+      signal_types,
+      limit,
+    }: {
+      entity_slug: string;
+      signal_types?: string[];
+      limit?: number;
+    }) => listSignalsByEntity(stores, entity_slug, signal_types, limit ?? 20),
+
+    get_entity_profile: ({ entity_slug }: { entity_slug: string }) =>
+      getEntityProfile(stores, entity_slug),
   };
 }
 
@@ -172,6 +185,19 @@ export function createMcpServer(stores: StoreContext): McpServer {
   server.tool("get_health", {}, async () => text(await tools.get_health()));
   server.tool("get_session_context", { days: z.number().optional() }, async (args) =>
     text(await tools.get_session_context(args)),
+  );
+  server.tool(
+    "list_signals_by_entity",
+    {
+      entity_slug: z.string(),
+      signal_types: z.array(z.string()).optional(),
+      limit: z.number().optional(),
+    },
+    async (args) => text(await tools.list_signals_by_entity(args)),
+  );
+
+  server.tool("get_entity_profile", { entity_slug: z.string() }, async (args) =>
+    text(await tools.get_entity_profile(args)),
   );
 
   return server;
