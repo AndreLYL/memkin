@@ -2,11 +2,13 @@ import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../cor
 import { FeishuAuthManager } from "./auth.js";
 import { CursorStaging } from "./cursor-staging.js";
 import { FeishuHttpClient } from "./http-client.js";
+import { LarkCliHttpClient } from "./lark-cli-client.js";
 import { FeishuRateLimiter } from "./rate-limiter.js";
 import type { FeishuSource } from "./sources/base.js";
 import { CalendarSource } from "./sources/calendar.js";
 import { DMSource } from "./sources/dm.js";
 import { DocSource } from "./sources/docs.js";
+import { MailSource } from "./sources/mail.js";
 import { MessageSource } from "./sources/messages.js";
 import { TaskSource } from "./sources/tasks.js";
 import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types.js";
@@ -14,7 +16,7 @@ import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types.js";
 export class FeishuCollector implements Collector, CursorProvider {
   readonly id = "feishu";
   readonly name = "Feishu";
-  readonly description = "Feishu Open API collector (messages, calendar, docs, tasks, dm)";
+  readonly description = "Feishu Open API collector (messages, calendar, docs, tasks, dm, mail)";
 
   private readonly auth: FeishuAuthManager;
   private readonly client: FeishuHttpClient;
@@ -56,6 +58,16 @@ export class FeishuCollector implements Collector, CursorProvider {
           lookbackDays: config.sources.dm.lookback_days ?? 30,
           selfOpenId: config.sources.dm.self_open_id ?? "",
           overlapMs: config.sources.dm.overlap_ms,
+        }),
+      );
+    }
+
+    if (config.sources.mail?.enabled) {
+      const larkClient = new LarkCliHttpClient(config.lark_bin);
+      this.sources.push(
+        new MailSource(larkClient, {
+          lookbackDays: config.sources.mail.lookback_days ?? 30,
+          overlapMs: config.sources.mail.overlap_ms,
         }),
       );
     }
