@@ -208,4 +208,36 @@ describe("MCP server", () => {
       expect(result.timeline).toHaveLength(0);
     });
   });
+
+  describe("query tier weighting", () => {
+    it("hot pages score higher than cold pages with identical content", async () => {
+      const tools = createMcpToolHandlers(stores);
+
+      await tools.put_page({
+        slug: "knowledge/hot-page",
+        content: "---\ntitle: Hot Knowledge\ntype: knowledge\n---\nPGLite is a WASM SQLite.",
+      });
+      await tools.put_page({
+        slug: "knowledge/cold-page",
+        content: "---\ntitle: Cold Knowledge\ntype: knowledge\n---\nPGLite is a WASM SQLite.",
+      });
+
+      // Force cold-page to cold tier
+      await stores.db.pg.query(
+        "UPDATE pages SET tier = 'cold' WHERE slug = 'knowledge/cold-page'",
+      );
+
+      const results = await tools.query({ query: "PGLite WASM SQLite" });
+      const hotIdx = (results as Array<{ slug: string }>).findIndex(
+        (r) => r.slug === "knowledge/hot-page",
+      );
+      const coldIdx = (results as Array<{ slug: string }>).findIndex(
+        (r) => r.slug === "knowledge/cold-page",
+      );
+
+      expect(hotIdx).toBeGreaterThanOrEqual(0);
+      expect(coldIdx).toBeGreaterThanOrEqual(0);
+      expect(hotIdx).toBeLessThan(coldIdx);
+    });
+  });
 });
