@@ -48,6 +48,7 @@ const COMPILED_TRUTH_BOOST = 2.0;
 const BACKLINK_BOOST_FACTOR = 0.05;
 const FRESHNESS_HALF_LIFE_DAYS = 90;
 const FRESHNESS_BOOST_FACTOR = 0.3;
+const TIER_WEIGHTS: Record<string, number> = { hot: 1.0, warm: 0.8, cold: 0.6 };
 
 /**
  * Compute freshness multiplier using exponential decay.
@@ -215,7 +216,19 @@ export class SearchEngine {
       }
     }
 
+    // Tier weighting: batch-fetch tier for all scored slugs in one query
     const slugs = [...scoreMap.keys()];
+    if (slugs.length > 0) {
+      const tierRows = await this.pg.query<{ slug: string; tier: string }>(
+        `SELECT slug, tier FROM pages WHERE slug = ANY($1::text[])`,
+        [slugs],
+      );
+      const tierMap = new Map(tierRows.rows.map((r) => [r.slug, r.tier]));
+      for (const entry of scoreMap.values()) {
+        const tier = tierMap.get(entry.slug) ?? "hot";
+        entry.score *= TIER_WEIGHTS[tier] ?? 1.0;
+      }
+    }
     if (slugs.length > 0) {
       for (const slug of slugs) {
         const bl = await this.pg.query<CountRow>(
