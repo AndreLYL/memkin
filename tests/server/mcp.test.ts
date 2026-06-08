@@ -81,4 +81,42 @@ describe("MCP server", () => {
     expect(await tools.get_chunks({ slug: "entities/alice" })).toHaveLength(1);
     expect((await tools.get_health()).status).toBe("ok");
   });
+
+  describe("get_session_context", () => {
+    it("returns markdown overview containing decisions, tasks, and preferences", async () => {
+      const tools = createMcpToolHandlers(stores);
+      await tools.put_page({
+        slug: "decisions/use-pglite",
+        content: "---\ntitle: Use PGLite\ntype: decision\n---\nChose PGLite for embedded DB.",
+      });
+      await tools.put_page({
+        slug: "tasks/implement-spec3",
+        content: "---\ntitle: Implement Spec 3\ntype: task\nstatus: open\n---\nAdd MCP tools.",
+      });
+      await tools.put_page({
+        slug: "preferences/dark-mode",
+        content: "---\ntitle: Prefers dark mode\ntype: preference\n---\nUser likes dark mode.",
+      });
+
+      const result = await tools.get_session_context({});
+      expect(typeof result).toBe("string");
+      expect(result).toContain("Use PGLite");
+      expect(result).toContain("Implement Spec 3");
+      expect(result).toContain("Prefers dark mode");
+      expect(result.length).toBeLessThan(5000);
+    });
+
+    it("returns a meaningful string even with empty database", async () => {
+      const tools = createMcpToolHandlers(stores);
+      const result = await tools.get_session_context({});
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("respects the days parameter", async () => {
+      const tools = createMcpToolHandlers(stores);
+      const result = await tools.get_session_context({ days: 1 });
+      expect(typeof result).toBe("string");
+    });
+  });
 });
