@@ -119,4 +119,93 @@ describe("MCP server", () => {
       expect(typeof result).toBe("string");
     });
   });
+
+  describe("list_signals_by_entity", () => {
+    it("returns signals linked to an entity via mentions", async () => {
+      const tools = createMcpToolHandlers(stores);
+      await tools.put_page({
+        slug: "entities/alice",
+        content: "---\ntitle: Alice\ntype: person\n---\nAlice.",
+      });
+      await tools.put_page({
+        slug: "decisions/d1",
+        content: "---\ntitle: Decision 1\ntype: decision\n---\nA decision about Alice.",
+      });
+      await tools.add_link({ from: "decisions/d1", to: "entities/alice", type: "mentions" });
+
+      const result = await tools.list_signals_by_entity({ entity_slug: "entities/alice" });
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty("slug");
+      expect(result[0]).toHaveProperty("type");
+    });
+
+    it("filters by signal_types when provided", async () => {
+      const tools = createMcpToolHandlers(stores);
+      await tools.put_page({
+        slug: "entities/bob",
+        content: "---\ntitle: Bob\ntype: person\n---\nBob.",
+      });
+      await tools.put_page({
+        slug: "decisions/d2",
+        content: "---\ntitle: D2\ntype: decision\n---\nDecision.",
+      });
+      await tools.put_page({
+        slug: "knowledge/k1",
+        content: "---\ntitle: K1\ntype: knowledge\n---\nKnowledge.",
+      });
+      await tools.add_link({ from: "decisions/d2", to: "entities/bob", type: "mentions" });
+      await tools.add_link({ from: "knowledge/k1", to: "entities/bob", type: "mentions" });
+
+      const result = await tools.list_signals_by_entity({
+        entity_slug: "entities/bob",
+        signal_types: ["decision"],
+      });
+      expect(result.every((r: { type: string }) => r.type === "decision")).toBe(true);
+    });
+
+    it("returns empty array for entity with no backlinks", async () => {
+      const tools = createMcpToolHandlers(stores);
+      await tools.put_page({
+        slug: "entities/lonely",
+        content: "---\ntitle: Lonely\ntype: person\n---\nLonely.",
+      });
+      const result = await tools.list_signals_by_entity({ entity_slug: "entities/lonely" });
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe("get_entity_profile", () => {
+    it("returns structured profile with page, grouped signals, and timeline", async () => {
+      const tools = createMcpToolHandlers(stores);
+      await tools.put_page({
+        slug: "entities/carol",
+        content: "---\ntitle: Carol\ntype: person\n---\nCarol is a product manager.",
+      });
+      await tools.put_page({
+        slug: "decisions/carol-d1",
+        content: "---\ntitle: Chose React\ntype: decision\n---\nDecision body.",
+      });
+      await tools.add_link({ from: "decisions/carol-d1", to: "entities/carol", type: "mentions" });
+      await stores.timeline.addEntry("entities/carol", {
+        date: "2026-05-01",
+        summary: "Kickoff meeting",
+      });
+
+      const result = await tools.get_entity_profile({ entity_slug: "entities/carol" });
+      expect(result).toHaveProperty("page");
+      expect(result).toHaveProperty("signals");
+      expect(result).toHaveProperty("timeline");
+      expect((result.page as { title: string }).title).toBe("Carol");
+      expect(Array.isArray(result.timeline)).toBe(true);
+    });
+
+    it("returns null page for non-existent entity", async () => {
+      const tools = createMcpToolHandlers(stores);
+      const result = await tools.get_entity_profile({ entity_slug: "entities/ghost" });
+      expect(result.page).toBeNull();
+      expect(result.signals).toEqual({});
+      expect(result.timeline).toHaveLength(0);
+    });
+  });
 });
