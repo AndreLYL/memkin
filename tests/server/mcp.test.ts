@@ -223,9 +223,7 @@ describe("MCP server", () => {
       });
 
       // Force cold-page to cold tier
-      await stores.db.pg.query(
-        "UPDATE pages SET tier = 'cold' WHERE slug = 'knowledge/cold-page'",
-      );
+      await stores.db.pg.query("UPDATE pages SET tier = 'cold' WHERE slug = 'knowledge/cold-page'");
 
       const results = await tools.query({ query: "PGLite WASM SQLite" });
       const hotIdx = (results as Array<{ slug: string }>).findIndex(
