@@ -139,8 +139,7 @@ describe("migration runner", () => {
   it("backfills expires_at for existing hot pages with halflife_days", async () => {
     const freshPg = new PGlite({ extensions: { vector } });
     try {
-      const schemaSql = readFileSync(schemaPath, "utf-8");
-      await freshPg.exec(schemaSql);
+      await freshPg.exec(loadSchemaSql());
       // Insert legacy row that has halflife_days but no expires_at
       await freshPg.query(
         `INSERT INTO pages (slug, type, title, compiled_truth, halflife_days) VALUES ($1, $2, $3, $4, $5)`,
