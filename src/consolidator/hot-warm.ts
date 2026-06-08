@@ -71,9 +71,9 @@ export async function consolidateHotToWarm(stores: HotWarmStores, dryRun = false
 
     // Collect all mentioned entities across all pages in this group
     const allLinks = pages.flatMap((p) => linksMap.get(p.slug) ?? []);
-    const mentionedEntities = [...new Set(
-      allLinks.filter((l) => l.link_type === "mentions").map((l) => l.to_slug)
-    )].sort();
+    const mentionedEntities = [
+      ...new Set(allLinks.filter((l) => l.link_type === "mentions").map((l) => l.to_slug)),
+    ].sort();
 
     const frontmatter: Record<string, unknown> = {
       title: `Consolidated ${type} (${entitySlug === "__none__" ? "unanchored" : entitySlug})`,

@@ -197,12 +197,20 @@ describe("Consolidator", () => {
 
       // First batch: create two expired hot pages → produces one warm aggregate
       await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/carol-p1", "preference",
-        "entities/carol", stores.graph,
+        stores.pages,
+        db.pg,
+        "preferences/carol-p1",
+        "preference",
+        "entities/carol",
+        stores.graph,
       );
       await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/carol-p2", "preference",
-        "entities/carol", stores.graph,
+        stores.pages,
+        db.pg,
+        "preferences/carol-p2",
+        "preference",
+        "entities/carol",
+        stores.graph,
       );
       const consolidator = new Consolidator(stores);
       await consolidator.consolidateHot();
@@ -213,8 +221,12 @@ describe("Consolidator", () => {
 
       // Second batch: a new hot preference arrives for the same entity
       await makeExpiredHotPage(
-        stores.pages, db.pg, "preferences/carol-p3", "preference",
-        "entities/carol", stores.graph,
+        stores.pages,
+        db.pg,
+        "preferences/carol-p3",
+        "preference",
+        "entities/carol",
+        stores.graph,
       );
       await consolidator.consolidateHot();
 
