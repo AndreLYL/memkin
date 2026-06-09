@@ -30,7 +30,7 @@ describe("backfill routes", () => {
   describe("GET /api/backfill/status", () => {
     it("returns current job status", async () => {
       const job = makeJob({ state: "idle", total_messages: 0, total_blocks: 0 });
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/status");
       expect(res.status).toBe(200);
       const body = (await res.json()) as BackfillStatus;
@@ -41,7 +41,7 @@ describe("backfill routes", () => {
   describe("POST /api/backfill/start", () => {
     it("returns 400 when since_ms is missing", async () => {
       const job = makeJob();
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,7 +52,7 @@ describe("backfill routes", () => {
 
     it("returns 400 when source_types is missing or empty", async () => {
       const job = makeJob();
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,7 +64,7 @@ describe("backfill routes", () => {
     it("returns 409 when job is already running", async () => {
       const job = makeJob({ state: "running" });
       vi.spyOn(job, "start");
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,7 +77,7 @@ describe("backfill routes", () => {
     it("calls job.start and returns 202 when idle", async () => {
       const job = makeJob({ state: "idle" });
       vi.spyOn(job, "start");
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,7 +94,7 @@ describe("backfill routes", () => {
     it("calls job.cancel and returns 200", async () => {
       const job = makeJob();
       vi.spyOn(job, "cancel");
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/cancel", { method: "POST" });
       expect(res.status).toBe(200);
       expect(job.cancel).toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe("backfill routes", () => {
     it("calls job.reset and returns 200", async () => {
       const job = makeJob();
       vi.spyOn(job, "reset");
-      const app = createBackfillRoutes(job, makeStores(), "/fake/config.yaml");
+      const app = createBackfillRoutes(job, makeStores());
       const res = await app.request("/api/backfill/reset", { method: "POST" });
       expect(res.status).toBe(200);
       expect(job.reset).toHaveBeenCalled();
@@ -126,7 +126,7 @@ describe("backfill routes", () => {
           },
         },
       } as never;
-      const app = createBackfillRoutes(makeJob(), stores, "/fake/config.yaml");
+      const app = createBackfillRoutes(makeJob(), stores);
       const res = await app.request("/api/backfill/coverage");
       expect(res.status).toBe(200);
       const body = (await res.json()) as { buckets: Array<{ week_start: number; count: number }> };

@@ -24,7 +24,6 @@ ORDER BY week_start_ms
 export function createBackfillRoutes(
   job: BackfillJob,
   stores: StoreContext,
-  configPath: string,
 ): Hono {
   const app = new Hono();
 
@@ -150,5 +149,5 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 export function createDefaultBackfillRoutes(stores: StoreContext, configPath: string): Hono {
   const runForSource = buildRunForSource(stores, configPath);
   const job = new BackfillJobClass(runForSource);
-  return createBackfillRoutes(job, stores, configPath);
+  return createBackfillRoutes(job, stores);
 }
