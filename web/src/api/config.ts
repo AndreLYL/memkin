@@ -39,6 +39,18 @@ export interface WizardFeishuConfig {
   chat_ids?: string[];
 }
 
+export interface SchedulerSourceConfig {
+  enabled?: boolean;
+  interval_secs?: number;
+}
+
+export interface SchedulerConfig {
+  enabled?: boolean;
+  tick_interval_secs?: number;
+  defaults?: { interval_secs?: number };
+  sources?: Record<string, SchedulerSourceConfig>;
+}
+
 export interface WizardConfig {
   llm?: WizardLLMConfig;
   embedding?: WizardEmbeddingConfig;
@@ -48,6 +60,7 @@ export interface WizardConfig {
   };
   store?: { data_dir?: string };
   adapters?: { file?: { enabled: boolean; output_dir: string } };
+  scheduler?: SchedulerConfig;
 }
 
 export interface ConfigDiagnostic {
