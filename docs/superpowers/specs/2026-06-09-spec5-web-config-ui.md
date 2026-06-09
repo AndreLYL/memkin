@@ -22,7 +22,7 @@ TUI 保留不动。Web UI 是第三条路径，用户自行选择。
 **不是** 直接用 app_id/secret 换 tenant token。
 
 这意味着：
-- 用户在使用飞书功能前，必须先在终端运行 `lark auth login` 完成登录
+- 用户在使用飞书功能前，必须先在终端运行 `lark CLI 的登录命令（见 lark-cli 文档）` 完成登录
 - Web 向导无法替代这一步
 - 飞书连通测试的本质是 `lark auth status`（`LarkCliHttpClient.healthCheck()` 已实现），而不是测试 app_id/secret
 - 群聊列表通过 `lark --as user api GET /open-apis/im/v1/chats` 拉取，走用户授权，不走 app 凭证
@@ -76,7 +76,7 @@ memoark serve（无 memoark.yaml）
 不重写以下已有实现，直接调用：
 - `src/setup/connection-tests.ts` — `testLLMConnection()`, `testEmbeddingConnection()`
 - `src/config-center/secrets.ts` — `maskSecret()`（API Key 末 4 位掩码）
-- `src/config-center/validation.ts` — `validateConfig()`
+- `src/config-center/validation.ts` — `validateDraft()`（返回 `ConfigDiagnostic[]`，三级 severity：error/warning/info；API 层需据此区分响应）
 - `src/collectors/feishu/lark-cli-client.ts` — `LarkCliHttpClient.healthCheck()`（飞书 auth 检测）
 
 ### 安全
@@ -109,11 +109,11 @@ Step 3 — Embedding 配置
 
 Step 4 — 飞书配置（可跳过）
   ├─ "我使用飞书" 开关（关闭则跳至 Step 7）
-  ├─ ⚠️ 前置提醒："飞书功能需先在终端运行 lark auth login 完成登录"
+  ├─ ⚠️ 前置提醒："飞书功能需先在终端运行 lark CLI 的登录命令（见 lark-cli 文档） 完成登录"
   ├─ App ID / App Secret（存入 memoark.yaml 供 lark CLI 配置参考）
   └─ [检测 lark auth 状态] → 调用 GET /api/feishu/health（执行 lark auth status）
        ✓ 已登录 → 可继续
-       ✗ 未登录 → 显示提示："请先在终端执行 lark auth login，完成后再点击检测"
+       ✗ 未登录 → 显示提示："请先在终端执行 lark CLI 的登录命令（见 lark-cli 文档），完成后再点击检测"
 
 Step 5 — 飞书数据源开关（仅飞书开启时）
   ├─ 私聊 DM        [开/关]
@@ -162,7 +162,7 @@ SetupServer 和主 server 共享同一套路由处理器（`src/server/config-ro
 | Method | Path | 说明 | 复用 |
 |--------|------|------|------|
 | GET | `/api/config` | 返回当前 memoark.yaml 解析为 JSON | — |
-| POST | `/api/config` | 写入 memoark.yaml | `validateConfig()` |
+| POST | `/api/config` | 写入 memoark.yaml；调 `validateDraft()` 返回诊断，error 级拒绝写入 | `validateDraft()` |
 | POST | `/api/test/llm` | 测试 LLM 连接，返回 `{ ok, latency_ms, error? }` | `testLLMConnection()` |
 | POST | `/api/test/embedding` | 测试 Embedding 连接，返回 `{ ok, error? }` | `testEmbeddingConnection()` |
 | GET | `/api/feishu/health` | 检测 lark auth 状态，返回 `{ ok, message }` | `LarkCliHttpClient.healthCheck()` |
