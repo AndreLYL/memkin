@@ -9,6 +9,7 @@ import { SearchPage } from "./pages/search";
 import { TimelinePage } from "./pages/Timeline";
 import { ConfigPage } from "./pages/config/index";
 import { SetupWizard } from "./pages/setup/index";
+import { FetchPage } from "./pages/fetch/index";
 
 export const router = createBrowserRouter([
   { path: "setup", element: <SetupWizard /> },
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: "timeline", element: <TimelinePage /> },
+      { path: "fetch", element: <FetchPage /> },
       { path: "graph", element: <GraphPage /> },
       { path: "entity/*", element: <EntityDetail /> },
       { path: "entities", element: <Navigate to="/pages" replace /> },
