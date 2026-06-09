@@ -102,7 +102,13 @@ program
   .option("--force", "Overwrite existing configuration")
   .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
   .option("--no-tui", "Use non-TUI fallback")
+  .option("--web", "Launch browser-based setup UI")
   .action(async (options) => {
+    if (options.web) {
+      const { startSetupServer } = await import("./server/setup-server.js");
+      await startSetupServer({ configPath: options.config });
+      return;
+    }
     try {
       const { runInit } = await import("./setup/index.js");
       await runInit({
@@ -425,6 +431,15 @@ configCmd
     }
   });
 
+configCmd
+  .command("edit")
+  .description("Edit configuration in browser UI")
+  .option("--web", "Launch browser-based settings UI (default behavior)")
+  .action(async () => {
+    const { startSetupServer } = await import("./server/setup-server.js");
+    await startSetupServer();
+  });
+
 /**
  * Sources subcommand group
  */
@@ -482,6 +497,13 @@ program
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
   .action(async (options) => {
+    const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
+    if (!existsSync(serveConfigPath)) {
+      console.error(
+        "No configuration file found.\nRun `memoark init` (TUI) or `memoark init --web` (browser) to set up Memoark.",
+      );
+      process.exit(1);
+    }
     const config = loadConfig(options.config);
     const stateDir = ensureStateDir();
     const stores = await createStores(config);
