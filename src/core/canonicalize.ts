@@ -4,7 +4,7 @@ import type {
   InteractionTag,
   RawMessage,
   SourceType,
-} from "./types";
+} from "./types.js";
 
 export function canonicalize(block: ConversationBlock): CanonicalisedBlock {
   const source_type = inferSourceType(block.channel);
