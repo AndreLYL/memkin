@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -19,6 +18,7 @@ import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { Scheduler } from "./daemon/scheduler.js";
+import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
 import { createApiApp, type DaemonStatus } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -84,16 +84,12 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
   };
 }
 
-const { version: pkgVersion } = createRequire(import.meta.url)("../package.json") as {
-  version: string;
-};
-
 const program = new Command();
 
 program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
-  .version(pkgVersion);
+  .version(VERSION);
 
 program
   .command("init")

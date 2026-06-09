@@ -40,16 +40,29 @@ npx memoark@latest          # run without installing
 npm install -g memoark      # global install
 ```
 
-## Roadmap: standalone single-file binaries
+## Standalone single-file binaries — status
 
-A future enhancement is shipping prebuilt single-file executables (no Node
-required) for Windows / macOS / Linux via `bun build --compile`, attached to the
-GitHub Release. This needs two prerequisites first (tracked separately):
+`bun run compile` produces a single executable (`dist-bin/memoark`) via
+`bun build --compile`. Project-owned assets are already self-contained: schema,
+migrations, extractor prompts, and the version are embedded as constants, and
+`react-devtools-core` is bundled so the binary starts.
 
-1. Embed remaining runtime assets (`schema.sql` and the extractor prompt
-   markdown) the same way migrations were inlined, so the compiled binary has no
-   filesystem dependency.
-2. Resolve `ink`'s optional `react-devtools-core` import (add the dependency or
-   lazy-load the TUI) so the binary starts cleanly.
+**Current limitation:** commands that open the database fail in the compiled
+binary with `Extension bundle not found: vector.tar.gz` / `ENOENT pglite.data`.
+PGlite resolves its own WASM runtime and the pgvector extension bundle from the
+filesystem at runtime, and `bun build --compile` does not embed those transitive
+WASM assets (see [oven-sh/bun#6567](https://github.com/oven-sh/bun/issues/6567)).
+So today the binary runs only the non-DB commands (`--version`, `--help`,
+`doctor`). Because Memoark is database-centric, **npm/npx is the supported
+install path** and the release workflow ships that.
+
+Paths to a real "download-and-run" experience (pick one later):
+
+1. **Ship binary + a small assets folder** (PGlite wasm/data + `vector.tar.gz`)
+   and point PGlite at them — no longer truly single-file, but no Node needed.
+2. **Tauri desktop app** — bundle the Bun backend as a sidecar with PGlite's
+   assets as real files; this sidesteps the single-file WASM limitation and is
+   also the better fit for the non-technical, double-click-to-run audience.
+3. Wait for Bun #6567 / wire PGlite's explicit `wasmModule` + `fsBundle` blobs.
 
 See `docs/PACKAGING_AND_README_RESEARCH.md` §4 for the full feasibility analysis.
