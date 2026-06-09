@@ -37,18 +37,17 @@ function runCli(args: string[], options: Parameters<typeof spawnSync>[2] = {}) {
 describe("CLI", () => {
   describe("build output", () => {
     test.skipIf(!existsSync(DIST_CLI))(
-      "includes runtime assets required by the compiled CLI",
+      "embeds runtime assets so the built CLI runs on plain Node",
       () => {
-        expect(existsSync(join(PROJECT_ROOT, "dist", "store", "schema.sql"))).toBe(true);
-        expect(existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "system.md"))).toBe(
-          true,
-        );
-        expect(
-          existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "signal-extract.md")),
-        ).toBe(true);
-        expect(
-          existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "significance.md")),
-        ).toBe(true);
+        // schema.sql + extractor prompts are inlined into this generated module at build
+        // time, so the dist (and a `bun --compile` binary) need no loose asset files.
+        expect(existsSync(join(PROJECT_ROOT, "dist", "embedded-assets.generated.js"))).toBe(true);
+
+        // Proves the embedded-asset chain resolves under Node ESM — guards against the
+        // packaging regressions that previously crashed `node dist/cli.js`.
+        const result = runCli(["--version"]);
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
       },
     );
   });

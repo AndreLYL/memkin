@@ -5,14 +5,10 @@
  * L2: LLM-based significance judgment
  */
 
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { ConversationBlock } from "../core/types.js";
+import { PROMPTS } from "../embedded-assets.generated.js";
 import type { LLMProvider } from "./providers/types.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export type NoiseFilterVerdict = "pass" | "skip" | "escalate";
 
@@ -130,13 +126,8 @@ async function filterL2(
   block: ConversationBlock,
   provider: LLMProvider,
 ): Promise<NoiseFilterVerdict> {
-  let promptTemplate: string;
-  try {
-    const promptPath = join(__dirname, "prompts", "significance.md");
-    promptTemplate = readFileSync(promptPath, "utf-8");
-  } catch {
-    return "pass";
-  }
+  const promptTemplate = PROMPTS["significance.md"];
+  if (promptTemplate === undefined) return "pass";
 
   // Format conversation block for prompt
   const blockSummary = {

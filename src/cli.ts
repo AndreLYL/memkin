@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
+import { VERSION } from "./embedded-assets.generated.js";
 import {
   createClaudeCodeCollector,
   createCodexCollector,
@@ -84,16 +84,12 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
   };
 }
 
-const { version: pkgVersion } = createRequire(import.meta.url)("../package.json") as {
-  version: string;
-};
-
 const program = new Command();
 
 program
   .name("memoark")
   .description("Local-first personal memory extraction and storage")
-  .version(pkgVersion);
+  .version(VERSION);
 
 program
   .command("init")
