@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { createFeishuCollector } from "../collectors/feishu/index.js";
 import { loadConfig } from "../core/config.js";
-import { buildPipelineConfig } from "../core/pipeline-factory.js";
 import { runPipeline } from "../core/pipeline.js";
+import { buildPipelineConfig } from "../core/pipeline-factory.js";
 import { createLLMProvider } from "../extractors/providers/index.js";
+import type { StoreContext } from "./api.js";
 import type { BackfillJob, BackfillSourceType, RunForSourceFn } from "./backfill-job.js";
 import { BackfillJob as BackfillJobClass } from "./backfill-job.js";
-import type { StoreContext } from "./api.js";
 
 const COVERAGE_SQL = `
 SELECT
@@ -21,10 +21,7 @@ GROUP BY week_start_ms
 ORDER BY week_start_ms
 `;
 
-export function createBackfillRoutes(
-  job: BackfillJob,
-  stores: StoreContext,
-): Hono {
+export function createBackfillRoutes(job: BackfillJob, stores: StoreContext): Hono {
   const app = new Hono();
 
   app.get("/api/backfill/status", (c) => {
@@ -32,17 +29,20 @@ export function createBackfillRoutes(
   });
 
   app.post("/api/backfill/start", async (c) => {
-    const body = await c.req.json<{ since_ms?: unknown; source_types?: unknown }>().catch(() => ({}));
+    const body = (await c.req.json<unknown>().catch(() => ({}))) as {
+      since_ms?: unknown;
+      source_types?: unknown;
+    };
 
     if (typeof body.since_ms !== "number") {
       return c.json({ error: "Missing or invalid required parameter: since_ms (number)" }, 400);
     }
 
-    if (
-      !Array.isArray(body.source_types) ||
-      body.source_types.length === 0
-    ) {
-      return c.json({ error: "Missing or invalid required parameter: source_types (non-empty array)" }, 400);
+    if (!Array.isArray(body.source_types) || body.source_types.length === 0) {
+      return c.json(
+        { error: "Missing or invalid required parameter: source_types (non-empty array)" },
+        400,
+      );
     }
 
     const status = job.getStatus();

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { BackfillJob } from "./backfill-job.js";
 import type { PipelineResult } from "../core/pipeline.js";
+import { BackfillJob } from "./backfill-job.js";
 
 function makeResult(overrides: Partial<PipelineResult> = {}): PipelineResult {
   return {
@@ -41,7 +41,9 @@ describe("BackfillJob", () => {
   });
 
   it("transitions to done after all sources complete", async () => {
-    const runForSource = vi.fn().mockResolvedValue(makeResult({ totalMessages: 10, totalBlocks: 3 }));
+    const runForSource = vi
+      .fn()
+      .mockResolvedValue(makeResult({ totalMessages: 10, totalBlocks: 3 }));
     const job = new BackfillJob(runForSource);
     job.start({ since_ms: 0, source_types: ["dm", "mail"] });
     await wait(20);
@@ -53,7 +55,9 @@ describe("BackfillJob", () => {
   });
 
   it("marks source as error when runForSource returns fatal", async () => {
-    const runForSource = vi.fn().mockResolvedValue(makeResult({ fatal: true, error: "auth failed" }));
+    const runForSource = vi
+      .fn()
+      .mockResolvedValue(makeResult({ fatal: true, error: "auth failed" }));
     const job = new BackfillJob(runForSource);
     job.start({ since_ms: 0, source_types: ["mail"] });
     await wait(20);
@@ -130,9 +134,16 @@ describe("BackfillJob", () => {
 
   it("can start again after reset from done state", async () => {
     const runForSource = vi.fn().mockResolvedValue({
-      fatal: false, totalMessages: 3, totalBlocks: 1,
-      okBlocks: 1, skippedBlocks: 0, failedBlocks: 0,
-      okMessages: [], skippedMessages: [], failedMessages: [], warnings: [],
+      fatal: false,
+      totalMessages: 3,
+      totalBlocks: 1,
+      okBlocks: 1,
+      skippedBlocks: 0,
+      failedBlocks: 0,
+      okMessages: [],
+      skippedMessages: [],
+      failedMessages: [],
+      warnings: [],
     });
     const job = new BackfillJob(runForSource);
     job.start({ since_ms: 0, source_types: ["dm"] });
