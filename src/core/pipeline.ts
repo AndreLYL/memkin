@@ -336,7 +336,8 @@ export async function runPipeline(
       if (isCursorProvider(opts.source)) {
         const cursors = opts.source.getCommittableCursors();
         if (Object.keys(cursors).length > 0) {
-          cursorStore.setJSON(opts.source.id, cursors);
+          const existing = (cursorStore.getJSON(opts.source.id) as Record<string, unknown>) ?? {};
+          cursorStore.setJSON(opts.source.id, { ...existing, ...cursors });
           cursorStore.commit();
         }
       } else if (result.lastSuccessMessage?.metadata?.cursor) {
