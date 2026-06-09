@@ -1,6 +1,6 @@
 {
   "name": "memoark",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first personal memory extraction and storage",
   "type": "module",
   "bin": {
@@ -14,8 +14,16 @@
     "dist/",
     "bin/",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
+  "homepage": "https://github.com/AndreLYL/memoark#readme",
+  "bugs": {
+    "url": "https://github.com/AndreLYL/memoark/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "bun src/cli.ts",
     "test": "vitest run",
