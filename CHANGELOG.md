@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-09
+
+### Added
+
+- **npm distribution**: published to npm — install with `npx memoark` or `npm i -g memoark` (no clone/`npm link` needed). Requires Node.js >= 18.
+- **Automated releases**: `.github/workflows/release.yml` publishes to npm (with provenance) and creates a GitHub Release on a `v*` tag; includes a `node dist/cli.js --help` smoke gate. See `RELEASING.md`.
+
+### Fixed
+
+- **Packaging**: the built `dist/` (and a future `bun --compile` binary) now run on plain Node. Migrations are inlined as constants instead of read from `.sql` files that were never shipped (fixed `ENOENT 001_lifecycle_columns.sql`), and 14 relative imports got explicit `.js` extensions (fixed `ERR_MODULE_NOT_FOUND` under Node ESM). The previously failing `cli.test` now passes.
+
 ## [0.2.0] - 2026-05-26
 
 ### Added

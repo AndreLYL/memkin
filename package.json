@@ -1,6 +1,6 @@
 {
   "name": "memoark",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first personal memory extraction and storage",
   "type": "module",
   "bin": {
@@ -14,13 +14,23 @@
     "dist/",
     "bin/",
     "README.md",
+    "README.en.md",
     "LICENSE"
   ],
+  "homepage": "https://github.com/AndreLYL/memoark#readme",
+  "bugs": {
+    "url": "https://github.com/AndreLYL/memoark/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "bun src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest --watch",
-    "build": "tsc && node scripts/post-build.mjs",
+    "gen:assets": "node scripts/gen-embedded-assets.mjs",
+    "build": "node scripts/gen-embedded-assets.mjs && tsc && node scripts/post-build.mjs",
+    "compile": "node scripts/gen-embedded-assets.mjs && bun build --compile src/cli.ts --outfile dist-bin/memoark",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
     "lint": "biome check src/ tests/",
@@ -39,6 +49,7 @@
     "ink": "^7.0.5",
     "openai": "^6.39.0",
     "react": "^19.2.7",
+    "react-devtools-core": "^6.1.5",
     "yaml": "^2.3.4",
     "zod": "^3.22.4"
   },

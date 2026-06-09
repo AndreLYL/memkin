@@ -1,16 +1,12 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
+import { SCHEMA_SQL } from "../embedded-assets.generated.js";
 import { runMigrations } from "./migrations/index.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
 /**
- * Read the base `schema.sql` template and resolve the `__EMBEDDING_DIM__` placeholder
+ * Resolve the embedded base `schema.sql` template's `__EMBEDDING_DIM__` placeholder
  * (the `vector(__EMBEDDING_DIM__)` column typemod) to a concrete dimension count.
  *
  * Use this anywhere a raw PGlite instance is bootstrapped from schema.sql — executing
@@ -18,8 +14,7 @@ export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
  * `invalid input syntax for type integer: "__embedding_dim__"`.
  */
 export function loadSchemaSql(dims: number = DEFAULT_EMBEDDING_DIMENSIONS): string {
-  const template = readFileSync(join(__dirname, "schema.sql"), "utf-8");
-  return template.replace("__EMBEDDING_DIM__", String(dims));
+  return SCHEMA_SQL.replace("__EMBEDDING_DIM__", String(dims));
 }
 
 export interface DatabaseOptions {

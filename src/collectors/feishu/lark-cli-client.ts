@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import type { IFeishuHttpClient, PagedResult } from "./http-client";
-import { FeishuApiError } from "./types";
+import type { IFeishuHttpClient, PagedResult } from "./http-client.js";
+import { FeishuApiError } from "./types.js";
 
 const DEFAULT_LARK_BIN = `${process.env.HOME}/.local/bin/lark`;
 const EXEC_TIMEOUT = 120_000;

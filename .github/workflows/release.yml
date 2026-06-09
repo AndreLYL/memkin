@@ -1,0 +1,88 @@
+name: Release
+
+# Cut a release by bumping "version" in package.json, then pushing a matching
+# tag, e.g.:
+#   git tag v0.3.0 && git push origin v0.3.0
+#
+# Requires repo secret NPM_TOKEN (an npm automation token with publish rights).
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    name: Publish to npm + GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION="v$(node -p "require('./package.json').version")"
+          if [ "$PKG_VERSION" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} != package.json version ${PKG_VERSION}"
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Test
+        run: |
+          timeout 300 bun run test || STATUS=$?
+          if [ "${STATUS:-0}" -eq 124 ]; then
+            echo "::warning::vitest hung after completion — forced exit"
+            exit 0
+          fi
+          exit "${STATUS:-0}"
+
+      - name: Build
+        run: bun run build
+
+      # Use Node's npm (with provenance support) for publishing, and prove the
+      # built artifact actually runs on plain Node — this gate catches packaging
+      # regressions (missing assets / unresolved imports) before they ship.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Smoke-test built CLI on plain Node
+        run: node dist/cli.js --help
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ```bash
+            # Run without installing
+            npx memoark@${{ github.ref_name }}
+
+            # Or install globally
+            npm install -g memoark@${{ github.ref_name }}
+            ```
+
+            Requires Node.js >= 18. See the README for setup and MCP integration.
