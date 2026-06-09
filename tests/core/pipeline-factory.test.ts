@@ -14,6 +14,19 @@ describe("buildPipelineConfig", () => {
     expect(result.dedup_checkpoint).toContain("dedup.jsonl");
     expect(result.cursor_checkpoint).toContain("cursors.yaml");
   });
+
+  it("passes block_concurrency from config.pipeline to PipelineConfig", () => {
+    const config = loadConfig();
+    (config as unknown as Record<string, unknown>).pipeline = { block_concurrency: 10 };
+    const result = buildPipelineConfig(config, "/tmp/test");
+    expect(result.block_concurrency).toBe(10);
+  });
+
+  it("block_concurrency is undefined when pipeline section absent", () => {
+    const config = loadConfig();
+    const result = buildPipelineConfig(config, "/tmp/test");
+    expect(result.block_concurrency).toBeUndefined();
+  });
 });
 
 describe("SchedulerConfig in Config", () => {

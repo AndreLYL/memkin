@@ -21,6 +21,7 @@ export function buildPipelineConfig(config: Config, output_dir: string): Pipelin
     max_block_messages: config.block_builder.max_block_messages,
     privacy: config.privacy,
     output_dir,
+    block_concurrency: config.pipeline?.block_concurrency,
   };
 }
 

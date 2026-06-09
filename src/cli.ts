@@ -187,6 +187,7 @@ program
         max_block_messages: config.block_builder.max_block_messages,
         privacy: config.privacy,
         output_dir: options.output || process.cwd(),
+        block_concurrency: config.pipeline?.block_concurrency,
       };
 
       // Parse options
@@ -508,6 +509,7 @@ program
         max_block_messages: config.block_builder.max_block_messages,
         privacy: config.privacy,
         output_dir: process.cwd(),
+        block_concurrency: config.pipeline?.block_concurrency,
       };
 
       scheduler = new Scheduler(config.scheduler, stateDir);
