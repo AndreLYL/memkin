@@ -111,6 +111,12 @@ export interface FeishuSourceConfig {
       overlap_ms?: number;
       page_size?: number;
     };
+    mail?: {
+      enabled: boolean;
+      lookback_days?: number;
+      overlap_ms?: number;
+      fetch_concurrency?: number;
+    };
   };
 }
 
@@ -159,6 +165,10 @@ export interface SchedulerConfig {
   sources: Record<string, SchedulerSourceConfig>;
 }
 
+export interface PipelineOptsConfig {
+  block_concurrency?: number;
+}
+
 /**
  * Complete configuration interface
  */
@@ -172,6 +182,7 @@ export interface Config {
   embedding: EmbeddingConfig;
   server: ServerConfig;
   scheduler?: SchedulerConfig;
+  pipeline?: PipelineOptsConfig;
 }
 
 /**

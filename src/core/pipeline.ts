@@ -42,6 +42,7 @@ export interface PipelineConfig {
   max_block_messages: number;
   privacy: PrivacyConfig;
   output_dir: string;
+  block_concurrency?: number;
 }
 
 /**
@@ -223,7 +224,7 @@ export async function runPipeline(
     }
 
     // Process blocks with concurrency
-    const CONCURRENCY = 5;
+    const CONCURRENCY = config.block_concurrency ?? 5;
     const extractedResults: ExtractionResult[] = [];
 
     const processBlock = async (block: ConversationBlock, idx: number): Promise<void> => {

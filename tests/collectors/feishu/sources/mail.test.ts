@@ -283,4 +283,50 @@ describe("MailSource", () => {
     expect(results).toHaveLength(1);
     expect(results[0].metadata?.message_id).toBe("mail_001");
   });
+
+  it("fetches all emails when fetch_concurrency > 1", async () => {
+    const client = createMockClient(triageResponse, {
+      mail_001: messageResponse001,
+      mail_002: messageResponse002,
+    });
+    const source = new MailSource(client, { lookbackDays: 30, fetchConcurrency: 2 });
+
+    const results = [];
+    for await (const msg of source.fetch(null, staging)) {
+      results.push(msg);
+    }
+
+    expect(results).toHaveLength(2);
+    const ids = results.map((r) => r.metadata?.message_id).sort();
+    expect(ids).toEqual(["mail_001", "mail_002"]);
+  });
+
+  it("skips failed items but yields successful ones in concurrent batch", async () => {
+    const client = createMockClient(triageResponse, {
+      mail_001: messageResponse001,
+    });
+    (client.execShortcut as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_domain: string, shortcut: string, flags?: string[]) => {
+        if (shortcut === "triage") return triageResponse;
+        if (shortcut === "message") {
+          const idIdx = flags?.indexOf("--message-id");
+          if (idIdx !== undefined && idIdx >= 0 && flags) {
+            const id = flags[idIdx + 1];
+            if (id === "mail_002") throw new Error("timeout");
+            return messageResponse001;
+          }
+        }
+        return "{}";
+      },
+    );
+    const source = new MailSource(client, { lookbackDays: 30, fetchConcurrency: 2 });
+
+    const results = [];
+    for await (const msg of source.fetch(null, staging)) {
+      results.push(msg);
+    }
+
+    expect(results).toHaveLength(1);
+    expect(results[0].metadata?.message_id).toBe("mail_001");
+  });
 });
