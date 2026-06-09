@@ -1,4 +1,4 @@
-import type { QuickEntity } from "./types";
+import type { QuickEntity } from "./types.js";
 
 const PATTERNS: Array<{ type: QuickEntity["type"]; regex: RegExp }> = [
   { type: "url", regex: /https?:\/\/[^\s<>\]）》]+/g },
