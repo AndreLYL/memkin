@@ -8,6 +8,7 @@ import type { PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { createDefaultBackfillRoutes } from "./backfill-routes.js";
 import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
 
@@ -43,6 +44,12 @@ export function createApiApp(stores: StoreContext): Hono {
     configPath: resolve(process.cwd(), "memoark.yaml"),
   });
   app.route("/", configRoutes);
+
+  const backfillRoutes = createDefaultBackfillRoutes(
+    stores,
+    resolve(process.cwd(), "memoark.yaml"),
+  );
+  app.route("/", backfillRoutes);
 
   app.get("/health", async (c) => {
     const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");

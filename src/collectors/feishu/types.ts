@@ -2,6 +2,7 @@ export interface FeishuMessageSourceConfig {
   enabled: boolean;
   chat_ids?: string[];
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
 }
 
@@ -26,6 +27,7 @@ export interface FeishuDMSourceConfig {
   dm_chat_ids?: string[];
   self_open_id?: string;
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
 }
 
@@ -36,6 +38,7 @@ export interface FeishuMessageSearchSourceConfig {
   sender_type?: "user" | "bot";
   exclude_sender_type?: "user" | "bot";
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
   page_size?: number;
 }
@@ -43,6 +46,7 @@ export interface FeishuMessageSearchSourceConfig {
 export interface FeishuMailSourceConfig {
   enabled: boolean;
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
   fetch_concurrency?: number;
 }

@@ -7,6 +7,7 @@ import type { FeishuSource } from "./base.js";
 
 interface MailSourceOpts {
   lookbackDays: number;
+  overrideSinceMs?: number;
   overlapMs?: number;
   fetchConcurrency?: number;
 }
@@ -80,11 +81,15 @@ export class MailSource implements FeishuSource {
   }
 
   private resolveStartTime(checkpoint: SourceCheckpoint | null): number {
-    if (checkpoint?.INBOX?.last_sync_at) {
-      return checkpoint.INBOX.last_sync_at as number;
+    const checkpointMs = checkpoint?.INBOX?.last_sync_at as number | undefined;
+    if (
+      this.opts.overrideSinceMs !== undefined &&
+      (checkpointMs === undefined || this.opts.overrideSinceMs < checkpointMs)
+    ) {
+      return this.opts.overrideSinceMs;
     }
-    const lookbackMs = this.opts.lookbackDays * 24 * 60 * 60 * 1000;
-    return Date.now() - lookbackMs;
+    if (checkpointMs !== undefined) return checkpointMs;
+    return Date.now() - this.opts.lookbackDays * 24 * 60 * 60 * 1000;
   }
 
   private async fetchTriage(): Promise<TriageItem[]> {
