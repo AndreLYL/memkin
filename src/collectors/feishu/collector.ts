@@ -9,6 +9,7 @@ import { CalendarSource } from "./sources/calendar.js";
 import { DMSource } from "./sources/dm.js";
 import { DocSource } from "./sources/docs.js";
 import { MailSource } from "./sources/mail.js";
+import { MessageSearchSource } from "./sources/message-search.js";
 import { MessageSource } from "./sources/messages.js";
 import { TaskSource } from "./sources/tasks.js";
 import type { FeishuCheckpoint, FeishuCollectorConfig } from "./types.js";
@@ -35,6 +36,7 @@ export class FeishuCollector implements Collector, CursorProvider {
       this.sources.push(
         new MessageSource(this.client, config.sources.messages.chat_ids ?? [], {
           lookbackDays: config.sources.messages.lookback_days ?? 30,
+          overrideSinceMs: config.sources.messages.override_since_ms,
           overlapMs: config.sources.messages.overlap_ms,
         }),
       );
@@ -56,6 +58,7 @@ export class FeishuCollector implements Collector, CursorProvider {
       this.sources.push(
         new DMSource(this.client, config.sources.dm.dm_chat_ids ?? [], {
           lookbackDays: config.sources.dm.lookback_days ?? 30,
+          overrideSinceMs: config.sources.dm.override_since_ms,
           selfOpenId: config.sources.dm.self_open_id ?? "",
           overlapMs: config.sources.dm.overlap_ms,
         }),
@@ -67,8 +70,25 @@ export class FeishuCollector implements Collector, CursorProvider {
       this.sources.push(
         new MailSource(larkClient, {
           lookbackDays: config.sources.mail.lookback_days ?? 30,
+          overrideSinceMs: config.sources.mail.override_since_ms,
           overlapMs: config.sources.mail.overlap_ms,
           fetchConcurrency: config.sources.mail.fetch_concurrency,
+        }),
+      );
+    }
+
+    if (config.sources.message_search?.enabled) {
+      const larkClient = new LarkCliHttpClient(config.lark_bin);
+      this.sources.push(
+        new MessageSearchSource(larkClient, {
+          chatTypes: config.sources.message_search.chat_types ?? ["p2p", "group"],
+          lookbackDays: config.sources.message_search.lookback_days ?? 30,
+          overrideSinceMs: config.sources.message_search.override_since_ms,
+          query: config.sources.message_search.query,
+          senderType: config.sources.message_search.sender_type,
+          excludeSenderType: config.sources.message_search.exclude_sender_type,
+          overlapMs: config.sources.message_search.overlap_ms,
+          pageSize: config.sources.message_search.page_size,
         }),
       );
     }

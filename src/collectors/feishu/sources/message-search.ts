@@ -9,6 +9,7 @@ type SearchChatType = "p2p" | "group";
 interface MessageSearchOpts {
   chatTypes: SearchChatType[];
   lookbackDays: number;
+  overrideSinceMs?: number;
   selfOpenId?: string;
   query?: string;
   senderType?: "user" | "bot";
@@ -109,11 +110,15 @@ export class MessageSearchSource implements FeishuSource {
   }
 
   private resolveStartTime(checkpoint: SourceCheckpoint | null, chatType: SearchChatType): number {
-    if (checkpoint?.[chatType]?.last_sync_at) {
-      return checkpoint[chatType].last_sync_at as number;
+    const checkpointMs = checkpoint?.[chatType]?.last_sync_at as number | undefined;
+    if (
+      this.opts.overrideSinceMs !== undefined &&
+      (checkpointMs === undefined || this.opts.overrideSinceMs < checkpointMs)
+    ) {
+      return this.opts.overrideSinceMs;
     }
-    const lookbackMs = this.opts.lookbackDays * 24 * 60 * 60 * 1000;
-    return Date.now() - lookbackMs;
+    if (checkpointMs !== undefined) return checkpointMs;
+    return Date.now() - this.opts.lookbackDays * 24 * 60 * 60 * 1000;
   }
 
   private async fetchPage(

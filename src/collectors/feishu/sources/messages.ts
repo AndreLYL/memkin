@@ -6,6 +6,7 @@ import type { FeishuSource } from "./base.js";
 
 interface MessageSourceOpts {
   lookbackDays: number;
+  overrideSinceMs?: number;
   overlapMs?: number;
 }
 
@@ -65,11 +66,15 @@ export class MessageSource implements FeishuSource {
   }
 
   private resolveStartTime(checkpoint: SourceCheckpoint | null, chatId: string): number {
-    if (checkpoint?.[chatId]?.last_sync_at) {
-      return checkpoint[chatId].last_sync_at as number;
+    const checkpointMs = checkpoint?.[chatId]?.last_sync_at as number | undefined;
+    if (
+      this.opts.overrideSinceMs !== undefined &&
+      (checkpointMs === undefined || this.opts.overrideSinceMs < checkpointMs)
+    ) {
+      return this.opts.overrideSinceMs;
     }
-    const lookbackMs = this.opts.lookbackDays * 24 * 60 * 60 * 1000;
-    return Date.now() - lookbackMs;
+    if (checkpointMs !== undefined) return checkpointMs;
+    return Date.now() - this.opts.lookbackDays * 24 * 60 * 60 * 1000;
   }
 
   private mapMessage(msg: FeishuMessage, chatId: string): RawMessage {
