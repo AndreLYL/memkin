@@ -3,7 +3,6 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
-import { VERSION } from "./embedded-assets.generated.js";
 import {
   createClaudeCodeCollector,
   createCodexCollector,
@@ -19,6 +18,7 @@ import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { Scheduler } from "./daemon/scheduler.js";
+import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
 import { createApiApp, type DaemonStatus } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";

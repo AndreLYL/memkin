@@ -11,7 +11,6 @@
 
 import { createHash } from "node:crypto";
 import { extractQuickEntities } from "../core/entity-extract.js";
-import { PROMPTS } from "../embedded-assets.generated.js";
 import { parseExtractionResult } from "../core/schemas.js";
 import type {
   BlockResult,
@@ -21,6 +20,7 @@ import type {
   RawMessage,
   SourceRef,
 } from "../core/types.js";
+import { PROMPTS } from "../embedded-assets.generated.js";
 import type { ChatMessage, LLMProvider } from "./providers/types.js";
 
 function extractJson(raw: string): string | null {
