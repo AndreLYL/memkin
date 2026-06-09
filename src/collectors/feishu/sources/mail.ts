@@ -3,6 +3,7 @@ import type { CursorStaging } from "../cursor-staging";
 import type { LarkCliHttpClient } from "../lark-cli-client";
 import type { FeishuMailMessage, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
+import { pMap } from "../../../core/concurrency.js";
 
 interface MailSourceOpts {
   lookbackDays: number;
@@ -68,14 +69,13 @@ export class MailSource implements FeishuSource {
     items: TriageItem[],
     concurrency: number,
   ): AsyncGenerator<{ item: TriageItem; detail: FeishuMailMessage | null }> {
-    for (let i = 0; i < items.length; i += concurrency) {
-      const batch = items.slice(i, i + concurrency);
-      const results = await Promise.all(
-        batch.map(async (item) => ({ item, detail: await this.fetchMessage(item.message_id) })),
-      );
-      for (const pair of results) {
-        yield pair;
-      }
+    const results = await pMap(
+      items,
+      async (item) => ({ item, detail: await this.fetchMessage(item.message_id) }),
+      concurrency,
+    );
+    for (const pair of results) {
+      yield pair;
     }
   }
 
