@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { Hono } from "hono";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
@@ -7,6 +8,7 @@ import type { PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
 
 export interface DaemonStatus {
@@ -36,6 +38,11 @@ function missing(c: { json: (body: unknown, status?: number) => Response }, name
 
 export function createApiApp(stores: StoreContext): Hono {
   const app = new Hono();
+
+  const configRoutes = createConfigRoutes({
+    configPath: resolve(process.cwd(), "memoark.yaml"),
+  });
+  app.route("/", configRoutes);
 
   app.get("/health", async (c) => {
     const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");

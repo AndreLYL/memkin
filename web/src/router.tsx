@@ -1,14 +1,18 @@
 import { createBrowserRouter, Navigate } from "react-router";
 import { Shell } from "./components/layout/shell";
 import { Dashboard } from "./pages/dashboard";
-import { PageList } from "./pages/page-list";
+import { EntityDetail } from "./pages/EntityDetail";
 import { PageDetail } from "./pages/page-detail";
+import { PageList } from "./pages/page-list";
 import { GraphPage } from "./pages/graph";
 import { SearchPage } from "./pages/search";
 import { TimelinePage } from "./pages/Timeline";
-import { EntityDetail } from "./pages/EntityDetail";
+import { ConfigPage } from "./pages/config/index";
+import { SetupWizard } from "./pages/setup/index";
 
 export const router = createBrowserRouter([
+  { path: "setup", element: <SetupWizard /> },
+  { path: "config", element: <ConfigPage /> },
   {
     element: <Shell />,
     children: [

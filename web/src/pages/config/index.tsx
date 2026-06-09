@@ -1,0 +1,73 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ConfigDiagnostic, WizardConfig } from "../../api/config";
+import { configApi } from "../../api/config";
+import { EmbeddingSection } from "./sections/EmbeddingSection";
+import { FeishuSection } from "./sections/FeishuSection";
+import { LLMSection } from "./sections/LLMSection";
+import { StorageSection } from "./sections/StorageSection";
+
+function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-default">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-5 py-4 text-left"
+      >
+        <span className="font-semibold text-fg-default">{title}</span>
+        <span className="text-fg-muted">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && <div className="border-t border-border-default px-5 py-4">{children}</div>}
+    </div>
+  );
+}
+
+export function ConfigPage() {
+  const queryClient = useQueryClient();
+  const { data: config, isLoading } = useQuery({
+    queryKey: ["config"],
+    queryFn: configApi.getConfig,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (next: WizardConfig) => configApi.saveConfig(next),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["config"] }),
+  });
+
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSave = async (patch: Partial<WizardConfig>) => {
+    setSaveError(null);
+    const merged: WizardConfig = { ...config, ...patch };
+    const result = await saveMutation.mutateAsync(merged);
+    if (!result.ok) {
+      setSaveError(result.diagnostics.filter((d: ConfigDiagnostic) => d.severity === "error").map((d: ConfigDiagnostic) => d.message).join(", "));
+    }
+  };
+
+  if (isLoading || !config) {
+    return <div className="flex items-center justify-center min-h-screen text-fg-muted">Loading configuration...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-bg-canvas px-4 py-10">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold text-fg-default mb-6">Configuration</h1>
+
+        {saveError && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {saveError}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4">
+          <Section title="LLM"><LLMSection config={config} onSave={handleSave} /></Section>
+          <Section title="Embedding"><EmbeddingSection config={config} onSave={handleSave} /></Section>
+          <Section title="Feishu"><FeishuSection config={config} onSave={handleSave} /></Section>
+          <Section title="Storage"><StorageSection config={config} onSave={handleSave} /></Section>
+        </div>
+      </div>
+    </div>
+  );
+}
