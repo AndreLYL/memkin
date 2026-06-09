@@ -18,8 +18,9 @@ import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.
 import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
+import { Scheduler } from "./daemon/scheduler.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
-import { createApiApp } from "./server/api.js";
+import { createApiApp, type DaemonStatus } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
@@ -481,15 +482,100 @@ program
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
   .action(async (options) => {
     const config = loadConfig(options.config);
+    const stateDir = ensureStateDir();
     const stores = await createStores(config);
+
+    let scheduler: Scheduler | undefined;
+
+    if (config.scheduler?.enabled) {
+      bootstrapCollectors(config.sources);
+
+      const llmConfig = config.llm;
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const provider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+
+      const pipelineConfig: PipelineConfig = {
+        dedup_checkpoint: statePath("dedup.jsonl"),
+        cursor_checkpoint: statePath("cursors.yaml"),
+        block_gap_minutes: config.block_builder.block_gap_minutes,
+        max_block_tokens: config.block_builder.max_block_tokens,
+        max_block_messages: config.block_builder.max_block_messages,
+        privacy: config.privacy,
+        output_dir: process.cwd(),
+      };
+
+      scheduler = new Scheduler(config.scheduler, stateDir);
+      scheduler.setRunSource(async (sourceId) => {
+        const collector = getCollector(sourceId);
+        if (!collector) throw new Error(`Unknown source: ${sourceId}`);
+        return runPipeline(pipelineConfig, {
+          source: collector,
+          provider,
+          format: "json",
+          adapter: "store",
+          stores,
+          dryRun: false,
+        });
+      });
+      scheduler.setOnTick((sourceId, result, duration_ms) => {
+        const status = result.fatal ? "failed" : "ok";
+        console.log(`[scheduler] ${sourceId}: ${status} (${duration_ms}ms)`);
+      });
+      await scheduler.start();
+    }
+
+    const getDaemonStatus = scheduler
+      ? (): DaemonStatus => {
+          const hb = scheduler?.getHeartbeat();
+          const now = Date.now();
+          let lastRunAt: number | null = null;
+          let nextAt: number | null = null;
+          for (const id of scheduler?.getSourceIds() ?? []) {
+            const s = scheduler?.getSourceState(id);
+            if (!s) continue;
+            if (s.last_run_at !== null && (lastRunAt === null || s.last_run_at > lastRunAt)) {
+              lastRunAt = s.last_run_at;
+            }
+            const next = s.last_run_at !== null ? s.last_run_at + s.interval_secs * 1000 : now;
+            if (nextAt === null || next < nextAt) nextAt = next;
+          }
+          return {
+            running: true,
+            uptime_seconds: Math.floor((now - (hb?.daemon_started_at ?? now)) / 1000),
+            last_run: lastRunAt ? new Date(lastRunAt).toISOString() : null,
+            next_scheduled: nextAt !== null ? new Date(nextAt).toISOString() : null,
+          };
+        }
+      : undefined;
+
+    const storesWithDaemon = { ...stores, getDaemonStatus };
+
+    const shutdown = () => {
+      scheduler?.stop();
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
+
     if (options.mcp) {
-      const server = createMcpServer(stores);
+      const server = createMcpServer(storesWithDaemon);
       await server.connect(new StdioServerTransport());
       return;
     }
-    const app = createApiApp(stores);
+
+    const app = createApiApp(storesWithDaemon);
     const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    if (scheduler) {
+      console.log(
+        `Scheduler running — tick every ${config.scheduler?.tick_interval_secs}s, sources: ${scheduler.getSourceIds().join(", ")}`,
+      );
+    }
   });
 
 program
