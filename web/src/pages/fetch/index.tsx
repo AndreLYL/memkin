@@ -3,11 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { configApi } from "../../api/config";
 import type { WizardConfig, ConfigDiagnostic } from "../../api/config";
 import { AutoFetchSection } from "./sections/AutoFetchSection";
-
-// Stub until Task 6 creates the real BackfillSection
-function BackfillSection() {
-  return <div className="text-sm text-fg-muted">Coming soon…</div>;
-}
+import { BackfillSection } from "./sections/BackfillSection";
 
 function Section({
   title,
