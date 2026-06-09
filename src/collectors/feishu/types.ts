@@ -44,6 +44,7 @@ export interface FeishuMailSourceConfig {
   enabled: boolean;
   lookback_days?: number;
   overlap_ms?: number;
+  fetch_concurrency?: number;
 }
 
 export interface FeishuCollectorConfig {

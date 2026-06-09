@@ -7,6 +7,7 @@ import type { FeishuSource } from "./base";
 interface MailSourceOpts {
   lookbackDays: number;
   overlapMs?: number;
+  fetchConcurrency?: number;
 }
 
 interface TriageItem {
@@ -36,17 +37,17 @@ export class MailSource implements FeishuSource {
       const startMs = this.resolveStartTime(checkpoint);
       const triageItems = await this.fetchTriage();
 
+      const filteredItems = triageItems.filter(
+        (item) => new Date(item.date).getTime() >= startMs - this.overlapMs,
+      );
+
+      const concurrency = this.opts.fetchConcurrency ?? 1;
       let maxDateMs = 0;
 
-      for (const item of triageItems) {
-        const itemDateMs = new Date(item.date).getTime();
-        if (itemDateMs < startMs - this.overlapMs) continue;
-
-        const detail = await this.fetchMessage(item.message_id);
+      for await (const { item, detail } of this.fetchConcurrent(filteredItems, concurrency)) {
         if (!detail) continue;
-
+        const itemDateMs = new Date(item.date).getTime();
         if (itemDateMs > maxDateMs) maxDateMs = itemDateMs;
-
         yield this.mapMessage(item, detail);
       }
 
@@ -61,6 +62,21 @@ export class MailSource implements FeishuSource {
 
   async healthCheck(): Promise<boolean> {
     return true;
+  }
+
+  private async *fetchConcurrent(
+    items: TriageItem[],
+    concurrency: number,
+  ): AsyncGenerator<{ item: TriageItem; detail: FeishuMailMessage | null }> {
+    for (let i = 0; i < items.length; i += concurrency) {
+      const batch = items.slice(i, i + concurrency);
+      const results = await Promise.all(
+        batch.map(async (item) => ({ item, detail: await this.fetchMessage(item.message_id) })),
+      );
+      for (const pair of results) {
+        yield pair;
+      }
+    }
   }
 
   private resolveStartTime(checkpoint: SourceCheckpoint | null): number {

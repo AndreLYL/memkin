@@ -68,6 +68,7 @@ export class FeishuCollector implements Collector, CursorProvider {
         new MailSource(larkClient, {
           lookbackDays: config.sources.mail.lookback_days ?? 30,
           overlapMs: config.sources.mail.overlap_ms,
+          fetchConcurrency: config.sources.mail.fetch_concurrency,
         }),
       );
     }
