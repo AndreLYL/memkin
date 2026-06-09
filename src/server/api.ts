@@ -8,9 +8,9 @@ import type { PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { createDefaultBackfillRoutes } from "./backfill-routes.js";
 import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
-import { createDefaultBackfillRoutes } from "./backfill-routes.js";
 
 export interface DaemonStatus {
   running: boolean;
@@ -45,7 +45,10 @@ export function createApiApp(stores: StoreContext): Hono {
   });
   app.route("/", configRoutes);
 
-  const backfillRoutes = createDefaultBackfillRoutes(stores, resolve(process.cwd(), "memoark.yaml"));
+  const backfillRoutes = createDefaultBackfillRoutes(
+    stores,
+    resolve(process.cwd(), "memoark.yaml"),
+  );
   app.route("/", backfillRoutes);
 
   app.get("/health", async (c) => {
