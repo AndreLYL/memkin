@@ -35,30 +35,37 @@ export class ChunkStore {
 
   async rechunk(pageId: number, content: string): Promise<void> {
     const textChunks = splitIntoChunks(content);
+
+    const placeholders: string[] = [];
+    const params: (number | string)[] = [];
     for (let i = 0; i < textChunks.length; i++) {
-      const wordCount = textChunks[i].split(/\s+/).length;
-      await this.pg.query(
-        `INSERT INTO content_chunks (page_id, chunk_index, chunk_text, chunk_source, token_count)
-         VALUES ($1, $2, $3, 'compiled_truth', $4)
-         ON CONFLICT (page_id, chunk_index) DO UPDATE SET
-           chunk_text = EXCLUDED.chunk_text,
-           chunk_source = EXCLUDED.chunk_source,
-           token_count = EXCLUDED.token_count,
-           embedding = CASE
-             WHEN EXCLUDED.chunk_text != content_chunks.chunk_text THEN NULL
-             ELSE content_chunks.embedding
-           END,
-           embedded_at = CASE
-             WHEN EXCLUDED.chunk_text != content_chunks.chunk_text THEN NULL
-             ELSE content_chunks.embedded_at
-           END`,
-        [pageId, i, textChunks[i], wordCount],
-      );
+      const base = i * 4;
+      placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, 'compiled_truth', $${base + 4})`);
+      params.push(pageId, i, textChunks[i], textChunks[i].split(/\s+/).length);
     }
-    await this.pg.query("DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2", [
-      pageId,
-      textChunks.length,
-    ]);
+
+    await this.pg.query(
+      `INSERT INTO content_chunks (page_id, chunk_index, chunk_text, chunk_source, token_count)
+       VALUES ${placeholders.join(", ")}
+       ON CONFLICT (page_id, chunk_index) DO UPDATE SET
+         chunk_text = EXCLUDED.chunk_text,
+         chunk_source = EXCLUDED.chunk_source,
+         token_count = EXCLUDED.token_count,
+         embedding = CASE
+           WHEN EXCLUDED.chunk_text != content_chunks.chunk_text THEN NULL
+           ELSE content_chunks.embedding
+         END,
+         embedded_at = CASE
+           WHEN EXCLUDED.chunk_text != content_chunks.chunk_text THEN NULL
+           ELSE content_chunks.embedded_at
+         END`,
+      params,
+    );
+
+    await this.pg.query(
+      "DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2",
+      [pageId, textChunks.length],
+    );
   }
 
   async getChunks(pageSlug: string): Promise<Chunk[]> {
