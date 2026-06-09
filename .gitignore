@@ -50,3 +50,4 @@ tests/temp/
 
 # Implementation plans (managed in separate repo: AndreLYL/memoark_spec)
 docs/superpowers/
+web/tsconfig.tsbuildinfo

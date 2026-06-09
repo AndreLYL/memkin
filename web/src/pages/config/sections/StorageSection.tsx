@@ -1,0 +1,41 @@
+import { useState } from "react";
+import type { WizardConfig } from "../../../api/config";
+import { PathInput } from "../../../components/config/PathInput";
+
+interface SectionProps {
+  config: WizardConfig;
+  onSave: (patch: Partial<WizardConfig>) => Promise<void>;
+}
+
+export function StorageSection({ config, onSave }: SectionProps) {
+  const [dataDir, setDataDir] = useState(config.store?.data_dir ?? "");
+  const [exportDir, setExportDir] = useState(config.adapters?.file?.output_dir ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        store: { data_dir: dataDir },
+        adapters: exportDir ? { file: { enabled: true, output_dir: exportDir } } : undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-base font-semibold text-fg-default">Storage</h3>
+        <button onClick={save} disabled={saving}
+          className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <PathInput id="cfg-data-dir" label="Database Path" value={dataDir} onChange={setDataDir} defaultHint="~/.memoark/data" />
+      <PathInput id="cfg-export-dir" label="Markdown Export Directory" value={exportDir} onChange={setExportDir}
+        defaultHint="~/Documents/memoark-export" optional />
+    </div>
+  );
+}
