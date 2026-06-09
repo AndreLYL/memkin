@@ -97,6 +97,7 @@ export class BackfillJob {
 
       try {
         const result = await this.runForSource(srcType, opts.since_ms);
+        if (this.abortController?.signal.aborted) break;
         this.status.sources[idx].processed = result.totalMessages;
         this.status.sources[idx].blocks = result.totalBlocks;
         this.status.sources[idx].status = result.fatal ? "error" : "done";
@@ -104,6 +105,7 @@ export class BackfillJob {
         this.status.total_messages += result.totalMessages;
         this.status.total_blocks += result.totalBlocks;
       } catch (err) {
+        if (this.abortController?.signal.aborted) break;
         this.status.sources[idx].status = "error";
         this.status.sources[idx].error = err instanceof Error ? err.message : String(err);
       }

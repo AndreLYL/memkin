@@ -117,4 +117,32 @@ describe("BackfillJob", () => {
     job.reset();
     expect(job.getStatus().state).toBe("idle");
   });
+
+  it("reset while running is a no-op", () => {
+    const runForSource = vi.fn().mockImplementation(() => new Promise(() => {}));
+    const job = new BackfillJob(runForSource);
+    job.start({ since_ms: 0, source_types: ["dm"] });
+    expect(job.getStatus().state).toBe("running");
+    job.reset(); // should be ignored
+    expect(job.getStatus().state).toBe("running"); // unchanged
+    expect(job.getStatus().sources).toHaveLength(1); // unchanged
+  });
+
+  it("can start again after reset from done state", async () => {
+    const runForSource = vi.fn().mockResolvedValue({
+      fatal: false, totalMessages: 3, totalBlocks: 1,
+      okBlocks: 1, skippedBlocks: 0, failedBlocks: 0,
+      okMessages: [], skippedMessages: [], failedMessages: [], warnings: [],
+    });
+    const job = new BackfillJob(runForSource);
+    job.start({ since_ms: 0, source_types: ["dm"] });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(job.getStatus().state).toBe("done");
+    job.reset();
+    expect(job.getStatus().state).toBe("idle");
+    // Can start again
+    job.start({ since_ms: 0, source_types: ["messages"] });
+    expect(job.getStatus().state).toBe("running");
+    expect(job.getStatus().sources[0].source).toBe("messages");
+  });
 });
