@@ -1,9 +1,9 @@
+import { pMap } from "../../../core/concurrency.js";
 import type { RawMessage } from "../../../core/types";
 import type { CursorStaging } from "../cursor-staging";
 import type { LarkCliHttpClient } from "../lark-cli-client";
 import type { FeishuMailMessage, SourceCheckpoint } from "../types";
 import type { FeishuSource } from "./base";
-import { pMap } from "../../../core/concurrency.js";
 
 interface MailSourceOpts {
   lookbackDays: number;

@@ -40,7 +40,9 @@ export class ChunkStore {
     const params: (number | string)[] = [];
     for (let i = 0; i < textChunks.length; i++) {
       const base = i * 4;
-      placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, 'compiled_truth', $${base + 4})`);
+      placeholders.push(
+        `($${base + 1}, $${base + 2}, $${base + 3}, 'compiled_truth', $${base + 4})`,
+      );
       params.push(pageId, i, textChunks[i], textChunks[i].split(/\s+/).length);
     }
 
@@ -62,10 +64,10 @@ export class ChunkStore {
       params,
     );
 
-    await this.pg.query(
-      "DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2",
-      [pageId, textChunks.length],
-    );
+    await this.pg.query("DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2", [
+      pageId,
+      textChunks.length,
+    ]);
   }
 
   async getChunks(pageSlug: string): Promise<Chunk[]> {
