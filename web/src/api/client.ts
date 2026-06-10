@@ -77,6 +77,12 @@ export interface HealthResponse {
   sources: SourceStatus[];
 }
 
+export interface TraverseResult {
+  focus: { slug: string; title: string; type: string };
+  nodes: unknown[];
+  edges: unknown[];
+}
+
 export const api = {
   stats: () => fetchJSON<StatsResponse>("/stats"),
 
@@ -162,4 +168,9 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ query: q, ...opts }),
     }),
+
+  traverse: (slug: string, depth = 1, direction: "in" | "out" | "both" = "both") =>
+    fetchJSON<TraverseResult>(
+      `/graph/traverse?slug=${encodeURIComponent(slug)}&depth=${depth}&direction=${direction}`,
+    ),
 };

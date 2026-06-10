@@ -1,6 +1,6 @@
 {
-  "name": "memoark",
-  "version": "0.3.0",
+  "name": "@andre.li/memoark",
+  "version": "0.3.1",
   "description": "Local-first personal memory extraction and storage",
   "type": "module",
   "bin": {
