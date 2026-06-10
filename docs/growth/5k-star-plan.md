@@ -1,8 +1,26 @@
 # Memoark 5K Star 增长方案
 
-> 制定日期：2026-06-09 ｜ 起点：3 stars / 1 fork / 0 release（仓库创建于 2026-05-19）
+> 制定日期：2026-06-09 ｜ 复评：2026-06-10 ｜ 起点：3 stars / 1 fork（仓库创建于 2026-05-19）
 > 目标：GitHub 5,000 stars
-> 本文 = 竞品调研 + 现状诊断 + 分阶段实施方案。数据为 2026-06-09 GitHub API 实时查询。
+> 本文 = 竞品调研 + 现状诊断 + 分阶段实施方案。数据为 GitHub API 实时查询。
+
+---
+
+## 复评更新（2026-06-10）— main 昨日合入 44 个 commit
+
+**已推进（命中本方案 Phase 1 的"管道"层）：**
+- ✅ 新增发布流水线 `release.yml`（tag 触发 → typecheck/lint/test/build → npm publish --provenance → GitHub Release）+ `RELEASING.md`，版本升到 0.3.0，`publishConfig.access=public`、补齐 homepage/bugs。
+- ✅ 自包含打包：`gen-embedded-assets.mjs` 把 schema/prompts/version 内嵌；`bun build --compile` 产出单文件二进制 → 去除运行时文件依赖，降低安装摩擦。
+- ✅ Web 端 setup 向导 + config 配置页 + fetch 中心（自动抓取 + 历史回填 BackfillJob），告别"手写 yaml"。
+- ✅ 修复并关闭 #22–#27、#29 一批测试失败 bug。
+
+**仍是阻断点（外向/分发层全部未动）：**
+- ❌ **npm 实际未发布成功**：v0.3.0 Release 流水线在第 12 步 "Publish to npm" **失败**（其余步骤全绿，Release 是事后手动建的），npm registry 返回 404。**几乎可以肯定是仓库缺 `NPM_TOKEN` secret。** → 后果：`npx memoark` / `npm i -g memoark` 对用户**仍不可用**，最高 ROI 的一环卡在最后一米。
+- ❌ README 定位**未改**，仍是飞书优先 → 核心触达问题原封未动。
+- ❌ issue #28（测试套件 OOM）仍 open。
+- ❌ 仍无：一键 `npx memoark mcp install`、零配置 demo、Docker 镜像、benchmark、demo GIF、MCP 目录/awesome 列表收录。
+
+**结论：** 昨天的工作把"对内的工程摩擦"显著降低了，但"对外的发现与首屏 60 秒"几乎没动，且 npm 发布卡在最后一步。**下一步优先级：①配 `NPM_TOKEN` 重跑 release 让 `npx` 真正可用 → ②重写 README 定位 → ③一键 MCP 接入 + 零配置 demo。**
 
 ---
 
