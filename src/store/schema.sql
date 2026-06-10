@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS pages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pages_search_vector ON pages USING GIN (search_vector);
-CREATE INDEX IF NOT EXISTS idx_pages_tier ON pages (tier);
-CREATE INDEX IF NOT EXISTS idx_pages_expires_at ON pages (expires_at) WHERE expires_at IS NOT NULL;
+-- idx_pages_tier and idx_pages_expires_at are created by M003 lifecycle_tier migration,
+-- which is the only place that guarantees the tier/expires_at columns exist on upgrade.
 
 CREATE TABLE IF NOT EXISTS content_chunks (
   id              SERIAL PRIMARY KEY,
