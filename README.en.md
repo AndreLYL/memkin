@@ -122,10 +122,22 @@ Browse your timeline like a diary that writes itself — what you decided, what 
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) >= 1.0.0 — install with `curl -fsSL https://bun.sh/install | bash`
+- [Node.js](https://nodejs.org) >= 18 (for the `npx` / `npm` install)
 - (Optional) [Ollama](https://ollama.ai) for local embeddings
 
-### Installation
+### Install (recommended: npm)
+
+```bash
+# Run without installing
+npx @andre.li/memoark --help
+
+# Or install globally to get the `memoark` command
+npm install -g @andre.li/memoark
+```
+
+> The npm package is `@andre.li/memoark` (scoped), but the command is still `memoark`.
+
+### Install from source (development)
 
 ```bash
 git clone https://github.com/AndreLYL/memoark.git

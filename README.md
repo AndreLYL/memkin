@@ -113,10 +113,22 @@ LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、
 
 ### 前置条件
 
-- [Bun](https://bun.sh) >= 1.0.0 — 安装命令：`curl -fsSL https://bun.sh/install | bash`
+- [Node.js](https://nodejs.org) >= 18（用 `npx` / `npm` 安装时）
 - （可选）[Ollama](https://ollama.ai) 本地嵌入
 
-### 安装
+### 安装（推荐：npm）
+
+```bash
+# 免安装直接运行
+npx @andre.li/memoark --help
+
+# 或全局安装,得到 memoark 命令
+npm install -g @andre.li/memoark
+```
+
+> npm 包名为 `@andre.li/memoark`(作用域包),但命令名仍是 `memoark`。
+
+### 从源码安装（开发）
 
 ```bash
 git clone https://github.com/AndreLYL/memoark.git
