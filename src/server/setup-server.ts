@@ -31,8 +31,13 @@ export async function startSetupServer(opts: SetupServerOpts = {}): Promise<void
       larkBin: opts.larkBin,
       onSetupComplete: () => {
         console.log("\n✓ Configuration saved. Run `memoark serve` to start Memoark.");
-        server.stop(true);
-        resolvePromise();
+        // Delay stop so the {ok:true} response actually flushes to the browser
+        // before the connection closes; otherwise the front-end sees TypeError:
+        // Failed to fetch even though the YAML was written.
+        setTimeout(() => {
+          server.stop(true);
+          resolvePromise();
+        }, 500);
       },
     });
 
