@@ -51,7 +51,11 @@ export function createApiApp(stores: StoreContext): Hono {
   );
   app.route("/", backfillRoutes);
 
-  app.get("/health", async (c) => {
+  // Data routes (health, pages, search, graph, etc.) are mounted under /api
+  // so the front-end client (web/src/api/client.ts, BASE="/api") can reach them.
+  const dataRoutes = new Hono();
+
+  dataRoutes.get("/health", async (c) => {
     const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");
     const chunks = await stores.db.pg.query("SELECT COUNT(*) AS c FROM content_chunks");
 
@@ -98,7 +102,7 @@ export function createApiApp(stores: StoreContext): Hono {
     });
   });
 
-  app.get("/pages", async (c) => {
+  dataRoutes.get("/pages", async (c) => {
     const limitRaw = c.req.query("limit");
     let limit: number | undefined;
     if (limitRaw !== undefined) {
@@ -119,7 +123,7 @@ export function createApiApp(stores: StoreContext): Hono {
       }),
     );
   });
-  app.get("/pages/by-slug", async (c) => {
+  dataRoutes.get("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     const page = await stores.pages.getPage(slug);
@@ -143,7 +147,7 @@ export function createApiApp(stores: StoreContext): Hono {
 
     return c.json(response);
   });
-  app.put("/pages/by-slug", async (c) => {
+  dataRoutes.put("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     const body = await c.req.json<{ content?: string }>();
@@ -152,14 +156,14 @@ export function createApiApp(stores: StoreContext): Hono {
     await stores.chunks.rechunk(page.id, page.compiled_truth);
     return c.json(page);
   });
-  app.delete("/pages/by-slug", async (c) => {
+  dataRoutes.delete("/pages/by-slug", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     await stores.pages.deletePage(slug);
     return c.json({ ok: true });
   });
 
-  app.get("/search", async (c) => {
+  dataRoutes.get("/search", async (c) => {
     const typeParam = c.req.query("type");
     const excludeTypesParam = c.req.query("exclude_types");
     return c.json(
@@ -173,7 +177,7 @@ export function createApiApp(stores: StoreContext): Hono {
       }),
     );
   });
-  app.post("/query", async (c) => {
+  dataRoutes.post("/query", async (c) => {
     const body = await c.req.json<{
       query?: string;
       limit?: number;
@@ -195,7 +199,7 @@ export function createApiApp(stores: StoreContext): Hono {
     );
   });
 
-  app.get("/stats", async (c) => {
+  dataRoutes.get("/stats", async (c) => {
     const pagesResult = await stores.db.pg.query(
       "SELECT type, COUNT(*)::int AS count FROM pages GROUP BY type",
     );
@@ -223,7 +227,7 @@ export function createApiApp(stores: StoreContext): Hono {
     });
   });
 
-  app.get("/links/all", async (c) => {
+  dataRoutes.get("/links/all", async (c) => {
     const result = await stores.db.pg.query(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context
        FROM links l
@@ -233,21 +237,21 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json(result.rows);
   });
 
-  app.get("/links", async (c) => c.json(await stores.graph.getLinks(c.req.query("slug") ?? "")));
-  app.get("/backlinks", async (c) =>
+  dataRoutes.get("/links", async (c) => c.json(await stores.graph.getLinks(c.req.query("slug") ?? "")));
+  dataRoutes.get("/backlinks", async (c) =>
     c.json(await stores.graph.getBacklinks(c.req.query("slug") ?? "")),
   );
-  app.post("/links", async (c) => {
+  dataRoutes.post("/links", async (c) => {
     const body = await c.req.json<{ from: string; to: string; type?: string; context?: string }>();
     await stores.graph.addLink(body.from, body.to, body.type ?? "", body.context);
     return c.json({ ok: true });
   });
-  app.delete("/links", async (c) => {
+  dataRoutes.delete("/links", async (c) => {
     const body = await c.req.json<{ from: string; to: string }>();
     await stores.graph.removeLink(body.from, body.to);
     return c.json({ ok: true });
   });
-  app.get("/graph/traverse", async (c) =>
+  dataRoutes.get("/graph/traverse", async (c) =>
     c.json(
       await stores.graph.traverse(c.req.query("slug") ?? "", {
         depth: c.req.query("depth") ? Number(c.req.query("depth")) : undefined,
@@ -256,8 +260,8 @@ export function createApiApp(stores: StoreContext): Hono {
     ),
   );
 
-  app.get("/tags", async (c) => c.json(await stores.tags.getTags(c.req.query("slug") ?? "")));
-  app.post("/tags", async (c) => {
+  dataRoutes.get("/tags", async (c) => c.json(await stores.tags.getTags(c.req.query("slug") ?? "")));
+  dataRoutes.post("/tags", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     const body = await c.req.json<{ tag?: string }>();
@@ -265,7 +269,7 @@ export function createApiApp(stores: StoreContext): Hono {
     await stores.tags.addTag(slug, body.tag);
     return c.json({ ok: true });
   });
-  app.delete("/tags", async (c) => {
+  dataRoutes.delete("/tags", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     const body = await c.req.json<{ tag?: string }>();
@@ -274,16 +278,16 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json({ ok: true });
   });
 
-  app.get("/timeline", async (c) =>
+  dataRoutes.get("/timeline", async (c) =>
     c.json(await stores.timeline.getTimeline(c.req.query("slug") ?? "")),
   );
-  app.post("/timeline", async (c) => {
+  dataRoutes.post("/timeline", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
     await stores.timeline.addEntry(slug, await c.req.json());
     return c.json({ ok: true });
   });
-  app.get("/timeline/feed", async (c) => {
+  dataRoutes.get("/timeline/feed", async (c) => {
     const fromParam = c.req.query("from");
     const toParam = c.req.query("to");
     const groupBy = c.req.query("group_by") === "type" ? "type" : "channel";
@@ -389,8 +393,8 @@ export function createApiApp(stores: StoreContext): Hono {
 
     return c.json({ days, next_cursor: nextCursor });
   });
-  app.get("/chunks", async (c) => c.json(await stores.chunks.getChunks(c.req.query("slug") ?? "")));
-  app.post("/embed", async (c) =>
+  dataRoutes.get("/chunks", async (c) => c.json(await stores.chunks.getChunks(c.req.query("slug") ?? "")));
+  dataRoutes.post("/embed", async (c) =>
     c.json(
       await stores.embedding.embedStale({
         limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
@@ -400,7 +404,7 @@ export function createApiApp(stores: StoreContext): Hono {
 
   let runningPipeline: string | null = null;
 
-  app.post("/extract", async (c) => {
+  dataRoutes.post("/extract", async (c) => {
     if (!stores.runExtract) {
       return c.json({ error: "Extract not configured" }, 501);
     }
@@ -447,7 +451,7 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json({ started: true, source });
   });
 
-  app.get("/events", async (c) => {
+  dataRoutes.get("/events", async (c) => {
     if (!stores.eventBus) {
       return c.json({ error: "SSE not available" }, 501);
     }
@@ -496,7 +500,7 @@ export function createApiApp(stores: StoreContext): Hono {
     });
   });
 
-  app.get("/provenance", async (c) => {
+  dataRoutes.get("/provenance", async (c) => {
     const channel = c.req.query("channel");
     const from = c.req.query("from");
     const to = c.req.query("to");
@@ -587,6 +591,8 @@ export function createApiApp(stores: StoreContext): Hono {
 
     return c.json(signals);
   });
+
+  app.route("/api", dataRoutes);
 
   return app;
 }

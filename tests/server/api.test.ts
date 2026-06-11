@@ -52,7 +52,7 @@ describe("REST API", () => {
   });
 
   it("health returns counts", async () => {
-    const res = await app.request("/health");
+    const res = await app.request("/api/health");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe("ok");
@@ -61,44 +61,44 @@ describe("REST API", () => {
   });
 
   it("creates and reads pages by slug query param", async () => {
-    const put = await app.request("/pages/by-slug?slug=projects/memoark", {
+    const put = await app.request("/api/pages/by-slug?slug=projects/memoark", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: "---\ntitle: Memoark\ntype: project\n---\nLocal memory." }),
     });
     expect(put.status).toBe(200);
-    const get = await app.request("/pages/by-slug?slug=projects/memoark");
+    const get = await app.request("/api/pages/by-slug?slug=projects/memoark");
     expect(get.status).toBe(200);
     const page = await get.json();
     expect(page.slug).toBe("projects/memoark");
   });
 
   it("returns 400 when slug is missing", async () => {
-    const res = await app.request("/pages/by-slug");
+    const res = await app.request("/api/pages/by-slug");
     expect(res.status).toBe(400);
   });
 
   it("search endpoint delegates FTS search", async () => {
-    await app.request("/pages/by-slug?slug=entities/alice", {
+    await app.request("/api/pages/by-slug?slug=entities/alice", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         content: "---\ntitle: Alice\ntype: person\n---\nAlice builds memory systems.",
       }),
     });
-    const res = await app.request("/search?q=Alice");
+    const res = await app.request("/api/search?q=Alice");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.some((r: { slug: string }) => r.slug === "entities/alice")).toBe(true);
   });
 
   it("supports graph, tags, timeline, chunks, and embed routes", async () => {
-    await app.request("/pages/by-slug?slug=entities/alice", {
+    await app.request("/api/pages/by-slug?slug=entities/alice", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: "---\ntitle: Alice\ntype: person\n---\nAlice." }),
     });
-    await app.request("/pages/by-slug?slug=projects/memoark", {
+    await app.request("/api/pages/by-slug?slug=projects/memoark", {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: "---\ntitle: Memoark\ntype: project\n---\nMemoark." }),
@@ -106,7 +106,7 @@ describe("REST API", () => {
 
     expect(
       (
-        await app.request("/tags?slug=entities/alice", {
+        await app.request("/api/tags?slug=entities/alice", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ tag: "person" }),
@@ -115,7 +115,7 @@ describe("REST API", () => {
     ).toBe(200);
     expect(
       (
-        await app.request("/timeline?slug=entities/alice", {
+        await app.request("/api/timeline?slug=entities/alice", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ date: "2026-05-26", summary: "Started Memoark" }),
@@ -124,7 +124,7 @@ describe("REST API", () => {
     ).toBe(200);
     expect(
       (
-        await app.request("/links", {
+        await app.request("/api/links", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -136,14 +136,14 @@ describe("REST API", () => {
       ).status,
     ).toBe(200);
 
-    expect((await app.request("/tags?slug=entities/alice")).status).toBe(200);
-    expect((await app.request("/timeline?slug=entities/alice")).status).toBe(200);
-    expect((await app.request("/links?slug=entities/alice")).status).toBe(200);
-    expect((await app.request("/backlinks?slug=projects/memoark")).status).toBe(200);
+    expect((await app.request("/api/tags?slug=entities/alice")).status).toBe(200);
+    expect((await app.request("/api/timeline?slug=entities/alice")).status).toBe(200);
+    expect((await app.request("/api/links?slug=entities/alice")).status).toBe(200);
+    expect((await app.request("/api/backlinks?slug=projects/memoark")).status).toBe(200);
     expect(
-      (await app.request("/graph/traverse?slug=entities/alice&depth=1&direction=out")).status,
+      (await app.request("/api/graph/traverse?slug=entities/alice&depth=1&direction=out")).status,
     ).toBe(200);
-    expect((await app.request("/chunks?slug=entities/alice")).status).toBe(200);
-    expect((await app.request("/embed", { method: "POST" })).status).toBe(200);
+    expect((await app.request("/api/chunks?slug=entities/alice")).status).toBe(200);
+    expect((await app.request("/api/embed", { method: "POST" })).status).toBe(200);
   });
 });
