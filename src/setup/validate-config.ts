@@ -3,6 +3,7 @@ import type {
   FeishuSourceConfig,
   LLMConfig,
   PrivacyConfig,
+  SchedulerConfig,
   ServerConfig,
   SourceConfig,
   StoreConfig,
@@ -27,6 +28,7 @@ export interface PartialConfig {
     max_block_tokens?: number;
     max_block_messages?: number;
   };
+  scheduler?: SchedulerConfig;
 }
 
 export interface ValidationResult {
