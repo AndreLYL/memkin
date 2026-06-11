@@ -30,8 +30,10 @@ export async function testLLMConnection(
 export async function testEmbeddingConnection(
   baseUrl: string,
   apiKey: string,
+  model: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!apiKey) return { ok: false, error: "No API key provided" };
+  if (!model) return { ok: false, error: "No model provided" };
   try {
     const url = `${baseUrl.replace(/\/$/, "")}/embeddings`;
     const res = await fetch(url, {
@@ -40,7 +42,7 @@ export async function testEmbeddingConnection(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model: "text-embedding-3-large", input: "test" }),
+      body: JSON.stringify({ model, input: "test" }),
       signal: AbortSignal.timeout(15_000),
     });
     const data = (await res.json()) as { error?: { message: string } };

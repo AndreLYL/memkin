@@ -63,7 +63,7 @@ export function EmbeddingConfig({ config, onUpdate, onNext, onBack }: StepProps)
         <SecretInput id="emb-api-key" label="API Key" value={emb.api_key ?? ""} onChange={(v) => update({ api_key: v })} required />
       )}
 
-      <ConnectionTest onTest={() => configApi.testEmbedding({ provider: emb.provider, base_url: emb.base_url, api_key: emb.api_key })} />
+      <ConnectionTest onTest={() => configApi.testEmbedding({ provider: emb.provider, model: emb.model, base_url: emb.base_url, api_key: emb.api_key })} />
 
       <div className="flex justify-between pt-2">
         {onBack && <button onClick={onBack} className="rounded border border-border-default px-4 py-2 text-sm text-fg-default hover:bg-bg-subtle">← Back</button>}
