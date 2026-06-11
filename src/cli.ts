@@ -58,6 +58,20 @@ function expandDataDir(dir: string): string {
   return dir;
 }
 
+// Try to extract feishu.lark_bin from an existing config so the setup UI's
+// "Feishu — Test Connection" button doesn't fall through to the hardcoded
+// ~/.local/bin/lark path. Silent on missing file or parse errors (the wizard
+// may be running because the YAML doesn't exist yet).
+function readLarkBinFromConfig(configPath?: string): string | undefined {
+  const path = configPath ?? resolve(process.cwd(), "memoark.yaml");
+  if (!existsSync(path)) return undefined;
+  try {
+    return loadConfig(path).sources?.feishu?.lark_bin;
+  } catch {
+    return undefined;
+  }
+}
+
 async function createStores(config: ReturnType<typeof loadConfig>) {
   const dataDir = expandDataDir(config.store.data_dir);
   mkdirSync(dataDir, { recursive: true });
@@ -119,7 +133,10 @@ program
   .action(async (options) => {
     if (options.web) {
       const { startSetupServer } = await import("./server/setup-server.js");
-      await startSetupServer({ configPath: options.config });
+      await startSetupServer({
+        configPath: options.config,
+        larkBin: readLarkBinFromConfig(options.config),
+      });
       return;
     }
     try {
@@ -448,9 +465,13 @@ configCmd
   .command("edit")
   .description("Edit configuration in browser UI")
   .option("--web", "Launch browser-based settings UI (default behavior)")
-  .action(async () => {
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .action(async (options) => {
     const { startSetupServer } = await import("./server/setup-server.js");
-    await startSetupServer();
+    await startSetupServer({
+      configPath: options.config,
+      larkBin: readLarkBinFromConfig(options.config),
+    });
   });
 
 /**

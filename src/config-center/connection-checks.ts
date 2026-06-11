@@ -158,7 +158,11 @@ export async function runConnectionCheckPlan(
     const result =
       plan.embedding.provider === "ollama"
         ? await testOllamaEmbeddingConnection(plan.embedding)
-        : await testEmbeddingConnection(plan.embedding.baseUrl, plan.embedding.apiKey ?? "");
+        : await testEmbeddingConnection(
+            plan.embedding.baseUrl,
+            plan.embedding.apiKey ?? "",
+            plan.embedding.model,
+          );
     next.embedding = result.ok ? { status: "ok" } : { status: "failed", message: result.error };
   }
 

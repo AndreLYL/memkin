@@ -87,6 +87,7 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
   app.post("/api/test/embedding", async (c) => {
     const body = await c.req.json<{
       provider: string;
+      model?: string;
       base_url?: string;
       api_key?: string;
     }>();
@@ -107,6 +108,7 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
     const result = await testEmbeddingConnection(
       body.base_url ?? "https://api.openai.com/v1",
       body.api_key ?? "",
+      body.model ?? "",
     );
     return c.json(result);
   });

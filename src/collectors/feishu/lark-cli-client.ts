@@ -1,10 +1,29 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { IFeishuHttpClient, PagedResult } from "./http-client.js";
 import { FeishuApiError } from "./types.js";
 
-const DEFAULT_LARK_BIN = `${process.env.HOME}/.local/bin/lark`;
 const EXEC_TIMEOUT = 120_000;
 const MAX_BUFFER = 256 * 1024 * 1024;
+
+// Locate the lark-cli executable: PATH first, then ~/.local/bin (a common
+// install location that isn't always on PATH for non-interactive shells).
+// Returns undefined when nothing is found; callers fall through to "lark"
+// so the eventual ENOENT carries the bare binary name.
+function findLarkBin(): string | undefined {
+  const candidates = ["lark", "lark-cli"];
+  const dirs = (process.env.PATH ?? "").split(":").filter(Boolean);
+  const home = process.env.HOME;
+  if (home) dirs.push(join(home, ".local", "bin"));
+  for (const dir of dirs) {
+    for (const name of candidates) {
+      const p = join(dir, name);
+      if (existsSync(p)) return p;
+    }
+  }
+  return undefined;
+}
 
 function execLark(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -22,7 +41,7 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
   private readonly bin: string;
 
   constructor(larkBin?: string) {
-    this.bin = larkBin ?? DEFAULT_LARK_BIN;
+    this.bin = larkBin ?? findLarkBin() ?? "lark";
   }
 
   async request<T = unknown>(

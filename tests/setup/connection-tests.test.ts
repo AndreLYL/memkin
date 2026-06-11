@@ -28,7 +28,9 @@ describe("setup connection tests", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     try {
-      await expect(testEmbeddingConnection("https://example.test/v1", "sk-test")).resolves.toEqual({
+      await expect(
+        testEmbeddingConnection("https://example.test/v1", "sk-test", "text-embedding-3-large"),
+      ).resolves.toEqual({
         ok: true,
       });
       expect(fetchMock).toHaveBeenCalledWith(
