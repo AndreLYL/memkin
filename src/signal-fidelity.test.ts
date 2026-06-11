@@ -388,7 +388,7 @@ describe("AC-8: /provenance endpoint exists in API", () => {
     const { readFileSync } = await import("node:fs");
     const apiSrc = readFileSync(new URL("./server/api.ts", import.meta.url).pathname, "utf-8");
     expect(apiSrc).toContain('"/provenance"');
-    expect(apiSrc).toContain("app.get");
+    expect(apiSrc).toContain("dataRoutes.get");
     // Should query provenance from links and timeline_entries
     expect(apiSrc).toContain("l.provenance");
     expect(apiSrc).toContain("te.provenance");
