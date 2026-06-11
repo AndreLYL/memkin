@@ -26,6 +26,7 @@ export class FeishuCollector implements Collector, CursorProvider {
   private readonly larkBin?: string;
   private cursorStaging: CursorStaging;
   private lastCheckpoint: FeishuCheckpoint | null = null;
+  private sourceErrors: Record<string, string> = {};
 
   constructor(config: FeishuCollectorConfig) {
     this.authMode = config.auth_mode ?? "bot";
@@ -129,6 +130,7 @@ export class FeishuCollector implements Collector, CursorProvider {
 
   async *fetch(_opts: FetchOpts): AsyncGenerator<RawMessage> {
     this.cursorStaging = new CursorStaging();
+    this.sourceErrors = {};
 
     for (const source of this.sources) {
       try {
@@ -136,10 +138,16 @@ export class FeishuCollector implements Collector, CursorProvider {
           this.lastCheckpoint?.[source.name as keyof FeishuCheckpoint] ?? null;
         yield* source.fetch(sourceCheckpoint, this.cursorStaging);
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         console.error(`feishu: source=${source.name} fatal error:`, err);
+        this.sourceErrors[source.name] = message;
         this.cursorStaging.discardSource(source.name);
       }
     }
+  }
+
+  getSourceErrors(): Record<string, string> {
+    return { ...this.sourceErrors };
   }
 
   getCommittableCursors(): Record<string, unknown> {
