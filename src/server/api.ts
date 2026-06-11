@@ -237,7 +237,9 @@ export function createApiApp(stores: StoreContext): Hono {
     return c.json(result.rows);
   });
 
-  dataRoutes.get("/links", async (c) => c.json(await stores.graph.getLinks(c.req.query("slug") ?? "")));
+  dataRoutes.get("/links", async (c) =>
+    c.json(await stores.graph.getLinks(c.req.query("slug") ?? "")),
+  );
   dataRoutes.get("/backlinks", async (c) =>
     c.json(await stores.graph.getBacklinks(c.req.query("slug") ?? "")),
   );
@@ -260,7 +262,9 @@ export function createApiApp(stores: StoreContext): Hono {
     ),
   );
 
-  dataRoutes.get("/tags", async (c) => c.json(await stores.tags.getTags(c.req.query("slug") ?? "")));
+  dataRoutes.get("/tags", async (c) =>
+    c.json(await stores.tags.getTags(c.req.query("slug") ?? "")),
+  );
   dataRoutes.post("/tags", async (c) => {
     const slug = c.req.query("slug");
     if (!slug) return missing(c, "slug");
@@ -393,7 +397,9 @@ export function createApiApp(stores: StoreContext): Hono {
 
     return c.json({ days, next_cursor: nextCursor });
   });
-  dataRoutes.get("/chunks", async (c) => c.json(await stores.chunks.getChunks(c.req.query("slug") ?? "")));
+  dataRoutes.get("/chunks", async (c) =>
+    c.json(await stores.chunks.getChunks(c.req.query("slug") ?? "")),
+  );
   dataRoutes.post("/embed", async (c) =>
     c.json(
       await stores.embedding.embedStale({

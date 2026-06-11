@@ -1,8 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import {
