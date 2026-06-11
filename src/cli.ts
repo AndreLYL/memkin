@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import {
@@ -626,7 +627,18 @@ program
     }
 
     const app = createApiApp(storesWithDaemon);
-    const server = Bun.serve({ port: config.server.http_port, fetch: app.fetch });
+    const webDist = join(fileURLToPath(import.meta.url), "../../web/dist");
+    const server = Bun.serve({
+      port: config.server.http_port,
+      fetch: async (req) => {
+        const url = new URL(req.url);
+        if (url.pathname.startsWith("/api")) return app.fetch(req);
+        const filePath = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
+        const candidate = Bun.file(join(webDist, filePath));
+        if (await candidate.exists()) return new Response(candidate);
+        return new Response(Bun.file(join(webDist, "index.html")));
+      },
+    });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
     if (scheduler) {
       console.log(
