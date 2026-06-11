@@ -140,3 +140,22 @@ DO $$ BEGIN
     ALTER TABLE identity_cache ADD COLUMN slug_hint TEXT;
   END IF;
 END $$;
+
+-- person_handles: the typed alias layer (Layer 1 of person identity).
+-- Maps any "handle" by which a person is known to the canonical person page
+-- slug. A handle is (kind, value); the pair is unique, so one handle resolves
+-- to exactly one person. Merging/aliasing is explicit (see core/person-identity).
+--   kind     = 'feishu_open_id' | 'email' | 'name' | 'nickname' | 'slug'
+--   value    = canonicalized handle value (lowercased / whitespace-collapsed)
+--   strength = 'strong' (auto-resolvable: open_id/email/name/slug)
+--            | 'weak'   (nickname/花名 — only created via explicit link)
+CREATE TABLE IF NOT EXISTS person_handles (
+  kind            TEXT NOT NULL,
+  value           TEXT NOT NULL,
+  canonical_slug  TEXT NOT NULL,
+  strength        TEXT NOT NULL DEFAULT 'strong',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (kind, value)
+);
+
+CREATE INDEX IF NOT EXISTS idx_person_handles_slug ON person_handles (canonical_slug);
