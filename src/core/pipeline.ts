@@ -21,6 +21,7 @@ import { canonicalize } from "./canonicalize.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
+import type { IdentityResolver } from "./identity-resolver.js";
 import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
@@ -57,6 +58,12 @@ export interface PipelineOpts {
   dryRun?: boolean;
   since?: string;
   limit?: number;
+  /**
+   * Optional identity resolver. When provided, person slugs are canonicalized
+   * (Stage 2.5) before results are pushed to the adapter, preventing duplicate
+   * person pages from LLM-produced slug variants.
+   */
+  identityResolver?: IdentityResolver;
 }
 
 /**
@@ -305,6 +312,23 @@ export async function runPipeline(
     for (let i = 0; i < blocks.length; i += CONCURRENCY) {
       const batch = blocks.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map((block, j) => processBlock(block, i + j)));
+    }
+
+    // Stage 2.5: Person slug canonicalization
+    // Dedupe person pages produced from LLM slug variants before writing.
+    if (opts.identityResolver && extractedResults.length > 0) {
+      for (let i = 0; i < extractedResults.length; i++) {
+        try {
+          const { result: canonicalized, aliases } =
+            await opts.identityResolver.canonicalizeExtractionResult(extractedResults[i]);
+          canonicalized.personAliases = Object.fromEntries(aliases);
+          extractedResults[i] = canonicalized;
+        } catch (err) {
+          result.warnings.push(
+            `Person canonicalization failed (continuing with original slugs): ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
     }
 
     // Stage 4: Adapter.push (all results in one batch)

@@ -1,5 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import {
+  type HandleKind,
+  type HandleStrength,
+  PersonIdentityStore,
+} from "../core/person-identity.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
@@ -23,6 +28,7 @@ export interface StoreContext {
 }
 
 export function createMcpToolHandlers(stores: StoreContext) {
+  const identity = new PersonIdentityStore(stores.db.pg, { pages: stores.pages });
   return {
     query: ({ query, limit }: { query: string; limit?: number }) =>
       stores.search.query(query, { limit }),
@@ -107,6 +113,36 @@ export function createMcpToolHandlers(stores: StoreContext) {
 
     get_entity_profile: ({ entity_slug }: { entity_slug: string }) =>
       getEntityProfile(stores, entity_slug),
+
+    // ── Person identity (Layer 1: aliases / merge / rename) ──────────────
+    link_person_alias: async ({
+      canonical_slug,
+      kind,
+      value,
+      strength,
+    }: {
+      canonical_slug: string;
+      kind: HandleKind;
+      value: string;
+      strength?: HandleStrength;
+    }) => {
+      await identity.addAlias(canonical_slug, kind, value, strength);
+      return { ok: true, canonical_slug, handles: await identity.listHandles(canonical_slug) };
+    },
+    list_person_handles: ({ canonical_slug }: { canonical_slug: string }) =>
+      identity.listHandles(canonical_slug),
+    remove_person_alias: async ({ kind, value }: { kind: HandleKind; value: string }) => {
+      await identity.removeHandle(kind, value);
+      return { ok: true };
+    },
+    merge_persons: async ({ from, into }: { from: string; into: string }) => {
+      await identity.merge(from, into);
+      return { ok: true, merged: from, into, handles: await identity.listHandles(into) };
+    },
+    recanonicalize_person: async ({ from, to }: { from: string; to: string }) => {
+      await identity.recanonicalize(from, to);
+      return { ok: true, from, to, handles: await identity.listHandles(to) };
+    },
   };
 }
 
@@ -198,6 +234,31 @@ export function createMcpServer(stores: StoreContext): McpServer {
 
   server.tool("get_entity_profile", { entity_slug: z.string() }, async (args) =>
     text(await tools.get_entity_profile(args)),
+  );
+
+  // ── Person identity (Layer 1) ───────────────────────────────────────────
+  const handleKind = z.enum(["feishu_open_id", "email", "name", "nickname", "slug"]);
+  server.tool(
+    "link_person_alias",
+    {
+      canonical_slug: z.string(),
+      kind: handleKind,
+      value: z.string(),
+      strength: z.enum(["strong", "weak"]).optional(),
+    },
+    async (args) => text(await tools.link_person_alias(args)),
+  );
+  server.tool("list_person_handles", { canonical_slug: z.string() }, async (args) =>
+    text(await tools.list_person_handles(args)),
+  );
+  server.tool("remove_person_alias", { kind: handleKind, value: z.string() }, async (args) =>
+    text(await tools.remove_person_alias(args)),
+  );
+  server.tool("merge_persons", { from: z.string(), into: z.string() }, async (args) =>
+    text(await tools.merge_persons(args)),
+  );
+  server.tool("recanonicalize_person", { from: z.string(), to: z.string() }, async (args) =>
+    text(await tools.recanonicalize_person(args)),
   );
 
   return server;

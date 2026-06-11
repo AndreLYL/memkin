@@ -22,10 +22,14 @@ export class FeishuCollector implements Collector, CursorProvider {
   private readonly auth: FeishuAuthManager;
   private readonly client: FeishuHttpClient;
   private readonly sources: FeishuSource[];
+  private readonly authMode: "bot" | "user";
+  private readonly larkBin?: string;
   private cursorStaging: CursorStaging;
   private lastCheckpoint: FeishuCheckpoint | null = null;
 
   constructor(config: FeishuCollectorConfig) {
+    this.authMode = config.auth_mode ?? "bot";
+    this.larkBin = config.lark_bin;
     this.auth = new FeishuAuthManager(config.app_id, config.app_secret, config.base_url);
     const rateLimiter = new FeishuRateLimiter(config.rate_limit_qps);
     this.client = new FeishuHttpClient(this.auth, rateLimiter);
@@ -99,6 +103,19 @@ export class FeishuCollector implements Collector, CursorProvider {
   }
 
   async healthCheck(): Promise<{ ok: boolean; message: string }> {
+    if (this.authMode === "user") {
+      try {
+        const lark = new LarkCliHttpClient(this.larkBin);
+        const result = await lark.healthCheck();
+        if (!result.ok) return result;
+        return { ok: true, message: `${this.sources.length} source(s) enabled (user mode)` };
+      } catch (err) {
+        return {
+          ok: false,
+          message: `lark-cli auth check failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }
     try {
       await this.auth.getToken();
       return { ok: true, message: `${this.sources.length} source(s) enabled` };

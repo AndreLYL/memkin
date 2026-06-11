@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { createFeishuCollector } from "../collectors/feishu/index.js";
 import { loadConfig } from "../core/config.js";
+import { IdentityResolver } from "../core/identity-resolver.js";
 import { runPipeline } from "../core/pipeline.js";
 import { buildPipelineConfig } from "../core/pipeline-factory.js";
 import { createLLMProvider } from "../extractors/providers/index.js";
@@ -136,12 +137,15 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 
     const provider = createLLMProvider(llmConfig);
 
+    const identityResolver = new IdentityResolver(stores.db.pg);
+
     return runPipeline(pipelineConfig, {
       source: collector,
       provider,
       format: "json",
       adapter: "store",
       stores: stores as never,
+      identityResolver,
     });
   };
 }

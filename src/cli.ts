@@ -17,6 +17,7 @@ import {
 } from "./collectors/index.js";
 import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.js";
 import { loadConfig, type SourcesConfig } from "./core/config.js";
+import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { Scheduler } from "./daemon/scheduler.js";
@@ -84,6 +85,21 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
     timeline: new TimelineStore(db.pg),
     embedding,
   };
+}
+
+/**
+ * Lightweight store for identity operations: opens only the Database + a
+ * PersonIdentityStore. Deliberately avoids EmbeddingService so that person
+ * alias/merge/rename never requires an LLM or embedding API key.
+ */
+async function openIdentityStore(config: ReturnType<typeof loadConfig>) {
+  const dataDir = expandDataDir(config.store.data_dir);
+  mkdirSync(dataDir, { recursive: true });
+  const db = await Database.create(dataDir, {
+    embeddingDimensions: config.embedding.dimensions,
+  });
+  const identity = new PersonIdentityStore(db.pg, { pages: new PageStore(db.pg) });
+  return { db, identity };
 }
 
 const program = new Command();
@@ -783,6 +799,93 @@ program
     } catch (error) {
       console.error("Consolidate failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
+    }
+  });
+
+// ── Person identity (Layer 1: aliases / merge / rename) ────────────────────
+const HANDLE_KINDS: HandleKind[] = ["feishu_open_id", "email", "name", "nickname", "slug"];
+
+const identityCmd = program
+  .command("identity")
+  .description("Manage person identity: aliases, merge, and rename");
+
+identityCmd
+  .command("alias <canonical_slug> <kind> <value>")
+  .description(`Attach an alias/handle to a person. kind: ${HANDLE_KINDS.join(" | ")}`)
+  .option("-c, --config <path>", "Path to config file")
+  .option("--strong", "Force strong strength (auto-resolvable)")
+  .option("--weak", "Force weak strength (explicit-only)")
+  .action(async (canonicalSlug, kind, value, options) => {
+    if (!HANDLE_KINDS.includes(kind as HandleKind)) {
+      console.error(`Error: invalid kind '${kind}'. Expected one of: ${HANDLE_KINDS.join(", ")}`);
+      process.exit(1);
+    }
+    const { db, identity } = await openIdentityStore(loadConfig(options.config));
+    try {
+      const strength = options.strong ? "strong" : options.weak ? "weak" : undefined;
+      await identity.addAlias(canonicalSlug, kind as HandleKind, value, strength);
+      console.log(`Linked ${kind}:${value} → ${canonicalSlug}`);
+      for (const h of await identity.listHandles(canonicalSlug)) {
+        console.log(`  ${h.kind}\t${h.value}\t(${h.strength})`);
+      }
+    } catch (error) {
+      console.error("alias failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    } finally {
+      await db.close();
+    }
+  });
+
+identityCmd
+  .command("handles <canonical_slug>")
+  .description("List all handles/aliases attached to a person")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (canonicalSlug, options) => {
+    const { db, identity } = await openIdentityStore(loadConfig(options.config));
+    try {
+      const handles = await identity.listHandles(canonicalSlug);
+      if (handles.length === 0) {
+        console.log(`No handles for ${canonicalSlug}`);
+      } else {
+        for (const h of handles) console.log(`${h.kind}\t${h.value}\t(${h.strength})`);
+      }
+    } finally {
+      await db.close();
+    }
+  });
+
+identityCmd
+  .command("merge <from> <into>")
+  .description("Merge person page <from> into <into> (re-points links/timeline/tags + aliases)")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (from, into, options) => {
+    const { db, identity } = await openIdentityStore(loadConfig(options.config));
+    try {
+      await identity.merge(from, into);
+      console.log(`Merged ${from} → ${into}`);
+      console.log("Note: run `memoark embed` to re-embed the folded content.");
+    } catch (error) {
+      console.error("merge failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    } finally {
+      await db.close();
+    }
+  });
+
+identityCmd
+  .command("rename <from> <to>")
+  .description("Rename a person's canonical slug (correct a wrong canonicalization)")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (from, to, options) => {
+    const { db, identity } = await openIdentityStore(loadConfig(options.config));
+    try {
+      await identity.recanonicalize(from, to);
+      console.log(`Renamed ${from} → ${to}`);
+    } catch (error) {
+      console.error("rename failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    } finally {
+      await db.close();
     }
   });
 
