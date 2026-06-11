@@ -48,6 +48,7 @@
     "hono": "^4.12.23",
     "ink": "^7.0.5",
     "openai": "^6.39.0",
+    "pinyin-pro": "^3.28.1",
     "react": "^19.2.7",
     "react-devtools-core": "^6.1.5",
     "yaml": "^2.3.4",

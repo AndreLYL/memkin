@@ -118,6 +118,11 @@ DO $$ BEGIN
 END $$;
 
 -- Identity cache for person slug canonicalization
+-- identity_cache doubles as the person slug canonicalization store via
+-- platform = 'canonical':
+--   external_id  = model-produced slug or display name
+--   display_name = canonical person slug (e.g. 'person/wang-jiandu')
+--   slug_hint    = original entity.name (used for collision detection)
 CREATE TABLE IF NOT EXISTS identity_cache (
   platform      TEXT NOT NULL,
   external_id   TEXT NOT NULL,
