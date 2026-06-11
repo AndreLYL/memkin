@@ -153,7 +153,11 @@ export class GraphStore {
         to_slug: r.to_slug,
         link_type: r.link_type,
         context: r.context,
-        provenance: r.provenance ? (JSON.parse(r.provenance) as SourceRef) : undefined,
+        provenance: r.provenance
+          ? ((typeof r.provenance === "string"
+              ? JSON.parse(r.provenance)
+              : r.provenance) as SourceRef)
+          : undefined,
         page: {
           title: r.page_title,
           type: r.page_type,
@@ -203,7 +207,11 @@ export class GraphStore {
         to_slug: r.to_slug,
         link_type: r.link_type,
         context: r.context,
-        provenance: r.provenance ? (JSON.parse(r.provenance) as SourceRef) : undefined,
+        provenance: r.provenance
+          ? ((typeof r.provenance === "string"
+              ? JSON.parse(r.provenance)
+              : r.provenance) as SourceRef)
+          : undefined,
         page: {
           title: r.page_title,
           type: r.page_type,
