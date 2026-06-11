@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { PersonIdentityStore } from "./person-identity.js";
 import { toPersonCanonicalSlug } from "./person-slug.js";
 import type { ExtractionResult, RawMessage } from "./types.js";
 
@@ -12,10 +13,14 @@ interface CacheRow {
 }
 
 export class IdentityResolver {
+  private readonly identity: PersonIdentityStore;
+
   constructor(
     private db: PGlite,
     private backend?: IdentityBackend,
-  ) {}
+  ) {
+    this.identity = new PersonIdentityStore(db);
+  }
 
   async enrichBatch(messages: RawMessage[]): Promise<RawMessage[]> {
     const unresolvedIds = new Set<string>();
@@ -90,6 +95,13 @@ export class IdentityResolver {
     name: string,
     modelSlug: string,
   ): Promise<{ slug: string; isAlias: boolean }> {
+    // 0. Explicit handle table wins (Layer 1): a previously-linked alias —
+    //    open id / email / exact name / nickname — pins the canonical slug.
+    const byHandle = await this.identity.resolveForExtraction(name, modelSlug);
+    if (byHandle) {
+      return { slug: byHandle, isAlias: modelSlug !== byHandle };
+    }
+
     // 1. Check cache by modelSlug
     const cacheBySlug = await this.db.query<{ display_name: string }>(
       "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
@@ -160,6 +172,10 @@ export class IdentityResolver {
        ON CONFLICT (platform, external_id) DO NOTHING`,
       ["canonical", name, canonicalSlug, name],
     );
+
+    // Record the strong handles (name/slug/open id) so future explicit aliases
+    // and merges can build on a populated handle table.
+    await this.identity.recordCanonical(name, canonicalSlug);
 
     return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
   }
