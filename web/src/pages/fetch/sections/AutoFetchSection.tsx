@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { WizardConfig } from "../../../api/config";
+import { ToggleSwitch } from "../../../components/config/ToggleSwitch";
 
 interface Props {
   config: WizardConfig;
@@ -61,20 +62,19 @@ export function AutoFetchSection({ config, onSave }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 text-sm font-medium text-fg-default">
-          <input
-            type="checkbox"
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1">
+          <ToggleSwitch
+            id="auto-fetch-enabled"
+            label="启用定时抓取"
             checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-border-default"
+            onChange={setEnabled}
           />
-          启用定时抓取
-        </label>
+        </div>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="shrink-0 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save"}
         </button>

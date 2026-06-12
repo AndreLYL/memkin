@@ -35,30 +35,29 @@ export class MailSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
-    try {
-      const startMs = this.resolveStartTime(checkpoint);
-      const triageItems = await this.fetchTriage();
+    // fetchTriage errors (auth scope missing, 4013 user-not-found, etc.) must
+    // propagate so the collector / pipeline can surface them as a real source
+    // failure instead of silently reporting 0 messages.
+    const startMs = this.resolveStartTime(checkpoint);
+    const triageItems = await this.fetchTriage();
 
-      const filteredItems = triageItems.filter(
-        (item) => new Date(item.date).getTime() >= startMs - this.overlapMs,
-      );
+    const filteredItems = triageItems.filter(
+      (item) => new Date(item.date).getTime() >= startMs - this.overlapMs,
+    );
 
-      const concurrency = this.opts.fetchConcurrency ?? 1;
-      let maxDateMs = 0;
+    const concurrency = this.opts.fetchConcurrency ?? 1;
+    let maxDateMs = 0;
 
-      for await (const { item, detail } of this.fetchConcurrent(filteredItems, concurrency)) {
-        if (!detail) continue;
-        const itemDateMs = new Date(item.date).getTime();
-        if (itemDateMs > maxDateMs) maxDateMs = itemDateMs;
-        yield this.mapMessage(item, detail);
-      }
+    for await (const { item, detail } of this.fetchConcurrent(filteredItems, concurrency)) {
+      if (!detail) continue;
+      const itemDateMs = new Date(item.date).getTime();
+      if (itemDateMs > maxDateMs) maxDateMs = itemDateMs;
+      yield this.mapMessage(item, detail);
+    }
 
-      if (maxDateMs > 0) {
-        cursorStaging.stage("mail", "INBOX", { last_sync_at: maxDateMs });
-        cursorStaging.commit("mail", "INBOX");
-      }
-    } catch (err) {
-      console.error("[MailSource] Failed to fetch mail:", err);
+    if (maxDateMs > 0) {
+      cursorStaging.stage("mail", "INBOX", { last_sync_at: maxDateMs });
+      cursorStaging.commit("mail", "INBOX");
     }
   }
 

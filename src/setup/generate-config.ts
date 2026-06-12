@@ -106,6 +106,10 @@ export function buildConfigObject(config: PartialConfig): Config {
       http_port: config.server?.http_port ?? 3927,
       mcp_transport: config.server?.mcp_transport ?? "stdio",
     },
+    // Pass scheduler through unchanged when present. AutoFetchSection saves
+    // {enabled, tick_interval_secs, defaults, sources} as a complete block;
+    // dropping it here is why the Auto-fetch toggle reset on every reload.
+    ...(config.scheduler ? { scheduler: config.scheduler } : {}),
   };
 }
 

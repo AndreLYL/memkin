@@ -26,6 +26,12 @@ export class MessageSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
+    if (this.chatIds.length === 0) {
+      throw new Error(
+        "messages source enabled but chat_ids is empty — add specific chat IDs, " +
+          "or disable this source and use message_search to scan all groups by time window",
+      );
+    }
     for (const chatId of this.chatIds) {
       try {
         const startMs = this.resolveStartTime(checkpoint, chatId);
