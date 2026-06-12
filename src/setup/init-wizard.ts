@@ -353,6 +353,7 @@ async function buildInteractiveConfig(
     const testOk = await testEmbeddingConnection(
       embeddingBaseUrl ?? "https://api.openai.com/v1",
       embeddingApiKey ?? "",
+      "text-embedding-3-large",
     );
     if (testOk.ok) {
       write(output, "  [ok] Embedding connection successful");

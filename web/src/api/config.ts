@@ -94,6 +94,7 @@ export const configApi = {
 
   testEmbedding: (cfg: {
     provider: string;
+    model?: string;
     base_url?: string;
     api_key?: string;
   }): Promise<{ ok: boolean; error?: string }> =>
