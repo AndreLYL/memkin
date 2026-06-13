@@ -39,5 +39,9 @@ export function parseFeishuUrl(input: string): ParsedFeishuUrl {
     };
   }
 
-  return { kind: "reject", code: "INVALID_URL", message: `Unrecognized Feishu URL or token: ${input}` };
+  return {
+    kind: "reject",
+    code: "INVALID_URL",
+    message: `Unrecognized Feishu URL or token: ${input}`,
+  };
 }

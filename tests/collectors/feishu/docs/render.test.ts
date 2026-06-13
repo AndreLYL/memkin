@@ -1,5 +1,5 @@
-import { parse as parseYaml } from "yaml";
 import { describe, expect, test } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   mergeUserNoteIntoCard,
   renderDocCardMarkdown,

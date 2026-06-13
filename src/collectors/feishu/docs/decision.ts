@@ -55,7 +55,10 @@ export function decide(
  * Second-phase decision once raw_content has been fetched and hashed.
  * T5: re-summarize only when the body text actually changed.
  */
-export function decideAfterBodyCheck(newBodyHash: string, existingBodyHash: string): BodyCheckDecision {
+export function decideAfterBodyCheck(
+  newBodyHash: string,
+  existingBodyHash: string,
+): BodyCheckDecision {
   return newBodyHash === existingBodyHash
     ? { action: "metadata_refresh" }
     : { action: "queue_for_upgrade", trigger: "T5" };

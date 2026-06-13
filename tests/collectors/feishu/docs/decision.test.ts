@@ -38,7 +38,12 @@ function config(over: Partial<DocDecisionConfig> = {}): DocDecisionConfig {
 }
 
 function pointer(over: Partial<PointerCard> = {}): PointerCard {
-  return { ...candidate(), extract_level: "pointer", extracted_at: "2020-01-01T00:00:00Z", ...over };
+  return {
+    ...candidate(),
+    extract_level: "pointer",
+    extracted_at: "2020-01-01T00:00:00Z",
+    ...over,
+  };
 }
 
 function full(over: Partial<FullCard> = {}): FullCard {

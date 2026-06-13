@@ -65,7 +65,9 @@ describe("evaluateTriggers", () => {
     const c = candidate({
       source: { kind: "wiki", space_id: "sp_1", space_name: "S", node_token: "nd_1" },
     });
-    expect(evaluateTriggers(c, config({ important_wiki_spaces: ["sp_1"] }), "ou_me", NOW)).toBe("T4");
+    expect(evaluateTriggers(c, config({ important_wiki_spaces: ["sp_1"] }), "ou_me", NOW)).toBe(
+      "T4",
+    );
   });
 
   test("no trigger fires → null", () => {

@@ -7,7 +7,7 @@ describe("parseLlmJson", () => {
   });
 
   test("JSON wrapped in markdown code fences parses", () => {
-    const input = "```json\n{\"a\":1}\n```";
+    const input = '```json\n{"a":1}\n```';
     expect(parseLlmJson(input)).toEqual({ a: 1 });
   });
 
