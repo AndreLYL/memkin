@@ -25,7 +25,10 @@ export interface ResolvedDocsConfig {
 export function normalizeDocsConfig(raw: FeishuDocSourceConfig): ResolvedDocsConfig {
   return {
     my_space: { enabled: raw.my_space?.enabled ?? true, max_depth: raw.my_space?.max_depth ?? 10 },
-    wiki: { enabled: raw.wiki?.enabled ?? true, exclude_space_ids: raw.wiki?.exclude_space_ids ?? [] },
+    wiki: {
+      enabled: raw.wiki?.enabled ?? true,
+      exclude_space_ids: raw.wiki?.exclude_space_ids ?? [],
+    },
     folders: raw.folders ?? [],
     gate: { min_content_chars: raw.gate?.min_content_chars ?? 200 },
     triggers: {

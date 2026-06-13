@@ -45,12 +45,20 @@ export interface RunDocSourceDeps {
 export async function runDocSource(deps: RunDocSourceDeps): Promise<DocSourceStats> {
   const { client, stores, provider, config, cursor, selfOpenId, nowMs, nowIso } = deps;
   const stats: DocSourceStats = {
-    candidates_scanned: 0, pointer_saved: 0, full_card_generated: 0,
-    full_card_refreshed: 0, skipped: 0, upgrade_queue_size: 0, llm_failed: 0,
+    candidates_scanned: 0,
+    pointer_saved: 0,
+    full_card_generated: 0,
+    full_card_refreshed: 0,
+    skipped: 0,
+    upgrade_queue_size: 0,
+    llm_failed: 0,
   };
 
   const checkpoint = cursor.getJSON<DocsCheckpoint>(CURSOR_KEY) ?? {};
-  const queue = new UpgradeQueue(checkpoint.upgrade_queue?.pending ?? [], config.upgrade_queue.max_pending);
+  const queue = new UpgradeQueue(
+    checkpoint.upgrade_queue?.pending ?? [],
+    config.upgrade_queue.max_pending,
+  );
   const runCount = checkpoint.run_count ?? 0;
 
   const decisionConfig: DocDecisionConfig = {
@@ -131,7 +139,9 @@ export async function runDocSource(deps: RunDocSourceDeps): Promise<DocSourceSta
 
 async function fetchRawText(client: IFeishuHttpClient, docToken: string): Promise<string> {
   const blocks: FeishuBlock[] = [];
-  for await (const page of client.paginate<FeishuBlock>(`/open-apis/docx/v1/documents/${docToken}/blocks`)) {
+  for await (const page of client.paginate<FeishuBlock>(
+    `/open-apis/docx/v1/documents/${docToken}/blocks`,
+  )) {
     blocks.push(...page.items);
   }
   return feishuBlocksToRawText(blocks);

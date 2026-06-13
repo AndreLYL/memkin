@@ -10,7 +10,9 @@ export async function writeCard(
   card: DocCard,
 ): Promise<void> {
   const content = renderDocCardMarkdown(card);
-  const page = await stores.pages.putPage(docSlug(card.doc_token), content, { halflife_days: null });
+  const page = await stores.pages.putPage(docSlug(card.doc_token), content, {
+    halflife_days: null,
+  });
   await stores.chunks.rechunk(page.id, page.compiled_truth);
 }
 

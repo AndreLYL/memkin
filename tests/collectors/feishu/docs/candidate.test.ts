@@ -54,12 +54,16 @@ describe("wikiNodeToCandidate", () => {
       obj_create_time: "1700000000",
       owner_id: "ou_owner",
     };
-    const c = wikiNodeToCandidate(node, {
-      kind: "wiki",
-      space_id: "sp_1",
-      space_name: "Research",
-      node_token: "nd_1",
-    }, "Wiki/Research/");
+    const c = wikiNodeToCandidate(
+      node,
+      {
+        kind: "wiki",
+        space_id: "sp_1",
+        space_name: "Research",
+        node_token: "nd_1",
+      },
+      "Wiki/Research/",
+    );
     expect(c.doc_token).toBe("obj_doc");
     expect(c.doc_type).toBe("docx");
     expect(c.title).toBe("Wiki Doc");

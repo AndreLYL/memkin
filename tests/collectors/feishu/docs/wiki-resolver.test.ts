@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { resolveWikiNode, WikiNodeNotFoundError } from "../../../../src/collectors/feishu/docs/wiki-resolver";
+import {
+  resolveWikiNode,
+  WikiNodeNotFoundError,
+} from "../../../../src/collectors/feishu/docs/wiki-resolver";
 
 describe("resolveWikiNode", () => {
   test("returns obj_token + obj_type from get_node", async () => {

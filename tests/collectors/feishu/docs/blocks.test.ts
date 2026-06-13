@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
+  type FeishuBlock,
   feishuBlocksToDocBlocks,
   feishuBlocksToRawText,
-  type FeishuBlock,
 } from "../../../../src/collectors/feishu/docs/blocks";
 
 const heading: FeishuBlock = {

@@ -9,7 +9,10 @@ export class UpgradeQueue {
   private items: string[];
   private set: Set<string>;
 
-  constructor(initial: string[], private readonly maxPending: number) {
+  constructor(
+    initial: string[],
+    private readonly maxPending: number,
+  ) {
     this.items = [...initial];
     this.set = new Set(initial);
   }

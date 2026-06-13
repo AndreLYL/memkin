@@ -10,11 +10,13 @@ import type { DocCandidate, DocCard, EntityMention, FullCard } from "./types.js"
 const MIN_CONTENT_CHARS = 200;
 
 function buildPrompt(rawText: string, userNote?: string): string {
-  const noteLine = userNote ? `\nThe user says this document's purpose is: "${userNote}". Use it.` : "";
+  const noteLine = userNote
+    ? `\nThe user says this document's purpose is: "${userNote}". Use it.`
+    : "";
   return [
     "Summarize the following document into JSON with keys:",
     '{ "purpose": string (<=50 chars), "topics": string[] (3-7), "entities": {name, type_guess}[], "overview": string (200-400 chars) }.',
-    'type_guess ∈ person|project|tool|concept|organization. Reply with JSON only, no markdown.',
+    "type_guess ∈ person|project|tool|concept|organization. Reply with JSON only, no markdown.",
     noteLine,
     "\n---\n",
     rawText.slice(0, 12000),
@@ -40,22 +42,34 @@ export class FullCardBuilder {
     return blocks;
   }
 
-  async build(candidate: DocCandidate, opts?: { userNote?: string; tags?: string[] }): Promise<DocCard> {
+  async build(
+    candidate: DocCandidate,
+    opts?: { userNote?: string; tags?: string[] },
+  ): Promise<DocCard> {
     const now = this.nowIso();
     let blocks: FeishuBlock[];
     try {
       blocks = await this.fetchBlocks(candidate.doc_token);
     } catch {
-      return buildPointerCard(candidate, now, { extract_error: "blocks_fetch_failed", user_note: opts?.userNote });
+      return buildPointerCard(candidate, now, {
+        extract_error: "blocks_fetch_failed",
+        user_note: opts?.userNote,
+      });
     }
 
     if (blocks.length === 0) {
-      return buildPointerCard(candidate, now, { extract_skipped: "empty_blocks", user_note: opts?.userNote });
+      return buildPointerCard(candidate, now, {
+        extract_skipped: "empty_blocks",
+        user_note: opts?.userNote,
+      });
     }
 
     const rawText = feishuBlocksToRawText(blocks);
     if (rawText.length < MIN_CONTENT_CHARS) {
-      return buildPointerCard(candidate, now, { extract_skipped: "below_min_chars", user_note: opts?.userNote });
+      return buildPointerCard(candidate, now, {
+        extract_skipped: "below_min_chars",
+        user_note: opts?.userNote,
+      });
     }
 
     let parsed: Record<string, unknown>;

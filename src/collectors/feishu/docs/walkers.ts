@@ -64,7 +64,12 @@ export async function* walkWiki(
           if (node.obj_type !== "docx") continue;
           yield wikiNodeToCandidate(
             node,
-            { kind: "wiki", space_id: space.space_id, space_name: space.name, node_token: node.node_token },
+            {
+              kind: "wiki",
+              space_id: space.space_id,
+              space_name: space.name,
+              node_token: node.node_token,
+            },
             `Wiki/${space.name}/`,
           );
         }
@@ -104,7 +109,13 @@ export async function* iterateCandidates(
     const root = await getMySpaceRoot(client);
     if (root) {
       yield* emit(
-        walkDriveFolder(client, root, { kind: "my_space", folder_token: root }, "My Space/", config.my_space.max_depth),
+        walkDriveFolder(
+          client,
+          root,
+          { kind: "my_space", folder_token: root },
+          "My Space/",
+          config.my_space.max_depth,
+        ),
       );
     }
   }

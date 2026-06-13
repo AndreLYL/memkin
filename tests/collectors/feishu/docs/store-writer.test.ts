@@ -3,10 +3,18 @@ import { loadExistingCard, writeCard } from "../../../../src/collectors/feishu/d
 import type { PointerCard } from "../../../../src/collectors/feishu/docs/types";
 
 const pointer: PointerCard = {
-  doc_token: "tok9", doc_type: "docx", title: "T", url: "u", owner_id: "o", last_editor_id: "e",
-  created_at: "2026-01-01T00:00:00Z", modified_at: "2026-02-01T00:00:00Z",
-  source: { kind: "my_space", folder_token: "f" }, parent_path: "My Space/",
-  extract_level: "pointer", extracted_at: "2026-06-14T00:00:00Z",
+  doc_token: "tok9",
+  doc_type: "docx",
+  title: "T",
+  url: "u",
+  owner_id: "o",
+  last_editor_id: "e",
+  created_at: "2026-01-01T00:00:00Z",
+  modified_at: "2026-02-01T00:00:00Z",
+  source: { kind: "my_space", folder_token: "f" },
+  parent_path: "My Space/",
+  extract_level: "pointer",
+  extracted_at: "2026-06-14T00:00:00Z",
 };
 
 describe("writeCard", () => {
