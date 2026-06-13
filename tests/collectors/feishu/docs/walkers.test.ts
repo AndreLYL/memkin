@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { walkDriveFolder } from "../../../../src/collectors/feishu/docs/walkers";
+import { walkDriveFolder, walkWiki } from "../../../../src/collectors/feishu/docs/walkers";
 import type { PagedResult } from "../../../../src/collectors/feishu/http-client";
 
 // Minimal fake LarkCliHttpClient with a scripted paginate.
@@ -57,5 +57,49 @@ describe("walkDriveFolder", () => {
       out.push(c);
     }
     expect(out).toEqual([]);
+  });
+});
+
+function fakeWikiClient(spaces: unknown[], nodesBySpace: Record<string, unknown[]>) {
+  return {
+    async *paginate(path: string, _params?: Record<string, string>) {
+      if (path.endsWith("/spaces")) {
+        yield { items: spaces, has_more: false };
+        return;
+      }
+      const spaceId = path.split("/spaces/")[1]?.split("/")[0] ?? "";
+      yield { items: nodesBySpace[spaceId] ?? [], has_more: false };
+    },
+    async request() {
+      throw new Error("not used");
+    },
+    async execShortcut() {
+      return "";
+    },
+  };
+}
+
+describe("walkWiki", () => {
+  test("emits docx nodes across spaces, skips excluded spaces and non-docx nodes", async () => {
+    const client = fakeWikiClient(
+      [
+        { space_id: "sp1", name: "Research" },
+        { space_id: "sp2", name: "Excluded" },
+      ],
+      {
+        sp1: [
+          { node_token: "n1", obj_token: "o1", obj_type: "docx", title: "A", obj_edit_time: "2", obj_create_time: "1" },
+          { node_token: "n2", obj_token: "o2", obj_type: "sheet", title: "B", obj_edit_time: "2", obj_create_time: "1" },
+        ],
+        sp2: [
+          { node_token: "n3", obj_token: "o3", obj_type: "docx", title: "C", obj_edit_time: "2", obj_create_time: "1" },
+        ],
+      },
+    );
+    const out: string[] = [];
+    for await (const c of walkWiki(client as never, ["sp2"])) {
+      out.push(c.doc_token);
+    }
+    expect(out).toEqual(["o1"]);
   });
 });
