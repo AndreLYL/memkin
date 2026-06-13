@@ -2,7 +2,8 @@ import type { IdentityBackend } from "../../core/identity-resolver.js";
 import type { LarkCliHttpClient } from "./lark-cli-client.js";
 
 interface ChatInfo {
-  chat_mode?: "group" | "p2p" | string;
+  /** Known values: "group", "p2p". Unknown values are treated as unresolvable. */
+  chat_mode?: string;
   name?: string;
 }
 
@@ -18,11 +19,7 @@ interface ParsedChannel {
 }
 
 export class LarkCliIdentityBackend implements IdentityBackend {
-  constructor(
-    private readonly client: LarkCliHttpClient,
-    // selfOpenId is reserved for the p2p resolution path (Task 4)
-    readonly _selfOpenId?: string,
-  ) {}
+  constructor(private readonly client: LarkCliHttpClient) {}
 
   /**
    * Person open_id → name. Task 3 leaves this as a stub returning null;
@@ -71,9 +68,17 @@ export class LarkCliIdentityBackend implements IdentityBackend {
 }
 
 function parseChannel(channel: string): ParsedChannel | null {
-  if (channel.startsWith("group/"))
-    return { kind: "group", chatId: channel.slice("group/".length) };
-  if (channel.startsWith("dm/")) return { kind: "dm", chatId: channel.slice("dm/".length) };
-  if (channel.startsWith("mail/")) return { kind: "mail", chatId: channel.slice("mail/".length) };
+  if (channel.startsWith("group/")) {
+    const chatId = channel.slice("group/".length);
+    return chatId ? { kind: "group", chatId } : null;
+  }
+  if (channel.startsWith("dm/")) {
+    const chatId = channel.slice("dm/".length);
+    return chatId ? { kind: "dm", chatId } : null;
+  }
+  if (channel.startsWith("mail/")) {
+    const chatId = channel.slice("mail/".length);
+    return chatId ? { kind: "mail", chatId } : null;
+  }
   return null;
 }

@@ -103,8 +103,19 @@ describe("LarkCliIdentityBackend.resolveFeishuChatId — group path", () => {
     const result = await backend.resolveFeishuChatId("group/oc_netfail");
     expect(result).toBeNull();
   });
+
+  it("returns null when chatId is empty after the prefix", async () => {
+    const requestSpy = vi.fn();
+    const client = { request: requestSpy, execShortcut: vi.fn() } as unknown as LarkCliHttpClient;
+    const backend = new LarkCliIdentityBackend(client);
+    expect(await backend.resolveFeishuChatId("group/")).toBeNull();
+    expect(await backend.resolveFeishuChatId("dm/")).toBeNull();
+    expect(await backend.resolveFeishuChatId("mail/")).toBeNull();
+    expect(requestSpy).not.toHaveBeenCalled();
+  });
 });
 
+// TODO: Task 4 — remove or replace this describe block when p2p resolution lands
 describe("LarkCliIdentityBackend.resolveFeishuChatId — p2p stub (Task 4 will fill this in)", () => {
   it("returns null for p2p path until Task 4 implements it", async () => {
     const client = makeMockClient({
