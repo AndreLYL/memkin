@@ -5,6 +5,7 @@ import { SignalCard } from "../components/shared/SignalCard";
 import { FilterBar } from "../components/shared/FilterBar";
 import { EmptyState } from "../components/shared/EmptyState";
 import { TYPE_GROUPS } from "../lib/type-groups";
+import { channelDisplay, type ChannelStatus } from "../lib/channel-display";
 
 interface Signal {
   slug: string;
@@ -14,12 +15,16 @@ interface Signal {
   date: string;
   platform: string;
   channel: string;
+  channel_name: string | null;
+  channel_name_status: ChannelStatus;
 }
 
 interface Group {
   key: string;
   platform: string;
   channel: string;
+  channel_name: string | null;
+  channel_name_status: ChannelStatus;
   count: number;
   signals: Signal[];
 }
@@ -110,7 +115,21 @@ export function TimelinePage() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-fg-subtle">{isExpanded ? "▾" : "▸"}</span>
-                          <span className="text-sm text-fg-default">{group.key}</span>
+                          {(() => {
+                            const display = channelDisplay(group.channel, group.channel_name, group.channel_name_status);
+                            const colorClass =
+                              display.status === "failed"
+                                ? "text-red-500"
+                                : display.status === "unresolved"
+                                  ? "text-yellow-500"
+                                  : "text-fg-default";
+                            return (
+                              <span className={`text-sm ${colorClass}`} title={display.tooltip}>
+                                {display.text}
+                              </span>
+                            );
+                          })()}
+                          <span className="text-xs text-fg-muted">({group.platform})</span>
                           <span className="text-xs text-fg-subtle">
                             {group.count} signal{group.count !== 1 ? "s" : ""}
                           </span>
