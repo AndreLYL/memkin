@@ -96,7 +96,12 @@ describe("FullCardBuilder force", () => {
   test("force builds a full card even below the min-char gate", async () => {
     const provider = createMockProvider(new Map([["", goodLlmJson]]));
     // 10 chars of content — below the 200 gate
-    const builder = new FullCardBuilder(clientWithBlocks([], 10) as never, provider, "mock-model", () => "2026-06-14T00:00:00Z");
+    const builder = new FullCardBuilder(
+      clientWithBlocks([], 10) as never,
+      provider,
+      "mock-model",
+      () => "2026-06-14T00:00:00Z",
+    );
     const result = await builder.build(cand, { force: true });
     expect(result.extract_level).toBe("full");
   });
