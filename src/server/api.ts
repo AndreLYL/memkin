@@ -10,6 +10,7 @@ import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { createDefaultBackfillRoutes } from "./backfill-routes.js";
 import type { ChatNameRefreshJob } from "./chat-name-refresh-job.js";
+import { registerChatNameRoutes } from "./chat-name-routes.js";
 import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
 
@@ -599,6 +600,9 @@ export function createApiApp(stores: StoreContext): Hono {
 
     return c.json(signals);
   });
+
+  // Chat-name resolution endpoints (refresh + status)
+  registerChatNameRoutes(app, stores);
 
   app.route("/api", dataRoutes);
 
