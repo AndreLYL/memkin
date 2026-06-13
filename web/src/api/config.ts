@@ -74,6 +74,25 @@ export interface FeishuGroup {
   name: string;
 }
 
+export interface RefreshStatus {
+  jobId: string | null;
+  state: "idle" | "running" | "done" | "error";
+  total: number;
+  resolved: number;
+  failed: number;
+  skipped: number;
+  currentChannel: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  errors: Array<{ channel: string; error: string }>;
+  lastRefreshedAt: string | null;
+}
+
+export interface ChannelNameResult {
+  display_name: string | null;
+  status: "resolved" | "unresolved" | "failed" | "mail";
+}
+
 export const configApi = {
   getConfig: (): Promise<WizardConfig> =>
     fetchJSON<WizardConfig>("/config"),
@@ -109,6 +128,20 @@ export const configApi = {
 
   feishuGroups: (): Promise<{ groups?: FeishuGroup[]; error?: string }> =>
     fetchJSON("/feishu/groups"),
+
+  refreshChatNames: (): Promise<{ jobId?: string; error?: string }> =>
+    fetch(`${BASE}/feishu/refresh-chat-names`, { method: "POST" }).then((r) => r.json()),
+
+  getRefreshStatus: (): Promise<RefreshStatus> => fetchJSON("/feishu/refresh-chat-names/status"),
+
+  getChannelNames: (
+    channels: string[],
+  ): Promise<{ results: Record<string, ChannelNameResult> }> =>
+    fetchJSON("/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ channels }),
+    }),
 
   setupComplete: (): Promise<Response> =>
     fetch(`${BASE}/setup/complete`, { method: "POST" }),

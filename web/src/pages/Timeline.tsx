@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { SignalCard } from "../components/shared/SignalCard";
 import { FilterBar } from "../components/shared/FilterBar";
 import { EmptyState } from "../components/shared/EmptyState";
 import { TYPE_GROUPS } from "../lib/type-groups";
+import { channelDisplay, type ChannelStatus } from "../lib/channel-display";
 
 interface Signal {
   slug: string;
@@ -14,12 +15,16 @@ interface Signal {
   date: string;
   platform: string;
   channel: string;
+  channel_name: string | null;
+  channel_name_status: ChannelStatus;
 }
 
 interface Group {
   key: string;
   platform: string;
   channel: string;
+  channel_name: string | null;
+  channel_name_status: ChannelStatus;
   count: number;
   signals: Signal[];
 }
@@ -37,6 +42,7 @@ interface FeedResponse {
 export function TimelinePage() {
   const [selectedType, setSelectedType] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [cursor, setCursor] = useState<string | undefined>();
   const [accumulatedDays, setAccumulatedDays] = useState<Day[]>([]);
@@ -60,6 +66,38 @@ export function TimelinePage() {
 
   const days = cursor ? accumulatedDays : (data?.days ?? []);
 
+  const channelOptions = useMemo(() => {
+    const groups: Array<{ channel: string; display: ReturnType<typeof channelDisplay>; count: number }> = [];
+    const dms: typeof groups = [];
+    const seen = new Map<string, { display: ReturnType<typeof channelDisplay>; count: number }>();
+    for (const day of days) {
+      for (const g of day.groups) {
+        const existing = seen.get(g.channel);
+        const signalCount = g.signals.length;
+        if (existing) {
+          existing.count += signalCount;
+        } else {
+          seen.set(g.channel, {
+            display: channelDisplay(g.channel, g.channel_name, g.channel_name_status),
+            count: signalCount,
+          });
+        }
+      }
+    }
+    for (const [channel, info] of seen.entries()) {
+      if (channel.startsWith("group/")) groups.push({ channel, ...info });
+      else if (channel.startsWith("dm/")) dms.push({ channel, ...info });
+    }
+    return { groups, dms };
+  }, [days]);
+
+  const filteredDays = useMemo(() => {
+    if (!channelFilter) return days;
+    return days
+      .map((d) => ({ ...d, groups: d.groups.filter((g) => g.channel === channelFilter) }))
+      .filter((d) => d.groups.length > 0);
+  }, [days, channelFilter]);
+
   const toggleGroup = (dayDate: string, groupKey: string) => {
     const key = `${dayDate}:${groupKey}`;
     setExpandedGroups((prev) => {
@@ -76,22 +114,50 @@ export function TimelinePage() {
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-xl font-semibold text-fg-default mb-4">Timeline</h1>
 
-      <FilterBar
-        typeOptions={typeOptions}
-        selectedType={selectedType}
-        onTypeChange={(t) => { setSelectedType(t); setCursor(undefined); }}
-        platformOptions={["feishu", "claude-code"]}
-        selectedPlatform={selectedPlatform}
-        onPlatformChange={(p) => { setSelectedPlatform(p); setCursor(undefined); }}
-      />
+      <div className="flex items-center gap-3 flex-wrap">
+        <FilterBar
+          typeOptions={typeOptions}
+          selectedType={selectedType}
+          onTypeChange={(t) => { setSelectedType(t); setCursor(undefined); }}
+          platformOptions={["feishu", "claude-code"]}
+          selectedPlatform={selectedPlatform}
+          onPlatformChange={(p) => { setSelectedPlatform(p); setCursor(undefined); }}
+        />
+
+        <select
+          value={channelFilter}
+          onChange={(e) => { setChannelFilter(e.target.value); setCursor(undefined); }}
+          className="bg-bg-overlay border border-border-muted rounded px-2 py-1 text-sm text-fg-default"
+        >
+          <option value="">All Channels</option>
+          {channelOptions.groups.length > 0 && (
+            <optgroup label="群聊">
+              {channelOptions.groups.map(({ channel, display, count }) => (
+                <option key={channel} value={channel}>
+                  {display.text} ({count} 条)
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {channelOptions.dms.length > 0 && (
+            <optgroup label="私聊">
+              {channelOptions.dms.map(({ channel, display, count }) => (
+                <option key={channel} value={channel}>
+                  {display.text} ({count} 条)
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
 
       <div className="mt-6 space-y-6">
-        {isLoading && days.length === 0 ? (
+        {isLoading && filteredDays.length === 0 ? (
           <div className="text-fg-muted text-center py-8">Loading...</div>
-        ) : days.length === 0 ? (
+        ) : filteredDays.length === 0 ? (
           <EmptyState title="No signals found" description="Try adjusting your filters or run a sync" />
         ) : (
-          days.map((day) => (
+          filteredDays.map((day) => (
             <div key={day.date}>
               <h2 className="text-sm font-medium text-fg-default mb-3 flex items-center gap-2">
                 <span className="text-fg-subtle">📅</span>
@@ -110,7 +176,21 @@ export function TimelinePage() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-fg-subtle">{isExpanded ? "▾" : "▸"}</span>
-                          <span className="text-sm text-fg-default">{group.key}</span>
+                          {(() => {
+                            const display = channelDisplay(group.channel, group.channel_name, group.channel_name_status);
+                            const colorClass =
+                              display.status === "failed"
+                                ? "text-red-500"
+                                : display.status === "unresolved"
+                                  ? "text-yellow-500"
+                                  : "text-fg-default";
+                            return (
+                              <span className={`text-sm ${colorClass}`} title={display.tooltip}>
+                                {display.text}
+                              </span>
+                            );
+                          })()}
+                          <span className="text-xs text-fg-muted">({group.platform})</span>
                           <span className="text-xs text-fg-subtle">
                             {group.count} signal{group.count !== 1 ? "s" : ""}
                           </span>

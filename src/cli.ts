@@ -4,6 +4,10 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
+import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
+import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
+import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
+import { resolveSelfOpenId } from "./collectors/feishu/self-open-id.js";
 import {
   createClaudeCodeCollector,
   createCodexCollector,
@@ -23,6 +27,7 @@ import { Scheduler } from "./daemon/scheduler.js";
 import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
 import { createApiApp, type DaemonStatus } from "./server/api.js";
+import { ChatNameRefreshJob } from "./server/chat-name-refresh-job.js";
 import { createMcpServer } from "./server/mcp.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
@@ -612,7 +617,21 @@ program
         }
       : undefined;
 
-    const storesWithDaemon = { ...stores, getDaemonStatus };
+    // Wire chat-name refresh job for serve mode. Uses lark-cli identity backend
+    // and relies on the user's existing OAuth session.
+    let chatNameRefreshJob: ChatNameRefreshJob | undefined;
+    if (config.sources.feishu?.enabled) {
+      const larkClient = new LarkCliHttpClient(config.sources.feishu.lark_bin);
+      const selfOpenId = await resolveSelfOpenId(
+        larkClient,
+        config.sources.feishu.sources?.dm?.self_open_id,
+      );
+      const backend = new LarkCliIdentityBackend(larkClient, selfOpenId ?? undefined);
+      const resolver = new ChatNameResolver(stores.db.pg, backend);
+      chatNameRefreshJob = new ChatNameRefreshJob(stores.db.pg, resolver);
+    }
+
+    const storesWithDaemon = { ...stores, getDaemonStatus, chatNameRefreshJob };
 
     const shutdown = () => {
       scheduler?.stop();

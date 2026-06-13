@@ -5,10 +5,15 @@ import type { ExtractionResult, RawMessage } from "./types.js";
 
 export interface IdentityBackend {
   resolveFeishuOpenId(openId: string): Promise<{ name: string; slugHint?: string } | null>;
+  // Resolves a full channel string (e.g. "group/oc_xxx" or "dm/oc_xxx") to a
+  // human-readable display name. Returns null when the channel kind is "mail"
+  // (caller should short-circuit), when self_open_id is unavailable for a p2p
+  // chat, or when the underlying Lark API returns a non-network error.
+  resolveFeishuChatId(channel: string): Promise<{ name: string } | null>;
 }
 
 interface CacheRow {
-  display_name: string;
+  display_name: string | null;
   slug_hint: string | null;
 }
 
@@ -54,7 +59,10 @@ export class IdentityResolver {
 
     if (cached.rows.length > 0) {
       const row = cached.rows[0];
-      return row.slug_hint ? `${row.display_name} (${row.slug_hint})` : row.display_name;
+      if (row.display_name) {
+        return row.slug_hint ? `${row.display_name} (${row.slug_hint})` : row.display_name;
+      }
+      // display_name is NULL — cache row exists but is incomplete; fall through to backend
     }
 
     if (!this.backend) return null;
@@ -103,34 +111,37 @@ export class IdentityResolver {
     }
 
     // 1. Check cache by modelSlug
-    const cacheBySlug = await this.db.query<{ display_name: string }>(
+    const cacheBySlug = await this.db.query<{ display_name: string | null }>(
       "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
       ["canonical", modelSlug],
     );
 
     if (cacheBySlug.rows.length > 0) {
       const canonicalSlug = cacheBySlug.rows[0].display_name;
-      return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+      if (canonicalSlug) return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+      // display_name is NULL: deliberate fallthrough — cacheByName (Step 2) may still have a valid canonical
     }
 
     // 2. Check cache by name
-    const cacheByName = await this.db.query<{ display_name: string }>(
+    const cacheByName = await this.db.query<{ display_name: string | null }>(
       "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
       ["canonical", name],
     );
 
     if (cacheByName.rows.length > 0) {
       const canonicalSlug = cacheByName.rows[0].display_name;
+      if (canonicalSlug) {
+        // Insert modelSlug -> canonical mapping (if not already there)
+        await this.db.query(
+          `INSERT INTO identity_cache (platform, external_id, display_name, slug_hint)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (platform, external_id) DO NOTHING`,
+          ["canonical", modelSlug, canonicalSlug, name],
+        );
 
-      // Insert modelSlug -> canonical mapping (if not already there)
-      await this.db.query(
-        `INSERT INTO identity_cache (platform, external_id, display_name, slug_hint)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (platform, external_id) DO NOTHING`,
-        ["canonical", modelSlug, canonicalSlug, name],
-      );
-
-      return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+        return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+      }
+      // display_name is NULL: treat as cache miss, fall through to pinyin step
     }
 
     // 3. Generate canonical slug

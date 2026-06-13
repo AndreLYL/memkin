@@ -56,10 +56,19 @@ WHERE tier = 'hot'
   AND expires_at IS NULL;
 `;
 
+// Migration 004: relax identity_cache.display_name to nullable.
+// Semantics: display_name IS NULL AND resolved_at IS NOT NULL = permanent
+// resolution failure (e.g. Lark 4013/404). Used by the chat-name resolution
+// flow to distinguish "tried and failed" from "never tried".
+const M004_IDENTITY_CACHE_NULLABLE = `
+ALTER TABLE identity_cache ALTER COLUMN display_name DROP NOT NULL;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
   { version: 3, name: "lifecycle_tier", sql: M003_LIFECYCLE_TIER },
+  { version: 4, name: "identity_cache_nullable", sql: M004_IDENTITY_CACHE_NULLABLE },
 ];
 
 export async function runMigrations(pg: PGlite): Promise<void> {

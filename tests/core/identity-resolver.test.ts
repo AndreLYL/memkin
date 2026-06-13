@@ -4,6 +4,7 @@
 
 import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { IdentityBackend } from "../../src/core/identity-resolver.js";
 import { IdentityResolver } from "../../src/core/identity-resolver.js";
 import * as personSlug from "../../src/core/person-slug.js";
 import type { ExtractionResult, SourceRef } from "../../src/core/types.js";
@@ -535,6 +536,128 @@ describe("IdentityResolver", () => {
       expect(canonicalized.knowledge[0].related_entities).toContain("person/wang-jiandu");
       expect(canonicalized.knowledge[0].related_entities).toContain("project/foo");
       expect(canonicalized.knowledge[0].related_entities).not.toContain("person/wang-jian-du");
+    });
+  });
+});
+
+// ── Regression: null-guard semantics (commit 7fde24f fix) ────────────────────
+
+describe("IdentityResolver null-guard regressions (7fde24f fix)", () => {
+  let database: Database;
+  let db: PGlite;
+
+  beforeEach(async () => {
+    database = await Database.create();
+    db = database.pg;
+  });
+
+  afterEach(async () => {
+    await database.close();
+  });
+
+  describe("resolve() — cache hit with NULL display_name falls through to backend", () => {
+    it("calls backend when cache row exists but display_name is NULL", async () => {
+      // Seed a NULL-display_name row (permanent-failure marker written by Task 5)
+      await db.query(
+        "INSERT INTO identity_cache (platform, external_id, display_name, slug_hint) VALUES ($1, $2, $3, $4)",
+        ["feishu", "ou_null_test", null, null],
+      );
+
+      const mockBackend: IdentityBackend = {
+        resolveFeishuOpenId: vi.fn().mockResolvedValue({ name: "王建都", slugHint: "wang-jiandu" }),
+      };
+
+      const resolver = new IdentityResolver(db, mockBackend);
+      const msgs = [
+        {
+          platform: "feishu" as const,
+          channel: "oc_test",
+          contact: "ou_null_test",
+          timestamp: "2026-06-13T10:00:00Z",
+          content: "hello",
+          direction: "received" as const,
+          metadata: {},
+        },
+      ];
+
+      const enriched = await resolver.enrichBatch(msgs);
+
+      // Backend must have been called — cache-hit-with-NULL must NOT short-circuit
+      expect(mockBackend.resolveFeishuOpenId).toHaveBeenCalledWith("ou_null_test");
+
+      // Contact should be resolved from backend, not left as the raw id
+      expect(enriched[0].contact).toBe("王建都 (wang-jiandu)");
+    });
+
+    it("does NOT call backend when cache row has a non-NULL display_name (normal path unchanged)", async () => {
+      await db.query(
+        "INSERT INTO identity_cache (platform, external_id, display_name, slug_hint) VALUES ($1, $2, $3, $4)",
+        ["feishu", "ou_present", "李应龙", "li-yinglong"],
+      );
+
+      const mockBackend: IdentityBackend = {
+        resolveFeishuOpenId: vi.fn(),
+      };
+
+      const resolver = new IdentityResolver(db, mockBackend);
+      const msgs = [
+        {
+          platform: "feishu" as const,
+          channel: "oc_test",
+          contact: "ou_present",
+          timestamp: "2026-06-13T10:00:00Z",
+          content: "hello",
+          direction: "received" as const,
+          metadata: {},
+        },
+      ];
+
+      const enriched = await resolver.enrichBatch(msgs);
+
+      // Backend must NOT be called — cache hit with real display_name returns early
+      expect(mockBackend.resolveFeishuOpenId).not.toHaveBeenCalled();
+      expect(enriched[0].contact).toBe("李应龙 (li-yinglong)");
+    });
+  });
+
+  describe("canonicalizePersonSlug() — cacheByName hit with NULL display_name falls through to pinyin", () => {
+    it("falls through to pinyin generation when cacheByName row has NULL display_name", async () => {
+      // Seed a NULL-display_name row for the name key — simulates an incomplete/failed cache entry
+      await db.query(
+        "INSERT INTO identity_cache (platform, external_id, display_name, slug_hint) VALUES ($1, $2, $3, $4)",
+        ["canonical", "王建都", null, null],
+      );
+
+      const resolver = new IdentityResolver(db);
+      const result = await resolver.canonicalizePersonSlug("王建都", "person/wang-jian-du");
+
+      // Must NOT return modelSlug as canonical — that would declare the model-produced slug canonical
+      expect(result.slug).not.toBe("person/wang-jian-du");
+
+      // Must produce the pinyin-based canonical slug
+      expect(result.slug).toBe("person/wang-jiandu");
+    });
+
+    it("does NOT return { slug: modelSlug, isAlias: false } when cacheByName has NULL display_name", async () => {
+      // This is the duplicate-person-page-prevention contract:
+      // returning modelSlug as canonical here would let a second variant also
+      // declare itself canonical, producing duplicate person pages.
+      await db.query(
+        "INSERT INTO identity_cache (platform, external_id, display_name, slug_hint) VALUES ($1, $2, $3, $4)",
+        ["canonical", "张三", null, null],
+      );
+
+      const resolver = new IdentityResolver(db);
+      const result1 = await resolver.canonicalizePersonSlug("张三", "person/zhang-san-v1");
+      const result2 = await resolver.canonicalizePersonSlug("张三", "person/zhang-san-v2");
+
+      // Both variants must resolve to the SAME canonical slug (pinyin-generated)
+      expect(result1.slug).toBe(result2.slug);
+
+      // Neither variant should be declared canonical with isAlias: false while
+      // the other gets a different value — both should converge on the pinyin slug
+      expect(result1.slug).toBe("person/zhang-san");
+      expect(result2.slug).toBe("person/zhang-san");
     });
   });
 });

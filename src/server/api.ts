@@ -9,6 +9,8 @@ import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { createDefaultBackfillRoutes } from "./backfill-routes.js";
+import type { ChatNameRefreshJob } from "./chat-name-refresh-job.js";
+import { registerChatNameRoutes } from "./chat-name-routes.js";
 import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
 
@@ -31,6 +33,7 @@ export interface StoreContext {
   getDaemonStatus?: () => DaemonStatus;
   eventBus?: EventBus;
   runExtract?: (source?: string) => Promise<{ written: number; skipped: number; errors: number }>;
+  chatNameRefreshJob?: ChatNameRefreshJob;
 }
 
 function missing(c: { json: (body: unknown, status?: number) => Response }, name: string) {
@@ -330,6 +333,7 @@ export function createApiApp(stores: StoreContext): Hono {
     }
 
     const sql = `
+  WITH page_signals AS (
     SELECT slug, type, title,
            LEFT(compiled_truth, 200) AS snippet,
            COALESCE(
@@ -337,13 +341,32 @@ export function createApiApp(stores: StoreContext): Hono {
              frontmatter->'first_seen'->>'timestamp',
              created_at::text
            ) AS signal_time,
-           COALESCE(frontmatter->'source'->>'platform', frontmatter->'first_seen'->>'platform', 'manual') AS platform,
-           COALESCE(frontmatter->'source'->>'channel', frontmatter->'first_seen'->>'channel', '—') AS channel,
-           COALESCE(frontmatter->'source'->>'channel_name', frontmatter->'first_seen'->>'channel_name', '') AS channel_name
+           COALESCE(
+             frontmatter->'source'->>'platform',
+             frontmatter->'first_seen'->>'platform',
+             'manual'
+           ) AS platform,
+           COALESCE(
+             frontmatter->'source'->>'channel',
+             frontmatter->'first_seen'->>'channel',
+             '—'
+           ) AS channel
     FROM pages
     WHERE ${conditions.join(" AND ")}
-    ORDER BY signal_time DESC
-  `;
+  )
+  SELECT ps.*,
+         ic.display_name AS channel_name,
+         CASE
+           WHEN ps.channel LIKE 'mail/%' THEN 'mail'
+           WHEN ic.display_name IS NOT NULL THEN 'resolved'
+           WHEN ic.resolved_at IS NOT NULL THEN 'failed'
+           ELSE 'unresolved'
+         END AS channel_name_status
+  FROM page_signals ps
+  LEFT JOIN identity_cache ic
+    ON ic.platform = 'feishu:chat' AND ic.external_id = ps.channel
+  ORDER BY ps.signal_time DESC
+`;
 
     const result = await stores.db.pg.query(sql, params);
     const rows = result.rows as Array<{
@@ -354,7 +377,8 @@ export function createApiApp(stores: StoreContext): Hono {
       signal_time: string;
       platform: string;
       channel: string;
-      channel_name: string;
+      channel_name: string | null;
+      channel_name_status: "resolved" | "unresolved" | "failed" | "mail";
     }>;
 
     // Group by day, then by channel or type
@@ -381,6 +405,8 @@ export function createApiApp(stores: StoreContext): Hono {
           key,
           platform: signals[0].platform,
           channel: signals[0].channel,
+          channel_name: signals[0].channel_name,
+          channel_name_status: signals[0].channel_name_status,
           count: signals.length,
           signals: signals.map((s) => ({
             slug: s.slug,
@@ -390,6 +416,8 @@ export function createApiApp(stores: StoreContext): Hono {
             date: s.signal_time,
             platform: s.platform,
             channel: s.channel,
+            channel_name: s.channel_name,
+            channel_name_status: s.channel_name_status,
           })),
         })),
       };
@@ -597,6 +625,9 @@ export function createApiApp(stores: StoreContext): Hono {
 
     return c.json(signals);
   });
+
+  // Chat-name resolution endpoints (refresh + status)
+  registerChatNameRoutes(app, stores);
 
   app.route("/api", dataRoutes);
 
