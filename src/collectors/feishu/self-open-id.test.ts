@@ -43,13 +43,13 @@ describe("resolveSelfOpenId", () => {
     expect(id).toBeNull();
   });
 
-  it("returns empty-string yaml override unchanged (caller's responsibility to validate)", async () => {
-    // Subtle: an explicit empty-string override is NOT treated as 'no override'.
-    // Yaml allowing `self_open_id: ""` is a user mistake the caller surfaces.
-    // We document this by accepting whatever they pass.
+  it("treats empty-string yaml override as no override (falls through to lark-cli)", async () => {
+    // An explicit `self_open_id: ""` in yaml is more likely a user mistake than
+    // intentional disable, so we treat the falsy empty string the same as the
+    // field being absent and fall back to lark-cli.
     const client = clientReturning({ userOpenId: "ou_from_lark", tokenStatus: "valid" });
     const id = await resolveSelfOpenId(client, "");
-    // empty string is falsy, so this should still fall back to lark-cli
     expect(id).toBe("ou_from_lark");
+    expect(client.getAuthStatus).toHaveBeenCalled();
   });
 });
