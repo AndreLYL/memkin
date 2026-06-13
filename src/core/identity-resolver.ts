@@ -54,8 +54,10 @@ export class IdentityResolver {
 
     if (cached.rows.length > 0) {
       const row = cached.rows[0];
-      if (!row.display_name) return null;
-      return row.slug_hint ? `${row.display_name} (${row.slug_hint})` : row.display_name;
+      if (row.display_name) {
+        return row.slug_hint ? `${row.display_name} (${row.slug_hint})` : row.display_name;
+      }
+      // display_name is NULL — cache row exists but is incomplete; fall through to backend
     }
 
     if (!this.backend) return null;
@@ -112,6 +114,7 @@ export class IdentityResolver {
     if (cacheBySlug.rows.length > 0) {
       const canonicalSlug = cacheBySlug.rows[0].display_name;
       if (canonicalSlug) return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+      // display_name is NULL: deliberate fallthrough — cacheByName (Step 2) may still have a valid canonical
     }
 
     // 2. Check cache by name
@@ -122,17 +125,18 @@ export class IdentityResolver {
 
     if (cacheByName.rows.length > 0) {
       const canonicalSlug = cacheByName.rows[0].display_name;
-      if (!canonicalSlug) return { slug: modelSlug, isAlias: false };
+      if (canonicalSlug) {
+        // Insert modelSlug -> canonical mapping (if not already there)
+        await this.db.query(
+          `INSERT INTO identity_cache (platform, external_id, display_name, slug_hint)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (platform, external_id) DO NOTHING`,
+          ["canonical", modelSlug, canonicalSlug, name],
+        );
 
-      // Insert modelSlug -> canonical mapping (if not already there)
-      await this.db.query(
-        `INSERT INTO identity_cache (platform, external_id, display_name, slug_hint)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (platform, external_id) DO NOTHING`,
-        ["canonical", modelSlug, canonicalSlug, name],
-      );
-
-      return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+        return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+      }
+      // display_name is NULL: treat as cache miss, fall through to pinyin step
     }
 
     // 3. Generate canonical slug
