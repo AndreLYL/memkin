@@ -6,9 +6,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { Command } from "commander";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
+import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
 import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
 import { runDocSource } from "./collectors/feishu/docs/run.js";
 import { failedCards, summarizeCards } from "./collectors/feishu/docs/status.js";
+import { loadExistingCard, writeCard } from "./collectors/feishu/docs/store-writer.js";
 import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
 import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
 import { resolveSelfOpenId } from "./collectors/feishu/self-open-id.js";
@@ -1084,6 +1086,64 @@ docsCmd
       await stores.db.close();
     } catch (error) {
       console.error("docs status failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+docsCmd
+  .command("retry [doc_token]")
+  .description("Retry full-card extraction for a failed doc (or --all-failed)")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--all-failed", "Retry every card with an extract_error")
+  .action(async (docToken, options) => {
+    try {
+      const config = loadConfig(options.config);
+      const feishu = config.sources.feishu;
+      if (!feishu?.sources?.docs?.enabled) {
+        console.error("Feishu docs source not enabled.");
+        process.exit(1);
+      }
+      const stores = await createStores(config);
+      const client = new LarkCliHttpClient(feishu.lark_bin);
+      const docsConfig = normalizeDocsConfig(feishu.sources.docs);
+      const llmConfig = { ...config.llm };
+      if (docsConfig.llm.model) llmConfig.model = docsConfig.llm.model;
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const provider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+      const builder = new FullCardBuilder(client, provider, docsConfig.llm.model ?? "unknown", () =>
+        new Date().toISOString(),
+      );
+
+      const tokens: string[] = [];
+      if (options.allFailed) {
+        const pages = await stores.pages.listPages({ type: "feishu_doc_card", limit: 100000 });
+        for (const f of failedCards(pages as never)) tokens.push(f.doc_token);
+      } else if (docToken) {
+        tokens.push(docToken);
+      } else {
+        console.error("Provide a doc_token or --all-failed.");
+        process.exit(1);
+      }
+
+      for (const token of tokens) {
+        const existing = await loadExistingCard(stores, token);
+        if (!existing) {
+          console.warn(`skip ${token}: no existing card`);
+          continue;
+        }
+        const card = await builder.build(existing);
+        await writeCard(stores, card);
+        console.log(`${token}: ${card.extract_level}`);
+      }
+      await stores.db.close();
+    } catch (error) {
+      console.error("docs retry failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   });
