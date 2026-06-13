@@ -10,7 +10,7 @@ import { FullCardBuilder } from "./full-builder.js";
 import { computeSourceBodyHash } from "./hash.js";
 import { buildPointerCard } from "./pointer-builder.js";
 import { loadExistingCard, writeCard } from "./store-writer.js";
-import type { DocCandidate, DocDecisionConfig, FullCard } from "./types.js";
+import type { DocCandidate, DocCard, DocDecisionConfig, FullCard } from "./types.js";
 import { batchSizeForRun, UpgradeQueue } from "./upgrade-queue.js";
 import { iterateCandidates } from "./walkers.js";
 
@@ -72,67 +72,96 @@ export async function runDocSource(deps: RunDocSourceDeps): Promise<DocSourceSta
   // directly without round-tripping through the store.
   const enqueuedCandidates = new Map<string, DocCandidate>();
 
-  // Phase 1: scan + decide
-  for await (const candidate of iterateCandidates(client, config)) {
-    stats.candidates_scanned++;
-    const existing = await loadExistingCard(stores, candidate.doc_token);
-    const decision = decide(candidate, existing, decisionConfig, selfOpenId, nowMs);
+  try {
+    // Phase 1: scan + decide
+    for await (const candidate of iterateCandidates(client, config)) {
+      stats.candidates_scanned++;
+      try {
+        const existing = await loadExistingCard(stores, candidate.doc_token);
+        const decision = decide(candidate, existing, decisionConfig, selfOpenId, nowMs);
 
-    // Resolve the effective terminal action. `needs_body_check` fetches the body
-    // and folds into either `metadata_refresh` (write a pointer) or
-    // `queue_for_upgrade` (T5 re-summarize).
-    let action: "skip_save" | "save_pointer" | "queue_for_upgrade" | "metadata_refresh";
-    if (decision.action === "needs_body_check") {
-      const rawText = await fetchRawText(client, candidate.doc_token);
-      const newHash = computeSourceBodyHash(rawText);
-      const existingHash = existing?.extract_level === "full" ? existing.source_body_hash : "";
-      action = decideAfterBodyCheck(newHash, existingHash).action;
-    } else {
-      action = decision.action;
+        // Resolve the effective terminal action. `needs_body_check` fetches the
+        // body and folds into either `metadata_refresh` (refresh the existing
+        // full card's metadata) or `queue_for_upgrade` (T5 re-summarize).
+        let action: "skip_save" | "save_pointer" | "queue_for_upgrade" | "metadata_refresh";
+        if (decision.action === "needs_body_check") {
+          const rawText = await fetchRawText(client, candidate.doc_token);
+          const newHash = computeSourceBodyHash(rawText);
+          const existingHash = existing?.extract_level === "full" ? existing.source_body_hash : "";
+          action = decideAfterBodyCheck(newHash, existingHash).action;
+        } else {
+          action = decision.action;
+        }
+
+        if (action === "skip_save") {
+          stats.skipped++;
+        } else if (action === "metadata_refresh") {
+          // existing is a FullCard here (only needs_body_check reaches this); refresh
+          // the cheap metadata, KEEP the LLM summary, do NOT call the LLM.
+          await writeCard(stores, {
+            ...(existing as FullCard),
+            title: candidate.title,
+            url: candidate.url,
+            modified_at: candidate.modified_at,
+            last_editor_id: candidate.last_editor_id,
+            parent_path: candidate.parent_path,
+            source: candidate.source,
+            extracted_at: nowIso(),
+          });
+          stats.full_card_refreshed++;
+        } else if (action === "save_pointer") {
+          await writeCard(stores, buildPointerCard(candidate, nowIso()));
+          stats.pointer_saved++;
+        } else if (action === "queue_for_upgrade") {
+          // Pointer placeholder lands immediately; the full card overwrites it in
+          // phase 2, so the placeholder is not counted as a saved pointer.
+          if (!existing) {
+            await writeCard(stores, buildPointerCard(candidate, nowIso()));
+          }
+          if (queue.enqueue(candidate.doc_token)) {
+            enqueuedCandidates.set(candidate.doc_token, candidate);
+          }
+        }
+      } catch (err) {
+        // One bad doc (paginate failure, fetchRawText timeout, write error) must
+        // not abort the whole run and lose checkpoint progress. Skip and continue.
+        console.error(`feishu.docs: failed to process candidate ${candidate.doc_token}:`, err);
+        stats.skipped++;
+      }
     }
 
-    if (action === "skip_save") {
-      stats.skipped++;
-    } else if (action === "metadata_refresh") {
-      await writeCard(stores, { ...candidate, extract_level: "pointer", extracted_at: nowIso() });
-      stats.pointer_saved++;
-    } else if (action === "save_pointer") {
-      await writeCard(stores, buildPointerCard(candidate, nowIso()));
-      stats.pointer_saved++;
-    } else if (action === "queue_for_upgrade") {
-      // Pointer placeholder lands immediately; the full card overwrites it in
-      // phase 2, so the placeholder is not counted as a saved pointer.
-      if (!existing) {
-        await writeCard(stores, buildPointerCard(candidate, nowIso()));
-      }
-      if (queue.enqueue(candidate.doc_token)) {
-        enqueuedCandidates.set(candidate.doc_token, candidate);
+    // Phase 2: drain the queue
+    const k = batchSizeForRun(runCount, config.upgrade_queue);
+    const builder = new FullCardBuilder(client, provider, config.llm.model ?? "unknown", nowIso);
+    const batch = queue.shift(k);
+    for (const docToken of batch) {
+      try {
+        // Prefer the in-memory candidate from this run; fall back to the stored
+        // pointer card for tokens carried over from a previous run's checkpoint.
+        const candidate: DocCandidate | null =
+          enqueuedCandidates.get(docToken) ?? (await rebuildCandidate(stores, docToken));
+        if (!candidate) continue;
+        const card = await builder.build(candidate);
+        await writeCard(stores, card);
+        if (card.extract_level === "full") stats.full_card_generated++;
+        else stats.llm_failed++;
+      } catch (err) {
+        // The builder degrades internally, but fetchRawText/writeCard can still
+        // throw. Skip this token and keep draining the rest of the batch.
+        console.error(`feishu.docs: failed to upgrade ${docToken}:`, err);
+        stats.skipped++;
       }
     }
+  } finally {
+    // Always persist the checkpoint so a mid-run throw does not lose the
+    // upgrade-queue pending list or run_count progress.
+    stats.upgrade_queue_size = queue.size();
+    cursor.setJSON(CURSOR_KEY, {
+      upgrade_queue: { pending: queue.pending(), last_upgrade_at: nowMs },
+      run_count: runCount + 1,
+    } satisfies DocsCheckpoint);
+    cursor.commit();
   }
-
-  // Phase 2: drain the queue
-  const k = batchSizeForRun(runCount, config.upgrade_queue);
-  const builder = new FullCardBuilder(client, provider, config.llm.model ?? "unknown", nowIso);
-  const batch = queue.shift(k);
-  for (const docToken of batch) {
-    // Prefer the in-memory candidate from this run; fall back to the stored
-    // pointer card for tokens carried over from a previous run's checkpoint.
-    const candidate: DocCandidate | null =
-      enqueuedCandidates.get(docToken) ?? (await rebuildCandidate(stores, docToken));
-    if (!candidate) continue;
-    const card = await builder.build(candidate);
-    await writeCard(stores, card);
-    if (card.extract_level === "full") stats.full_card_generated++;
-    else stats.llm_failed++;
-  }
-
-  stats.upgrade_queue_size = queue.size();
-  cursor.setJSON(CURSOR_KEY, {
-    upgrade_queue: { pending: queue.pending(), last_upgrade_at: nowMs },
-    run_count: runCount + 1,
-  } satisfies DocsCheckpoint);
-  cursor.commit();
 
   return stats;
 }
@@ -151,7 +180,7 @@ async function fetchRawText(client: IFeishuHttpClient, docToken: string): Promis
 async function rebuildCandidate(
   stores: { pages: PageStore },
   docToken: string,
-): Promise<FullCard | null> {
-  const existing = await loadExistingCard(stores as never, docToken);
-  return (existing as FullCard) ?? null;
+): Promise<DocCard | null> {
+  // The builder only reads DocCandidate fields, so either card kind works here.
+  return loadExistingCard(stores, docToken);
 }

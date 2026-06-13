@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { normalizeDocsConfig } from "../../../../src/collectors/feishu/docs/config";
+import { computeSourceBodyHash } from "../../../../src/collectors/feishu/docs/hash";
 import { runDocSource } from "../../../../src/collectors/feishu/docs/run";
 import { createMockProvider } from "../../../../src/extractors/providers/mock";
 
@@ -101,5 +102,83 @@ describe("runDocSource", () => {
     expect(Object.keys(stores.written).sort()).toEqual(["feishu-docs/mine", "feishu-docs/theirs"]);
     expect(stores.written["feishu-docs/mine"]).toContain("extract_level: full");
     expect(stores.written["feishu-docs/theirs"]).toContain("extract_level: pointer");
+  });
+
+  test("existing full card + body unchanged → metadata_refresh keeps the summary", async () => {
+    const token = "doc1";
+    const rawBody = "x".repeat(500);
+    const existingFullCard = {
+      doc_token: token,
+      doc_type: "docx",
+      title: "old title",
+      url: `u/${token}`,
+      owner_id: "ou_owner",
+      last_editor_id: "ou_me",
+      created_at: "2023-01-01T00:00:00.000Z",
+      // OLDER than the candidate's modified_at (derived from modified_time 1717200000)
+      modified_at: "2024-01-01T00:00:00.000Z",
+      source: { kind: "my_space", folder_token: "root" },
+      parent_path: "",
+      extract_level: "full",
+      purpose: "OLD PURPOSE",
+      topics: ["old-topic"],
+      entities: [],
+      toc: [],
+      overview: "old overview",
+      // same body → metadata_refresh (not re-summarize)
+      source_body_hash: computeSourceBodyHash(rawBody),
+      summary_generated_at: "2024-01-01T00:00:00.000Z",
+      summary_model: "old-model",
+      extracted_at: "2024-01-01T00:00:00.000Z",
+    };
+
+    const client = fakeClient([file(token, "ou_me")], rawBody);
+    const stores = fakeStores();
+    // Return the existing full card frontmatter for this slug.
+    stores.pages.getPage = async (slug: string) =>
+      slug === `feishu-docs/${token}` ? { frontmatter: existingFullCard } : null;
+
+    let providerCalled = false;
+    const baseProvider = createMockProvider(new Map([["", llmJson]]));
+    const provider: typeof baseProvider = {
+      async chat(messages, opts) {
+        providerCalled = true;
+        return baseProvider.chat(messages, opts);
+      },
+    };
+
+    const cfg = normalizeDocsConfig({
+      enabled: true,
+      wiki: { enabled: false },
+      self_open_id: "ou_me",
+    });
+
+    const cursor = {
+      _data: {} as Record<string, unknown>,
+      getJSON(id: string) {
+        return this._data[id];
+      },
+      setJSON(id: string, d: unknown) {
+        this._data[id] = d;
+      },
+      commit() {},
+    };
+
+    const stats = await runDocSource({
+      client: client as never,
+      stores: stores as never,
+      provider: provider as never,
+      config: cfg,
+      cursor: cursor as never,
+      selfOpenId: "ou_me",
+      nowMs: Date.parse("2026-06-14T00:00:00Z"),
+      nowIso: () => "2026-06-14T00:00:00Z",
+    });
+
+    const written = stores.written[`feishu-docs/${token}`];
+    expect(written).toContain("extract_level: full");
+    expect(written).toContain("OLD PURPOSE");
+    expect(stats.full_card_refreshed).toBe(1);
+    expect(providerCalled).toBe(false);
   });
 });
