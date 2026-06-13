@@ -1,0 +1,26 @@
+import type { IFeishuHttpClient } from "../http-client.js";
+
+export class WikiNodeNotFoundError extends Error {
+  constructor(public node_token: string) {
+    super(`Wiki node not found: ${node_token}`);
+    this.name = "WikiNodeNotFoundError";
+  }
+}
+
+/** ⚠️ CALIBRATE: data.node.obj_token/obj_type path against Task 1's get_node fixture. */
+export async function resolveWikiNode(
+  client: IFeishuHttpClient,
+  nodeToken: string,
+): Promise<{ obj_token: string; obj_type: string }> {
+  const res = await client.request<{
+    code: number;
+    data?: { node?: { obj_token?: string; obj_type?: string } };
+  }>("GET", "/open-apis/wiki/v2/spaces/get_node", {
+    params: { token: nodeToken, obj_type: "wiki" },
+  });
+  const node = res.data?.node;
+  if (!node?.obj_token || !node.obj_type) {
+    throw new WikiNodeNotFoundError(nodeToken);
+  }
+  return { obj_token: node.obj_token, obj_type: node.obj_type };
+}
