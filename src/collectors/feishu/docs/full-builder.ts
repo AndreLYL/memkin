@@ -44,7 +44,7 @@ export class FullCardBuilder {
 
   async build(
     candidate: DocCandidate,
-    opts?: { userNote?: string; tags?: string[] },
+    opts?: { userNote?: string; tags?: string[]; force?: boolean },
   ): Promise<DocCard> {
     const now = this.nowIso();
     let blocks: FeishuBlock[];
@@ -65,7 +65,7 @@ export class FullCardBuilder {
     }
 
     const rawText = feishuBlocksToRawText(blocks);
-    if (rawText.length < MIN_CONTENT_CHARS) {
+    if (!opts?.force && rawText.length < MIN_CONTENT_CHARS) {
       return buildPointerCard(candidate, now, {
         extract_skipped: "below_min_chars",
         user_note: opts?.userNote,
