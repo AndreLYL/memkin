@@ -1,6 +1,7 @@
 import type { IFeishuHttpClient } from "../http-client.js";
 import type { FeishuDriveFile } from "../types.js";
 import { driveFileToCandidate, type FeishuWikiNode, wikiNodeToCandidate } from "./candidate.js";
+import type { ResolvedDocsConfig } from "./config.js";
 import type { DocCandidate, DocSourceOrigin } from "./types.js";
 
 /**
@@ -69,5 +70,58 @@ export async function* walkWiki(
         }
       }
     }
+  }
+}
+
+/** ⚠️ CALIBRATE: root_folder/meta response shape against Task 1. */
+async function getMySpaceRoot(client: IFeishuHttpClient): Promise<string | null> {
+  const res = await client.request<{ code: number; data?: { token?: string } }>(
+    "GET",
+    "/open-apis/drive/v1/files/root_folder/meta",
+  );
+  return res.data?.token ?? null;
+}
+
+/**
+ * Union of all configured walkers, deduped by doc_token. My Space first, then
+ * whitelist folders, then Wiki — first occurrence wins.
+ */
+export async function* iterateCandidates(
+  client: IFeishuHttpClient,
+  config: ResolvedDocsConfig,
+): AsyncGenerator<DocCandidate> {
+  const seen = new Set<string>();
+
+  const emit = async function* (gen: AsyncGenerator<DocCandidate>) {
+    for await (const c of gen) {
+      if (seen.has(c.doc_token)) continue;
+      seen.add(c.doc_token);
+      yield c;
+    }
+  };
+
+  if (config.my_space.enabled) {
+    const root = await getMySpaceRoot(client);
+    if (root) {
+      yield* emit(
+        walkDriveFolder(client, root, { kind: "my_space", folder_token: root }, "My Space/", config.my_space.max_depth),
+      );
+    }
+  }
+
+  for (const folder of config.folders) {
+    yield* emit(
+      walkDriveFolder(
+        client,
+        folder.token,
+        { kind: "folder", folder_token: folder.token, folder_name: folder.name },
+        `${folder.name}/`,
+        config.my_space.max_depth,
+      ),
+    );
+  }
+
+  if (config.wiki.enabled) {
+    yield* emit(walkWiki(client, config.wiki.exclude_space_ids));
   }
 }

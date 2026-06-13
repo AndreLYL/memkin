@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { walkDriveFolder, walkWiki } from "../../../../src/collectors/feishu/docs/walkers";
+import {
+  iterateCandidates,
+  walkDriveFolder,
+  walkWiki,
+} from "../../../../src/collectors/feishu/docs/walkers";
+import { normalizeDocsConfig } from "../../../../src/collectors/feishu/docs/config";
 import type { PagedResult } from "../../../../src/collectors/feishu/http-client";
 
 // Minimal fake LarkCliHttpClient with a scripted paginate.
@@ -101,5 +106,36 @@ describe("walkWiki", () => {
       out.push(c.doc_token);
     }
     expect(out).toEqual(["o1"]);
+  });
+});
+
+describe("iterateCandidates", () => {
+  test("dedupes the same doc_token seen in My Space and a whitelist folder", async () => {
+    const dup = { token: "dup", name: "Dup", type: "docx", url: "u", owner_id: "o", created_time: "1", modified_time: "2" };
+    const client = {
+      async request(_m: string, path: string) {
+        if (path.endsWith("/root_folder/meta")) return { code: 0, data: { token: "root" } };
+        throw new Error("unexpected " + path);
+      },
+      async *paginate(_path: string, params?: Record<string, string>) {
+        const key = params?.folder_token;
+        if (key === "root") yield { items: [dup], has_more: false };
+        else if (key === "fld_white") yield { items: [dup], has_more: false };
+        else yield { items: [], has_more: false };
+      },
+      async execShortcut() {
+        return "";
+      },
+    };
+    const cfg = normalizeDocsConfig({
+      enabled: true,
+      wiki: { enabled: false },
+      folders: [{ token: "fld_white", name: "White" }],
+    });
+    const out: string[] = [];
+    for await (const c of iterateCandidates(client as never, cfg)) {
+      out.push(c.doc_token);
+    }
+    expect(out).toEqual(["dup"]); // deduped
   });
 });
