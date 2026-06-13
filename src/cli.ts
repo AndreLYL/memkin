@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { Command } from "commander";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
+import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
 import { runDocSource } from "./collectors/feishu/docs/run.js";
 import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
 import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
@@ -643,7 +644,28 @@ program
     process.on("SIGINT", shutdown);
 
     if (options.mcp) {
-      const server = createMcpServer(storesWithDaemon);
+      let ingestDeps: IngestDeps | undefined;
+      const feishu = config.sources.feishu;
+      if (feishu?.enabled && feishu.sources?.docs?.enabled) {
+        const client = new LarkCliHttpClient(feishu.lark_bin);
+        const llmConfig = { ...config.llm };
+        const envKey =
+          llmConfig.provider === "anthropic"
+            ? process.env.ANTHROPIC_API_KEY
+            : process.env.OPENAI_API_KEY;
+        if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+        const provider = llmConfig.api_key
+          ? createLLMProvider(llmConfig)
+          : createMockProvider(new Map());
+        ingestDeps = {
+          client,
+          stores: storesWithDaemon,
+          provider,
+          model: feishu.sources.docs.llm?.model ?? llmConfig.model,
+          nowIso: () => new Date().toISOString(),
+        };
+      }
+      const server = createMcpServer(storesWithDaemon, ingestDeps);
       await server.connect(new StdioServerTransport());
       return;
     }
