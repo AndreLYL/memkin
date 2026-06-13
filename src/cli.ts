@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
+import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
+import { runDocSource } from "./collectors/feishu/docs/run.js";
 import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
 import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
 import { resolveSelfOpenId } from "./collectors/feishu/self-open-id.js";
@@ -20,6 +22,7 @@ import {
 } from "./collectors/index.js";
 import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.js";
 import { loadConfig, type SourcesConfig } from "./core/config.js";
+import { CursorStore } from "./core/cursors.js";
 import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js";
 import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
@@ -925,6 +928,68 @@ identityCmd
       process.exit(1);
     } finally {
       await db.close();
+    }
+  });
+
+const docsCmd = program.command("docs").description("Feishu doc summary cards (DocSource v2)");
+
+docsCmd
+  .command("sync")
+  .description("Scan Feishu docs, build pointer cards, upgrade triggered docs to full cards")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .action(async (options) => {
+    try {
+      const config = loadConfig(options.config);
+      ensureStateDir();
+      const feishu = config.sources.feishu;
+      if (!feishu?.enabled || !feishu.sources?.docs?.enabled) {
+        console.error(
+          "Feishu docs source is not enabled in config (sources.feishu.sources.docs.enabled).",
+        );
+        process.exit(1);
+      }
+      const stores = await createStores(config);
+      const client = new LarkCliHttpClient(feishu.lark_bin);
+      const docsConfig = normalizeDocsConfig(feishu.sources.docs);
+
+      // self_open_id: config override else resolve via lark-cli whoami helper used elsewhere
+      const selfOpenId =
+        docsConfig.self_open_id ??
+        (await resolveSelfOpenId(client, feishu.sources?.dm?.self_open_id)) ??
+        "";
+
+      const llmConfig = { ...config.llm };
+      if (docsConfig.llm.model) llmConfig.model = docsConfig.llm.model;
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const provider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+
+      const cursor = new CursorStore(statePath("cursors.yaml"));
+      cursor.load();
+
+      const stats = await runDocSource({
+        client,
+        stores,
+        provider,
+        config: docsConfig,
+        cursor,
+        selfOpenId,
+        nowMs: Date.now(),
+        nowIso: () => new Date().toISOString(),
+      });
+
+      console.log(
+        `[docs] scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} skipped=${stats.skipped} queue=${stats.upgrade_queue_size} llm_failed=${stats.llm_failed}`,
+      );
+      await stores.db.close();
+    } catch (error) {
+      console.error("docs sync failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
     }
   });
 
