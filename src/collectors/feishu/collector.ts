@@ -7,7 +7,6 @@ import { FeishuRateLimiter } from "./rate-limiter.js";
 import type { FeishuSource } from "./sources/base.js";
 import { CalendarSource } from "./sources/calendar.js";
 import { DMSource } from "./sources/dm.js";
-import { DocSource } from "./sources/docs.js";
 import { MailSource } from "./sources/mail.js";
 import { MessageSearchSource } from "./sources/message-search.js";
 import { MessageSource } from "./sources/messages.js";
@@ -49,10 +48,6 @@ export class FeishuCollector implements Collector, CursorProvider {
 
     if (config.sources.calendar?.enabled) {
       this.sources.push(new CalendarSource(this.client, config.sources.calendar.calendar_ids));
-    }
-
-    if (config.sources.docs?.enabled) {
-      this.sources.push(new DocSource(this.client, config.sources.docs));
     }
 
     if (config.sources.tasks?.enabled) {
