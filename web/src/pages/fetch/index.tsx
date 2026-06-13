@@ -4,6 +4,7 @@ import { configApi } from "../../api/config";
 import type { WizardConfig, ConfigDiagnostic } from "../../api/config";
 import { AutoFetchSection } from "./sections/AutoFetchSection";
 import { BackfillSection } from "./sections/BackfillSection";
+import { ChannelRefreshSection } from "./sections/ChannelRefreshSection";
 
 function Section({
   title,
@@ -77,6 +78,7 @@ export function FetchPage() {
       )}
 
       <div className="flex flex-col gap-4">
+        <ChannelRefreshSection />
         <Section title="定时抓取（Auto-fetch）">
           <AutoFetchSection config={config} onSave={handleSave} />
         </Section>
