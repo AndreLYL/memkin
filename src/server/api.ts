@@ -9,6 +9,7 @@ import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { createDefaultBackfillRoutes } from "./backfill-routes.js";
+import type { ChatNameRefreshJob } from "./chat-name-refresh-job.js";
 import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
 
@@ -31,6 +32,7 @@ export interface StoreContext {
   getDaemonStatus?: () => DaemonStatus;
   eventBus?: EventBus;
   runExtract?: (source?: string) => Promise<{ written: number; skipped: number; errors: number }>;
+  chatNameRefreshJob?: ChatNameRefreshJob;
 }
 
 function missing(c: { json: (body: unknown, status?: number) => Response }, name: string) {
