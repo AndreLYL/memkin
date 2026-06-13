@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import type { FeishuDocSourceConfig } from "../collectors/feishu/types.js";
 
 /**
  * Privacy configuration interface
@@ -87,12 +88,7 @@ export interface FeishuSourceConfig {
       overlap_ms?: number;
     };
     calendar?: { enabled: boolean; calendar_ids: string[] };
-    docs?: {
-      enabled: boolean;
-      doc_folders: string[];
-      doc_deep_extract_folders?: string[];
-      doc_summary_max_chars?: number;
-    };
+    docs?: FeishuDocSourceConfig;
     tasks?: { enabled: boolean };
     dm?: {
       enabled: boolean;

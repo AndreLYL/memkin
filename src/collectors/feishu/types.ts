@@ -13,9 +13,25 @@ export interface FeishuCalendarSourceConfig {
 
 export interface FeishuDocSourceConfig {
   enabled: boolean;
-  doc_folders: string[];
-  doc_deep_extract_folders?: string[];
-  doc_summary_max_chars?: number;
+  my_space?: { enabled?: boolean; max_depth?: number };
+  wiki?: { enabled?: boolean; exclude_space_ids?: string[] };
+  folders?: Array<{ token: string; name: string }>;
+  gate?: { min_content_chars?: number };
+  triggers?: {
+    self_edit?: boolean;
+    recent_window_days?: number | null;
+    important_folders?: string[];
+    important_wiki_spaces?: string[];
+  };
+  refresh?: { on_hash_change?: boolean; cold_refresh_days?: number | null };
+  upgrade_queue?: {
+    batch_size?: number;
+    bootstrap_batch_size?: number;
+    bootstrap_runs?: number;
+    max_pending?: number;
+  };
+  llm?: { model?: string; qps?: number };
+  self_open_id?: string | null;
 }
 
 export interface FeishuTaskSourceConfig {
