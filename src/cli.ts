@@ -25,7 +25,7 @@ import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.
 import { loadConfig, type SourcesConfig } from "./core/config.js";
 import { CursorStore } from "./core/cursors.js";
 import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js";
-import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
+import { type PipelineConfig, type PipelineResult, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { Scheduler } from "./daemon/scheduler.js";
 import { VERSION } from "./embedded-assets.generated.js";
@@ -577,8 +577,57 @@ program
         block_concurrency: config.pipeline?.block_concurrency,
       };
 
+      const docsCursor = new CursorStore(statePath("cursors.yaml"));
+      const feishuCfg = config.sources.feishu;
+      const docsClient =
+        feishuCfg?.enabled && feishuCfg.sources?.docs?.enabled
+          ? new LarkCliHttpClient(feishuCfg.lark_bin)
+          : undefined;
+      const docsResolved = feishuCfg?.sources?.docs?.enabled
+        ? normalizeDocsConfig(feishuCfg.sources.docs)
+        : undefined;
+
+      const runDocsAsPipelineResult = async (): Promise<PipelineResult> => {
+        if (!docsClient || !docsResolved)
+          throw new Error("feishu.docs scheduled but docs source not enabled");
+        docsCursor.load();
+        const selfOpenId =
+          docsResolved.self_open_id ??
+          (await resolveSelfOpenId(docsClient, feishuCfg?.sources?.dm?.self_open_id)) ??
+          "";
+        const stats = await runDocSource({
+          client: docsClient,
+          stores,
+          provider,
+          config: docsResolved,
+          cursor: docsCursor,
+          selfOpenId,
+          nowMs: Date.now(),
+          nowIso: () => new Date().toISOString(),
+        });
+        console.log(
+          `[scheduler] feishu.docs: scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} queue=${stats.upgrade_queue_size}`,
+        );
+        return {
+          fatal: false,
+          error: undefined,
+          totalMessages: stats.candidates_scanned,
+          totalBlocks: stats.full_card_generated + stats.pointer_saved,
+          okBlocks: stats.full_card_generated + stats.pointer_saved,
+          skippedBlocks: stats.skipped,
+          failedBlocks: stats.llm_failed,
+          okMessages: [],
+          skippedMessages: [],
+          failedMessages: [],
+          warnings: [],
+        };
+      };
+
       scheduler = new Scheduler(config.scheduler, stateDir);
       scheduler.setRunSource(async (sourceId) => {
+        if (sourceId === "feishu.docs") {
+          return runDocsAsPipelineResult();
+        }
         const collector = getCollector(sourceId);
         if (!collector) throw new Error(`Unknown source: ${sourceId}`);
         return runPipeline(pipelineConfig, {
