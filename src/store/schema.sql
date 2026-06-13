@@ -126,7 +126,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS identity_cache (
   platform      TEXT NOT NULL,
   external_id   TEXT NOT NULL,
-  display_name  TEXT NOT NULL,
+  display_name  TEXT,
   slug_hint     TEXT,
   resolved_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (platform, external_id)
