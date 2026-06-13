@@ -13,13 +13,43 @@ interface ChatGetResponse {
   data?: ChatInfo;
 }
 
+interface ChatMember {
+  member_id?: string;
+  member_id_type?: string;
+  name?: string;
+}
+
+interface ChatMembersResponse {
+  code: number;
+  data?: { items?: ChatMember[] };
+}
+
+interface MessageSender {
+  id?: string;
+  id_type?: string;
+  name?: string;
+  sender_type?: string;
+}
+
+interface Message {
+  sender?: MessageSender;
+}
+
+interface ChatMessagesListResponse {
+  ok?: boolean;
+  data?: { items?: Message[] };
+}
+
 interface ParsedChannel {
   kind: "group" | "dm" | "mail";
   chatId: string;
 }
 
 export class LarkCliIdentityBackend implements IdentityBackend {
-  constructor(private readonly client: LarkCliHttpClient) {}
+  constructor(
+    private readonly client: LarkCliHttpClient,
+    private readonly selfOpenId?: string,
+  ) {}
 
   /**
    * Person open_id → name. Task 3 leaves this as a stub returning null;
@@ -49,8 +79,61 @@ export class LarkCliIdentityBackend implements IdentityBackend {
       return info.name ? { name: info.name } : null;
     }
 
-    // p2p and anything unexpected: defer to Task 4 / treat as unresolvable
+    if (info.chat_mode === "p2p") {
+      return this.resolveP2P(parsed.chatId);
+    }
+
     return null;
+  }
+
+  private async resolveP2P(chatId: string): Promise<{ name: string } | null> {
+    if (!this.selfOpenId) return null;
+
+    const fromMembers = await this.findCounterpartyFromMembers(chatId);
+    if (fromMembers) return { name: `💬 ${fromMembers}` };
+
+    const fromMessages = await this.findCounterpartyFromMessages(chatId);
+    if (fromMessages) return { name: `💬 ${fromMessages}` };
+
+    return null;
+  }
+
+  private async findCounterpartyFromMembers(chatId: string): Promise<string | null> {
+    try {
+      const resp = await this.client.request<ChatMembersResponse>(
+        "GET",
+        `/open-apis/im/v1/chats/${chatId}/members`,
+      );
+      if (resp.code !== 0) return null;
+      const items = resp.data?.items ?? [];
+      const other = items.find(
+        (m) => m.member_id !== this.selfOpenId && m.member_id_type === "open_id" && m.name,
+      );
+      return other?.name ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async findCounterpartyFromMessages(chatId: string): Promise<string | null> {
+    try {
+      const stdout = await this.client.execShortcut("im", "chat-messages-list", [
+        "--chat-id",
+        chatId,
+        "--page-size",
+        "20",
+        "--sort",
+        "desc",
+      ]);
+      const parsed = JSON.parse(stdout) as ChatMessagesListResponse;
+      const items = parsed.data?.items ?? [];
+      const msg = items.find(
+        (m) => m.sender?.sender_type === "user" && m.sender.id !== this.selfOpenId && m.sender.name,
+      );
+      return msg?.sender?.name ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private async getChatInfo(chatId: string): Promise<ChatInfo | null> {

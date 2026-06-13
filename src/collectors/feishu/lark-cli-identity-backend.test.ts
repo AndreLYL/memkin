@@ -115,15 +115,179 @@ describe("LarkCliIdentityBackend.resolveFeishuChatId — group path", () => {
   });
 });
 
-// TODO: Task 4 — remove or replace this describe block when p2p resolution lands
-describe("LarkCliIdentityBackend.resolveFeishuChatId — p2p stub (Task 4 will fill this in)", () => {
-  it("returns null for p2p path until Task 4 implements it", async () => {
+describe("LarkCliIdentityBackend.resolveFeishuChatId — p2p path", () => {
+  it("returns 💬 + counterparty name from chat.members (same-tenant fast path)", async () => {
     const client = makeMockClient({
-      "GET /open-apis/im/v1/chats/oc_p2p": { code: 0, data: { chat_mode: "p2p", name: "" } },
+      "GET /open-apis/im/v1/chats/oc_dm_internal/members": {
+        code: 0,
+        data: {
+          items: [
+            { member_id: "ou_self", member_id_type: "open_id", name: "李应龙" },
+            { member_id: "ou_alice", member_id_type: "open_id", name: "张三" },
+          ],
+        },
+      },
+      // chats get is also called first to determine chat_mode
+      "GET /open-apis/im/v1/chats/oc_dm_internal": { code: 0, data: { chat_mode: "p2p" } },
     });
-    const backend = new LarkCliIdentityBackend(client);
-    const result = await backend.resolveFeishuChatId("dm/oc_p2p");
+    const backend = new LarkCliIdentityBackend(client, "ou_self");
+    const result = await backend.resolveFeishuChatId("dm/oc_dm_internal");
+    expect(result).toEqual({ name: "💬 张三" });
+  });
+
+  it("returns null when selfOpenId is undefined (cannot identify counterparty)", async () => {
+    const requestSpy = vi.fn();
+    const shortcutSpy = vi.fn();
+    const client = {
+      request: requestSpy,
+      execShortcut: shortcutSpy,
+    } as unknown as LarkCliHttpClient;
+    const backend = new LarkCliIdentityBackend(client); // no selfOpenId
+    // We still need a get-chats response for the chat_mode check; this test is about
+    // p2p short-circuiting AFTER chat_mode is determined to be "p2p".
+    requestSpy.mockResolvedValueOnce({ code: 0, data: { chat_mode: "p2p" } });
+    const result = await backend.resolveFeishuChatId("dm/oc_dm_no_self");
     expect(result).toBeNull();
+    // chats get was called once (line above); members should NOT have been called
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(shortcutSpy).not.toHaveBeenCalled();
+  });
+
+  it("falls back to chat-messages-list when chat.members only returns self (cross-tenant)", async () => {
+    const client = makeMockClient(
+      {
+        "GET /open-apis/im/v1/chats/oc_dm_external": { code: 0, data: { chat_mode: "p2p" } },
+        "GET /open-apis/im/v1/chats/oc_dm_external/members": {
+          code: 0,
+          data: {
+            items: [{ member_id: "ou_self", member_id_type: "open_id", name: "李应龙" }],
+          },
+        },
+      },
+      {
+        "im/chat-messages-list/--chat-id oc_dm_external --page-size 20 --sort desc": JSON.stringify(
+          {
+            ok: true,
+            data: {
+              items: [
+                {
+                  sender: {
+                    id: "ou_external_user",
+                    id_type: "open_id",
+                    name: "外部张三",
+                    sender_type: "user",
+                  },
+                },
+              ],
+            },
+          },
+        ),
+      },
+    );
+    const backend = new LarkCliIdentityBackend(client, "ou_self");
+    const result = await backend.resolveFeishuChatId("dm/oc_dm_external");
+    expect(result).toEqual({ name: "💬 外部张三" });
+  });
+
+  it("falls back when chat.members fails (non-zero code)", async () => {
+    const client = makeMockClient(
+      {
+        "GET /open-apis/im/v1/chats/oc_dm_403": { code: 0, data: { chat_mode: "p2p" } },
+        "GET /open-apis/im/v1/chats/oc_dm_403/members": { code: 230002, msg: "forbidden" },
+      },
+      {
+        "im/chat-messages-list/--chat-id oc_dm_403 --page-size 20 --sort desc": JSON.stringify({
+          ok: true,
+          data: {
+            items: [
+              { sender: { id: "ou_other", id_type: "open_id", name: "对方", sender_type: "user" } },
+            ],
+          },
+        }),
+      },
+    );
+    const backend = new LarkCliIdentityBackend(client, "ou_self");
+    const result = await backend.resolveFeishuChatId("dm/oc_dm_403");
+    expect(result).toEqual({ name: "💬 对方" });
+  });
+
+  it("skips bot/app senders in chat-messages-list fallback", async () => {
+    const client = makeMockClient(
+      {
+        "GET /open-apis/im/v1/chats/oc_dm_with_bot": { code: 0, data: { chat_mode: "p2p" } },
+        "GET /open-apis/im/v1/chats/oc_dm_with_bot/members": {
+          code: 0,
+          data: { items: [{ member_id: "ou_self", member_id_type: "open_id", name: "李应龙" }] },
+        },
+      },
+      {
+        "im/chat-messages-list/--chat-id oc_dm_with_bot --page-size 20 --sort desc": JSON.stringify(
+          {
+            ok: true,
+            data: {
+              items: [
+                {
+                  sender: { id: "cli_appbot", id_type: "app_id", name: "Bot", sender_type: "app" },
+                },
+                {
+                  sender: {
+                    id: "ou_self",
+                    id_type: "open_id",
+                    name: "李应龙",
+                    sender_type: "user",
+                  },
+                },
+                {
+                  sender: {
+                    id: "ou_real_other",
+                    id_type: "open_id",
+                    name: "真正对方",
+                    sender_type: "user",
+                  },
+                },
+              ],
+            },
+          },
+        ),
+      },
+    );
+    const backend = new LarkCliIdentityBackend(client, "ou_self");
+    const result = await backend.resolveFeishuChatId("dm/oc_dm_with_bot");
+    expect(result).toEqual({ name: "💬 真正对方" });
+  });
+
+  it("returns null when both paths fail", async () => {
+    const client = makeMockClient(
+      {
+        "GET /open-apis/im/v1/chats/oc_unreachable": { code: 0, data: { chat_mode: "p2p" } },
+        "GET /open-apis/im/v1/chats/oc_unreachable/members": new Error("network timeout"),
+      },
+      {
+        "im/chat-messages-list/--chat-id oc_unreachable --page-size 20 --sort desc": "", // empty stdout → JSON.parse will throw
+      },
+    );
+    const backend = new LarkCliIdentityBackend(client, "ou_self");
+    const result = await backend.resolveFeishuChatId("dm/oc_unreachable");
+    expect(result).toBeNull();
+  });
+
+  it("filters out items missing name in chat.members", async () => {
+    const client = makeMockClient({
+      "GET /open-apis/im/v1/chats/oc_anon_member": { code: 0, data: { chat_mode: "p2p" } },
+      "GET /open-apis/im/v1/chats/oc_anon_member/members": {
+        code: 0,
+        data: {
+          items: [
+            { member_id: "ou_self", member_id_type: "open_id", name: "李应龙" },
+            { member_id: "ou_no_name", member_id_type: "open_id", name: "" },
+            { member_id: "ou_other", member_id_type: "open_id", name: "正常对方" },
+          ],
+        },
+      },
+    });
+    const backend = new LarkCliIdentityBackend(client, "ou_self");
+    const result = await backend.resolveFeishuChatId("dm/oc_anon_member");
+    expect(result).toEqual({ name: "💬 正常对方" });
   });
 });
 
