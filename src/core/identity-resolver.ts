@@ -8,7 +8,7 @@ export interface IdentityBackend {
 }
 
 interface CacheRow {
-  display_name: string;
+  display_name: string | null;
   slug_hint: string | null;
 }
 
@@ -54,6 +54,7 @@ export class IdentityResolver {
 
     if (cached.rows.length > 0) {
       const row = cached.rows[0];
+      if (!row.display_name) return null;
       return row.slug_hint ? `${row.display_name} (${row.slug_hint})` : row.display_name;
     }
 
@@ -103,24 +104,25 @@ export class IdentityResolver {
     }
 
     // 1. Check cache by modelSlug
-    const cacheBySlug = await this.db.query<{ display_name: string }>(
+    const cacheBySlug = await this.db.query<{ display_name: string | null }>(
       "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
       ["canonical", modelSlug],
     );
 
     if (cacheBySlug.rows.length > 0) {
       const canonicalSlug = cacheBySlug.rows[0].display_name;
-      return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
+      if (canonicalSlug) return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug };
     }
 
     // 2. Check cache by name
-    const cacheByName = await this.db.query<{ display_name: string }>(
+    const cacheByName = await this.db.query<{ display_name: string | null }>(
       "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
       ["canonical", name],
     );
 
     if (cacheByName.rows.length > 0) {
       const canonicalSlug = cacheByName.rows[0].display_name;
+      if (!canonicalSlug) return { slug: modelSlug, isAlias: false };
 
       // Insert modelSlug -> canonical mapping (if not already there)
       await this.db.query(
