@@ -136,3 +136,118 @@ describe("GET /api/feishu/refresh-chat-names/status", () => {
     await db.pg.close();
   });
 });
+
+describe("POST /api/feishu/channel-names", () => {
+  it("returns per-channel status for resolved/failed/unresolved/mail", async () => {
+    const { app, db, job } = await makeAppWithJob();
+
+    // Seed cache: one resolved, one failed (NULL marker)
+    await db.pg.query(
+      "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, $3)",
+      ["feishu:chat", "group/oc_known", "已知群"],
+    );
+    await db.pg.query(
+      "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, NULL)",
+      ["feishu:chat", "group/oc_failed"],
+    );
+
+    const res = await app.request("/api/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        channels: ["group/oc_known", "group/oc_failed", "group/oc_never", "mail/INBOX"],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      results: Record<string, { display_name: string | null; status: string }>;
+    };
+
+    expect(body.results["group/oc_known"]).toEqual({ display_name: "已知群", status: "resolved" });
+    expect(body.results["group/oc_failed"]).toEqual({ display_name: null, status: "failed" });
+    expect(body.results["group/oc_never"]).toEqual({ display_name: null, status: "unresolved" });
+    expect(body.results["mail/INBOX"]).toEqual({ display_name: null, status: "mail" });
+
+    await job.waitUntilDone();
+    await db.pg.close();
+  });
+
+  it("rejects requests over 100 channels with 400", async () => {
+    const { app, db, job } = await makeAppWithJob();
+    const channels = Array.from({ length: 101 }, (_, i) => `group/oc_${i}`);
+    const res = await app.request("/api/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ channels }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/at most 100/);
+    await job.waitUntilDone();
+    await db.pg.close();
+  });
+
+  it("accepts exactly 100 channels (boundary)", async () => {
+    const { app, db, job } = await makeAppWithJob();
+    const channels = Array.from({ length: 100 }, (_, i) => `group/oc_${i}`);
+    const res = await app.request("/api/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ channels }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: Record<string, unknown> };
+    expect(Object.keys(body.results)).toHaveLength(100);
+    await job.waitUntilDone();
+    await db.pg.close();
+  });
+
+  it("returns 400 when channels field is not an array", async () => {
+    const { app, db, job } = await makeAppWithJob();
+    const res = await app.request("/api/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ channels: "not an array" }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/must be an array/);
+    await job.waitUntilDone();
+    await db.pg.close();
+  });
+
+  it("returns 400 when body is malformed JSON", async () => {
+    const { app, db, job } = await makeAppWithJob();
+    const res = await app.request("/api/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "not json at all",
+    });
+    expect(res.status).toBe(400);
+    await job.waitUntilDone();
+    await db.pg.close();
+  });
+
+  it("filters non-string entries from channels array", async () => {
+    const { app, db, job } = await makeAppWithJob();
+    // Seed one valid cache row
+    await db.pg.query(
+      "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, $3)",
+      ["feishu:chat", "group/oc_real", "真实群"],
+    );
+
+    const res = await app.request("/api/feishu/channel-names", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ channels: ["group/oc_real", 42, null, "group/oc_fake"] }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: Record<string, { status: string }> };
+    expect(body.results["group/oc_real"]?.status).toBe("resolved");
+    expect(body.results["group/oc_fake"]?.status).toBe("unresolved");
+    expect(body.results["42"]).toBeUndefined();
+    await job.waitUntilDone();
+    await db.pg.close();
+  });
+});
