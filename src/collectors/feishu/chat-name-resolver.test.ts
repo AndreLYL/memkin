@@ -56,10 +56,11 @@ describe("ChatNameResolver — cache read + TTL", () => {
     const resolver = new ChatNameResolver(db.pg, backend);
     const result = await resolver.resolve("group/oc_fail");
     expect(result).toBeNull();
-    const row = await db.pg.query<{ display_name: string | null }>(
-      "SELECT display_name FROM identity_cache WHERE external_id = 'group/oc_fail'",
+    const row = await db.pg.query<{ display_name: string | null; resolved_at: string }>(
+      "SELECT display_name, resolved_at FROM identity_cache WHERE external_id = 'group/oc_fail'",
     );
     expect(row.rows[0]?.display_name).toBeNull();
+    expect(row.rows[0]?.resolved_at).toBeTruthy();
     await db.pg.close();
   });
 
@@ -74,6 +75,27 @@ describe("ChatNameResolver — cache read + TTL", () => {
     const result = await resolver.resolve("group/oc_cached_fail");
     expect(result).toBeNull();
     expect(backend.resolveFeishuChatId).not.toHaveBeenCalled();
+    await db.pg.close();
+  });
+
+  it("does not touch cache when backend throws (transient_error)", async () => {
+    const db = await freshDb();
+    const backend: IdentityBackend = {
+      resolveFeishuOpenId: async () => null,
+      resolveFeishuChatId: vi.fn(async () => {
+        throw new Error("network timeout");
+      }),
+    };
+    const resolver = new ChatNameResolver(db.pg, backend);
+    const outcome = await resolver.refresh("group/oc_throw");
+    expect(outcome.kind).toBe("transient_error");
+    if (outcome.kind === "transient_error") {
+      expect(outcome.error).toContain("network timeout");
+    }
+    const row = await db.pg.query(
+      "SELECT 1 FROM identity_cache WHERE platform = 'feishu:chat' AND external_id = 'group/oc_throw'",
+    );
+    expect(row.rows).toHaveLength(0); // no cache write on throw
     await db.pg.close();
   });
 });

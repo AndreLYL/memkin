@@ -70,7 +70,8 @@ export class ChatNameResolver {
 
   private isFresh(resolvedAt: string): boolean {
     const ageMs = Date.now() - new Date(resolvedAt).getTime();
-    return ageMs < TTL_MS;
+    // Future-dated rows (clock skew, manual DB edits) shouldn't be treated as perpetually fresh.
+    return ageMs >= 0 && ageMs < TTL_MS;
   }
 
   private async upsert(channel: string, displayName: string | null): Promise<void> {
