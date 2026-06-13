@@ -180,4 +180,30 @@ describe("ChatNameRefreshJob — start + run", () => {
     expect(resolver.refresh).toHaveBeenCalledTimes(60); // refresh called for all 60
     await db.pg.close();
   });
+
+  it("transitions to error state when runLoop throws unexpectedly", async () => {
+    const db = await freshDb();
+    const fm = JSON.stringify({ source: { platform: "feishu", channel: "group/oc_a" } });
+    await db.pg.query(
+      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb)`,
+      [fm],
+    );
+    // Resolver rejects rather than returning a ResolutionOutcome
+    const resolver = {
+      refresh: vi.fn(async () => {
+        throw new Error("unexpected runtime error");
+      }),
+      resolve: vi.fn(),
+    } as unknown as ChatNameResolver;
+    const job = new ChatNameRefreshJob(db.pg, resolver);
+    await job.start();
+    await job.waitUntilDone();
+    const s = job.getStatus();
+    expect(s.state).toBe("error");
+    expect(s.errors).toHaveLength(1);
+    expect(s.errors[0]?.channel).toBe("<job>");
+    expect(s.errors[0]?.error).toContain("unexpected runtime error");
+    expect(s.finishedAt).toBeTruthy();
+    await db.pg.close();
+  });
 });

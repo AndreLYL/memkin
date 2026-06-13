@@ -58,32 +58,41 @@ export class ChatNameRefreshJob {
     if (this.status.state === "running") {
       throw new Error("another refresh is in progress");
     }
-    const channels = await this.collectChannels();
-    const jobId = randomUUID();
-    this.status = {
-      jobId,
-      state: "running",
-      total: channels.length,
-      resolved: 0,
-      failed: 0,
-      skipped: 0,
-      currentChannel: null,
-      startedAt: new Date().toISOString(),
-      finishedAt: null,
-      errors: [],
-      // preserve lastRefreshedAt from the previous run so callers can still
-      // read "when was the last successful sweep" while a new one is in flight
-      lastRefreshedAt: this.status.lastRefreshedAt,
-    };
-    this.donePromise = this.runLoop(channels).catch((err) => {
-      this.status.state = "error";
-      this.status.finishedAt = new Date().toISOString();
-      this.status.errors.push({
-        channel: "<job>",
-        error: err instanceof Error ? err.message : String(err),
+    // Claim the slot synchronously before the await on collectChannels to
+    // prevent a TOCTOU race if two callers reach start() concurrently.
+    this.status.state = "running";
+    try {
+      const channels = await this.collectChannels();
+      const jobId = randomUUID();
+      this.status = {
+        jobId,
+        state: "running",
+        total: channels.length,
+        resolved: 0,
+        failed: 0,
+        skipped: 0,
+        currentChannel: null,
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        errors: [],
+        // preserve lastRefreshedAt from the previous run so callers can still
+        // read "when was the last successful sweep" while a new one is in flight
+        lastRefreshedAt: this.status.lastRefreshedAt,
+      };
+      this.donePromise = this.runLoop(channels).catch((err) => {
+        this.status.state = "error";
+        this.status.finishedAt = new Date().toISOString();
+        this.status.errors.push({
+          channel: "<job>",
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
-    });
-    return jobId;
+      return jobId;
+    } catch (err) {
+      // collectChannels threw — revert the claim so future starts can proceed.
+      this.status.state = "idle";
+      throw err;
+    }
   }
 
   private async runLoop(channels: string[]): Promise<void> {
