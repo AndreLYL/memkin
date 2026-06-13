@@ -61,6 +61,11 @@ describe("evaluateTriggers", () => {
     expect(evaluateTriggers(c, config({ important_folders: ["fld_x"] }), "ou_me", NOW)).toBe("T4");
   });
 
+  test("T4 fires for important folder when source is my_space", () => {
+    const c = candidate({ source: { kind: "my_space", folder_token: "fld_x" } });
+    expect(evaluateTriggers(c, config({ important_folders: ["fld_x"] }), "ou_me", NOW)).toBe("T4");
+  });
+
   test("T4 fires for important wiki space", () => {
     const c = candidate({
       source: { kind: "wiki", space_id: "sp_1", space_name: "S", node_token: "nd_1" },

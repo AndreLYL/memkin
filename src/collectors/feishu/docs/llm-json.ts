@@ -21,6 +21,10 @@ export function parseLlmJson(output: string): Record<string, unknown> {
   }
 
   const stripped = output.replace(/```[a-zA-Z]*\n?/g, "").replace(/```/g, "");
+  // Known limitation: this naively takes the first `{` to the last `}`. Trailing
+  // prose containing a stray `}` can over-extend the slice past the real JSON,
+  // yielding an unparseable candidate that falls through to the throw below.
+  // This is acceptable — the caller handles retry/degrade on LlmJsonParseError.
   const first = stripped.indexOf("{");
   const last = stripped.lastIndexOf("}");
   if (first !== -1 && last !== -1 && last > first) {

@@ -23,4 +23,8 @@ describe("parseLlmJson", () => {
   test("malformed braces throw LlmJsonParseError", () => {
     expect(() => parseLlmJson("{ not: valid json }")).toThrow(LlmJsonParseError);
   });
+
+  test("trailing prose with a stray brace falls through to throw (known limitation)", () => {
+    expect(() => parseLlmJson('text {"a":1} and a note like }')).toThrow(LlmJsonParseError);
+  });
 });

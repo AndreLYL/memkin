@@ -22,10 +22,31 @@ describe("parseFeishuUrl", () => {
     ).toEqual({ kind: "docx", token: "Abngd03Swoll47xr347c8rhrndg" });
   });
 
+  test("docx url token with hyphen/underscore is captured whole", () => {
+    expect(parseFeishuUrl("https://x.feishu.cn/docx/Abc-123_def4567890ghikl")).toEqual({
+      kind: "docx",
+      token: "Abc-123_def4567890ghikl",
+    });
+  });
+
+  test("docx url with trailing path segment stops at the boundary", () => {
+    expect(parseFeishuUrl("https://x.feishu.cn/docx/Tok_en-12345678901234/edit")).toEqual({
+      kind: "docx",
+      token: "Tok_en-12345678901234",
+    });
+  });
+
   test("wiki url → wiki_node", () => {
     expect(parseFeishuUrl("https://my.feishu.cn/wiki/Z4PVwFtrKiYOOjkgrY5cYNf6n1d")).toEqual({
       kind: "wiki_node",
       node_token: "Z4PVwFtrKiYOOjkgrY5cYNf6n1d",
+    });
+  });
+
+  test("wiki url token with underscore/hyphen captured whole", () => {
+    expect(parseFeishuUrl("https://x.feishu.cn/wiki/Nd_oo-1234567890abcd?from=x")).toEqual({
+      kind: "wiki_node",
+      node_token: "Nd_oo-1234567890abcd",
     });
   });
 

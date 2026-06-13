@@ -1,8 +1,8 @@
 import type { ParsedFeishuUrl } from "./types.js";
 
 const RAW_TOKEN = /^[A-Za-z0-9]{20,}$/;
-const DOCX_URL = /feishu\.[a-z]+\/docx\/([A-Za-z0-9]+)/;
-const WIKI_URL = /feishu\.[a-z]+\/wiki\/([A-Za-z0-9]+)/;
+const DOCX_URL = /feishu\.[a-z]+\/docx\/([^/?#]+)/;
+const WIKI_URL = /feishu\.[a-z]+\/wiki\/([^/?#]+)/;
 const OLD_DOC_URL = /feishu\.[a-z]+\/docs\//;
 const UNSUPPORTED_URL = /feishu\.[a-z]+\/(sheets|base|mindnotes|file|slides)\//;
 
