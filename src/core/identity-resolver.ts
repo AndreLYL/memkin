@@ -5,6 +5,11 @@ import type { ExtractionResult, RawMessage } from "./types.js";
 
 export interface IdentityBackend {
   resolveFeishuOpenId(openId: string): Promise<{ name: string; slugHint?: string } | null>;
+  // Resolves a full channel string (e.g. "group/oc_xxx" or "dm/oc_xxx") to a
+  // human-readable display name. Returns null when the channel kind is "mail"
+  // (caller should short-circuit), when self_open_id is unavailable for a p2p
+  // chat, or when the underlying Lark API returns a non-network error.
+  resolveFeishuChatId(channel: string): Promise<{ name: string } | null>;
 }
 
 interface CacheRow {
