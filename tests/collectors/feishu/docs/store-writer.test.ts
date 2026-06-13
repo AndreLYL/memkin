@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { writeCard } from "../../../../src/collectors/feishu/docs/store-writer";
+import { loadExistingCard, writeCard } from "../../../../src/collectors/feishu/docs/store-writer";
 import type { PointerCard } from "../../../../src/collectors/feishu/docs/types";
 
 const pointer: PointerCard = {
@@ -21,5 +21,30 @@ describe("writeCard", () => {
     expect(content.startsWith("---\n")).toBe(true);
     expect(opts).toEqual({ halflife_days: null });
     expect(rechunk).toHaveBeenCalledWith(42, "BODY");
+  });
+});
+
+describe("loadExistingCard", () => {
+  test("returns null when page absent", async () => {
+    const stores = { pages: { getPage: async () => null } };
+    expect(await loadExistingCard(stores as never, "tokX")).toBe(null);
+  });
+
+  test("reconstructs a full card from frontmatter", async () => {
+    const stores = {
+      pages: {
+        getPage: async () => ({
+          frontmatter: {
+            extract_level: "full",
+            doc_token: "tok9",
+            modified_at: "2026-02-01T00:00:00Z",
+            source_body_hash: "deadbeef",
+          },
+        }),
+      },
+    };
+    const card = await loadExistingCard(stores as never, "tok9");
+    expect(card?.extract_level).toBe("full");
+    if (card?.extract_level === "full") expect(card.source_body_hash).toBe("deadbeef");
   });
 });
