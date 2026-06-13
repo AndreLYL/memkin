@@ -273,6 +273,10 @@ export function createMcpServer(stores: StoreContext, ingestDeps?: IngestDeps): 
       },
       async (args) => {
         const TIMEOUT_MS = 15_000;
+        // On a real timeout the in-flight ingestFeishuDoc keeps running detached
+        // and may still writeCard later (accepted degradation); error.doc_token
+        // is "" by design since we have no token to report from the timeout path.
+        let timer: ReturnType<typeof setTimeout> | undefined;
         const timeout = new Promise<{
           ok: false;
           error: {
@@ -281,8 +285,8 @@ export function createMcpServer(stores: StoreContext, ingestDeps?: IngestDeps): 
             saved_as: "pointer";
             original_error: string;
           };
-        }>((resolve) =>
-          setTimeout(
+        }>((resolve) => {
+          timer = setTimeout(
             () =>
               resolve({
                 ok: false,
@@ -294,9 +298,10 @@ export function createMcpServer(stores: StoreContext, ingestDeps?: IngestDeps): 
                 },
               }),
             TIMEOUT_MS,
-          ),
-        );
+          );
+        });
         const result = await Promise.race([ingestFeishuDoc(ingestDeps, args), timeout]);
+        clearTimeout(timer);
         return text(result);
       },
     );

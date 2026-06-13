@@ -609,14 +609,14 @@ program
           nowIso: () => new Date().toISOString(),
         });
         console.log(
-          `[scheduler] feishu.docs: scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} queue=${stats.upgrade_queue_size}`,
+          `[scheduler] feishu.docs: scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} refreshed=${stats.full_card_refreshed} queue=${stats.upgrade_queue_size}`,
         );
         return {
           fatal: false,
           error: undefined,
           totalMessages: stats.candidates_scanned,
-          totalBlocks: stats.full_card_generated + stats.pointer_saved,
-          okBlocks: stats.full_card_generated + stats.pointer_saved,
+          totalBlocks: stats.full_card_generated + stats.pointer_saved + stats.full_card_refreshed,
+          okBlocks: stats.full_card_generated + stats.pointer_saved + stats.full_card_refreshed,
           skippedBlocks: stats.skipped,
           failedBlocks: stats.llm_failed,
           okMessages: [],
@@ -1137,9 +1137,16 @@ docsCmd
           console.warn(`skip ${token}: no existing card`);
           continue;
         }
+        // retry intentionally re-evaluates the gate (no force); short/empty docs
+        // stay pointers by design — unlike MCP ingest which forces.
         const card = await builder.build(existing);
         await writeCard(stores, card);
-        console.log(`${token}: ${card.extract_level}`);
+        if (card.extract_level === "pointer") {
+          const reason = card.extract_error ?? card.extract_skipped ?? "unknown";
+          console.log(`${token}: pointer (not upgraded — ${reason})`);
+        } else {
+          console.log(`${token}: full`);
+        }
       }
       await stores.db.close();
     } catch (error) {

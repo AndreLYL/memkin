@@ -31,6 +31,11 @@ export type IngestOutput =
       error:
         | { code: "INVALID_URL"; message: string }
         | { code: "UNSUPPORTED_DOC_TYPE"; type: string; message: string }
+        // PERMISSION_DENIED is reserved: under the current lark-cli client the HTTP
+        // status is unavailable (execLark loses it — FeishuApiError is thrown with
+        // status 0), so a 403 cannot be reliably distinguished. 403s currently
+        // surface as NETWORK_ERROR (meta fetch) or LLM_FAILED (blocks fetch). Wire
+        // real 403 detection when/if the client exposes HTTP status.
         | { code: "PERMISSION_DENIED"; doc_token: string }
         | { code: "WIKI_NODE_NOT_FOUND"; node_token: string }
         | { code: "LLM_FAILED"; doc_token: string; saved_as: "pointer"; original_error: string }
