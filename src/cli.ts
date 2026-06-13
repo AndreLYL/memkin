@@ -8,6 +8,7 @@ import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
 import { runDocSource } from "./collectors/feishu/docs/run.js";
+import { failedCards, summarizeCards } from "./collectors/feishu/docs/status.js";
 import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
 import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
 import { resolveSelfOpenId } from "./collectors/feishu/self-open-id.js";
@@ -1060,6 +1061,29 @@ docsCmd
       await stores.db.close();
     } catch (error) {
       console.error("docs sync failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+docsCmd
+  .command("status")
+  .description("Show Feishu doc card counts")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--failed", "List cards whose last extraction failed")
+  .action(async (options) => {
+    try {
+      const config = loadConfig(options.config);
+      const stores = await createStores(config);
+      const pages = await stores.pages.listPages({ type: "feishu_doc_card", limit: 100000 });
+      if (options.failed) {
+        for (const f of failedCards(pages as never)) console.log(`${f.doc_token}\t${f.error}`);
+      } else {
+        const s = summarizeCards(pages as never);
+        console.log(`total=${s.total} full=${s.full} pointer=${s.pointer} failed=${s.failed}`);
+      }
+      await stores.db.close();
+    } catch (error) {
+      console.error("docs status failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   });
