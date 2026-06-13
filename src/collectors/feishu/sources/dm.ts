@@ -29,6 +29,12 @@ export class DMSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
+    if (this.chatIds.length === 0) {
+      throw new Error(
+        "dm source enabled but dm_chat_ids is empty — add specific DM chat IDs, " +
+          "or disable this source and use message_search with chat_types=[p2p] instead",
+      );
+    }
     for (const chatId of this.chatIds) {
       try {
         const startMs = this.resolveStartTime(checkpoint, chatId);

@@ -139,7 +139,7 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 
     const identityResolver = new IdentityResolver(stores.db.pg);
 
-    return runPipeline(pipelineConfig, {
+    const result = await runPipeline(pipelineConfig, {
       source: collector,
       provider,
       format: "json",
@@ -147,6 +147,18 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
       stores: stores as never,
       identityResolver,
     });
+
+    // Surface per-source errors that FeishuCollector caught (and would
+    // otherwise silently swallow) so the backfill UI doesn't show
+    // "done · 0 条" when a sub-source actually failed at the source level.
+    const sourceErrors = collector.getSourceErrors();
+    const sourceErr = sourceErrors[sourceType];
+    if (sourceErr && !result.fatal) {
+      result.fatal = true;
+      result.error = sourceErr;
+    }
+
+    return result;
   };
 }
 
