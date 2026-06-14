@@ -33,7 +33,10 @@ export class FullCardBuilder {
 
   private async fetchBlocks(docToken: string): Promise<FeishuBlock[]> {
     const blocks: FeishuBlock[] = [];
-    // ⚠️ CALIBRATE: path + ndjson row shape against Task 1.
+    // CALIBRATED 2026-06-14: the GET /open-apis/docx/v1/documents/<id>/blocks
+    // endpoint and ndjson row shape are confirmed live — each row carries an
+    // integer `block_type` plus a per-type holder with elements[].text_run.content
+    // (see blocks.ts#BLOCK_MAP and probe-fixtures.md docx_block fixture).
     for await (const page of this.client.paginate<FeishuBlock>(
       `/open-apis/docx/v1/documents/${docToken}/blocks`,
     )) {

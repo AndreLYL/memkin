@@ -42,12 +42,22 @@ export type IngestOutput =
         | { code: "NETWORK_ERROR"; message: string };
     };
 
-// ⚠️ CALIBRATE: single-doc metadata endpoint + response path. Feishu commonly
-// uses POST /open-apis/drive/v1/metas/batch_query with body { request_docs: [...] }.
+// CALIBRATED 2026-06-14 against POST /open-apis/drive/v1/metas/batch_query with
+// body { request_docs: [{ doc_token, doc_type }] }. The response `url` comes back
+// as an EMPTY STRING "" (not undefined), so `??` would keep it — use `||` to fall
+// back. Unlike the drive/v1/files list API, the meta API DOES return the real last
+// editor via `latest_modify_user`.
 async function fetchDocMeta(
   client: IFeishuHttpClient,
   docToken: string,
-): Promise<{ title: string; url: string; owner_id: string; created: string; modified: string }> {
+): Promise<{
+  title: string;
+  url: string;
+  owner_id: string;
+  last_editor_id: string;
+  created: string;
+  modified: string;
+}> {
   const res = await client.request<{
     code: number;
     data?: {
@@ -55,6 +65,7 @@ async function fetchDocMeta(
         title?: string;
         url?: string;
         owner_id?: string;
+        latest_modify_user?: string;
         create_time?: string;
         latest_modify_time?: string;
       }>;
@@ -64,11 +75,12 @@ async function fetchDocMeta(
   });
   const m = res.data?.metas?.[0] ?? {};
   return {
-    title: m.title ?? docToken,
-    url: m.url ?? `https://feishu.cn/docx/${docToken}`,
+    title: m.title || docToken,
+    url: m.url || `https://feishu.cn/docx/${docToken}`,
     owner_id: m.owner_id ?? "",
-    created: m.create_time ?? "0",
-    modified: m.latest_modify_time ?? "0",
+    last_editor_id: m.latest_modify_user || m.owner_id || "",
+    created: m.create_time || "0",
+    modified: m.latest_modify_time || "0",
   };
 }
 
@@ -130,7 +142,7 @@ export async function ingestFeishuDoc(deps: IngestDeps, input: IngestInput): Pro
     title: meta.title,
     url: meta.url,
     owner_id: meta.owner_id,
-    last_editor_id: meta.owner_id,
+    last_editor_id: meta.last_editor_id,
     created_at:
       meta.created === "0" ? now : new Date(Number.parseInt(meta.created, 10) * 1000).toISOString(),
     modified_at:

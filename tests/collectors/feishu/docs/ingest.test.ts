@@ -114,4 +114,41 @@ describe("ingestFeishuDoc", () => {
     expect(out.ok).toBe(true);
     if (out.ok) expect(out.doc_token).toBe("tok");
   });
+
+  test("empty-string meta url falls back to a constructed docx url", async () => {
+    // The real batch_query meta returns url: "" — the fallback must kick in (||, not ??).
+    const { deps: base } = deps();
+    const client = {
+      ...base.client,
+      async request(_m: string, path: string) {
+        if (path.includes("/metas")) {
+          return {
+            code: 0,
+            data: {
+              metas: [
+                {
+                  doc_token: "Abngd03Swoll47xr347c8rhrndg",
+                  title: "Real Title",
+                  url: "",
+                  owner_id: "ou_owner",
+                  latest_modify_user: "ou_editor",
+                  latest_modify_time: "1717200000",
+                  create_time: "1700000000",
+                },
+              ],
+            },
+          };
+        }
+        throw new Error(`unexpected ${path}`);
+      },
+    };
+    const out = await ingestFeishuDoc({ ...base, client } as never, {
+      url_or_token: "Abngd03Swoll47xr347c8rhrndg",
+    });
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.card.url).toBe("https://feishu.cn/docx/Abngd03Swoll47xr347c8rhrndg");
+      expect(out.card.last_editor_id).toBe("ou_editor");
+    }
+  });
 });

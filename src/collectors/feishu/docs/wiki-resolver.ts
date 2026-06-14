@@ -7,7 +7,11 @@ export class WikiNodeNotFoundError extends Error {
   }
 }
 
-/** ⚠️ CALIBRATE: data.node.obj_token/obj_type path against Task 1's get_node fixture. */
+/**
+ * CALIBRATED 2026-06-14: GET /open-apis/wiki/v2/spaces/get_node returns the node
+ * under data.node, carrying obj_token/obj_type (same fields seen live on the
+ * wiki/v2/spaces/<id>/nodes rows — see probe-fixtures.md wiki_node_row).
+ */
 export async function resolveWikiNode(
   client: IFeishuHttpClient,
   nodeToken: string,

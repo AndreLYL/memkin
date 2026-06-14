@@ -5,6 +5,8 @@ import {
 } from "../../../../src/collectors/feishu/docs/candidate";
 import type { FeishuDriveFile } from "../../../../src/collectors/feishu/types";
 
+// CALIBRATED 2026-06-14: the drive/v1/files list API returns no edit_users,
+// so last_editor_id always falls back to owner_id.
 const file: FeishuDriveFile = {
   token: "doc_tok",
   name: "Roadmap",
@@ -13,7 +15,6 @@ const file: FeishuDriveFile = {
   owner_id: "ou_owner",
   created_time: "1700000000",
   modified_time: "1717200000",
-  edit_users: [{ open_id: "ou_editor" }],
 };
 
 describe("driveFileToCandidate", () => {
@@ -25,7 +26,7 @@ describe("driveFileToCandidate", () => {
       title: "Roadmap",
       url: "https://feishu.cn/docx/doc_tok",
       owner_id: "ou_owner",
-      last_editor_id: "ou_editor",
+      last_editor_id: "ou_owner",
       created_at: new Date(1700000000 * 1000).toISOString(),
       modified_at: new Date(1717200000 * 1000).toISOString(),
       source: { kind: "my_space", folder_token: "fld_a" },
@@ -33,9 +34,9 @@ describe("driveFileToCandidate", () => {
     });
   });
 
-  test("falls back to owner as last editor when edit_users empty", () => {
+  test("last_editor_id falls back to owner (list API has no edit_users)", () => {
     const c = driveFileToCandidate(
-      { ...file, edit_users: [] },
+      file,
       { kind: "folder", folder_token: "fld_x", folder_name: "X" },
       "X/",
     );
@@ -52,7 +53,7 @@ describe("wikiNodeToCandidate", () => {
       title: "Wiki Doc",
       obj_edit_time: "1717200000",
       obj_create_time: "1700000000",
-      owner_id: "ou_owner",
+      owner: "ou_owner",
     };
     const c = wikiNodeToCandidate(
       node,

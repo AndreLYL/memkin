@@ -4,16 +4,17 @@ import { computeSourceBodyHash } from "../../../../src/collectors/feishu/docs/ha
 import { runDocSource } from "../../../../src/collectors/feishu/docs/run";
 import { createMockProvider } from "../../../../src/extractors/providers/mock";
 
-const file = (token: string, editor: string) => ({
+// CALIBRATED 2026-06-14: the drive/v1/files list API returns no edit_users, so
+// last_editor_id falls back to owner_id. For My Space, T1 self_edit therefore
+// means self-OWNED — the `owner` arg drives the trigger.
+const file = (token: string, owner: string) => ({
   token,
   name: token,
   type: "docx",
   url: `u/${token}`,
-  owner_id: "ou_owner",
-  last_editor: editor,
+  owner_id: owner,
   created_time: "1700000000",
   modified_time: "1717200000",
-  edit_users: [{ open_id: editor }],
 });
 
 function fakeClient(rootFiles: unknown[], blocksRaw: string) {

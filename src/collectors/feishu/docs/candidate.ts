@@ -10,7 +10,10 @@ export function driveFileToCandidate(
   source: DocSourceOrigin,
   parentPath: string,
 ): DocCandidate {
-  const lastEditor = file.edit_users?.[0]?.open_id ?? file.owner_id; // ⚠️ CALIBRATE: edit_users ordering
+  // CALIBRATED 2026-06-14: the drive/v1/files list API does not return edit_users;
+  // last_editor_id falls back to owner_id. (For My Space this means T1 self_edit
+  // effectively means self-owned.)
+  const lastEditor = file.owner_id;
   return {
     doc_token: file.token,
     doc_type: "docx",
@@ -25,7 +28,9 @@ export function driveFileToCandidate(
   };
 }
 
-// ⚠️ CALIBRATE all field names below against Task 1's wiki_node fixture.
+// CALIBRATED 2026-06-14 against the real wiki/v2/spaces/<id>/nodes row: the
+// last-editor field is `owner` (NOT `owner_id`), and the row carries a real
+// `url`. obj_edit_time/obj_create_time are epoch-second strings.
 export interface FeishuWikiNode {
   node_token: string;
   obj_token: string;
@@ -33,7 +38,8 @@ export interface FeishuWikiNode {
   title: string;
   obj_edit_time: string; // epoch seconds
   obj_create_time: string;
-  owner_id?: string;
+  owner?: string;
+  url?: string;
 }
 
 export function wikiNodeToCandidate(
@@ -45,9 +51,9 @@ export function wikiNodeToCandidate(
     doc_token: node.obj_token,
     doc_type: "docx",
     title: node.title,
-    url: `https://feishu.cn/wiki/${node.node_token}`,
-    owner_id: node.owner_id ?? "",
-    last_editor_id: node.owner_id ?? "",
+    url: node.url ?? `https://feishu.cn/wiki/${node.node_token}`,
+    owner_id: node.owner ?? "",
+    last_editor_id: node.owner ?? "",
     created_at: secToIso(node.obj_create_time),
     modified_at: secToIso(node.obj_edit_time),
     source,

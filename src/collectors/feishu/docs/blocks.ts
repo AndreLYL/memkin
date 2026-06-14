@@ -1,6 +1,5 @@
 import type { DocBlock } from "./types.js";
 
-// ⚠️ CALIBRATE against Task 1 blocks fixture.
 interface TextElement {
   text_run?: { content?: string };
 }
@@ -13,14 +12,26 @@ export interface FeishuBlock {
   heading1?: BlockTextHolder;
   heading2?: BlockTextHolder;
   heading3?: BlockTextHolder;
+  bullet?: BlockTextHolder;
+  ordered?: BlockTextHolder;
+  code?: BlockTextHolder;
+  quote?: BlockTextHolder;
+  todo?: BlockTextHolder;
 }
 
-// block_type integer → (DocBlock.type, holder key)
+// block_type integer → (DocBlock.type, holder key).
+// block_type 3 (heading1) and 2 (text) confirmed live 2026-06-14;
+// 4/5/12/13/14/15/17 are standard Feishu values.
 const BLOCK_MAP: Record<number, { type: DocBlock["type"]; key: keyof FeishuBlock }> = {
   2: { type: "text", key: "text" },
   3: { type: "heading1", key: "heading1" },
   4: { type: "heading2", key: "heading2" },
   5: { type: "heading3", key: "heading3" },
+  12: { type: "text", key: "bullet" },
+  13: { type: "text", key: "ordered" },
+  14: { type: "text", key: "code" },
+  15: { type: "text", key: "quote" },
+  17: { type: "text", key: "todo" },
 };
 
 function holderText(holder: BlockTextHolder | undefined): string {

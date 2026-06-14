@@ -8,7 +8,8 @@ import type { DocCandidate, DocSourceOrigin } from "./types.js";
  * Recursively walk a drive folder. docx files → candidates; folders → recurse
  * while depth budget remains. `source` describes the origin for emitted
  * candidates; `parentPath` is the human-readable breadcrumb.
- * ⚠️ CALIBRATE: file.type === "folder" / "docx" against Task 1.
+ * CALIBRATED 2026-06-14: drive/v1/files rows carry `type` with live values
+ * folder/docx/bitable/file, so `file.type === "folder"` / `"docx"` are correct.
  */
 export async function* walkDriveFolder(
   client: IFeishuHttpClient,
@@ -47,7 +48,9 @@ interface FeishuWikiSpace {
 
 /**
  * Walk every wiki space (minus excluded ids) and emit docx nodes.
- * ⚠️ CALIBRATE: space/node field names + obj_type values against Task 1.
+ * CALIBRATED 2026-06-14: wiki/v2/spaces rows expose `space_id`/`name`, and
+ * wiki/v2/spaces/<id>/nodes rows expose `node_token`/`obj_token`/`obj_type`/
+ * `title` plus `owner` (the last-editor field, NOT `owner_id`) and a real `url`.
  */
 export async function* walkWiki(
   client: IFeishuHttpClient,
