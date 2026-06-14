@@ -78,11 +78,15 @@ export async function* walkWiki(
   }
 }
 
-/** ⚠️ CALIBRATE: root_folder/meta response shape against Task 1. */
+/**
+ * CALIBRATED 2026-06-14 against real lark-cli: the endpoint is the explorer v2
+ * API (the drive/v1 path returns HTTP 404), and the root token is at data.token.
+ * Real response: { code: 0, data: { id, token, user_id }, msg: "success" }.
+ */
 async function getMySpaceRoot(client: IFeishuHttpClient): Promise<string | null> {
   const res = await client.request<{ code: number; data?: { token?: string } }>(
     "GET",
-    "/open-apis/drive/v1/files/root_folder/meta",
+    "/open-apis/drive/explorer/v2/root_folder/meta",
   );
   return res.data?.token ?? null;
 }
