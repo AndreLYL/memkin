@@ -181,14 +181,13 @@ describe("FeishuCollector", () => {
     expect(sourceNames).toContain("calendar");
   });
 
-  it("wires docs and tasks sources when enabled", () => {
+  it("wires tasks source when enabled (docs no longer a pipeline source)", () => {
     const config: FeishuCollectorConfig = {
       ...baseConfig,
       sources: {
         ...baseConfig.sources,
         docs: {
           enabled: true,
-          doc_folders: ["folder_001"],
         },
         tasks: {
           enabled: true,
@@ -197,16 +196,17 @@ describe("FeishuCollector", () => {
     };
     const collector = createFeishuCollector(config);
     const sourceNames = (collector as any).sources.map((s: any) => s.name);
-    expect(sourceNames).toContain("docs");
+    // DocSource v2 (docs sync) is a standalone command, not a collector source.
+    expect(sourceNames).not.toContain("docs");
     expect(sourceNames).toContain("tasks");
   });
 
-  it("skips disabled docs/tasks sources", () => {
+  it("skips disabled tasks source", () => {
     const config: FeishuCollectorConfig = {
       ...baseConfig,
       sources: {
         ...baseConfig.sources,
-        docs: { enabled: false, doc_folders: [] },
+        docs: { enabled: false },
         tasks: { enabled: false },
       },
     };

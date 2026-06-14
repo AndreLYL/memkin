@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { type IngestDeps, ingestFeishuDoc } from "../collectors/feishu/docs/ingest.js";
 import {
   type HandleKind,
   type HandleStrength,
@@ -146,7 +147,7 @@ export function createMcpToolHandlers(stores: StoreContext) {
   };
 }
 
-export function createMcpServer(stores: StoreContext): McpServer {
+export function createMcpServer(stores: StoreContext, ingestDeps?: IngestDeps): McpServer {
   const server = new McpServer({ name: "memoark", version: "1.0.0" });
   const tools = createMcpToolHandlers(stores);
   const text = (value: unknown) => ({
@@ -260,6 +261,51 @@ export function createMcpServer(stores: StoreContext): McpServer {
   server.tool("recanonicalize_person", { from: z.string(), to: z.string() }, async (args) =>
     text(await tools.recanonicalize_person(args)),
   );
+
+  if (ingestDeps) {
+    server.tool(
+      "ingest_feishu_doc",
+      {
+        url_or_token: z.string(),
+        note: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        force_refresh: z.boolean().optional(),
+      },
+      async (args) => {
+        const TIMEOUT_MS = 15_000;
+        // On a real timeout the in-flight ingestFeishuDoc keeps running detached
+        // and may still writeCard later (accepted degradation); error.doc_token
+        // is "" by design since we have no token to report from the timeout path.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<{
+          ok: false;
+          error: {
+            code: "LLM_FAILED";
+            doc_token: string;
+            saved_as: "pointer";
+            original_error: string;
+          };
+        }>((resolve) => {
+          timer = setTimeout(
+            () =>
+              resolve({
+                ok: false,
+                error: {
+                  code: "LLM_FAILED",
+                  doc_token: "",
+                  saved_as: "pointer",
+                  original_error: "timeout_15s",
+                },
+              }),
+            TIMEOUT_MS,
+          );
+        });
+        const result = await Promise.race([ingestFeishuDoc(ingestDeps, args), timeout]);
+        clearTimeout(timer);
+        return text(result);
+      },
+    );
+  }
 
   return server;
 }

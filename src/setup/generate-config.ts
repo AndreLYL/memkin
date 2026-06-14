@@ -30,7 +30,7 @@ const DEFAULT_FEISHU: NonNullable<Config["sources"]["feishu"]> = {
   sources: {
     messages: { enabled: false, chat_ids: [] },
     calendar: { enabled: false, calendar_ids: [] },
-    docs: { enabled: false, doc_folders: [] },
+    docs: { enabled: false },
     tasks: { enabled: false },
     dm: { enabled: false, dm_chat_ids: [], self_open_id: "" },
   },

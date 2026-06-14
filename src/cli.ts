@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
+import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
+import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
+import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
+import { runDocSource } from "./collectors/feishu/docs/run.js";
+import { failedCards, summarizeCards } from "./collectors/feishu/docs/status.js";
+import { loadExistingCard, writeCard } from "./collectors/feishu/docs/store-writer.js";
 import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
 import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
 import { resolveSelfOpenId } from "./collectors/feishu/self-open-id.js";
@@ -20,8 +26,9 @@ import {
 } from "./collectors/index.js";
 import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.js";
 import { loadConfig, type SourcesConfig } from "./core/config.js";
+import { CursorStore } from "./core/cursors.js";
 import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js";
-import { type PipelineConfig, runPipeline } from "./core/pipeline.js";
+import { type PipelineConfig, type PipelineResult, runPipeline } from "./core/pipeline.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { Scheduler } from "./daemon/scheduler.js";
 import { VERSION } from "./embedded-assets.generated.js";
@@ -573,8 +580,57 @@ program
         block_concurrency: config.pipeline?.block_concurrency,
       };
 
+      const docsCursor = new CursorStore(statePath("cursors.yaml"));
+      const feishuCfg = config.sources.feishu;
+      const docsClient =
+        feishuCfg?.enabled && feishuCfg.sources?.docs?.enabled
+          ? new LarkCliHttpClient(feishuCfg.lark_bin)
+          : undefined;
+      const docsResolved = feishuCfg?.sources?.docs?.enabled
+        ? normalizeDocsConfig(feishuCfg.sources.docs)
+        : undefined;
+
+      const runDocsAsPipelineResult = async (): Promise<PipelineResult> => {
+        if (!docsClient || !docsResolved)
+          throw new Error("feishu.docs scheduled but docs source not enabled");
+        docsCursor.load();
+        const selfOpenId =
+          docsResolved.self_open_id ??
+          (await resolveSelfOpenId(docsClient, feishuCfg?.sources?.dm?.self_open_id)) ??
+          "";
+        const stats = await runDocSource({
+          client: docsClient,
+          stores,
+          provider,
+          config: docsResolved,
+          cursor: docsCursor,
+          selfOpenId,
+          nowMs: Date.now(),
+          nowIso: () => new Date().toISOString(),
+        });
+        console.log(
+          `[scheduler] feishu.docs: scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} refreshed=${stats.full_card_refreshed} queue=${stats.upgrade_queue_size}`,
+        );
+        return {
+          fatal: false,
+          error: undefined,
+          totalMessages: stats.candidates_scanned,
+          totalBlocks: stats.full_card_generated + stats.pointer_saved + stats.full_card_refreshed,
+          okBlocks: stats.full_card_generated + stats.pointer_saved + stats.full_card_refreshed,
+          skippedBlocks: stats.skipped,
+          failedBlocks: stats.llm_failed,
+          okMessages: [],
+          skippedMessages: [],
+          failedMessages: [],
+          warnings: [],
+        };
+      };
+
       scheduler = new Scheduler(config.scheduler, stateDir);
       scheduler.setRunSource(async (sourceId) => {
+        if (sourceId === "feishu.docs") {
+          return runDocsAsPipelineResult();
+        }
         const collector = getCollector(sourceId);
         if (!collector) throw new Error(`Unknown source: ${sourceId}`);
         return runPipeline(pipelineConfig, {
@@ -640,7 +696,28 @@ program
     process.on("SIGINT", shutdown);
 
     if (options.mcp) {
-      const server = createMcpServer(storesWithDaemon);
+      let ingestDeps: IngestDeps | undefined;
+      const feishu = config.sources.feishu;
+      if (feishu?.enabled && feishu.sources?.docs?.enabled) {
+        const client = new LarkCliHttpClient(feishu.lark_bin);
+        const llmConfig = { ...config.llm };
+        const envKey =
+          llmConfig.provider === "anthropic"
+            ? process.env.ANTHROPIC_API_KEY
+            : process.env.OPENAI_API_KEY;
+        if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+        const provider = llmConfig.api_key
+          ? createLLMProvider(llmConfig)
+          : createMockProvider(new Map());
+        ingestDeps = {
+          client,
+          stores: storesWithDaemon,
+          provider,
+          model: feishu.sources.docs.llm?.model ?? llmConfig.model,
+          nowIso: () => new Date().toISOString(),
+        };
+      }
+      const server = createMcpServer(storesWithDaemon, ingestDeps);
       await server.connect(new StdioServerTransport());
       return;
     }
@@ -925,6 +1002,156 @@ identityCmd
       process.exit(1);
     } finally {
       await db.close();
+    }
+  });
+
+const docsCmd = program.command("docs").description("Feishu doc summary cards (DocSource v2)");
+
+docsCmd
+  .command("sync")
+  .description("Scan Feishu docs, build pointer cards, upgrade triggered docs to full cards")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .action(async (options) => {
+    try {
+      const config = loadConfig(options.config);
+      ensureStateDir();
+      const feishu = config.sources.feishu;
+      if (!feishu?.enabled || !feishu.sources?.docs?.enabled) {
+        console.error(
+          "Feishu docs source is not enabled in config (sources.feishu.sources.docs.enabled).",
+        );
+        process.exit(1);
+      }
+      const stores = await createStores(config);
+      const client = new LarkCliHttpClient(feishu.lark_bin);
+      const docsConfig = normalizeDocsConfig(feishu.sources.docs);
+
+      // self_open_id: config override else resolve via lark-cli whoami helper used elsewhere
+      const selfOpenId =
+        docsConfig.self_open_id ??
+        (await resolveSelfOpenId(client, feishu.sources?.dm?.self_open_id)) ??
+        "";
+
+      const llmConfig = { ...config.llm };
+      if (docsConfig.llm.model) llmConfig.model = docsConfig.llm.model;
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const provider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+
+      const cursor = new CursorStore(statePath("cursors.yaml"));
+      cursor.load();
+
+      const stats = await runDocSource({
+        client,
+        stores,
+        provider,
+        config: docsConfig,
+        cursor,
+        selfOpenId,
+        nowMs: Date.now(),
+        nowIso: () => new Date().toISOString(),
+      });
+
+      console.log(
+        `[docs] scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} skipped=${stats.skipped} queue=${stats.upgrade_queue_size} llm_failed=${stats.llm_failed}`,
+      );
+      await stores.db.close();
+    } catch (error) {
+      console.error("docs sync failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+docsCmd
+  .command("status")
+  .description("Show Feishu doc card counts")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--failed", "List cards whose last extraction failed")
+  .action(async (options) => {
+    try {
+      const config = loadConfig(options.config);
+      const stores = await createStores(config);
+      const pages = await stores.pages.listPages({ type: "feishu_doc_card", limit: 100000 });
+      if (options.failed) {
+        for (const f of failedCards(pages as never)) console.log(`${f.doc_token}\t${f.error}`);
+      } else {
+        const s = summarizeCards(pages as never);
+        console.log(`total=${s.total} full=${s.full} pointer=${s.pointer} failed=${s.failed}`);
+      }
+      await stores.db.close();
+    } catch (error) {
+      console.error("docs status failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
+docsCmd
+  .command("retry [doc_token]")
+  .description("Retry full-card extraction for a failed doc (or --all-failed)")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--all-failed", "Retry every card with an extract_error")
+  .action(async (docToken, options) => {
+    try {
+      const config = loadConfig(options.config);
+      const feishu = config.sources.feishu;
+      if (!feishu?.sources?.docs?.enabled) {
+        console.error("Feishu docs source not enabled.");
+        process.exit(1);
+      }
+      const stores = await createStores(config);
+      const client = new LarkCliHttpClient(feishu.lark_bin);
+      const docsConfig = normalizeDocsConfig(feishu.sources.docs);
+      const llmConfig = { ...config.llm };
+      if (docsConfig.llm.model) llmConfig.model = docsConfig.llm.model;
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const provider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+      const builder = new FullCardBuilder(client, provider, docsConfig.llm.model ?? "unknown", () =>
+        new Date().toISOString(),
+      );
+
+      const tokens: string[] = [];
+      if (options.allFailed) {
+        const pages = await stores.pages.listPages({ type: "feishu_doc_card", limit: 100000 });
+        for (const f of failedCards(pages as never)) tokens.push(f.doc_token);
+      } else if (docToken) {
+        tokens.push(docToken);
+      } else {
+        console.error("Provide a doc_token or --all-failed.");
+        process.exit(1);
+      }
+
+      for (const token of tokens) {
+        const existing = await loadExistingCard(stores, token);
+        if (!existing) {
+          console.warn(`skip ${token}: no existing card`);
+          continue;
+        }
+        // retry intentionally re-evaluates the gate (no force); short/empty docs
+        // stay pointers by design — unlike MCP ingest which forces.
+        const card = await builder.build(existing);
+        await writeCard(stores, card);
+        if (card.extract_level === "pointer") {
+          const reason = card.extract_error ?? card.extract_skipped ?? "unknown";
+          console.log(`${token}: pointer (not upgraded — ${reason})`);
+        } else {
+          console.log(`${token}: full`);
+        }
+      }
+      await stores.db.close();
+    } catch (error) {
+      console.error("docs retry failed:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
     }
   });
 
