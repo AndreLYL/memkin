@@ -51,7 +51,9 @@ But every time you open a new agent session, it knows nothing. You re-explain wh
 
 ## The Solution
 
-Memoark is a **local-first personal memory system** built on two equal input streams — your **Feishu work** and your **AI-agent sessions**. It extracts structured signals (entities, decisions, tasks, discoveries, knowledge, relationships) into one searchable knowledge graph on your own machine, then serves that memory back to any agent over **MCP**.
+Memoark is a **local-first personal memory system built for the Chinese workplace**. Work in China happens inside Feishu, DingTalk, and WeCom — Memoark pulls the DMs, group chats, emails, meetings, and docs out of these tools, together with your AI-agent sessions, and extracts them into structured signals (entities, decisions, tasks, discoveries, knowledge, relationships) — into one searchable knowledge graph on your own machine, then serves that memory back to any agent over **MCP**.
+
+> The MVP focuses on full **Feishu** capture; **DingTalk, WeCom**, and more Chinese workplace tools are on the roadmap (below).
 
 The result: your agents both **write to** and **read from** the same memory — so Claude Code, Codex, and any MCP client finally *know you and your work*.
 
@@ -357,39 +359,66 @@ bun run dev        # dashboard, timeline, knowledge graph, search
 
 ## Architecture
 
+Memoark is **5 vertical data-flow layers + 3 cross-cutting concerns**. Data flows top-down: sources are collected, extracted into signals, stored as local memory, then read/written through the bottom interfaces. **Person identity**, **consolidation**, and **scheduling** cut across the stack.
+
+```mermaid
+flowchart TB
+  subgraph L1["① Config & Onboarding"]
+    cfg["TUI config center · Web UI config · memoark.yaml<br/>auto-detect · hardware assessment · connection checks"]
+  end
+  subgraph L2["② Collection"]
+    feishu["Feishu: DMs · groups · email · calendar · tasks · message search · docs"]
+    agent["AI-agent sessions: Claude Code · Codex · Hermes"]
+    inc["Incremental (cursor + dedup) · historical Backfill"]
+    planned1["Planned: DingTalk · WeCom · local documents"]:::planned
+  end
+  subgraph L3["③ Extraction Pipeline"]
+    pipe["Block Builder → Noise Filter (rules+LLM) → Signal Extractor (OpenAI/Anthropic)<br/>→ entity extraction → scoring → privacy redaction → 7 signal types"]
+  end
+  subgraph L4["④ Memory Store"]
+    store["PGLite + pgvector<br/>Page · Chunk · Tag · Timeline · Graph<br/>hybrid search (FTS + vector + RRF)"]
+  end
+  subgraph L5["⑤ Interfaces & Consumption"]
+    cli["CLI"]
+    mcp["MCP (26 tools)"]
+    rest["REST API"]
+    web["Web UI (read-only)"]
+    obs["Obsidian bidirectional sync"]
+  end
+
+  L1 --> L2 --> L3 --> L4 --> L5
+
+  subgraph X["Cross-cutting concerns"]
+    id["🧬 Person Identity<br/>merge same person across platforms"]
+    cons["♻️ Consolidation / Dream Cycle<br/>tier rotation · dead-link repair · preference inference"]
+    sched["⏰ Scheduling / AutoFetch<br/>scheduled capture · run history · alerts"]
+  end
+
+  id -.-> L2
+  id -.-> L4
+  cons -.-> L4
+  sched -.-> L2
+
+  classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#888;
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Data Sources                             │
-│   Feishu (DMs · groups · email · calendar · docs · tasks)       │
-│   AI Agents (Claude Code · Codex · Hermes)                      │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-                      ┌─────────▼──────────┐
-                      │   Signal Extraction │
-                      │   Pipeline          │
-                      │                    │
-                      │  Collector          │
-                      │  → Dedup            │
-                      │  → Block Builder    │
-                      │  → Noise Filter     │
-                      │  → Signal Extractor │
-                      │  → Privacy          │
-                      └─────────┬──────────┘
-                                │
-                      ┌─────────▼──────────┐
-                      │   Storage Layer     │
-                      │  PGLite + pgvector │
-                      │  (Embedded PG)     │
-                      └─────────┬──────────┘
-                                │
-            ┌───────────────────┼───────────────────┐
-            │           │               │           │
-   ┌────────▼─────┐ ┌───▼────┐ ┌────────▼───┐ ┌─────▼──────┐
-   │     CLI       │ │  MCP   │ │  REST API  │ │  Web UI    │
-   │  Management   │ │ Server │ │   (Hono)   │ │  (React)   │
-   │  & Extraction │ │(stdio) │ │            │ │            │
-   └───────────────┘ └────────┘ └────────────┘ └────────────┘
-```
+
+### Layer Breakdown
+
+| Layer | Responsibility |
+|-------|----------------|
+| **① Config & Onboarding** | TUI config center (React + ink), Web UI config, hand-edited `memoark.yaml`; auto-detect runtime / API keys / sources, hardware-aware embedding recommendation, live connection checks |
+| **② Collection** | Feishu (DMs / groups / email / calendar / tasks / message search / docs), AI-agent sessions (Claude Code / Codex / Hermes); incremental capture (per-source cursor + content dedup), historical Backfill. **Planned**: DingTalk, WeCom, local documents |
+| **③ Extraction Pipeline** | Block Builder → Noise Filter (L1 rules + L2 LLM) → Signal Extractor (OpenAI / Anthropic) → entity extraction → scoring → privacy redaction; emits 7 signal types via output adapters (store / file / gbrain / stdout) |
+| **④ Memory Store** | PGLite (in-process embedded PostgreSQL) + pgvector; Page / Chunk / Tag / Timeline / Graph stores; hybrid search (tsvector FTS + vector + RRF) |
+| **⑤ Interfaces & Consumption** | CLI, MCP Server (26 tools — agent read / write / maintain), REST API (Hono), Web UI (search / view / graph / timeline, **read-only today**), Obsidian bidirectional sync |
+
+**Cross-cutting concerns (span layers, not standalone pipeline stages):**
+
+- **🧬 Person Identity** — spans Collection ↔ Store: recognize and merge the same person across platforms (Feishu open_id, email, nickname), alias linking, canonicalization. The foundation of "the sum of your social relations".
+- **♻️ Consolidation (Dream Cycle)** — background pass over the store: hot → warm → cold rotation, dead-link repair, preference inference.
+- **⏰ Scheduling / AutoFetch** — background driver of Collection: scheduled capture, run history, alerts. *(Runs inside `serve` today; standalone daemon + autostart is on the roadmap.)*
+
+> Runs on macOS / Linux / Windows · one-command install (npm / npx) · local-first, self-hosted, zero cloud dependency.
 
 ### Signal Extraction Pipeline
 
@@ -720,17 +749,29 @@ Extracts session data from OpenClaw Hermes agents.
 - [x] Feishu doc summary cards (DocSource v2)
 - [x] Obsidian bidirectional sync (export / import)
 
-### Phase 5 — Context-Aware Extraction (Planned)
+### Phase 5 — Self-Hosted Always-On (In Progress · MVP)
+
+- [ ] Standalone daemon service + autostart (systemd / launchd / Windows service) — "configure once, runs maintenance-free"
+- [ ] Agent Hook: auto read/write memory on session end / key decisions
+
+### Phase 6 — More Chinese Workplace Sources (Planned)
+
+- [ ] DingTalk
+- [ ] WeCom (WeChat Work)
+- [ ] WeChat chat history
+- [ ] Local document source (scan local files, community-driven · low priority)
+
+### Phase 7 — Context-Aware Extraction & Q&A (Planned)
 
 - [ ] ContextBuffer — share context across conversation blocks
 - [ ] Weighted admission scoring (replaces binary noise filter)
 - [ ] Narrative assembler — aggregate signals into per-entity narratives
 - [ ] Natural language Q&A over stored memories
 
-### Phase 6 — New Sources (Planned)
+### Phase 8 — Web UI Enhancements (Planned)
 
-- [ ] WeChat chat history
-- [ ] More platforms based on community demand
+- [ ] Memory editing (read-only today)
+- [ ] Audit view (signal provenance visualization)
 
 ## Tech Stack
 
