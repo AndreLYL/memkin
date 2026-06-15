@@ -361,6 +361,13 @@ bun run dev        # dashboard, timeline, knowledge graph, search
 
 Memoark is **5 vertical data-flow layers + 3 cross-cutting concerns**. Data flows top-down: sources are collected, extracted into signals, stored as local memory, then read/written through the bottom interfaces. **Person identity**, **consolidation**, and **scheduling** cut across the stack.
 
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Memoark architecture — 5 vertical layers + 3 cross-cutting concerns" width="920">
+</p>
+
+<details>
+<summary>📐 View the editable Mermaid source</summary>
+
 ```mermaid
 flowchart TB
   subgraph L1["① Config & Onboarding"]
@@ -401,6 +408,8 @@ flowchart TB
 
   classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#888;
 ```
+
+</details>
 
 ### Layer Breakdown
 

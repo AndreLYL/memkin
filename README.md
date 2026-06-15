@@ -440,6 +440,13 @@ bun run dev        # Dashboard、时间线、知识图谱、搜索
 
 Memoark 是 **5 层纵向数据流 + 3 个横切关注点**。数据自上而下流动:数据源被采集、提取成信号、存入本地记忆,再由底层接口对外读写;**人物身份**与**记忆巩固**、**调度**则横切贯穿其间。
 
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Memoark 架构图 —— 5 层纵向数据流 + 3 个横切关注点" width="920">
+</p>
+
+<details>
+<summary>📐 查看可编辑的 Mermaid 源码</summary>
+
 ```mermaid
 flowchart TB
   subgraph L1["① 配置与上手层"]
@@ -480,6 +487,8 @@ flowchart TB
 
   classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#888;
 ```
+
+</details>
 
 ### 分层说明
 
