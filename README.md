@@ -1,6 +1,7 @@
 <p align="center">
   <h1 align="center">Memoark</h1>
-  <p align="center"><strong>把你的飞书工作与 AI Agent 会话，沉淀成一份私有、本地的核心记忆，让你的 Agent 真正懂你。</strong></p>
+  <p align="center"><em>人是一切社会关系的总和。</em></p>
+  <p align="center"><strong>一个面向个人工作场景的、本地优先的记忆系统 —— 把你的私聊、群聊、邮件、文档、会议，沉淀成本地私有的个人记忆，让你的 AI Agent 最懂你。</strong></p>
 </p>
 
 <p align="center">

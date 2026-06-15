@@ -1,6 +1,7 @@
 <p align="center">
   <h1 align="center">Memoark</h1>
-  <p align="center"><strong>Turn your Feishu work and AI-agent sessions into one private memory your agents can actually use. Local-first, you own it.</strong></p>
+  <p align="center"><em>You are the sum of your working relationships.</em></p>
+  <p align="center"><strong>A local-first memory system for your work — turning your DMs, group chats, emails, docs, and meetings into a private personal memory, so your AI agents truly know you.</strong></p>
 </p>
 
 <p align="center">
