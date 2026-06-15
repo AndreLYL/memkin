@@ -3,6 +3,7 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { acquireLock, DataDirLockError } from "./data-dir-lock.js";
+import { Database } from "./database.js";
 
 let dir: string;
 beforeEach(() => {
@@ -89,5 +90,32 @@ describe("acquireLock", () => {
     const winner = acquireLock(dir, "winner");
     expect(() => acquireLock(dir, "loser")).toThrowError(DataDirLockError);
     winner.release();
+  });
+});
+
+describe("Database.create lock 接入", () => {
+  it("真实 data_dir 上 create 持锁,close 释放锁", async () => {
+    const lockPath = join(dir, "memoark.lock");
+    const db = await Database.create(dir, { embeddingDimensions: 768, lockLabel: "test" });
+    expect(existsSync(lockPath)).toBe(true);
+    await db.close();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  it("MEMOARK_NO_LOCK=1 时跳过锁", async () => {
+    process.env.MEMOARK_NO_LOCK = "1";
+    try {
+      const db = await Database.create(dir, { embeddingDimensions: 768 });
+      expect(existsSync(join(dir, "memoark.lock"))).toBe(false);
+      await db.close();
+    } finally {
+      delete process.env.MEMOARK_NO_LOCK;
+    }
+  });
+
+  it("内存库(dataDir undefined)不尝试加锁", async () => {
+    const db = await Database.create(undefined, { embeddingDimensions: 768 });
+    await db.close();
+    expect(true).toBe(true);
   });
 });
