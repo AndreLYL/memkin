@@ -121,6 +121,88 @@ Memoark is a standard MCP stdio server and plugs into any MCP client:
 
 **Claude Code** · **Cursor** · **Claude Desktop** · **Windsurf** · and any MCP-compatible agent.
 
+## Feature Inventory
+
+The full capability list (✅ = shipped and included in the package).
+
+### 📥 Data Collection
+- ✅ Feishu group chats (OpenAPI chat/message)
+- ✅ Feishu DMs / recent chats (lark-cli `message_search`, user mode)
+- ✅ Feishu email
+- ✅ Feishu calendar events
+- ✅ Feishu tasks
+- ✅ Feishu doc summary cards (DocSource v2: pointer card → upgraded full card on trigger)
+- ✅ Claude Code sessions (`~/.claude/projects/`)
+- ✅ Codex CLI sessions (`~/.codex/`)
+- ✅ OpenClaw Hermes multi-agent sessions (`~/.openclaw/agents/`, auto sub-agent discovery)
+- ✅ Incremental collection: per-source cursor + content-hash dedup
+- ✅ Historical backfill: coverage stats, start / cancel / reset
+
+### 🧠 Signal Extraction Pipeline
+- ✅ Collect → Dedup → Block Builder → Noise Filter → Signal Extractor → Privacy
+- ✅ Two-layer noise filtering: L1 rules + L2 LLM scoring
+- ✅ 7 structured signal types: entities, timeline, decisions, tasks, discoveries, knowledge, relationships
+- ✅ LLM providers: OpenAI / Anthropic (plus a mock for testing)
+- ✅ Signal scoring and entity extraction
+- ✅ JSON / Markdown output formats
+- ✅ Output adapters: store (PGLite) / file / gbrain / stdout
+- ✅ Provenance: every signal traces back to its source message
+
+### 🔒 Privacy & Security
+- ✅ Redaction before write; data stays fully local
+- ✅ Dual-track modes: reversible / irreversible
+- ✅ Built-in redaction: phone, ID card, bank card, with custom replacement token
+- ✅ API keys always masked in the config center
+
+### 🗄️ Storage & Retrieval
+- ✅ PGLite embedded PostgreSQL (in-process, zero external deps)
+- ✅ pgvector vector search
+- ✅ tsvector full-text search (simple tokenizer, multilingual)
+- ✅ RRF hybrid search (FTS + vector fusion) with compiled_truth / backlink boosts
+- ✅ Recursive chunking (300 words / 50-word overlap), embedding reuse + stale detection
+- ✅ Embeddings: OpenAI / Ollama (local)
+
+### 🕸️ Knowledge Graph
+- ✅ Directed link graph with link types and context
+- ✅ BFS traversal (controllable depth / direction)
+- ✅ Backlinks
+- ✅ Entity anchoring: signals attach to people / projects / tools
+- ✅ Entity profile aggregation (signals + timeline)
+
+### 👤 Person Identity
+- ✅ Identity resolution and canonicalization
+- ✅ Alias / handle linking (Feishu open_id, email, name, nickname, slug)
+- ✅ Strong / weak link strength
+- ✅ Person merge (re-points links / timeline / tags / aliases)
+- ✅ Recanonicalize slug (fix a wrong canonicalization)
+
+### ♻️ Memory Lifecycle & Daemon
+- ✅ Memory consolidation (dream cycle): hot → warm → cold tier rotation
+- ✅ Dead-link repair
+- ✅ Preference inference (learns preferences from history)
+- ✅ Resident daemon: scheduled per-source capture, scheduling, run history, alerts
+
+### 🔗 Sync & Interop
+- ✅ Obsidian bidirectional sync (export vault / import back)
+- ✅ MCP stdio server (26 tools)
+- ✅ REST API (Hono — pages / search / graph / tags / timeline / embed / extract / provenance / event stream)
+
+### 🖥️ Web UI (React + Vite)
+- ✅ Dashboard overview
+- ✅ Timeline view (feed)
+- ✅ Force-directed knowledge graph
+- ✅ Search interface
+- ✅ Entity / page detail
+- ✅ In-browser config editing + guided setup wizard
+
+### ⚙️ Configuration & Onboarding
+- ✅ Interactive config center (full-screen TUI, React + ink)
+- ✅ Linear Q&A wizard fallback (`--no-tui`) / fully automatic (`--auto`)
+- ✅ Auto-detection: runtime, API keys, existing data sources
+- ✅ Hardware assessment → recommends local / remote embeddings
+- ✅ Live connection checks (LLM / embedding API key and connectivity)
+- ✅ `memoark doctor` environment diagnostics
+
 ## Use Cases
 
 **Onboard your agent to a project in seconds**
