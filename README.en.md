@@ -9,9 +9,10 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="https://www.npmjs.com/package/@andre.li/memoark"><img alt="npm" src="https://img.shields.io/npm/v/@andre.li/memoark?color=cb3837&logo=npm"></a>
   <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-black">
   <img alt="Language: TypeScript" src="https://img.shields.io/badge/lang-TypeScript-3178c6">
-  <img alt="Tests: 800+" src="https://img.shields.io/badge/tests-800%2B-success">
+  <img alt="Tests: 1000+" src="https://img.shields.io/badge/tests-1000%2B-success">
 </p>
 
 <p align="center">
@@ -28,6 +29,11 @@
   <br>
   <em>Your work, as a living knowledge graph — people, decisions, tasks, and knowledge, connected.</em>
 </p>
+
+<!-- TODO(demo): replace with an 8-12s demo GIF — ask Memoark a question inside Claude Code
+     and watch the agent recall a Feishu meeting decision + linked task over MCP.
+     Research shows a GIF of "the product actually working" is the single highest-converting
+     element in a README. -->
 
 ---
 
@@ -69,28 +75,133 @@ The result: your agents both **write to** and **read from** the same memory — 
 >
 > Memoark connects these three events automatically — across platforms, across time — and hands the whole thread to your agent on demand.
 
+## Three Pillars
+
+**🔒 Local-first, truly private**
+Your data never leaves your machine. PGLite embedded database stores everything, optional local embeddings via Ollama, zero cloud dependency. Dual-track privacy redaction (reversible / irreversible) scrubs sensitive data before it's written.
+
+**🕸️ An entity knowledge graph, not a pile of vector chunks**
+Signals are anchored to entities (people, projects, tools) and linked in a directed graph. You get answers *with context* — who, why, and what it relates to — instead of isolated similar-text fragments.
+
+**🤖 MCP-native + Feishu capture**
+**26 built-in MCP tools** let any agent both query and write back to your memory. Full Feishu capture (7 sources) turns your real work — requirements, proposals, team decisions — into a first-class data source, something neither pure RAG nor note apps can do.
+
 ## Features
 
 **🛰️ Full Feishu (Lark) Capture**
-Your work lives in Feishu. Memoark collects across **7 sources** — DMs, group chats, email, calendar, docs, tasks, and message search — turning your working relationships into structured memory.
+Your work lives in Feishu. Memoark collects across **7 sources** — DMs, group chats, email, calendar, docs, tasks, and message search — turning your working relationships into structured memory. Doc capture produces upgradable "summary cards" (DocSource v2).
 
 **🤖 Agents That Know You (MCP)**
-Use Memoark as the memory layer for any MCP agent — Claude Code, Cursor, Windsurf. **17 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
-
-**🔒 Private & Local-First**
-Your data never leaves your machine. PGLite embedded database, optional local embeddings via Ollama, no cloud dependency. You own your memory.
+Use Memoark as the memory layer for any MCP agent — Claude Code, Cursor, Claude Desktop, Windsurf. **26 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
 
 **🧠 AI-Powered Signal Extraction**
 An LLM pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
 
 **🔍 Hybrid Semantic Search**
-Full-text search + vector retrieval fused with Reciprocal Rank Fusion (RRF). Ask in natural language — powered by PGLite FTS + pgvector.
+Full-text search (tsvector, multilingual) + vector retrieval fused with Reciprocal Rank Fusion (RRF). Ask in natural language — powered by PGLite FTS + pgvector.
+
+**♻️ Memory Consolidation (Dream Cycle)**
+A background consolidator automatically runs tier rotation (hot → warm → cold), repairs dead links, and infers preferences — so your memory organizes itself over time.
+
+**⏰ Resident Daemon + Scheduled Capture**
+A built-in daemon collects from your sources on a schedule, with run history and alerts, keeping your memory continuously fresh.
+
+**🔗 Obsidian Bidirectional Sync**
+Export your memory pages to an Obsidian vault (Markdown), edit them, and import them back.
 
 **🕸️ Knowledge Graph + Web UI**
 See the connections between people, projects, and decisions. Browse a built-in web UI with dashboard, timeline, force-directed graph, and search.
 
 **🔌 REST API**
 Full Hono-powered HTTP API for all store operations. Integrate with any client.
+
+## Works With
+
+Memoark is a standard MCP stdio server and plugs into any MCP client:
+
+**Claude Code** · **Cursor** · **Claude Desktop** · **Windsurf** · and any MCP-compatible agent.
+
+## Feature Inventory
+
+The full capability list (✅ = shipped and included in the package).
+
+### 📥 Data Collection
+- ✅ Feishu group chats (OpenAPI chat/message)
+- ✅ Feishu DMs / recent chats (lark-cli `message_search`, user mode)
+- ✅ Feishu email
+- ✅ Feishu calendar events
+- ✅ Feishu tasks
+- ✅ Feishu doc summary cards (DocSource v2: pointer card → upgraded full card on trigger)
+- ✅ Claude Code sessions (`~/.claude/projects/`)
+- ✅ Codex CLI sessions (`~/.codex/`)
+- ✅ OpenClaw Hermes multi-agent sessions (`~/.openclaw/agents/`, auto sub-agent discovery)
+- ✅ Incremental collection: per-source cursor + content-hash dedup
+- ✅ Historical backfill: coverage stats, start / cancel / reset
+
+### 🧠 Signal Extraction Pipeline
+- ✅ Collect → Dedup → Block Builder → Noise Filter → Signal Extractor → Privacy
+- ✅ Two-layer noise filtering: L1 rules + L2 LLM scoring
+- ✅ 7 structured signal types: entities, timeline, decisions, tasks, discoveries, knowledge, relationships
+- ✅ LLM providers: OpenAI / Anthropic (plus a mock for testing)
+- ✅ Signal scoring and entity extraction
+- ✅ JSON / Markdown output formats
+- ✅ Output adapters: store (PGLite) / file / gbrain / stdout
+- ✅ Provenance: every signal traces back to its source message
+
+### 🔒 Privacy & Security
+- ✅ Redaction before write; data stays fully local
+- ✅ Dual-track modes: reversible / irreversible
+- ✅ Built-in redaction: phone, ID card, bank card, with custom replacement token
+- ✅ API keys always masked in the config center
+
+### 🗄️ Storage & Retrieval
+- ✅ PGLite embedded PostgreSQL (in-process, zero external deps)
+- ✅ pgvector vector search
+- ✅ tsvector full-text search (simple tokenizer, multilingual)
+- ✅ RRF hybrid search (FTS + vector fusion) with compiled_truth / backlink boosts
+- ✅ Recursive chunking (300 words / 50-word overlap), embedding reuse + stale detection
+- ✅ Embeddings: OpenAI / Ollama (local)
+
+### 🕸️ Knowledge Graph
+- ✅ Directed link graph with link types and context
+- ✅ BFS traversal (controllable depth / direction)
+- ✅ Backlinks
+- ✅ Entity anchoring: signals attach to people / projects / tools
+- ✅ Entity profile aggregation (signals + timeline)
+
+### 👤 Person Identity
+- ✅ Identity resolution and canonicalization
+- ✅ Alias / handle linking (Feishu open_id, email, name, nickname, slug)
+- ✅ Strong / weak link strength
+- ✅ Person merge (re-points links / timeline / tags / aliases)
+- ✅ Recanonicalize slug (fix a wrong canonicalization)
+
+### ♻️ Memory Lifecycle & Daemon
+- ✅ Memory consolidation (dream cycle): hot → warm → cold tier rotation
+- ✅ Dead-link repair
+- ✅ Preference inference (learns preferences from history)
+- ✅ Resident daemon: scheduled per-source capture, scheduling, run history, alerts
+
+### 🔗 Sync & Interop
+- ✅ Obsidian bidirectional sync (export vault / import back)
+- ✅ MCP stdio server (26 tools)
+- ✅ REST API (Hono — pages / search / graph / tags / timeline / embed / extract / provenance / event stream)
+
+### 🖥️ Web UI (React + Vite)
+- ✅ Dashboard overview
+- ✅ Timeline view (feed)
+- ✅ Force-directed knowledge graph
+- ✅ Search interface
+- ✅ Entity / page detail
+- ✅ In-browser config editing + guided setup wizard
+
+### ⚙️ Configuration & Onboarding
+- ✅ Interactive config center (full-screen TUI, React + ink)
+- ✅ Linear Q&A wizard fallback (`--no-tui`) / fully automatic (`--auto`)
+- ✅ Auto-detection: runtime, API keys, existing data sources
+- ✅ Hardware assessment → recommends local / remote embeddings
+- ✅ Live connection checks (LLM / embedding API key and connectivity)
+- ✅ `memoark doctor` environment diagnostics
 
 ## Use Cases
 
@@ -114,9 +225,9 @@ Browse your timeline like a diary that writes itself — what you decided, what 
 | Agent-native: read **and** write over MCP | ✅ | ❌ | ❌ | ✅ | partial |
 | Entity + relationship knowledge graph | ✅ | ❌ | manual | ✅ | partial |
 | Structured signal extraction (not just chunks) | ✅ | ❌ | ❌ | ✅ | ✅ |
-| Focused MCP surface (17 tools, not 40+) | ✅ | n/a | n/a | ❌ (40+) | varies |
+| Memory consolidation + scheduled-capture daemon | ✅ | ❌ | ❌ | partial | partial |
 
-> Pure RAG gives you vectors but no entities or relationships, so answers lack context. Note apps are powerful but rely on manual upkeep. GBrain is capable but heavy, with a sprawling MCP surface. Memoark keeps it local, focused, and agent-native — with Feishu work as a first-class source.
+> Pure RAG gives you vectors but no entities or relationships, so answers lack context. Note apps are powerful but rely on manual upkeep. Memoark keeps it local and agent-native — with Feishu work as a first-class source.
 
 ## Quick Start
 
@@ -314,7 +425,39 @@ bun run dev        # dashboard, timeline, knowledge graph, search
 | **TimelineStore** | Chronological entries per page with dedup |
 | **EmbeddingService** | Batch embedding via OpenAI or Ollama, stale-chunk detection |
 
+## MCP Tools
+
+Memoark's MCP server exposes **26 tools** spanning retrieval, page CRUD, graph, tags, timeline, identity, and Feishu doc ingestion. Prefer the high-level tools first:
+
+| Category | Tools |
+|----------|-------|
+| **Retrieval (high-level)** | `query`, `get_session_context`, `get_entity_profile`, `list_signals_by_entity` |
+| **Search** | `search` |
+| **Pages / content** | `get_page`, `put_page`, `list_pages`, `get_chunks` |
+| **Graph** | `add_link`, `remove_link`, `get_links`, `get_backlinks`, `traverse_graph` |
+| **Tags** | `add_tag`, `remove_tag`, `get_tags` |
+| **Timeline** | `add_timeline_entry`, `get_timeline` |
+| **Identity (people)** | `link_person_alias`, `list_person_handles`, `remove_person_alias`, `merge_persons`, `recanonicalize_person` |
+| **Feishu docs** | `ingest_feishu_doc` |
+| **Health** | `get_health` |
+
 ## CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `memoark init` | Interactive config center to generate / edit `memoark.yaml` (`--auto` / `--no-tui` / `--force`) |
+| `memoark extract` | Extract signals from a data source |
+| `memoark search <query>` | Search memory (hybrid / `--mode fts`) |
+| `memoark embed` | Generate embeddings for stale chunks |
+| `memoark serve` | Start HTTP API or `--mcp` stdio server |
+| `memoark consolidate` | Run memory consolidation (tier rotation hot→warm / warm→cold) |
+| `memoark export` | Export memory pages to an Obsidian vault (Markdown) |
+| `memoark import` | Import an Obsidian vault back into Memoark |
+| `memoark docs` | Feishu doc summary cards: `sync` / `status` / `retry` |
+| `memoark identity` | Person identity: aliases, merge, rename |
+| `memoark sources` | `list` sources / `test <name>` connectivity |
+| `memoark doctor` | Diagnose configuration and connectivity |
+| `memoark config` | `init` (alias of `memoark init`) / `edit` (browser UI) |
 
 ### `memoark extract`
 
@@ -401,6 +544,36 @@ Test data source connectivity.
 ```bash
 memoark sources test claude-code
 ```
+
+### `memoark consolidate`
+
+Run memory lifecycle tier rotation (the "dream cycle").
+
+```bash
+memoark consolidate          # hot→warm and/or warm→cold rotation
+```
+
+### `memoark export` / `memoark import`
+
+Bidirectional Obsidian sync.
+
+```bash
+memoark export   # memory pages → Obsidian vault (Markdown)
+memoark import   # Obsidian vault → Memoark
+```
+
+### `memoark docs`
+
+Feishu doc summary cards (DocSource v2) — build lightweight pointer cards first, then upgrade triggered docs to full summary cards.
+
+```bash
+memoark docs sync                # scan docs, build pointer cards, upgrade triggered docs
+memoark docs status              # show card counts by type
+memoark docs retry <doc_token>   # retry a failed full-card extraction
+memoark docs retry --all-failed  # retry every failed doc
+```
+
+Agents can also ingest a single doc directly via the MCP tool `ingest_feishu_doc` (pass a doc URL or token).
 
 ## Configuration
 
@@ -527,7 +700,7 @@ Extracts session data from OpenClaw Hermes agents.
 - [x] EmbeddingService (OpenAI / Ollama)
 - [x] StoreAdapter — pipeline writes directly to PGLite
 - [x] Hono REST API
-- [x] MCP Server with 17 stdio tools
+- [x] MCP Server with 26 stdio tools
 - [x] CLI serve, search, embed commands
 
 ### Phase 3 — Web UI (Complete)
@@ -538,21 +711,23 @@ Extracts session data from OpenClaw Hermes agents.
 - [x] Search interface
 - [x] Entity / page detail views
 
-### Phase 4 — Context-Aware Extraction (Planned)
+### Phase 4 — Consolidation & Daemon (Complete)
+
+- [x] Memory consolidation ("dream cycle"): tier rotation, dead-link repair, preference inference
+- [x] Resident daemon with scheduled extraction (scheduler, run history, alerts)
+- [x] Person identity management (aliases, merge, rename)
+- [x] Feishu doc summary cards (DocSource v2)
+- [x] Obsidian bidirectional sync (export / import)
+
+### Phase 5 — Context-Aware Extraction (Planned)
 
 - [ ] ContextBuffer — share context across conversation blocks
 - [ ] Weighted admission scoring (replaces binary noise filter)
 - [ ] Narrative assembler — aggregate signals into per-entity narratives
-
-### Phase 5 — Consolidation & Daemon (Planned)
-
-- [ ] Memory consolidation ("dream cycle"): entity merge, link repair, pattern discovery
-- [ ] Resident background service with scheduled extraction
 - [ ] Natural language Q&A over stored memories
 
-### Phase 6 — Sync & New Sources (Planned)
+### Phase 6 — New Sources (Planned)
 
-- [ ] Obsidian bidirectional sync
 - [ ] WeChat chat history
 - [ ] More platforms based on community demand
 
@@ -569,7 +744,7 @@ Extracts session data from OpenClaw Hermes agents.
 | Web UI | React + Vite |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| Tests | Vitest (800+ tests) |
+| Tests | Vitest (1000+ tests) |
 
 ## Development
 
@@ -600,6 +775,7 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before sub
 
 - 🐛 Found a bug or have a feature request? [Open an issue](https://github.com/AndreLYL/memoark/issues).
 - 💡 Questions and ideas are welcome in the issue tracker.
+- ⭐ If Memoark helps you, give it a Star — it's the best way to support the project.
 
 ## License
 
