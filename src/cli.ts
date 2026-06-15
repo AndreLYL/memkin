@@ -722,8 +722,16 @@ program
 
     const storesWithDaemon = { ...stores, getDaemonStatus, chatNameRefreshJob };
 
-    const shutdown = () => {
+    let shuttingDown = false;
+    const shutdown = async () => {
+      if (shuttingDown) return; // 防重入:连按 Ctrl-C 不会二次 db.close()
+      shuttingDown = true;
       scheduler?.stop();
+      try {
+        await stores.db.close(); // 触发锁 release
+      } finally {
+        process.exit(0); // db.close() 抛错也必须退出
+      }
     };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
