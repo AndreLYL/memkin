@@ -25,6 +25,7 @@
     "access": "public"
   },
   "scripts": {
+    "setup": "bun install && cd web && bun install",
     "dev": "bun src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest --watch",
@@ -43,6 +44,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.4.6",
+    "@hono/node-server": "^1.19.14",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^11.1.0",
     "hono": "^4.12.23",
@@ -79,7 +81,6 @@
     "url": "https://github.com/AndreLYL/memoark.git"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "bun": ">=1.0.0"
+    "node": ">=18.0.0"
   }
 }

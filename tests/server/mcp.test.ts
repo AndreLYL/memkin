@@ -238,4 +238,187 @@ describe("MCP server", () => {
       expect(hotIdx).toBeLessThan(coldIdx);
     });
   });
+
+  it("tool handlers pass unified filters to query and search with clamped limits", async () => {
+    const tools = createMcpToolHandlers(stores);
+    const querySpy = vi.spyOn(stores.search, "query").mockResolvedValue([]);
+    const searchSpy = vi.spyOn(stores.search, "search").mockResolvedValue([]);
+
+    await tools.query({
+      query: "Memoark deployment",
+      platform: "wechat",
+      source_type: "dm",
+      participant: "张三",
+      limit: 999,
+    });
+    await tools.search({
+      query: "Memoark deployment",
+      platform: ["wechat", "feishu"],
+      source_type: "group",
+      participant: "李四",
+      limit: 999,
+    });
+
+    expect(querySpy).toHaveBeenCalledWith(
+      "Memoark deployment",
+      expect.objectContaining({
+        platform: "wechat",
+        source_type: "dm",
+        participant: "张三",
+        limit: 50,
+      }),
+    );
+    expect(searchSpy).toHaveBeenCalledWith(
+      "Memoark deployment",
+      expect.objectContaining({
+        platform: ["wechat", "feishu"],
+        source_type: "group",
+        participant: "李四",
+        limit: 50,
+      }),
+    );
+  });
+
+  it("put_page is idempotent and skips rechunk when content is unchanged", async () => {
+    const tools = createMcpToolHandlers(stores);
+    const rechunkSpy = vi.spyOn(stores.chunks, "rechunk");
+    const content = "---\ntitle: Idempotent\ntype: note\n---\nStable content.";
+
+    const first = await tools.put_page({ slug: "notes/idempotent", content });
+    const pageAfterFirst = await stores.pages.getPage("notes/idempotent");
+    const chunksAfterFirst = await stores.chunks.getChunks("notes/idempotent");
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const second = await tools.put_page({ slug: "notes/idempotent", content });
+    const pageAfterSecond = await stores.pages.getPage("notes/idempotent");
+    const chunksAfterSecond = await stores.chunks.getChunks("notes/idempotent");
+
+    expect(first).toMatchObject({
+      ok: true,
+      slug: "notes/idempotent",
+      changed: true,
+    });
+    expect(second).toMatchObject({
+      ok: true,
+      slug: "notes/idempotent",
+      changed: false,
+      previous_hash: first.content_hash,
+    });
+    expect(String(pageAfterSecond?.updated_at)).toBe(String(pageAfterFirst?.updated_at));
+    expect(chunksAfterSecond).toHaveLength(chunksAfterFirst.length);
+    expect(rechunkSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("write handlers return structured errors instead of false success", async () => {
+    const tools = createMcpToolHandlers(stores);
+
+    expect(await tools.put_page({ slug: "", content: "Body" })).toEqual({
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: "slug must be a non-empty stable page identifier",
+        suggestion: "Use a slug such as `projects/memoark` or `people/alice`.",
+      },
+    });
+
+    expect(
+      await tools.add_timeline_entry({
+        slug: "missing/page",
+        date: "not-a-date",
+        summary: "Broken entry",
+      }),
+    ).toEqual({
+      error: {
+        code: "INVALID_DATE",
+        message: "date must be an ISO date or datetime",
+        suggestion: "Retry with a value such as `2026-06-04` or `2026-06-04T10:00:00.000Z`.",
+      },
+    });
+
+    expect(
+      await tools.add_timeline_entry({
+        slug: "missing/page",
+        date: "2026-06-04",
+        summary: "Missing target",
+      }),
+    ).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "Page not found: missing/page",
+        suggestion: "Call `query` or `search` first to find the correct page slug.",
+      },
+    });
+
+    expect(
+      await tools.manage_links({
+        action: "add",
+        from: "missing/from",
+        to: "missing/to",
+      }),
+    ).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "Page not found: missing/from",
+        suggestion: "Call `query` or `search` first to find the correct page slug.",
+      },
+    });
+
+    expect(
+      await tools.manage_tags({
+        action: "add",
+        slug: "missing/page",
+        tags: ["mcp"],
+      }),
+    ).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "Page not found: missing/page",
+        suggestion: "Call `query` or `search` first to find the correct page slug.",
+      },
+    });
+  });
+
+  it("write handlers validate provenance input", async () => {
+    const tools = createMcpToolHandlers(stores);
+    await tools.put_page({
+      slug: "entities/alice",
+      content: "---\ntitle: Alice\ntype: person\n---\nAlice.",
+    });
+    await tools.put_page({
+      slug: "projects/memoark",
+      content: "---\ntitle: Memoark\ntype: project\n---\nMemoark.",
+    });
+
+    expect(
+      await tools.manage_links({
+        action: "add",
+        from: "entities/alice",
+        to: "projects/memoark",
+        provenance: { channel: "missing-platform" },
+      }),
+    ).toEqual({
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: "provenance must be a valid SourceRef object",
+        suggestion:
+          "Provide at least platform and channel; timestamp, raw_hash, and quote are filled with safe defaults when omitted.",
+      },
+    });
+
+    expect(
+      await tools.add_timeline_entry({
+        slug: "entities/alice",
+        date: "2026-06-04",
+        summary: "Invalid provenance",
+        provenance: { platform: "test" },
+      }),
+    ).toEqual({
+      error: {
+        code: "INVALID_ARGUMENT",
+        message: "provenance must be a valid SourceRef object",
+        suggestion:
+          "Provide at least platform and channel; timestamp, raw_hash, and quote are filled with safe defaults when omitted.",
+      },
+    });
+  });
 });

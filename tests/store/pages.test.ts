@@ -101,6 +101,42 @@ describe("PageStore", () => {
     expect(page.frontmatter.source_hash).toBe("abc123");
   });
 
+  it("putPage preserves SourceRef frontmatter", async () => {
+    const page = await store.putPage(
+      "test/source-ref",
+      [
+        "---",
+        "title: Source Ref",
+        "type: note",
+        "source:",
+        "  platform: wechat",
+        "  source_type: dm",
+        "  channel: dm/wechat/wxid_alice",
+        "  channel_name: Alice",
+        "  timestamp: 2026-06-04T10:00:00.000Z",
+        "  raw_hash: source-hash",
+        "  quote: source quote",
+        "  participants:",
+        "    - id: wxid_alice",
+        "      name: Alice",
+        "      role: participant",
+        "---",
+        "Body.",
+      ].join("\n"),
+    );
+
+    expect(page.frontmatter.source).toMatchObject({
+      platform: "wechat",
+      source_type: "dm",
+      channel: "dm/wechat/wxid_alice",
+      raw_hash: "source-hash",
+      participants: [{ id: "wxid_alice", name: "Alice", role: "participant" }],
+    });
+
+    const stored = await store.getPage("test/source-ref");
+    expect(stored?.frontmatter.source).toEqual(page.frontmatter.source);
+  });
+
   it("listPages sorts by title ascending", async () => {
     await store.putPage("b-page", "---\ntitle: Bravo\ntype: unknown\n---\nB");
     await store.putPage("a-page", "---\ntitle: Alpha\ntype: unknown\n---\nA");

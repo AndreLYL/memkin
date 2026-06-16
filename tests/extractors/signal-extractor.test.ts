@@ -622,3 +622,152 @@ describe("SignalExtractor — CanonicalisedBlock input", () => {
     expect(capturedPrompt).toContain("Hello world");
   });
 });
+
+describe("SignalExtractor — SourceRef v2 provenance", () => {
+  it("builds Feishu DM provenance with source_type, channel_name, participants, and message_ids", async () => {
+    const validResult = createValidExtractionResult();
+    validResult.source.quote = "Quick question about the API";
+    validResult.decisions[0].source.quote = "Use the API gateway";
+
+    const mockProvider = {
+      async chat() {
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const cb: CanonicalisedBlock = {
+      block: {
+        block_id: "feishu-dm-1",
+        platform: "feishu",
+        channel: "dm/feishu/oc_p2p",
+        thread_id: "thread_dm_1",
+        messages: [
+          {
+            platform: "feishu",
+            channel: "dm/feishu/oc_p2p",
+            contact: "张三",
+            timestamp: "2026-06-04T10:00:00Z",
+            content: "Quick question about the API",
+            direction: "received",
+            metadata: {
+              message_id: "om_001",
+              chat_id: "oc_p2p",
+              channel_name: "张三",
+              sensitivity: "high",
+            },
+          },
+        ],
+        start_time: "2026-06-04T10:00:00Z",
+        end_time: "2026-06-04T10:00:00Z",
+        participants: ["张三"],
+        token_count: 20,
+      },
+      source_type: "dm",
+      interaction_tags: ["dm"],
+      canonical_markdown: "[2026-06-04T10:00:00Z] 张三: Quick question about the API",
+    };
+
+    const result = await extractor.extract(cb);
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data.source.platform).toBe("feishu");
+      expect(result.data.source.source_type).toBe("dm");
+      expect(result.data.source.channel_name).toBe("张三");
+      expect(result.data.source.thread_id).toBe("thread_dm_1");
+      expect(result.data.source.conversation_id).toBe("oc_p2p");
+      expect(result.data.source.message_ids).toEqual(["om_001"]);
+      expect(result.data.source.participants).toEqual([{ name: "张三", role: "participant" }]);
+      expect(result.data.source.sensitivity).toBe("high");
+      expect(result.data.decisions[0].source.quote).toBe("Use the API gateway");
+    }
+  });
+
+  it("builds WeChat mock provenance with platform and participants", async () => {
+    const validResult = createValidExtractionResult();
+    const mockProvider = {
+      async chat() {
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const block: ConversationBlock = {
+      block_id: "wechat-1",
+      platform: "wechat",
+      channel: "dm/wechat/wxid_zhangsan",
+      messages: [
+        {
+          platform: "wechat",
+          channel: "dm/wechat/wxid_zhangsan",
+          contact: "张三",
+          timestamp: "2026-06-04T08:00:00Z",
+          content: "Memoark 部署先用本地 PGLite",
+          direction: "received",
+          metadata: { message_id: "wx_msg_001", channel_name: "张三" },
+        },
+      ],
+      start_time: "2026-06-04T08:00:00Z",
+      end_time: "2026-06-04T08:00:00Z",
+      participants: ["张三", "我"],
+      token_count: 30,
+    };
+
+    const result = await extractor.extract(block);
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data.source.platform).toBe("wechat");
+      expect(result.data.source.source_type).toBe("dm");
+      expect(result.data.source.participants).toEqual([
+        { name: "张三", role: "participant" },
+        { name: "我", role: "participant" },
+      ]);
+      expect(result.data.source.message_ids).toEqual(["wx_msg_001"]);
+    }
+  });
+
+  it("builds Agent session provenance from agent channel", async () => {
+    const validResult = createValidExtractionResult();
+    const mockProvider = {
+      async chat() {
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const block: ConversationBlock = {
+      block_id: "agent-session-1",
+      platform: "codex",
+      channel: "agent/codex/session-001",
+      thread_id: "thread-codex-001",
+      messages: [
+        {
+          platform: "codex",
+          channel: "agent/codex/session-001",
+          contact: "Codex",
+          timestamp: "2026-06-04T09:00:00Z",
+          content: "Implemented MCP filters",
+          direction: "sent",
+          metadata: { message_id: "rollout-001", session_id: "session-001" },
+        },
+      ],
+      start_time: "2026-06-04T09:00:00Z",
+      end_time: "2026-06-04T09:00:00Z",
+      participants: ["Codex", "User"],
+      token_count: 40,
+    };
+
+    const result = await extractor.extract(block);
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data.source.platform).toBe("codex");
+      expect(result.data.source.source_type).toBe("agent_session");
+      expect(result.data.source.thread_id).toBe("thread-codex-001");
+      expect(result.data.source.conversation_id).toBe("session-001");
+      expect(result.data.source.message_ids).toEqual(["rollout-001"]);
+    }
+  });
+});

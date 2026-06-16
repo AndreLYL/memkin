@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { SourceRef } from "../../src/core/types.js";
 import { Database } from "../../src/store/database.js";
 import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
@@ -20,6 +21,16 @@ describe("GraphStore", () => {
     await db.close();
   });
 
+  function sourceRef(raw_hash: string, platform = "test"): SourceRef {
+    return {
+      platform,
+      channel: `channel/${raw_hash}`,
+      timestamp: "2026-06-04T10:00:00.000Z",
+      raw_hash,
+      quote: `quote ${raw_hash}`,
+    };
+  }
+
   it("addLink creates a link between two pages", async () => {
     await graph.addLink("entities/alice", "projects/memoark", "works_on", "Lead engineer");
     const links = await graph.getLinks("entities/alice");
@@ -35,6 +46,44 @@ describe("GraphStore", () => {
     const links = await graph.getLinks("entities/alice");
     expect(links).toHaveLength(1);
     expect(links[0].context).toBe("V2 updated");
+  });
+
+  it("addLink upserts provenance and source hash on conflict", async () => {
+    await graph.addLink(
+      "entities/alice",
+      "projects/memoark",
+      "works_on",
+      "V1",
+      sourceRef("first-hash"),
+      "first-hash",
+    );
+    await graph.addLink(
+      "entities/alice",
+      "projects/memoark",
+      "works_on",
+      "V2",
+      sourceRef("latest-hash", "feishu"),
+      "latest-hash",
+    );
+
+    const links = await graph.getLinks("entities/alice");
+    expect(links).toHaveLength(1);
+    expect(links[0].provenance).toMatchObject({
+      platform: "feishu",
+      raw_hash: "latest-hash",
+    });
+
+    const stored = await db.pg.query<{ source_hash: string }>(
+      "SELECT source_hash FROM links WHERE link_type = $1",
+      ["works_on"],
+    );
+    expect(stored.rows[0].source_hash).toBe("latest-hash");
+  });
+
+  it("addLink rejects missing page slugs instead of silently inserting zero rows", async () => {
+    await expect(graph.addLink("entities/alice", "missing/page", "mentions")).rejects.toThrow(
+      "Page not found: missing/page",
+    );
   });
 
   it("getBacklinks returns incoming links", async () => {

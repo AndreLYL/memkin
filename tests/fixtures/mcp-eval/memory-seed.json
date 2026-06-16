@@ -1,0 +1,67 @@
+{
+  "pages": [
+    {
+      "slug": "projects/memoark",
+      "content": "---\ntitle: Memoark\ntype: project\nsource:\n  platform: codex\n  channel: agent/codex/session-memoark\n  timestamp: 2026-06-04T09:00:00.000Z\n  raw_hash: seed-memoark\n  quote: MCP memory layer work\n  source_type: agent_session\n  participants:\n    - name: Andre\n      role: author\n---\nMemoark is implementing a stable MCP memory capability layer with SourceRef, MemoryFilter, resources, prompts, and structured output."
+    },
+    {
+      "slug": "decisions/use-pglite",
+      "content": "---\ntitle: Use PGLite\ntype: decision\nsource:\n  platform: feishu\n  channel: group/feishu/project-review\n  channel_name: Project Review\n  timestamp: 2026-06-03T10:00:00.000Z\n  raw_hash: seed-pglite\n  quote: We decided to use PGLite for local-first storage.\n  source_type: group\n  participants:\n    - name: Alice\n      role: participant\n    - name: Andre\n      role: author\n---\nDecision: use PGLite for local-first storage because it keeps Memoark self-contained and easy to test."
+    },
+    {
+      "slug": "people/alice",
+      "content": "---\ntitle: Alice\ntype: person\nsource:\n  platform: wechat\n  channel: dm/wechat/wxid_alice\n  channel_name: Alice\n  timestamp: 2026-06-02T08:30:00.000Z\n  raw_hash: seed-alice\n  quote: Alice reviewed the deployment plan.\n  source_type: dm\n  participants:\n    - name: Alice\n      role: participant\n---\nAlice helps review Memoark deployment and storage decisions."
+    }
+  ],
+  "timeline": [
+    {
+      "slug": "projects/memoark",
+      "date": "2026-06-04",
+      "summary": "MCP memory layer implementation continued",
+      "detail": "Added preferred tools, resources, prompts, and structured output.",
+      "provenance": {
+        "platform": "codex",
+        "channel": "agent/codex/session-memoark",
+        "timestamp": "2026-06-04T09:30:00.000Z",
+        "raw_hash": "seed-timeline-mcp",
+        "quote": "Added preferred tools, resources, prompts, and structured output.",
+        "source_type": "agent_session",
+        "participants": [{ "name": "Andre", "role": "author" }]
+      }
+    },
+    {
+      "slug": "decisions/use-pglite",
+      "date": "2026-06-03",
+      "summary": "Storage decision recorded",
+      "detail": "PGLite chosen for local-first persistence.",
+      "provenance": {
+        "platform": "feishu",
+        "channel": "group/feishu/project-review",
+        "timestamp": "2026-06-03T10:00:00.000Z",
+        "raw_hash": "seed-timeline-pglite",
+        "quote": "PGLite chosen for local-first persistence.",
+        "source_type": "group",
+        "participants": [{ "name": "Alice", "role": "participant" }]
+      }
+    }
+  ],
+  "links": [
+    {
+      "from": "people/alice",
+      "to": "projects/memoark",
+      "type": "reviews",
+      "context": "Alice reviews Memoark deployment decisions."
+    },
+    {
+      "from": "projects/memoark",
+      "to": "decisions/use-pglite",
+      "type": "has_decision",
+      "context": "Memoark uses PGLite for local-first storage."
+    }
+  ],
+  "tags": [
+    { "slug": "projects/memoark", "tag": "mcp" },
+    { "slug": "decisions/use-pglite", "tag": "storage" },
+    { "slug": "people/alice", "tag": "person" }
+  ]
+}

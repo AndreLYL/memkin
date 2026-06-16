@@ -110,6 +110,21 @@ export function buildConfigObject(config: PartialConfig): Config {
     // {enabled, tick_interval_secs, defaults, sources} as a complete block;
     // dropping it here is why the Auto-fetch toggle reset on every reload.
     ...(config.scheduler ? { scheduler: config.scheduler } : {}),
+    mcp: {
+      expose_legacy_tools: config.mcp?.expose_legacy_tools ?? false,
+      http: {
+        enabled: config.mcp?.http?.enabled ?? false,
+        bind_host: config.mcp?.http?.bind_host ?? "127.0.0.1",
+        port: config.mcp?.http?.port ?? 3928,
+        allowed_origins: config.mcp?.http?.allowed_origins ?? [
+          "http://127.0.0.1:3928",
+          "http://localhost:3928",
+        ],
+        allowed_hosts: config.mcp?.http?.allowed_hosts ?? ["127.0.0.1:3928", "localhost:3928"],
+        auth_token_env: config.mcp?.http?.auth_token_env ?? "",
+        read_only: config.mcp?.http?.read_only ?? true,
+      },
+    },
   };
 }
 

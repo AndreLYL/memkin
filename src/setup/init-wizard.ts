@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
+import { fileURLToPath } from "node:url";
+import { resolveConfigPath } from "../core/config.js";
 import { runEmbeddingAssessment } from "./assess-hardware.js";
 import {
   checkOllamaModel,
@@ -25,6 +27,7 @@ export interface InitOptions {
   input?: Readable;
   output?: Writable;
   env?: NodeJS.ProcessEnv;
+  registerCommand?: boolean;
 }
 
 type SourceConfig = NonNullable<PartialConfig["sources"]>;
@@ -42,7 +45,7 @@ function write(output: Writable, message = ""): void {
 }
 
 export function getConfigPath(customPath?: string): string {
-  return customPath ? resolve(customPath) : resolve(process.cwd(), "memoark.yaml");
+  return resolveConfigPath(customPath);
 }
 
 export function isFirstRun(customPath?: string): boolean {
@@ -455,16 +458,26 @@ function printRuntime(output: Writable): void {
 }
 
 function registerCommand(output: Writable): boolean {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const packageRoot = resolve(__dirname, "../..");
+
   // Try npm link first (works cross-platform)
   try {
-    execSync("npm link", { stdio: "pipe", cwd: resolve(process.cwd()) });
+    execSync("npm link", { stdio: "pipe", cwd: packageRoot });
+    write(output, "[ok] `memoark` command registered via npm link");
     return true;
-  } catch {}
+  } catch (err) {
+    const reason = err instanceof Error ? err.message.split(/\r?\n/)[0] : String(err);
+    write(output, `[warn] npm link failed: ${reason}`);
+    write(output, "[info] Falling back to shell alias...");
+  }
 
   // Fallback: add alias to shell config (POSIX only)
   if (process.platform === "win32") return false;
 
-  const binPath = resolve(process.cwd(), "bin", "memoark.mjs");
+  // Resolve from this file's location so npx temp-dir runs produce the correct path
+  const binPath = resolve(__dirname, "../../bin/memoark.mjs");
   const aliasLine = `alias memoark='node ${binPath}'`;
   const shellFiles = [".zshrc", ".bashrc", ".bash_profile"];
 
@@ -474,11 +487,10 @@ function registerCommand(output: Writable): boolean {
     try {
       let content = readFileSync(shellPath, "utf-8");
 
-      // Replace stale alias pointing to old bin/memoark (shell script, no .mjs)
-      // Match both single and double quote variants
-      const stalePattern = /alias memoark=(['"])[^'"]*bin\/memoark\1/g;
+      // Replace any stale memoark alias (covers both bin/memoark and bin/memoark.mjs variants)
+      const stalePattern = /alias memoark=(['"])[^'"]*\1/g;
       if (stalePattern.test(content)) {
-        content = content.replace(stalePattern, aliasLine);
+        content = content.replace(/alias memoark=(['"])[^'"]*\1/g, aliasLine);
         writeFileSync(shellPath, content, "utf-8");
         write(output, `[ok] Updated stale alias in ~/${file} — run: source ~/${file}`);
         return true;
@@ -527,12 +539,23 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   const input = options.input ?? process.stdin;
   const configPath = getConfigPath(options.configPath);
 
-  if (
-    shouldUseTui(options, input as { isTTY?: boolean }, output as { isTTY?: boolean }, options.env)
-  ) {
+  const useTui = shouldUseTui(
+    options,
+    input as { isTTY?: boolean },
+    output as { isTTY?: boolean },
+    options.env,
+  );
+
+  if (useTui) {
     const { runConfigCenter } = await import("../config-center/index.js");
     await runConfigCenter({ configPath, force: options.force, input, output });
     return;
+  }
+
+  const nonTty =
+    (input as { isTTY?: boolean }).isTTY !== true || (output as { isTTY?: boolean }).isTTY !== true;
+  if (!options.auto && options.tui !== false && nonTty) {
+    write(output, "[info] Non-interactive mode detected. Using CLI prompts.");
   }
 
   const prompt = options.auto ? undefined : createPrompt(input, output);
@@ -598,7 +621,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
     write(output, "");
     write(output, `[ok] Configuration saved to: ${configPath}`);
 
-    const legacyPath = resolve(process.cwd(), "dbe.yaml");
+    const legacyPath = resolve(dirname(configPath), "dbe.yaml");
     if (existsSync(legacyPath)) {
       write(output, `[!!] Legacy dbe.yaml detected: ${legacyPath}`);
       write(
@@ -607,15 +630,17 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
       );
     }
 
-    // Register memoark command
-    write(output, "");
-    write(output, "--- Registering memoark command ---");
-    const registered = registerCommand(output);
-    if (registered) {
-      write(output, "[ok] memoark command is ready to use");
-    } else {
-      write(output, "[!!] Could not register automatically. Run manually:");
-      write(output, "      npm link");
+    if (options.registerCommand !== false) {
+      // Register memoark command
+      write(output, "");
+      write(output, "--- Registering memoark command ---");
+      const registered = registerCommand(output);
+      if (registered) {
+        write(output, "[ok] memoark command is ready to use");
+      } else {
+        write(output, "[!!] Could not register automatically. Run manually:");
+        write(output, "      npm link");
+      }
     }
 
     printNextSteps(output);

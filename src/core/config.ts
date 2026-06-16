@@ -4,8 +4,8 @@
  * and recursive merging with defaults
  */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { FeishuDocSourceConfig } from "../collectors/feishu/types.js";
 
@@ -146,7 +146,22 @@ export interface EmbeddingConfig {
  */
 export interface ServerConfig {
   http_port: number;
-  mcp_transport: "stdio" | "sse";
+  mcp_transport: "stdio" | "sse" | "streamable_http";
+}
+
+export interface McpHttpConfig {
+  enabled: boolean;
+  bind_host: string;
+  port: number;
+  allowed_origins: string[];
+  allowed_hosts: string[];
+  auth_token_env?: string;
+  read_only: boolean;
+}
+
+export interface McpConfig {
+  expose_legacy_tools: boolean;
+  http: McpHttpConfig;
 }
 
 export interface SchedulerSourceConfig {
@@ -177,8 +192,19 @@ export interface Config {
   store: StoreConfig;
   embedding: EmbeddingConfig;
   server: ServerConfig;
+  mcp: McpConfig;
   scheduler?: SchedulerConfig;
   pipeline?: PipelineOptsConfig;
+}
+
+export interface ConfigContext {
+  readonly configPath: string;
+  readonly projectRoot: string;
+  readonly missingEnvVars: string[];
+}
+
+export interface LoadedConfig extends Config {
+  readonly __context: ConfigContext;
 }
 
 /**
@@ -223,37 +249,87 @@ const DEFAULT_CONFIG: Config = {
     http_port: 3927,
     mcp_transport: "stdio",
   },
+  mcp: {
+    expose_legacy_tools: false,
+    http: {
+      enabled: false,
+      bind_host: "127.0.0.1",
+      port: 3928,
+      allowed_origins: ["http://127.0.0.1:3928", "http://localhost:3928"],
+      allowed_hosts: ["127.0.0.1:3928", "localhost:3928"],
+      auth_token_env: "",
+      read_only: true,
+    },
+  },
 };
 
 /**
  * Recursively interpolate environment variables in an object
  * Replaces ${VAR_NAME} with process.env.VAR_NAME
- * If VAR_NAME is not found, replaces with empty string
+ * If VAR_NAME is not found, keeps the placeholder and records the variable name
  *
  * @param obj - Object to interpolate
- * @returns Object with interpolated values
+ * @returns Object with interpolated values and missing variable names
  */
-function interpolateEnv(obj: unknown): unknown {
-  if (typeof obj === "string") {
-    // Replace ${VAR_NAME} with process.env.VAR_NAME
-    return obj.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, varName) => {
-      return process.env[varName] ?? "";
-    });
-  }
+function interpolateEnv(obj: unknown): { result: unknown; missing: string[] } {
+  const missing = new Set<string>();
 
-  if (Array.isArray(obj)) {
-    return obj.map((item) => interpolateEnv(item));
-  }
-
-  if (obj !== null && typeof obj === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[key] = interpolateEnv(value);
+  function walk(value: unknown): unknown {
+    if (typeof value === "string") {
+      return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, varName) => {
+        const envValue = process.env[varName];
+        if (envValue === undefined) {
+          missing.add(varName);
+          return match;
+        }
+        return envValue;
+      });
     }
-    return result;
+
+    if (Array.isArray(value)) {
+      return value.map((item) => walk(item));
+    }
+
+    if (value !== null && typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      for (const [key, nestedValue] of Object.entries(value)) {
+        result[key] = walk(nestedValue);
+      }
+      return result;
+    }
+
+    return value;
   }
 
-  return obj;
+  return { result: walk(obj), missing: Array.from(missing).sort() };
+}
+
+function attachContext(config: Config, context: ConfigContext): LoadedConfig {
+  return Object.defineProperty(config, "__context", {
+    value: context,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  }) as LoadedConfig;
+}
+
+export function resolveConfigPath(explicit?: string): string {
+  if (explicit) return resolve(explicit);
+
+  const envPath = process.env.MEMOARK_CONFIG;
+  if (envPath) return resolve(envPath);
+
+  let dir = process.cwd();
+  while (true) {
+    const candidate = join(dir, "memoark.yaml");
+    if (existsSync(candidate)) return candidate;
+
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  return resolve(process.cwd(), "memoark.yaml");
 }
 
 /**
@@ -300,12 +376,13 @@ function mergeConfig(
  * Load configuration from YAML file
  * Performs environment variable interpolation and merges with defaults
  *
- * @param filePath - Path to YAML config file (default: memoark.yaml in cwd)
+ * @param filePath - Path to YAML config file (default: discovered memoark.yaml)
  * @returns Loaded and merged configuration
  * @throws Error if file cannot be read or parsed
  */
-export function loadConfig(filePath?: string): Config {
-  const configPath = filePath ? resolve(filePath) : resolve(process.cwd(), "memoark.yaml");
+export function loadConfig(filePath?: string): LoadedConfig {
+  const configPath = resolveConfigPath(filePath);
+  const projectRoot = dirname(configPath);
 
   let userConfig: Record<string, unknown> = {};
 
@@ -320,11 +397,15 @@ export function loadConfig(filePath?: string): Config {
     }
   }
 
-  // Interpolate environment variables
-  userConfig = interpolateEnv(userConfig) as Record<string, unknown>;
+  const interpolated = interpolateEnv(userConfig);
+  userConfig = interpolated.result as Record<string, unknown>;
 
   // Merge with defaults
   const merged = mergeConfig(DEFAULT_CONFIG as unknown as Record<string, unknown>, userConfig);
 
-  return merged as unknown as Config;
+  return attachContext(merged as unknown as Config, {
+    configPath,
+    projectRoot,
+    missingEnvVars: interpolated.missing,
+  });
 }

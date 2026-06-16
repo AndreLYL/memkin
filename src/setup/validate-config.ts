@@ -2,6 +2,7 @@ import type {
   EmbeddingConfig,
   FeishuSourceConfig,
   LLMConfig,
+  McpConfig,
   PrivacyConfig,
   SchedulerConfig,
   ServerConfig,
@@ -23,6 +24,7 @@ export interface PartialConfig {
   store?: Partial<StoreConfig>;
   embedding?: Partial<EmbeddingConfig>;
   server?: Partial<ServerConfig>;
+  mcp?: Partial<McpConfig>;
   block_builder?: {
     block_gap_minutes?: number;
     max_block_tokens?: number;
@@ -34,6 +36,12 @@ export interface PartialConfig {
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
+}
+
+function isPublicBindHost(host: string | undefined): boolean {
+  if (!host) return false;
+  const normalized = host.trim().toLowerCase();
+  return !["localhost", "127.0.0.1", "::1", "[::1]"].includes(normalized);
 }
 
 export function validateConfig(config: PartialConfig): ValidationResult {
@@ -61,6 +69,19 @@ export function validateConfig(config: PartialConfig): ValidationResult {
     }
     if (!feishu.app_secret) {
       errors.push("Feishu App Secret is required when Feishu is enabled");
+    }
+  }
+
+  const mcpHttp = config.mcp?.http;
+  if (mcpHttp?.enabled) {
+    if (!mcpHttp.allowed_origins || mcpHttp.allowed_origins.length === 0) {
+      errors.push("MCP HTTP allowed_origins must contain at least one trusted origin");
+    }
+    if (!mcpHttp.allowed_hosts || mcpHttp.allowed_hosts.length === 0) {
+      errors.push("MCP HTTP allowed_hosts must contain at least one trusted host");
+    }
+    if (isPublicBindHost(mcpHttp.bind_host) && !mcpHttp.auth_token_env) {
+      errors.push("MCP HTTP public bind requires auth_token_env");
     }
   }
 

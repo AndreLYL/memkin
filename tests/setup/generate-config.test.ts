@@ -16,6 +16,8 @@ describe("generate setup config", () => {
     expect(yaml).toContain("sources:");
     expect(yaml).toContain("embedding:");
     expect(yaml).toContain("server:");
+    expect(yaml).toContain("mcp:");
+    expect(yaml).toContain("http:");
   });
 
   it("preserves environment variable placeholders", () => {
