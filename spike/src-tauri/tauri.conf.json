@@ -10,8 +10,8 @@
     "windows": [
       {
         "title": "memoark spike",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 900,
         "resizable": true,
         "fullscreen": false
       }
