@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { stringify as yamlStringify } from "yaml";
+import { compactSourceRef } from "../core/source-ref.js";
 import type {
   Adapter,
   AdapterPushResult,
@@ -206,7 +207,7 @@ export class StoreAdapter implements Adapter {
 
       if (source) {
         if (!existingPage?.frontmatter.first_seen) {
-          frontmatter.first_seen = source;
+          frontmatter.first_seen = compactSourceRef(source);
         } else {
           frontmatter.first_seen = existingPage.frontmatter.first_seen;
         }
@@ -292,7 +293,7 @@ ${bodyParts.join("\n\n")}
         entities: decision.entities,
         confidence: decision.confidence,
         source_hash: sourceHash,
-        source: decision.source,
+        source: compactSourceRef(decision.source),
         created_at: new Date().toISOString(),
       };
 
@@ -399,7 +400,7 @@ ${parts.join("\n")}`;
         status: task.status,
         confidence: task.confidence,
         source_hash: sourceHash,
-        source: task.source,
+        source: compactSourceRef(task.source),
         created_at: new Date().toISOString(),
       };
 
@@ -466,7 +467,7 @@ ${yamlStringify(frontmatter).trimEnd()}
         entities: discovery.entities,
         confidence: discovery.confidence,
         source_hash: sourceHash,
-        source: discovery.source,
+        source: compactSourceRef(discovery.source),
         created_at: new Date().toISOString(),
       };
 
@@ -699,7 +700,7 @@ ${parts.join("\n")}`;
         source_type: knowledge.source_type,
         confidence: knowledge.confidence,
         source_hash: sourceHash,
-        source: knowledge.source,
+        source: compactSourceRef(knowledge.source),
         created_at: new Date().toISOString(),
       };
 

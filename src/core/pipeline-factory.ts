@@ -1,7 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { createLLMProvider } from "../extractors/providers/index.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
-import type { Config } from "./config.js";
+import type { Config, LoadedConfig } from "./config.js";
 import { IdentityResolver } from "./identity-resolver.js";
 import type { PipelineConfig } from "./pipeline.js";
 import { statePath } from "./state.js";
@@ -12,16 +12,26 @@ export interface PipelineRuntime {
   identity_resolver?: IdentityResolver;
 }
 
-export function buildPipelineConfig(config: Config, output_dir: string): PipelineConfig {
+function projectRootOf(config: Config, projectRoot?: string): string | undefined {
+  return projectRoot ?? (config as Partial<LoadedConfig>).__context?.projectRoot;
+}
+
+export function buildPipelineConfig(
+  config: Config,
+  output_dir: string,
+  projectRoot?: string,
+): PipelineConfig {
+  const stateBase = projectRootOf(config, projectRoot);
   return {
-    dedup_checkpoint: statePath("dedup.jsonl"),
-    cursor_checkpoint: statePath("cursors.yaml"),
+    dedup_checkpoint: statePath("dedup.jsonl", stateBase),
+    cursor_checkpoint: statePath("cursors.yaml", stateBase),
     block_gap_minutes: config.block_builder.block_gap_minutes,
     max_block_tokens: config.block_builder.max_block_tokens,
     max_block_messages: config.block_builder.max_block_messages,
     privacy: config.privacy,
     output_dir,
     block_concurrency: config.pipeline?.block_concurrency,
+    state_base: stateBase,
   };
 }
 

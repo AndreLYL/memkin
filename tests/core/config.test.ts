@@ -4,19 +4,23 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadConfig } from "../../src/core/config.js";
+import { loadConfig, resolveConfigPath } from "../../src/core/config.js";
 import { ensureStateDir, statePath } from "../../src/core/state.js";
 
 // Create a temporary test directory
 const testDir = resolve(`/tmp/memoark-test-${Date.now()}`);
 
 describe("Config loader", () => {
+  let originalMemoarkConfig: string | undefined;
+
   beforeEach(() => {
     mkdirSync(testDir, { recursive: true });
     // Save original cwd
     process.env.TEST_ORIGINAL_CWD = process.cwd();
+    originalMemoarkConfig = process.env.MEMOARK_CONFIG;
+    delete process.env.MEMOARK_CONFIG;
     process.chdir(testDir);
   });
 
@@ -25,6 +29,11 @@ describe("Config loader", () => {
     if (process.env.TEST_ORIGINAL_CWD) {
       process.chdir(process.env.TEST_ORIGINAL_CWD);
       delete process.env.TEST_ORIGINAL_CWD;
+    }
+    if (originalMemoarkConfig === undefined) {
+      delete process.env.MEMOARK_CONFIG;
+    } else {
+      process.env.MEMOARK_CONFIG = originalMemoarkConfig;
     }
     // Clean up test directory
     if (existsSync(testDir)) {
@@ -53,6 +62,15 @@ describe("Config loader", () => {
     expect(config.block_builder.max_block_messages).toBe(100);
 
     expect(config.adapters).toEqual({});
+    expect(config.mcp).toMatchObject({
+      expose_legacy_tools: false,
+      http: {
+        enabled: false,
+        bind_host: "127.0.0.1",
+        port: 3928,
+        read_only: true,
+      },
+    });
   });
 
   it("should load and parse valid YAML config file", () => {
@@ -120,7 +138,7 @@ llm:
     delete process.env.TEST_PROVIDER;
   });
 
-  it("should replace missing environment variables with empty string", () => {
+  it("should preserve missing environment variables and report them in context", () => {
     const yaml = `
 llm:
   api_key: \${MISSING_VAR}
@@ -129,8 +147,9 @@ llm:
     writeFileSync("memoark.yaml", yaml);
     const config = loadConfig();
 
-    expect(config.llm.api_key).toBe("");
-    expect(config.llm.base_url).toBe("");
+    expect(config.llm.api_key).toBe("$" + "{MISSING_VAR}");
+    expect(config.llm.base_url).toBe("$" + "{ANOTHER_MISSING}");
+    expect(config.__context.missingEnvVars).toEqual(["ANOTHER_MISSING", "MISSING_VAR"]);
   });
 
   it("should interpolate environment variables in arrays", () => {
@@ -181,6 +200,40 @@ llm:
 
     expect(config.llm.model).toBe("custom-model");
     expect(config.llm.provider).toBe("openai"); // default
+    expect(config.__context.configPath).toBe(customPath);
+    expect(config.__context.projectRoot).toBe(customDir);
+  });
+
+  it("should discover memoark.yaml from parent directories", () => {
+    const nestedDir = join(testDir, "nested", "workspace");
+    mkdirSync(nestedDir, { recursive: true });
+    writeFileSync("memoark.yaml", "llm:\n  model: parent-model\n");
+
+    process.chdir(nestedDir);
+    const config = loadConfig();
+
+    expect(resolveConfigPath()).toBe(config.__context.configPath);
+    expect(config.__context.configPath.endsWith("/memoark.yaml")).toBe(true);
+    expect(config.llm.model).toBe("parent-model");
+    expect(config.__context.projectRoot).toBe(dirname(config.__context.configPath));
+  });
+
+  it("should prefer MEMOARK_CONFIG over parent directory discovery", () => {
+    const envDir = join(testDir, "env-config");
+    const nestedDir = join(testDir, "nested");
+    mkdirSync(envDir, { recursive: true });
+    mkdirSync(nestedDir, { recursive: true });
+    writeFileSync("memoark.yaml", "llm:\n  model: parent-model\n");
+    const envConfig = join(envDir, "memoark.yaml");
+    writeFileSync(envConfig, "llm:\n  model: env-model\n");
+
+    process.env.MEMOARK_CONFIG = envConfig;
+    process.chdir(nestedDir);
+    const config = loadConfig();
+
+    expect(resolveConfigPath()).toBe(envConfig);
+    expect(config.llm.model).toBe("env-model");
+    expect(config.__context.projectRoot).toBe(envDir);
   });
 
   it("should handle empty YAML file", () => {
@@ -347,6 +400,14 @@ describe("State directory management", () => {
 
     expect(stateDir).toBe(resolve(customBase, ".memoark"));
     expect(existsSync(stateDir)).toBe(true);
+  });
+
+  it("should align statePath with ensureStateDir for custom base directory", () => {
+    const customBase = resolve(testDir, "custom-base");
+    const stateDir = ensureStateDir(customBase);
+    const path = statePath("cursors.yaml", customBase);
+
+    expect(path).toBe(resolve(stateDir, "cursors.yaml"));
   });
 
   it("should return correct path for state file", () => {

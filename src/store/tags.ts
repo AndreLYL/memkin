@@ -4,16 +4,24 @@ interface TagRow {
   tag: string;
 }
 
+interface InsertRow {
+  id: number;
+}
+
 export class TagStore {
   constructor(private pg: PGlite) {}
 
   async addTag(slug: string, tag: string): Promise<void> {
-    await this.pg.query(
+    const result = await this.pg.query<InsertRow>(
       `INSERT INTO tags (page_id, tag)
        SELECT id, $2 FROM pages WHERE slug = $1
-       ON CONFLICT (page_id, tag) DO NOTHING`,
+       ON CONFLICT (page_id, tag) DO UPDATE SET tag = EXCLUDED.tag
+       RETURNING id`,
       [slug, tag],
     );
+    if (result.rows.length === 0) {
+      throw new Error(`Page not found: ${slug}`);
+    }
   }
 
   async removeTag(slug: string, tag: string): Promise<void> {

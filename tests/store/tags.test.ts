@@ -35,6 +35,12 @@ describe("TagStore", () => {
     expect(result).toHaveLength(1);
   });
 
+  it("addTag rejects missing page slugs instead of silently inserting zero rows", async () => {
+    await expect(tags.addTag("missing/page", "same")).rejects.toThrow(
+      "Page not found: missing/page",
+    );
+  });
+
   it("removeTag deletes a tag", async () => {
     await pages.putPage("test/rm", "---\ntitle: R\ntype: test\n---\nBody.");
     await tags.addTag("test/rm", "a");

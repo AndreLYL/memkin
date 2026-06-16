@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
@@ -25,10 +25,17 @@ import {
   resetRegistry,
 } from "./collectors/index.js";
 import { type ConsolidateMode, Consolidator } from "./consolidator/consolidator.js";
-import { loadConfig, type SourcesConfig } from "./core/config.js";
+import {
+  type LoadedConfig,
+  loadConfig,
+  resolveConfigPath,
+  type SourcesConfig,
+} from "./core/config.js";
 import { CursorStore } from "./core/cursors.js";
+import { getMissingEnvVarsForCommand, validateEnvForCommand } from "./core/env-validation.js";
 import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js";
 import { type PipelineConfig, type PipelineResult, runPipeline } from "./core/pipeline.js";
+import { buildPipelineConfig } from "./core/pipeline-factory.js";
 import { ensureStateDir, statePath } from "./core/state.js";
 import { Scheduler } from "./daemon/scheduler.js";
 import { VERSION } from "./embedded-assets.generated.js";
@@ -36,6 +43,8 @@ import { createLLMProvider, createMockProvider } from "./extractors/providers/in
 import { createApiApp, type DaemonStatus } from "./server/api.js";
 import { ChatNameRefreshJob } from "./server/chat-name-refresh-job.js";
 import { createMcpServer } from "./server/mcp.js";
+import { createMcpHttpApp } from "./server/mcp-http.js";
+import { startServer } from "./server/runtime.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
 import { EmbeddingService } from "./store/embedding.js";
@@ -45,7 +54,15 @@ import { SearchEngine } from "./store/search.js";
 import { TagStore } from "./store/tags.js";
 import { TimelineStore } from "./store/timeline.js";
 
-function bootstrapCollectors(sources: SourcesConfig): void {
+function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith("~/")) return resolve(homedir(), path.slice(2));
+  if (path === "~") return homedir();
+  if (isAbsolute(path)) return path;
+  return resolve(projectRoot, path);
+}
+
+function bootstrapCollectors(sources: SourcesConfig, projectRoot: string): void {
   resetRegistry();
   const agentConfigs = {
     "claude-code": { factory: createClaudeCodeCollector, config: sources["claude-code"] },
@@ -55,7 +72,7 @@ function bootstrapCollectors(sources: SourcesConfig): void {
 
   for (const [_id, { factory, config }] of Object.entries(agentConfigs)) {
     if (config?.enabled !== false) {
-      registerCollector(factory(config?.base_dir));
+      registerCollector(factory(resolveProjectPath(config?.base_dir, projectRoot)));
     }
   }
 
@@ -64,10 +81,8 @@ function bootstrapCollectors(sources: SourcesConfig): void {
   }
 }
 
-function expandDataDir(dir: string): string {
-  if (dir.startsWith("~/")) return resolve(homedir(), dir.slice(2));
-  if (dir === "~") return homedir();
-  return dir;
+function expandDataDir(dir: string, projectRoot: string): string {
+  return resolveProjectPath(dir, projectRoot) ?? dir;
 }
 
 // Try to extract feishu.lark_bin from an existing config so the setup UI's
@@ -84,8 +99,8 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
   }
 }
 
-async function createStores(config: ReturnType<typeof loadConfig>) {
-  const dataDir = expandDataDir(config.store.data_dir);
+async function createStores(config: LoadedConfig) {
+  const dataDir = expandDataDir(config.store.data_dir, config.__context.projectRoot);
   mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
@@ -117,8 +132,8 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
  * PersonIdentityStore. Deliberately avoids EmbeddingService so that person
  * alias/merge/rename never requires an LLM or embedding API key.
  */
-async function openIdentityStore(config: ReturnType<typeof loadConfig>) {
-  const dataDir = expandDataDir(config.store.data_dir);
+async function openIdentityStore(config: LoadedConfig) {
+  const dataDir = expandDataDir(config.store.data_dir, config.__context.projectRoot);
   mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
@@ -187,12 +202,13 @@ program
     try {
       // Load configuration
       const config = loadConfig(options.config);
+      const { projectRoot } = config.__context;
 
       // Ensure state directory exists
-      ensureStateDir();
+      ensureStateDir(projectRoot);
 
       // Bootstrap collectors from config
-      bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources, projectRoot);
 
       // Determine which sources to process
       let sourceIds: string[];
@@ -205,6 +221,7 @@ program
       // Create LLM provider based on config (shared across all sources)
       let provider: ReturnType<typeof createLLMProvider> | undefined;
       if (!options.dryRun) {
+        validateEnvForCommand(config, "extract");
         const llmConfig = config.llm;
         const envKey =
           llmConfig.provider === "anthropic"
@@ -227,16 +244,11 @@ program
       }
 
       // Build pipeline configuration
-      const pipelineConfig: PipelineConfig = {
-        dedup_checkpoint: statePath("dedup.jsonl"),
-        cursor_checkpoint: statePath("cursors.yaml"),
-        block_gap_minutes: config.block_builder.block_gap_minutes,
-        max_block_tokens: config.block_builder.max_block_tokens,
-        max_block_messages: config.block_builder.max_block_messages,
-        privacy: config.privacy,
-        output_dir: options.output || process.cwd(),
-        block_concurrency: config.pipeline?.block_concurrency,
-      };
+      const pipelineConfig = buildPipelineConfig(
+        config,
+        options.output || process.cwd(),
+        projectRoot,
+      );
 
       // Parse options
       const format = ["json", "markdown"].includes(options.format) ? options.format : "json";
@@ -361,8 +373,8 @@ program
     const ok: string[] = [];
 
     // Check config file
-    const configPath = options.config || resolve(process.cwd(), "memoark.yaml");
-    let config: ReturnType<typeof loadConfig> | null = null;
+    const configPath = resolveConfigPath(options.config);
+    let config: LoadedConfig | null = null;
     if (existsSync(configPath)) {
       ok.push(`Configuration file found: ${configPath}`);
       try {
@@ -379,7 +391,8 @@ program
     }
 
     // Check state directory
-    const stateDir = resolve(process.cwd(), ".memoark");
+    const projectRoot = config?.__context.projectRoot ?? dirname(configPath);
+    const stateDir = resolve(projectRoot, ".memoark");
     if (existsSync(stateDir)) {
       ok.push(`State directory exists: ${stateDir}`);
     } else {
@@ -387,13 +400,26 @@ program
       warnings.push("It will be created automatically on first extract");
     }
 
+    const cwdStateDir = resolve(process.cwd(), ".memoark");
+    if (cwdStateDir !== stateDir && existsSync(cwdStateDir)) {
+      warnings.push(`Legacy state directory found at current cwd: ${cwdStateDir}`);
+      warnings.push(`Current config-root state directory is: ${stateDir}`);
+      warnings.push("Move cursor/dedup files manually if you intended to reuse the old state.");
+    }
+
     // Check LLM configuration
     if (config) {
+      const missingEnvVars = getMissingEnvVarsForCommand(config, "doctor");
+      if (missingEnvVars.length > 0) {
+        warnings.push(`Missing environment variables: ${missingEnvVars.join(", ")}`);
+        warnings.push(`Referenced by: ${config.__context.configPath}`);
+      }
+
       if (config.llm?.provider && config.llm?.model) {
         ok.push(`LLM provider configured: ${config.llm.provider} / ${config.llm.model}`);
 
         const envKey = config.llm.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
-        if (process.env[envKey] || config.llm.api_key) {
+        if (!missingEnvVars.includes(envKey)) {
           ok.push(`${config.llm.provider} API key configured`);
         } else {
           warnings.push(`${envKey} environment variable not set and no api_key in config`);
@@ -404,7 +430,7 @@ program
       }
 
       // Check sources
-      bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources, config.__context.projectRoot);
       for (const collector of getAllCollectors()) {
         const health = await collector.healthCheck();
         if (health.ok) {
@@ -497,7 +523,7 @@ sourcesCmd
   .option("-c, --config <path>", "Path to config file")
   .action((options) => {
     const config = loadConfig(options.config);
-    bootstrapCollectors(config.sources);
+    bootstrapCollectors(config.sources, config.__context.projectRoot);
 
     const collectors = getAllCollectors();
     console.log("Available sources:\n");
@@ -515,7 +541,7 @@ sourcesCmd
   .action(async (name, options) => {
     try {
       const config = loadConfig(options.config);
-      bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources, config.__context.projectRoot);
 
       const collector = getCollector(name);
       if (!collector) {
@@ -542,6 +568,7 @@ program
   .description("Start Memoark HTTP API or MCP stdio server")
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
+  .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
   .action(async (options) => {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
     if (!existsSync(serveConfigPath)) {
@@ -552,12 +579,18 @@ program
     }
     const config = loadConfig(options.config);
     const stateDir = ensureStateDir();
+    const missingEnvVars = getMissingEnvVarsForCommand(config, "serve");
+    if (missingEnvVars.length > 0) {
+      console.warn(
+        `[warn] Missing env vars: ${missingEnvVars.join(", ")} (referenced by ${config.__context.configPath})`,
+      );
+    }
     const stores = await createStores(config);
 
     let scheduler: Scheduler | undefined;
 
     if (config.scheduler?.enabled) {
-      bootstrapCollectors(config.sources);
+      bootstrapCollectors(config.sources, config.__context.projectRoot);
 
       const llmConfig = config.llm;
       const envKey =
@@ -717,8 +750,30 @@ program
           nowIso: () => new Date().toISOString(),
         };
       }
-      const server = createMcpServer(storesWithDaemon, ingestDeps);
+      const server = createMcpServer(storesWithDaemon, {}, ingestDeps);
       await server.connect(new StdioServerTransport());
+      return;
+    }
+    if (
+      options.mcpHttp ||
+      config.mcp.http.enabled ||
+      config.server.mcp_transport === "streamable_http"
+    ) {
+      const tokenEnv = config.mcp.http.auth_token_env;
+      const app = createMcpHttpApp(storesWithDaemon, {
+        allowedOrigins: config.mcp.http.allowed_origins,
+        allowedHosts: config.mcp.http.allowed_hosts,
+        authToken: tokenEnv ? process.env[tokenEnv] : undefined,
+        exposeLegacyTools: config.mcp.expose_legacy_tools,
+        readOnly: config.mcp.http.read_only,
+      });
+      const server = await startServer(app, {
+        hostname: config.mcp.http.bind_host,
+        port: config.mcp.http.port,
+      });
+      console.log(
+        `Memoark MCP Streamable HTTP listening on http://${server.hostname}:${server.port}/mcp`,
+      );
       return;
     }
 
@@ -750,7 +805,9 @@ program
   .option("--mode <mode>", "Search mode (hybrid|fts)", "hybrid")
   .option("--limit <n>", "Limit results", "20")
   .action(async (query, options) => {
-    const stores = await createStores(loadConfig(options.config));
+    const config = loadConfig(options.config);
+    validateEnvForCommand(config, "search", { searchMode: options.mode });
+    const stores = await createStores(config);
     const limit = Number(options.limit);
     const results =
       options.mode === "fts"
@@ -768,7 +825,9 @@ program
   .option("-c, --config <path>", "Path to config file")
   .option("--limit <n>", "Limit chunks")
   .action(async (options) => {
-    const stores = await createStores(loadConfig(options.config));
+    const config = loadConfig(options.config);
+    validateEnvForCommand(config, "embed");
+    const stores = await createStores(config);
     const result = await stores.embedding.embedStale({
       limit: options.limit ? Number(options.limit) : undefined,
     });

@@ -17,6 +17,7 @@ describe("config-center schema", () => {
     expect(CONFIG_SECTIONS.find((section) => section.id === "sources")?.phase).toBe("mvp");
     expect(CONFIG_SECTIONS.find((section) => section.id === "feishu")?.phase).toBe("phase6");
     expect(CONFIG_SECTIONS.find((section) => section.id === "server")?.phase).toBe("phase6");
+    expect(CONFIG_SECTIONS.find((section) => section.id === "mcp")?.phase).toBe("phase6");
     expect(CONFIG_SECTIONS.find((section) => section.id === "adapters")?.phase).toBe("phase6");
   });
 
@@ -26,6 +27,7 @@ describe("config-center schema", () => {
     expect(secretPaths).toContain("llm.api_key");
     expect(secretPaths).toContain("embedding.api_key");
     expect(secretPaths).toContain("sources.feishu.app_secret");
+    expect(secretPaths).toContain("mcp.http.auth_token_env");
   });
 
   it("registers selectable provider options", () => {
@@ -38,6 +40,11 @@ describe("config-center schema", () => {
       "mock",
     ]);
     expect(embeddingProvider?.options?.map((option) => option.value)).toEqual(["openai", "ollama"]);
+    expect(
+      CONFIG_FIELDS.find((field) => field.path === "server.mcp_transport")?.options?.map(
+        (option) => option.value,
+      ),
+    ).toEqual(["stdio", "sse", "streamable_http"]);
   });
 
   it("marks required LLM and Embedding fields for the TUI", () => {

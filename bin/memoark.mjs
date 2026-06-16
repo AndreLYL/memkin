@@ -2,7 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -10,8 +10,13 @@ const distCli = resolve(projectRoot, "dist", "cli.js");
 const srcCli = resolve(projectRoot, "src", "cli.ts");
 const args = process.argv.slice(2);
 
+// dist exists: prefer Bun when available, otherwise run with the current Node process.
 if (existsSync(distCli)) {
-  await import(pathToFileURL(distCli).href);
+  let result = spawnSync("bun", [distCli, ...args], { stdio: "inherit" });
+  if (result.error) {
+    result = spawnSync(process.execPath, [distCli, ...args], { stdio: "inherit" });
+  }
+  process.exit(result.status ?? (result.error ? 1 : 0));
 } else if (existsSync(srcCli)) {
   const candidates = [
     { command: "bun", args: [srcCli, ...args] },
