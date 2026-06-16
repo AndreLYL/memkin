@@ -1,0 +1,8 @@
+{
+  "name": "webview-probe",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "vite build" },
+  "dependencies": { "react": "^19.2.7", "react-dom": "^19.2.7", "react-force-graph-2d": "^1.29.1" },
+  "devDependencies": { "@vitejs/plugin-react": "^4.3.4", "vite": "^8.0.14" }
+}
