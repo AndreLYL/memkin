@@ -113,3 +113,93 @@ A `bun build --compile` product CAN open PGLite and run vector queries, provided
 
 > Binaries (`memoark-spike`, `dist-run/`) and `assets/` are gitignored — only the
 > source scripts and this README are committed.
+
+---
+
+# Spike B — react-force-graph-2d in Linux WebKitGTK (Tauri webview)
+
+Phase-0 go/no-go #2 for MemoArk desktop packaging.
+
+**Question:** Tauri uses the system webview. On Linux that is **WebKitGTK**, not
+Chromium. The knowledge-graph page renders with `react-force-graph`. Does
+`react-force-graph-2d` actually render inside Linux WebKitGTK, or does the
+rendering-engine difference break it?
+
+**Method:** A standalone React + Vite probe (`spike/webview-probe/`) renders a
+4-node ring graph from **mock data** (no `/api`, no router, no backend — avoids a
+false negative from an empty graph). A minimal Tauri 2.x shell
+(`spike/src-tauri/`) wraps the probe's `dist/`. Because macOS cannot exercise
+WebKitGTK, verification runs on a GitHub Actions **ubuntu-latest** runner that
+installs `libwebkit2gtk-4.1-dev`, builds the Tauri app, launches it headless
+under Xvfb, and screenshots the X root window
+(`.github/workflows/spike-linux-webview.yml`).
+
+## Result: **NO-GO ❌** (with an important caveat about root cause)
+
+The screenshot artifact shows a **uniform blank frame** — the WebKitGTK default
+white document background. **None** of the probe's content painted:
+
+- not the dark `#102030` body background we set,
+- not the bright-red `DOM_OK` DOM banner (a plain `<div>`, not canvas),
+- not the force-graph canvas (green nodes / yellow links).
+
+Two CI iterations, both green builds, both blank renders:
+
+| Iteration | Window | Screenshot evidence |
+|-----------|--------|---------------------|
+| 1 (`5f70e3d`) | 800×600 (Tauri default) | Off-white WebKitGTK window mapped in the top-left; rest is Xvfb black. No graph. |
+| 2 (`b86d7ac`) | 1280×900 + colored nodes + DOM banner + `zoomToFit` | Window fills screen (config applied) but the **entire** frame is uniform off-white. No body bg, no DOM banner, no canvas. |
+
+CI logs (both runs), screenshot step:
+- Binary found and launched: `binary: spike/src-tauri/target/release/memoark-spike`.
+- `document.title = "RENDER_DONE"` **never** propagated — the `wmctrl -l | grep RENDER_DONE` loop timed out all 30 iterations in both runs (no `render done` printed). The screenshot was taken after the fixed `sleep`, ~32 s post-launch, so timing is not the cause.
+- `libEGL warning: DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3 to get accelerated rendering` — no GPU/WebGL accel under Xvfb. (ForceGraph2D uses the 2D canvas context, so this alone should not blank it.)
+
+### Honest read of the root cause
+
+The frame being the WebKitGTK **empty-document default white** — with even a plain
+DOM `<div>` failing to paint — means the React app **did not boot / paint at all**,
+rather than "the canvas specifically failed." Because plain DOM also did not
+render, the most plausible cause is that the **modern Vite 8 production bundle
+(very recent ES syntax) did not execute in the older JavaScriptCore shipped with
+ubuntu's `libwebkit2gtk-4.1`** — a JS-engine/transpile-target mismatch, not
+necessarily a `react-force-graph`/canvas incompatibility. This spike therefore
+proves the *out-of-the-box* path is broken; it does **not** isolate the failure to
+the graph library. That distinction matters for the decision below.
+
+## GO / NO-GO #2 — **NO-GO** (do not assume zero front-end changes for the Tauri/Linux path)
+
+The assumption that "Tauri = zero front-end changes because it's the same web app"
+does **not** hold for Linux WebKitGTK as tested. The probe rendered nothing.
+
+### Recommended next steps (in order of cost)
+
+1. **Pin the build target to what WebKitGTK 4.1 supports** (cheapest, likely root
+   cause): set Vite `build.target` to a conservative baseline (e.g.
+   `["es2020","safari14"]` / `webkit`-friendly), add legacy/transpile, and disable
+   modern-only output. Re-run the same CI. If the `DOM_OK` banner then appears,
+   the JS-engine theory is confirmed and the fix is a build-config change, not an
+   architecture change. **This should be tried before any architecture decision.**
+2. **2D-canvas confirmation**: once DOM paints, verify ForceGraph2D specifically.
+   If DOM paints but canvas stays blank → force `nodeCanvasObject` / disable any
+   WebGL path; ForceGraph2D is 2D-canvas so it should work without DRI3.
+3. **WebKitGTK WebGL/GPU flags**: only relevant if a WebGL path is involved
+   (`react-force-graph` 3D or `regl`); for the 2D variant, software canvas should
+   suffice — DRI3 accel is not required.
+4. **Escalate to spec §7.2 (Electron fallback)**: only if (1)–(3) fail, i.e. even a
+   conservatively-transpiled build won't paint in WebKitGTK. Electron bundles
+   Chromium, eliminating the engine-difference risk at the cost of bundle size.
+
+### Files (Spike B)
+
+- `webview-probe/{package.json,vite.config.ts,index.html,main.tsx}` — standalone
+  React + Vite probe rendering a mock 4-node ring graph (no backend).
+- `src-tauri/` — minimal Tauri 2.x shell; `frontendDist` → `../webview-probe/dist`;
+  Cargo package renamed to `memoark-spike` so `cargo build` emits a binary the CI
+  `find` matches; window sized 1280×900 to match the Xvfb screen.
+- `../.github/workflows/spike-linux-webview.yml` — ubuntu CI: install WebKitGTK +
+  Xvfb, build probe + Tauri, launch headless, screenshot, upload artifact.
+
+> `webview-probe/node_modules`, `webview-probe/dist`, and `src-tauri/target` are
+> gitignored. The CI rebuilds `dist/` and `target/` from source each run. The
+> screenshot artifact (`linux-graph.png`) is downloaded per-run, not committed.

@@ -2,3 +2,6 @@
 assets/
 dist-run/
 memoark-spike
+
+# Spike B — CI-downloaded screenshot artifact, reproducible per run, do not commit.
+linux-graph.png
