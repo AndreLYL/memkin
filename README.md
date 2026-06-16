@@ -1,6 +1,7 @@
 <p align="center">
   <h1 align="center">Memoark</h1>
-  <p align="center"><strong>把你的飞书工作与 AI Agent 会话，沉淀成一份私有、本地的核心记忆，让你的 Agent 真正懂你。</strong></p>
+  <p align="center"><em>人是一切社会关系的总和。</em></p>
+  <p align="center"><strong>一个面向个人工作场景的、本地优先的记忆系统 —— 把你的私聊、群聊、邮件、文档、会议，沉淀成本地私有的个人记忆，让你的 AI Agent 最懂你。</strong></p>
 </p>
 
 <p align="center">
@@ -40,7 +41,9 @@
 
 ## 解决方案
 
-Memoark 是一个**本地优先的个人记忆系统**，建立在两条同等重要的输入流之上 —— 你的**飞书工作**和你的 **AI Agent 会话**。它把两者提取成结构化信号（实体、决策、任务、发现、知识、关系），汇入你自己机器上一个统一、可搜索的知识图谱，再通过 **MCP** 把这份记忆喂回给任何 Agent。
+Memoark 是一个**面向中国职场、本地优先的个人记忆系统**。中国职场的工作发生在飞书、钉钉、企业微信里 —— 我们把这些工具里的私聊、群聊、邮件、会议、文档,连同你与 AI Agent 的会话,一起提取成结构化信号（实体、决策、任务、发现、知识、关系），汇入你自己机器上一个统一、可搜索的知识图谱，再通过 **MCP** 把这份记忆喂回给任何 Agent。
+
+> 一期(MVP)聚焦**飞书**全量采集;**钉钉、企业微信**等更多中国职场工具在路线图上(见下方)。
 
 结果是：你的 Agent 既**写入**又**读取**同一份记忆 —— 让 Claude Code、Codex 以及任何 MCP 客户端，终于*懂你和你的工作*。
 
@@ -435,37 +438,75 @@ bun run dev        # Dashboard、时间线、知识图谱、搜索
 
 ## 架构
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        数据源                                    │
-│  Claude Code  │  Codex  │  Hermes  │  飞书（7 源）                │
-└───────┬───────┴────┬────┴────┬─────┴────┬───────────────────────┘
-        └────────────┴────────┴──────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │   信号提取 Pipeline  │
-                    │                    │
-                    │  采集 → 去重        │
-                    │  → 分块 → 噪声过滤  │
-                    │  → 信号提取 → 脱敏  │
-                    └─────────┬──────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │   存储层            │
-                    │                    │
-                    │  PGLite + pgvector │
-                    │  （嵌入式 PG）      │
-                    └─────────┬──────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-     ┌────────▼──────┐ ┌─────▼──────┐ ┌──────▼───────┐
-     │   CLI          │ │  MCP       │ │  REST API    │
-     │   管理 & 提取   │ │  服务器     │ │  (Hono)      │
-     └────────────────┘ └────────────┘ └──────────────┘
+Memoark 是 **5 层纵向数据流 + 3 个横切关注点**。数据自上而下流动:数据源被采集、提取成信号、存入本地记忆,再由底层接口对外读写;**人物身份**与**记忆巩固**、**调度**则横切贯穿其间。
+
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="Memoark 架构图 —— 5 层纵向数据流 + 3 个横切关注点" width="920">
+</p>
+
+<details>
+<summary>📐 查看可编辑的 Mermaid 源码</summary>
+
+```mermaid
+flowchart TB
+  subgraph L1["① 配置与上手层"]
+    cfg["TUI 配置中心 · Web UI 配置 · memoark.yaml<br/>自动检测 · 硬件评估 · 连接测试"]
+  end
+  subgraph L2["② 采集层"]
+    feishu["飞书:私聊 · 群聊 · 邮件 · 日历 · 任务 · 消息搜索 · 云文档"]
+    agent["AI Agent 会话:Claude Code · Codex · Hermes"]
+    inc["增量采集(cursor + 去重) · 历史回溯 Backfill"]
+    planned1["规划中:钉钉 · 企业微信 · 本地文档"]:::planned
+  end
+  subgraph L3["③ 信号提取 Pipeline"]
+    pipe["分块 → 噪声过滤(规则+LLM) → 信号抽取(OpenAI/Anthropic)<br/>→ 实体抽取 → 打分 → 隐私脱敏 → 7 类信号"]
+  end
+  subgraph L4["④ 记忆存储层"]
+    store["PGLite + pgvector<br/>Page · Chunk · Tag · Timeline · Graph<br/>混合检索(全文 + 向量 + RRF)"]
+  end
+  subgraph L5["⑤ 接口与消费层"]
+    cli["CLI"]
+    mcp["MCP(26 工具)"]
+    rest["REST API"]
+    web["Web UI(只读)"]
+    obs["Obsidian 双向同步"]
+  end
+
+  L1 --> L2 --> L3 --> L4 --> L5
+
+  subgraph X["横切关注点"]
+    id["🧬 人物身份<br/>跨平台同一人归并"]
+    cons["♻️ 记忆巩固 Dream Cycle<br/>分层轮转 · 死链修复 · 偏好推断"]
+    sched["⏰ 调度 / AutoFetch<br/>定时采集 · 运行历史 · 告警"]
+  end
+
+  id -.-> L2
+  id -.-> L4
+  cons -.-> L4
+  sched -.-> L2
+
+  classDef planned stroke-dasharray: 5 5,fill:#f6f6f6,color:#888;
 ```
 
-> 后台还有 **巩固器（Consolidator）** 做分层轮转与死链修复，以及 **Daemon** 做定时采集 —— 让记忆持续自我整理、保持新鲜。
+</details>
+
+### 分层说明
+
+| 层 | 职责 |
+|----|------|
+| **① 配置与上手层** | TUI 配置中心(React + ink)、Web UI 配置、`memoark.yaml` 手编;自动检测运行时 / API key / 数据源,硬件评估推荐 Embedding,实时连接测试 |
+| **② 采集层** | 飞书(私聊 / 群聊 / 邮件 / 日历 / 任务 / 消息搜索 / 云文档)、AI Agent 会话(Claude Code / Codex / Hermes);增量采集(per-source cursor + 内容去重)、历史回溯 Backfill。**规划中**:钉钉、企业微信、本地文档 |
+| **③ 信号提取 Pipeline** | 分块 → 噪声过滤(L1 规则 + L2 LLM)→ 信号抽取(OpenAI / Anthropic)→ 实体抽取 → 打分 → 隐私脱敏;产出 7 类信号,经输出适配器(store / file / gbrain / stdout)落库 |
+| **④ 记忆存储层** | PGLite(进程内嵌入式 PostgreSQL)+ pgvector;Page / Chunk / Tag / Timeline / Graph 存储;混合检索(tsvector 全文 + 向量 + RRF) |
+| **⑤ 接口与消费层** | CLI、MCP Server(26 工具,Agent 读 / 写 / 维护)、REST API(Hono)、Web UI(检索 / 查看 / 图谱 / 时间线,**当前只读**)、Obsidian 双向同步 |
+
+**横切关注点(贯穿多层,而非独立流水线层):**
+
+- **🧬 人物身份** — 贯穿「采集 ↔ 存储」:跨平台(飞书 open_id、邮箱、昵称)识别并归并同一个人,别名绑定、规范化。这是「社会关系总和」的地基。
+- **♻️ 记忆巩固(Dream Cycle)** — 后台旁路作用于存储层:hot → warm → cold 分层轮转、死链修复、偏好推断,让记忆自我整理。
+- **⏰ 调度 / AutoFetch** — 后台驱动采集层:定时自动采集、运行历史、告警。*(当前运行于 `serve` 进程内;独立 daemon 服务化 + 开机自启见路线图。)*
+
+> 运行平台:macOS / Linux / Windows · 一键安装(npm / npx)· 本地优先、自托管、零云依赖。
 
 ### 信号类型
 
@@ -637,17 +678,29 @@ server:
 - [x] 飞书文档摘要卡片（DocSource v2）
 - [x] Obsidian 双向同步（export / import）
 
-### Phase 5 — 上下文感知提取（规划中）
+### Phase 5 — 常驻自托管（进行中 · MVP）
+
+- [ ] 独立 daemon 服务化 + 开机自启（systemd / launchd / Windows 服务）—— "配置一次，后台免维护"
+- [ ] Agent Hook 机制：会话结束 / 关键决策后自动读写记忆
+
+### Phase 6 — 更多中国职场数据源（规划中）
+
+- [ ] 钉钉
+- [ ] 企业微信
+- [ ] 微信聊天记录
+- [ ] 本地文档源（扫描本机文件，社区驱动 · 低优先）
+
+### Phase 7 — 上下文感知提取 & 问答（规划中）
 
 - [ ] ContextBuffer —— 跨 block 共享上下文
 - [ ] 加权准入评分（替换二元噪声过滤）
 - [ ] NarrativeAssembler —— 按实体聚合叙事
 - [ ] 自然语言问答
 
-### Phase 6 — 更多数据源（规划中）
+### Phase 8 — Web UI 增强（规划中）
 
-- [ ] 微信聊天记录
-- [ ] 更多平台（社区驱动）
+- [ ] 记忆编辑（当前为只读）
+- [ ] 审计视图（信号溯源可视化）
 
 ## 技术栈
 
