@@ -1335,7 +1335,10 @@ function registerMainTools(
         canonical_slug: z.string().describe("Canonical person page slug."),
         kind: handleKind.describe("Handle kind."),
         value: z.string().describe("Handle value."),
-        strength: z.enum(["strong", "weak"]).optional().describe("Handle strength, default strong."),
+        strength: z
+          .enum(["strong", "weak"])
+          .optional()
+          .describe("Handle strength, default strong."),
       },
     },
     async (args) => text(await tools.link_person_alias(args)),
