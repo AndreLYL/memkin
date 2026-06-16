@@ -1,0 +1,4 @@
+# Spike build products — large binaries and copied PGLite assets, do not commit.
+assets/
+dist-run/
+memoark-spike
