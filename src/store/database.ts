@@ -1,8 +1,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import { SCHEMA_SQL } from "../embedded-assets.generated.js";
-import { buildPGliteOptions } from "./pglite-assets.js";
 import { acquireLock, type LockHandle } from "./data-dir-lock.js";
 import { runMigrations } from "./migrations/index.js";
+import { buildPGliteOptions } from "./pglite-assets.js";
 
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
@@ -43,9 +43,11 @@ export class Database {
     }
 
     try {
-      const pg = new PGlite(await buildPGliteOptions(dataDir, {
-        assetsOverride: process.env.MEMOARK_PGLITE_ASSETS,
-      }));
+      const pg = new PGlite(
+        await buildPGliteOptions(dataDir, {
+          assetsOverride: process.env.MEMOARK_PGLITE_ASSETS,
+        }),
+      );
 
       await pg.exec(loadSchemaSql(dims));
       await runMigrations(pg);

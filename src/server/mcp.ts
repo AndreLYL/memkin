@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+// Static JSON import: bun's bundler inlines this into the --compile binary
+// (a runtime require("../../package.json") is not resolvable inside $bunfs).
+import pkg from "../../package.json";
 import { type IngestDeps, ingestFeishuDoc } from "../collectors/feishu/docs/ingest.js";
 import {
   type HandleKind,
@@ -19,9 +22,6 @@ import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { getSessionContext } from "./context.js";
 import { getEntityProfile, listSignalsByEntity } from "./entity.js";
-// Static JSON import: bun's bundler inlines this into the --compile binary
-// (a runtime require("../../package.json") is not resolvable inside $bunfs).
-import pkg from "../../package.json";
 
 const packageVersion: string = pkg.version;
 

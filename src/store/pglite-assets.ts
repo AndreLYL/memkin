@@ -39,7 +39,10 @@ export async function buildPGliteOptions(
   const vectorBundleURL = new URL("file://" + asset("vector.tar.gz"));
   const vector = {
     name: "pgvector",
-    setup: async (_pg: unknown, em: unknown) => ({ emscriptenOpts: em, bundlePath: vectorBundleURL }),
+    setup: async (_pg: unknown, em: unknown) => ({
+      emscriptenOpts: em,
+      bundlePath: vectorBundleURL,
+    }),
   };
   return { dataDir, pgliteWasmModule, initdbWasmModule, fsBundle, extensions: { vector } };
 }

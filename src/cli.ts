@@ -803,7 +803,8 @@ async function runServe(options: {
     // `--port 0` (used by the Tauri shell) binds an OS-assigned free port so the desktop
     // app never collides with a CLI `memoark serve`, a stale instance, or anything else
     // on the default port. The actual port is reported below for the webview to read.
-    const requestedPort = options.port !== undefined ? Number(options.port) : config.server.http_port;
+    const requestedPort =
+      options.port !== undefined ? Number(options.port) : config.server.http_port;
     const server = Bun.serve({
       port: requestedPort,
       fetch: async (req) => {

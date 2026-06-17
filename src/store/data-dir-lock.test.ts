@@ -45,7 +45,12 @@ describe("acquireLock", () => {
 
   it("死 pid 的 stale 锁被抢占成功", () => {
     const lockPath = join(dir, "memoark.lock");
-    const stale = { pid: 999999, command: "dead", hostname: hostname(), startedAt: "2020-01-01T00:00:00.000Z" };
+    const stale = {
+      pid: 999999,
+      command: "dead",
+      hostname: hostname(),
+      startedAt: "2020-01-01T00:00:00.000Z",
+    };
     writeFileSync(lockPath, JSON.stringify(stale));
     const handle = acquireLock(dir, "winner");
     const info = JSON.parse(readFileSync(lockPath, "utf8"));
@@ -65,7 +70,12 @@ describe("acquireLock", () => {
 
   it("不同 hostname 的锁即使 pid 死也保守拒绝", () => {
     const lockPath = join(dir, "memoark.lock");
-    const other = { pid: 999999, command: "remote", hostname: "some-other-host", startedAt: "2020-01-01T00:00:00.000Z" };
+    const other = {
+      pid: 999999,
+      command: "remote",
+      hostname: "some-other-host",
+      startedAt: "2020-01-01T00:00:00.000Z",
+    };
     writeFileSync(lockPath, JSON.stringify(other));
     expect(() => acquireLock(dir, "local")).toThrowError(DataDirLockError);
   });
@@ -78,7 +88,10 @@ describe("acquireLock", () => {
     expect(() => handle.release()).not.toThrow();
 
     const handle2 = acquireLock(dir, "me2");
-    writeFileSync(lockPath, JSON.stringify({ pid: 999999, command: "other", hostname: "h", startedAt: "x" }));
+    writeFileSync(
+      lockPath,
+      JSON.stringify({ pid: 999999, command: "other", hostname: "h", startedAt: "x" }),
+    );
     handle2.release();
     expect(existsSync(lockPath)).toBe(true);
     rmSync(lockPath, { force: true });
@@ -86,7 +99,15 @@ describe("acquireLock", () => {
 
   it("抢占 stale 锁后,结果是唯一独占持有者", () => {
     const lockPath = join(dir, "memoark.lock");
-    writeFileSync(lockPath, JSON.stringify({ pid: 999999, command: "dead", hostname: hostname(), startedAt: "2020-01-01T00:00:00.000Z" }));
+    writeFileSync(
+      lockPath,
+      JSON.stringify({
+        pid: 999999,
+        command: "dead",
+        hostname: hostname(),
+        startedAt: "2020-01-01T00:00:00.000Z",
+      }),
+    );
     const winner = acquireLock(dir, "winner");
     expect(() => acquireLock(dir, "loser")).toThrowError(DataDirLockError);
     winner.release();

@@ -96,5 +96,7 @@ export function acquireLock(dataDir: string, command: string): LockHandle {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err; // 别的进程已抢先删
     }
   }
-  throw new Error(`Failed to acquire data_dir lock after ${MAX_PREEMPT_RETRIES} attempts (livelock?)`);
+  throw new Error(
+    `Failed to acquire data_dir lock after ${MAX_PREEMPT_RETRIES} attempts (livelock?)`,
+  );
 }

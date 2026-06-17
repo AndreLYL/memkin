@@ -1,5 +1,5 @@
-import { PGlite } from "@electric-sql/pglite";
 import { join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
 import { loadSchemaSql } from "../../src/store/database.js";
 import { buildPGliteOptions } from "../../src/store/pglite-assets.js";
@@ -10,7 +10,9 @@ import { buildPGliteOptions } from "../../src/store/pglite-assets.js";
 describe("explicit-blobs PGLite runs full Memoark schema", () => {
   it("creates HNSW index and a usable vector column via custom vector extension", async () => {
     const dist = join(process.cwd(), "node_modules/@electric-sql/pglite/dist");
-    const pg = new PGlite(await buildPGliteOptions(undefined, { compiled: true, assetsOverride: dist }));
+    const pg = new PGlite(
+      await buildPGliteOptions(undefined, { compiled: true, assetsOverride: dist }),
+    );
 
     await pg.exec(loadSchemaSql(3)); // tiny dim so we can hand-write a vector literal
 
