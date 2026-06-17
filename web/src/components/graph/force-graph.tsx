@@ -88,6 +88,19 @@ export function ForceGraphView({ pages, links, mode, selectedNode, depth, onNode
 
   const graphData = useMemo(() => buildGraph(pages, links), [pages, links]);
 
+  // Precomputed neighbor sets: O(1) hover-highlight lookup instead of scanning every
+  // link for every node on every frame (was O(nodes × links) ≈ millions/frame).
+  const adjacency = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const l of graphData.links) {
+      const s = typeof l.source === "object" ? (l.source as any).id : l.source;
+      const t = typeof l.target === "object" ? (l.target as any).id : l.target;
+      (map.get(s) ?? map.set(s, new Set()).get(s)!).add(t);
+      (map.get(t) ?? map.set(t, new Set()).get(t)!).add(s);
+    }
+    return map;
+  }, [graphData]);
+
   const visibleNodes = useMemo(() => {
     if (!selectedNode) return null;
     return bfsFilter(graphData.nodes, graphData.links, selectedNode, depth);
@@ -105,14 +118,10 @@ export function ForceGraphView({ pages, links, mode, selectedNode, depth, onNode
     return { nodes, links: filteredLinks };
   }, [graphData, visibleNodes]);
 
-  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D) => {
+  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const size = 3 + Math.sqrt(node.connections) * 2;
-    const isHighlighted = !hoverNode || hoverNode === node.id ||
-      graphData.links.some((l) => {
-        const s = typeof l.source === "object" ? (l.source as any).id : l.source;
-        const t = typeof l.target === "object" ? (l.target as any).id : l.target;
-        return (s === hoverNode && t === node.id) || (t === hoverNode && s === node.id);
-      });
+    // O(1) neighbor lookup (see `adjacency`). Short-circuits when nothing is hovered.
+    const isHighlighted = !hoverNode || hoverNode === node.id || (adjacency.get(hoverNode)?.has(node.id) ?? false);
     ctx.beginPath();
     ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
     ctx.fillStyle = node.color;
@@ -124,11 +133,17 @@ export function ForceGraphView({ pages, links, mode, selectedNode, depth, onNode
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-    ctx.font = `${isHighlighted ? 3 : 2}px Sans-Serif`;
-    ctx.fillStyle = isHighlighted ? "#e2e8f0" : "#4a5568";
-    ctx.textAlign = "center";
-    ctx.fillText(node.name, node.x, node.y + size + 4);
-  }, [hoverNode, selectedNode, graphData.links]);
+    // Label culling: drawing 3000+ fillText every frame is the other hot path and
+    // visually clutters. Only label hubs (large nodes), the hovered neighborhood, or
+    // when zoomed in enough to read them.
+    const showLabel = size > 8 || globalScale > 1.4 || (!!hoverNode && isHighlighted);
+    if (showLabel) {
+      ctx.font = `${isHighlighted ? 3 : 2}px Sans-Serif`;
+      ctx.fillStyle = isHighlighted ? "#e2e8f0" : "#4a5568";
+      ctx.textAlign = "center";
+      ctx.fillText(node.name, node.x, node.y + size + 4);
+    }
+  }, [hoverNode, selectedNode, adjacency]);
 
   const linkColor = useCallback((link: any) => {
     if (!hoverNode) return "rgba(100,100,150,0.2)";
@@ -148,6 +163,9 @@ export function ForceGraphView({ pages, links, mode, selectedNode, depth, onNode
     linkColor,
     linkWidth: 0.5,
     nodeLabel: (node: any) => `${node.name} (${node.type})`,
+    // Stop the force simulation sooner (default 15s) so it stops re-rendering every
+    // frame once the layout is good enough.
+    cooldownTime: 8000,
   };
 
   if (mode === "2d") {
