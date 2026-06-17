@@ -570,6 +570,7 @@ async function runServe(options: {
   mcp?: boolean;
   mcpHttp?: boolean;
   open?: boolean;
+  pgliteAssets?: string;
 }): Promise<void> {
   {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
@@ -802,6 +803,10 @@ async function runServe(options: {
       },
     });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    // Stdout contract for the Tauri shell: once this line is seen, the HTTP API is
+    // accepting connections and the webview may navigate to it (more reliable than
+    // polling the port — mirrors the spike's RENDER_DONE marker).
+    console.log("MEMOARK_READY");
     if (
       shouldOpenBrowserOnServe({
         open: options.open !== false,
@@ -826,7 +831,14 @@ program
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
   .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
   .option("--no-open", "Do not auto-open the browser after starting")
-  .action((options) => runServe(options));
+  .option(
+    "--pglite-assets <dir>",
+    "Directory holding bundled PGLite assets (compiled-sidecar mode; injected by the Tauri shell)",
+  )
+  .action((options) => {
+    if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
+    return runServe(options);
+  });
 
 async function runStart(options: { config?: string }): Promise<void> {
   const configPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
