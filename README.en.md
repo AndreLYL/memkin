@@ -239,6 +239,28 @@ Browse your timeline like a diary that writes itself — what you decided, what 
 - [Node.js](https://nodejs.org) >= 18 (for the `npx` / `npm` install)
 - (Optional) [Ollama](https://ollama.ai) for local embeddings
 
+### One-step launch (recommended)
+
+```bash
+# Run without installing — no config? it auto-launches the setup wizard,
+# then starts the server and opens your browser
+npx @andre.li/memoark start
+
+# Running with no subcommand is equivalent to `start`
+npx @andre.li/memoark
+```
+
+`memoark start` is the single-step path: if there's no `memoark.yaml`, it opens the browser setup wizard first, then starts the HTTP server and auto-opens your browser.
+
+> The npm package is `@andre.li/memoark` (scoped), but the command is still `memoark`.
+
+### Ports at a glance
+
+| Service | Default port | Address |
+|---------|--------------|---------|
+| HTTP API + Web UI | `3927` | `http://localhost:3927` |
+| MCP Streamable HTTP (`--mcp-http`) | `3928` | `http://localhost:3928/mcp` |
+
 ### Install (recommended: npm)
 
 ```bash
@@ -248,8 +270,6 @@ npx @andre.li/memoark --help
 # Or install globally to get the `memoark` command
 npm install -g @andre.li/memoark
 ```
-
-> The npm package is `@andre.li/memoark` (scoped), but the command is still `memoark`.
 
 ### Install from source (development)
 
@@ -325,16 +345,29 @@ memoark search "JWT token" --mode fts
 ### Start the Server
 
 ```bash
-# HTTP API (default port 3927)
+# HTTP API + Web UI (default http://localhost:3927) — auto-opens your browser
 memoark serve
 
-# MCP stdio (for AI agent integration — Claude Code, Cursor, etc.)
+# Skip the auto-open (e.g. on a remote/headless host)
+memoark serve --no-open
+
+# MCP stdio (local direct connect for AI agents — Claude Code, Cursor, etc.; no browser)
 memoark serve --mcp
+
+# MCP Streamable HTTP (remote / multi-client, default http://localhost:3928/mcp; no browser)
+memoark serve --mcp-http
 ```
+
+> Without a `memoark.yaml`, `serve` tells you to run `memoark start` for one-step setup + launch, or `memoark init --web` to configure first.
 
 ### Connect Your Agent (MCP)
 
-Point any MCP client at Memoark so it can read and write your memory. For Claude Code:
+Memoark offers two MCP transports — pick by scenario:
+
+- **stdio (`--mcp`)** — local direct connect; the agent spawns `memoark` as a subprocess. Zero network setup; best for a single client on one machine.
+- **Streamable HTTP (`--mcp-http`)** — over HTTP (default `3928`); use it for remote access or sharing one memory across multiple clients.
+
+Point any MCP client at Memoark so it can read and write your memory. For Claude Code (stdio, local direct connect):
 
 ```json
 {
@@ -484,11 +517,12 @@ Memoark's MCP server exposes **26 tools** spanning retrieval, page CRUD, graph, 
 
 | Command | Description |
 |---------|-------------|
-| `memoark init` | Interactive config center to generate / edit `memoark.yaml` (`--auto` / `--no-tui` / `--force`) |
+| `memoark start` | One-step launch: setup if needed, then serve + auto-open browser (bare `memoark` is equivalent) |
+| `memoark init` | Interactive config center to generate / edit `memoark.yaml` (`--auto` / `--no-tui` / `--force` / `--web`) |
 | `memoark extract` | Extract signals from a data source |
 | `memoark search <query>` | Search memory (hybrid / `--mode fts`) |
 | `memoark embed` | Generate embeddings for stale chunks |
-| `memoark serve` | Start HTTP API or `--mcp` stdio server |
+| `memoark serve` | Start HTTP API (auto-opens browser, `--no-open` to skip) / `--mcp` stdio / `--mcp-http` |
 | `memoark consolidate` | Run memory consolidation (tier rotation hot→warm / warm→cold) |
 | `memoark export` | Export memory pages to an Obsidian vault (Markdown) |
 | `memoark import` | Import an Obsidian vault back into Memoark |
@@ -513,16 +547,31 @@ memoark extract \
   --dry-run                    # Test without LLM calls or writes
 ```
 
+### `memoark start`
+
+One-step launch. If no `memoark.yaml` exists, it opens the browser setup wizard first; once configured, it starts the HTTP server and auto-opens your browser. Running `memoark` with no subcommand does the same thing.
+
+```bash
+memoark start
+memoark              # equivalent
+```
+
 ### `memoark serve`
 
 Start the Memoark server.
 
 ```bash
-# HTTP API (default port from config)
+# HTTP API + Web UI (default http://localhost:3927) — auto-opens the browser
 memoark serve
 
-# MCP stdio transport (for AI agent integration)
+# Skip the auto-open
+memoark serve --no-open
+
+# MCP stdio transport (local direct connect for AI agents)
 memoark serve --mcp
+
+# MCP Streamable HTTP transport (remote / multi-client, default http://localhost:3928/mcp)
+memoark serve --mcp-http
 ```
 
 ### `memoark search <query>`

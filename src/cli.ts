@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
+import { planStartup, shouldOpenBrowserOnServe } from "./cli-helpers.js";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
@@ -44,6 +45,7 @@ import { createApiApp, type DaemonStatus } from "./server/api.js";
 import { ChatNameRefreshJob } from "./server/chat-name-refresh-job.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
+import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
@@ -563,22 +565,29 @@ sourcesCmd
     }
   });
 
-program
-  .command("serve")
-  .description("Start Memoark HTTP API or MCP stdio server")
-  .option("-c, --config <path>", "Path to config file")
-  .option("--mcp", "Run MCP stdio transport instead of HTTP")
-  .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
-  .action(async (options) => {
+async function runServe(options: {
+  config?: string;
+  mcp?: boolean;
+  mcpHttp?: boolean;
+  open?: boolean;
+  pgliteAssets?: string;
+  webDist?: string;
+  port?: string;
+}): Promise<void> {
+  {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
     if (!existsSync(serveConfigPath)) {
       console.error(
-        "No configuration file found.\nRun `memoark init` (TUI) or `memoark init --web` (browser) to set up Memoark.",
+        "No configuration file found.\n" +
+          "Run `memoark start` for one-step setup + launch, or `memoark init --web` to configure first.",
       );
       process.exit(1);
     }
     const config = loadConfig(options.config);
-    const stateDir = ensureStateDir();
+    // Anchor the .memoark state dir to the config's project root, not process.cwd().
+    // A Finder-launched sidecar has cwd=/, so the default would try to mkdir /.memoark
+    // (EROFS on macOS). projectRoot = dirname(configPath), so it lives beside the config.
+    const stateDir = ensureStateDir(config.__context.projectRoot);
     const missingEnvVars = getMissingEnvVarsForCommand(config, "serve");
     if (missingEnvVars.length > 0) {
       console.warn(
@@ -722,8 +731,16 @@ program
 
     const storesWithDaemon = { ...stores, getDaemonStatus, chatNameRefreshJob };
 
-    const shutdown = () => {
+    let shuttingDown = false;
+    const shutdown = async () => {
+      if (shuttingDown) return; // 防重入:连按 Ctrl-C 不会二次 db.close()
+      shuttingDown = true;
       scheduler?.stop();
+      try {
+        await stores.db.close(); // 触发锁 release
+      } finally {
+        process.exit(0); // db.close() 抛错也必须退出
+      }
     };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
@@ -778,9 +795,18 @@ program
     }
 
     const app = createApiApp(storesWithDaemon);
-    const webDist = join(fileURLToPath(import.meta.url), "../../web/dist");
+    // In a `bun --compile` sidecar, import.meta.url lives under $bunfs and web/dist is
+    // NOT embedded, so the default path can't be served. The Tauri shell ships web/dist
+    // as a resource and injects its real path via MEMOARK_WEB_DIST (mirrors pglite-assets).
+    const webDist =
+      process.env.MEMOARK_WEB_DIST ?? join(fileURLToPath(import.meta.url), "../../web/dist");
+    // `--port 0` (used by the Tauri shell) binds an OS-assigned free port so the desktop
+    // app never collides with a CLI `memoark serve`, a stale instance, or anything else
+    // on the default port. The actual port is reported below for the webview to read.
+    const requestedPort =
+      options.port !== undefined ? Number(options.port) : config.server.http_port;
     const server = Bun.serve({
-      port: config.server.http_port,
+      port: requestedPort,
       fetch: async (req) => {
         const url = new URL(req.url);
         if (url.pathname.startsWith("/api")) return app.fetch(req);
@@ -791,12 +817,72 @@ program
       },
     });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    // Stdout contract for the Tauri shell: the URL after the marker is where the webview
+    // navigates (the port may be OS-assigned, so report the real one — never hardcode).
+    console.log(`MEMOARK_READY http://localhost:${server.port}`);
+    if (
+      shouldOpenBrowserOnServe({
+        open: options.open !== false,
+        mcp: !!options.mcp,
+        mcpHttp: !!options.mcpHttp,
+      })
+    ) {
+      openBrowser(`http://localhost:${server.port}`);
+    }
     if (scheduler) {
       console.log(
         `Scheduler running — tick every ${config.scheduler?.tick_interval_secs}s, sources: ${scheduler.getSourceIds().join(", ")}`,
       );
     }
+  }
+}
+
+program
+  .command("serve")
+  .description("Start Memoark HTTP API or MCP stdio server")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--mcp", "Run MCP stdio transport instead of HTTP")
+  .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
+  .option("--no-open", "Do not auto-open the browser after starting")
+  .option(
+    "--pglite-assets <dir>",
+    "Directory holding bundled PGLite assets (compiled-sidecar mode; injected by the Tauri shell)",
+  )
+  .option(
+    "--web-dist <dir>",
+    "Directory holding the built web UI (compiled-sidecar mode; injected by the Tauri shell)",
+  )
+  .option(
+    "--port <n>",
+    "Override the HTTP port; 0 binds an OS-assigned free port (used by the Tauri shell)",
+  )
+  .action((options) => {
+    if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
+    if (options.webDist) process.env.MEMOARK_WEB_DIST = options.webDist;
+    return runServe(options);
   });
+
+async function runStart(options: { config?: string }): Promise<void> {
+  const configPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
+  const plan = planStartup(existsSync(configPath));
+  if (plan.runSetup) {
+    console.log("No configuration found — launching setup wizard...");
+    const { startSetupServer } = await import("./server/setup-server.js");
+    await startSetupServer({
+      configPath: options.config,
+      larkBin: readLarkBinFromConfig(options.config),
+    });
+  }
+  await runServe({ config: options.config });
+}
+
+program
+  .command("start")
+  .description("One-step launch: setup if needed, then serve + open browser")
+  .option("-c, --config <path>", "Path to config file")
+  .action((options) => runStart(options));
+
+program.action(() => runStart({}));
 
 program
   .command("search <query>")
