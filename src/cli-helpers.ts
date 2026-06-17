@@ -9,3 +9,12 @@ export function shouldOpenBrowserOnServe(flags: ServeOpenFlags): boolean {
   if (flags.mcp || flags.mcpHttp) return false;
   return true;
 }
+
+export interface StartupPlan {
+  runSetup: boolean;
+  thenServe: boolean;
+}
+
+export function planStartup(configExists: boolean): StartupPlan {
+  return { runSetup: !configExists, thenServe: true };
+}

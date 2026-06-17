@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
-import { shouldOpenBrowserOnServe } from "./cli-helpers.js";
+import { planStartup, shouldOpenBrowserOnServe } from "./cli-helpers.js";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
@@ -565,14 +565,13 @@ sourcesCmd
     }
   });
 
-program
-  .command("serve")
-  .description("Start Memoark HTTP API or MCP stdio server")
-  .option("-c, --config <path>", "Path to config file")
-  .option("--mcp", "Run MCP stdio transport instead of HTTP")
-  .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
-  .option("--no-open", "Do not auto-open the browser after starting")
-  .action(async (options) => {
+async function runServe(options: {
+  config?: string;
+  mcp?: boolean;
+  mcpHttp?: boolean;
+  open?: boolean;
+}): Promise<void> {
+  {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
     if (!existsSync(serveConfigPath)) {
       console.error(
@@ -816,7 +815,39 @@ program
         `Scheduler running — tick every ${config.scheduler?.tick_interval_secs}s, sources: ${scheduler.getSourceIds().join(", ")}`,
       );
     }
-  });
+  }
+}
+
+program
+  .command("serve")
+  .description("Start Memoark HTTP API or MCP stdio server")
+  .option("-c, --config <path>", "Path to config file")
+  .option("--mcp", "Run MCP stdio transport instead of HTTP")
+  .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
+  .option("--no-open", "Do not auto-open the browser after starting")
+  .action((options) => runServe(options));
+
+async function runStart(options: { config?: string }): Promise<void> {
+  const configPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
+  const plan = planStartup(existsSync(configPath));
+  if (plan.runSetup) {
+    console.log("No configuration found — launching setup wizard...");
+    const { startSetupServer } = await import("./server/setup-server.js");
+    await startSetupServer({
+      configPath: options.config,
+      larkBin: readLarkBinFromConfig(options.config),
+    });
+  }
+  await runServe({ config: options.config });
+}
+
+program
+  .command("start")
+  .description("One-step launch: setup if needed, then serve + open browser")
+  .option("-c, --config <path>", "Path to config file")
+  .action((options) => runStart(options));
+
+program.action(() => runStart({}));
 
 program
   .command("search <query>")
