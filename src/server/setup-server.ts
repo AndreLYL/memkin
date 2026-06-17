@@ -1,20 +1,10 @@
-import { exec } from "node:child_process";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { createConfigRoutes } from "./config-routes.js";
+import { openBrowser } from "./open-browser.js";
 
 const WEB_DIST = join(fileURLToPath(import.meta.url), "../../../web/dist");
-
-function openBrowser(url: string): void {
-  const cmd =
-    process.platform === "darwin"
-      ? `open "${url}"`
-      : process.platform === "win32"
-        ? `start "" "${url}"`
-        : `xdg-open "${url}"`;
-  exec(cmd);
-}
 
 export interface SetupServerOpts {
   configPath?: string;
