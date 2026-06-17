@@ -23,6 +23,7 @@ fn show_main(app: &tauri::AppHandle) {
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_updater::Builder::new().build())
     // LaunchAgent = per-user login item on macOS; the Windows/Linux equivalents are
     // handled by the plugin. Toggled from the tray, not forced on.
     .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
@@ -79,6 +80,24 @@ pub fn run() {
           }
         }
       });
+
+      // ---- Auto-update check (release only) ----
+      // Checks the GitHub Releases latest.json on startup; if a newer signed build
+      // exists, downloads + installs it and restarts. No-op in dev (no release feed).
+      #[cfg(not(debug_assertions))]
+      {
+        let update_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+          use tauri_plugin_updater::UpdaterExt;
+          if let Ok(updater) = update_handle.updater() {
+            if let Ok(Some(update)) = updater.check().await {
+              if update.download_and_install(|_, _| {}, || {}).await.is_ok() {
+                update_handle.restart();
+              }
+            }
+          }
+        });
+      }
 
       // ---- Native menu bar (Cmd+Q / clipboard shortcuts) ----
       let app_menu = Submenu::with_items(

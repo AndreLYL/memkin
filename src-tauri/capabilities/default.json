@@ -10,6 +10,7 @@
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
+    "updater:default",
     {
       "identifier": "shell:allow-spawn",
       "allow": [{ "name": "binaries/memoark", "sidecar": true, "args": true }]

@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MemoArk",
   "version": "0.1.0",
-  "identifier": "ai.memoark.app",
+  "identifier": "ai.memoark.desktop",
   "build": {
     "frontendDist": "splash"
   },
@@ -24,6 +24,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "externalBin": ["binaries/memoark"],
     "resources": [
       "assets/pglite.wasm",
@@ -41,6 +42,14 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/AndreLYL/memoark/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1QTc2MjlBMEFBQTIxQTUKUldTbElhb0ttbUtueFI2WWJ5RkxKSUxtaTY5S3NiSlNvWmJ3d04zdHRZUU5uM3ZlY1BqN3JJeUoK"
     }
   }
 }
