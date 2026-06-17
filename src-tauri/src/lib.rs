@@ -54,6 +54,10 @@ pub fn run() {
         .args([
           "serve",
           "--no-open",
+          // Bind an OS-assigned free port so we never collide with a CLI `memoark serve`,
+          // a stale instance, or anything else on 3927. The real URL comes back on stdout.
+          "--port",
+          "0",
           "--config",
           config.to_str().unwrap(),
           "--pglite-assets",
@@ -67,16 +71,61 @@ pub fn run() {
       // Wait for the serve READY marker on stdout, then point the webview at the API.
       let handle = app.handle().clone();
       tauri::async_runtime::spawn(async move {
+        let mut ready = false;
+        let mut stderr_tail: Vec<String> = Vec::new();
         while let Some(event) = rx.recv().await {
-          if let CommandEvent::Stdout(line) = event {
-            let text = String::from_utf8_lossy(&line);
-            if text.contains("MEMOARK_READY") {
-              if let Some(window) = handle.get_webview_window("main") {
-                if let Ok(url) = "http://localhost:3927".parse::<tauri::Url>() {
-                  let _ = window.navigate(url);
+          match event {
+            CommandEvent::Stdout(line) => {
+              let text = String::from_utf8_lossy(&line);
+              if let Some(idx) = text.find("MEMOARK_READY") {
+                // The sidecar reports its real URL after the marker (the port is
+                // OS-assigned), e.g. "MEMOARK_READY http://localhost:54123".
+                let url_str = text[idx + "MEMOARK_READY".len()..]
+                  .trim()
+                  .lines()
+                  .next()
+                  .unwrap_or("")
+                  .trim();
+                if let Some(window) = handle.get_webview_window("main") {
+                  if let Ok(url) = url_str.parse::<tauri::Url>() {
+                    ready = true;
+                    let _ = window.navigate(url);
+                  }
                 }
               }
             }
+            CommandEvent::Stderr(line) => {
+              let s = String::from_utf8_lossy(&line).trim().to_string();
+              if !s.is_empty() {
+                stderr_tail.push(s);
+                if stderr_tail.len() > 12 {
+                  stderr_tail.remove(0);
+                }
+              }
+            }
+            CommandEvent::Terminated(_) | CommandEvent::Error(_) => {
+              // Sidecar died before it ever served (port/lock/config/crash). Surface the
+              // error in the splash instead of spinning forever.
+              if !ready {
+                let detail = stderr_tail.join(" ");
+                let safe: String = detail
+                  .replace('\\', " ")
+                  .replace('\'', " ")
+                  .replace('\n', " ")
+                  .chars()
+                  .take(400)
+                  .collect();
+                if let Some(window) = handle.get_webview_window("main") {
+                  let js = format!(
+                    "var s=document.querySelector('.status');if(s){{s.textContent='后端启动失败 — {}';}}var sp=document.querySelector('.spinner');if(sp){{sp.style.display='none';}}",
+                    safe
+                  );
+                  let _ = window.eval(&js);
+                }
+              }
+              break;
+            }
+            _ => {}
           }
         }
       });

@@ -572,6 +572,7 @@ async function runServe(options: {
   open?: boolean;
   pgliteAssets?: string;
   webDist?: string;
+  port?: string;
 }): Promise<void> {
   {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
@@ -799,8 +800,12 @@ async function runServe(options: {
     // as a resource and injects its real path via MEMOARK_WEB_DIST (mirrors pglite-assets).
     const webDist =
       process.env.MEMOARK_WEB_DIST ?? join(fileURLToPath(import.meta.url), "../../web/dist");
+    // `--port 0` (used by the Tauri shell) binds an OS-assigned free port so the desktop
+    // app never collides with a CLI `memoark serve`, a stale instance, or anything else
+    // on the default port. The actual port is reported below for the webview to read.
+    const requestedPort = options.port !== undefined ? Number(options.port) : config.server.http_port;
     const server = Bun.serve({
-      port: config.server.http_port,
+      port: requestedPort,
       fetch: async (req) => {
         const url = new URL(req.url);
         if (url.pathname.startsWith("/api")) return app.fetch(req);
@@ -811,10 +816,9 @@ async function runServe(options: {
       },
     });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
-    // Stdout contract for the Tauri shell: once this line is seen, the HTTP API is
-    // accepting connections and the webview may navigate to it (more reliable than
-    // polling the port — mirrors the spike's RENDER_DONE marker).
-    console.log("MEMOARK_READY");
+    // Stdout contract for the Tauri shell: the URL after the marker is where the webview
+    // navigates (the port may be OS-assigned, so report the real one — never hardcode).
+    console.log(`MEMOARK_READY http://localhost:${server.port}`);
     if (
       shouldOpenBrowserOnServe({
         open: options.open !== false,
@@ -846,6 +850,10 @@ program
   .option(
     "--web-dist <dir>",
     "Directory holding the built web UI (compiled-sidecar mode; injected by the Tauri shell)",
+  )
+  .option(
+    "--port <n>",
+    "Override the HTTP port; 0 binds an OS-assigned free port (used by the Tauri shell)",
   )
   .action((options) => {
     if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
