@@ -224,14 +224,33 @@ Memoark 是标准 MCP stdio 服务器，可接入任何 MCP 客户端：
 
 ## 快速开始
 
-### 30 秒上手
+### 一键启动（推荐）
 
 ```bash
-# 免安装直接运行 —— 启动交互式配置中心，几分钟跑通一份本地记忆
-npx @andre.li/memoark init
+# 免安装直接运行 —— 没有配置会自动引导 setup 向导，完成后自动起服务并打开浏览器
+npx @andre.li/memoark start
+
+# 不带任何子命令也等效于 start
+npx @andre.li/memoark
 ```
 
+`memoark start` 是单步上手路径：检测到没有 `memoark.yaml` 时先拉起浏览器 setup 向导，配置完成后立即启动 HTTP 服务并自动打开浏览器。
+
 > npm 包名为 `@andre.li/memoark`（作用域包），但命令名仍是 `memoark`。
+
+### 端口一览
+
+| 服务 | 默认端口 | 地址 |
+|------|---------|------|
+| HTTP API + Web UI | `3927` | `http://localhost:3927` |
+| MCP Streamable HTTP（`--mcp-http`） | `3928` | `http://localhost:3928/mcp` |
+
+### 30 秒上手（手动配置）
+
+```bash
+# 只想先生成配置、不立即起服务 —— 启动交互式配置中心
+npx @andre.li/memoark init
+```
 
 ### 前置条件
 
@@ -404,16 +423,29 @@ memoark search "JWT token" --mode fts
 ### 启动服务器
 
 ```bash
-# HTTP API（默认端口 3927）
+# HTTP API + Web UI（默认 http://localhost:3927）—— 启动后自动打开浏览器
 memoark serve
 
-# MCP stdio（AI Agent 集成 — Claude Code、Cursor 等）
+# 不想自动开浏览器（比如在远程 / 服务器上跑）
+memoark serve --no-open
+
+# MCP stdio（AI Agent 本地直连 — Claude Code、Cursor 等，不开浏览器）
 memoark serve --mcp
+
+# MCP Streamable HTTP（远程 / 多客户端，默认 http://localhost:3928/mcp，不开浏览器）
+memoark serve --mcp-http
 ```
+
+> 缺少 `memoark.yaml` 时 `serve` 会提示先用 `memoark start` 一步配置 + 启动，或 `memoark init --web` 先完成配置。
 
 ### 接入你的 Agent（MCP）
 
-让任何 MCP 客户端指向 Memoark，即可读写你的记忆。以 Claude Code 为例：
+Memoark 提供两种 MCP 接入方式，按场景选：
+
+- **stdio（`--mcp`）** —— 本地直连，Agent 把 `memoark` 作为子进程拉起，零网络配置，单机单客户端首选。
+- **Streamable HTTP（`--mcp-http`）** —— 走 HTTP（默认 `3928`），适合远程接入或多个客户端共享同一份记忆。
+
+让任何 MCP 客户端指向 Memoark，即可读写你的记忆。以 Claude Code 为例（stdio 本地直连）：
 
 ```json
 {
@@ -552,11 +584,12 @@ Memoark 的 MCP 服务器暴露 **26 个工具**，覆盖检索、页面 CRUD、
 
 | 命令 | 说明 |
 |------|------|
-| `memoark init` | 交互式配置中心，生成 / 编辑 `memoark.yaml`（`--auto` / `--no-tui` / `--force`） |
+| `memoark start` | 一键启动：无配置自动引导 setup，完成后 serve + 自动开浏览器（裸跑 `memoark` 等效） |
+| `memoark init` | 交互式配置中心，生成 / 编辑 `memoark.yaml`（`--auto` / `--no-tui` / `--force` / `--web`） |
 | `memoark extract` | 从数据源提取信号 |
 | `memoark search <query>` | 搜索记忆（混合 / `--mode fts`） |
 | `memoark embed` | 为未嵌入的 chunk 生成向量 |
-| `memoark serve` | 启动 HTTP API 或 `--mcp` stdio 服务器 |
+| `memoark serve` | 启动 HTTP API（自动开浏览器，`--no-open` 关闭）/ `--mcp` stdio / `--mcp-http` |
 | `memoark consolidate` | 运行记忆巩固（分层轮转 hot→warm / warm→cold） |
 | `memoark export` | 把记忆页面导出为 Obsidian vault（Markdown） |
 | `memoark import` | 把 Obsidian vault 导回 Memoark |
