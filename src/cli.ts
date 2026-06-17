@@ -571,6 +571,7 @@ async function runServe(options: {
   mcpHttp?: boolean;
   open?: boolean;
   pgliteAssets?: string;
+  webDist?: string;
 }): Promise<void> {
   {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
@@ -790,7 +791,11 @@ async function runServe(options: {
     }
 
     const app = createApiApp(storesWithDaemon);
-    const webDist = join(fileURLToPath(import.meta.url), "../../web/dist");
+    // In a `bun --compile` sidecar, import.meta.url lives under $bunfs and web/dist is
+    // NOT embedded, so the default path can't be served. The Tauri shell ships web/dist
+    // as a resource and injects its real path via MEMOARK_WEB_DIST (mirrors pglite-assets).
+    const webDist =
+      process.env.MEMOARK_WEB_DIST ?? join(fileURLToPath(import.meta.url), "../../web/dist");
     const server = Bun.serve({
       port: config.server.http_port,
       fetch: async (req) => {
@@ -835,8 +840,13 @@ program
     "--pglite-assets <dir>",
     "Directory holding bundled PGLite assets (compiled-sidecar mode; injected by the Tauri shell)",
   )
+  .option(
+    "--web-dist <dir>",
+    "Directory holding the built web UI (compiled-sidecar mode; injected by the Tauri shell)",
+  )
   .action((options) => {
     if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
+    if (options.webDist) process.env.MEMOARK_WEB_DIST = options.webDist;
     return runServe(options);
   });
 

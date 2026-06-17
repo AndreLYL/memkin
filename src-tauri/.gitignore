@@ -3,6 +3,7 @@
 /target/
 /gen/schemas
 
-# Build products staged by scripts/build-sidecar.mjs (compiled sidecar + PGLite assets)
+# Build products staged by scripts/build-sidecar.mjs (compiled sidecar + PGLite assets + web UI)
 binaries/
 assets/
+web-dist/

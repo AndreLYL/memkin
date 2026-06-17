@@ -23,7 +23,9 @@ pub fn run() {
       // Bundled PGLite assets live under <resource_dir>/assets (see tauri.conf.json
       // `resources`). The sidecar's exec dir is Contents/MacOS, NOT Contents/Resources,
       // so we MUST pass the resource dir explicitly — dirname(execPath)/assets is wrong.
-      let assets = app.path().resource_dir()?.join("assets");
+      let resource_dir = app.path().resource_dir()?;
+      let assets = resource_dir.join("assets");
+      let web_dist = resource_dir.join("web-dist");
       let (mut rx, child) = app
         .shell()
         .sidecar("memoark")?
@@ -32,6 +34,8 @@ pub fn run() {
           "--no-open",
           "--pglite-assets",
           assets.to_str().unwrap(),
+          "--web-dist",
+          web_dist.to_str().unwrap(),
         ])
         .spawn()?;
       app.manage(Sidecar(Mutex::new(Some(child))));

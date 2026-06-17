@@ -29,7 +29,8 @@
       "assets/pglite.wasm",
       "assets/initdb.wasm",
       "assets/pglite.data",
-      "assets/vector.tar.gz"
+      "assets/vector.tar.gz",
+      "web-dist"
     ],
     "icon": [
       "icons/32x32.png",
