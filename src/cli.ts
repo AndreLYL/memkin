@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
+import { shouldOpenBrowserOnServe } from "./cli-helpers.js";
 import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
@@ -44,6 +45,7 @@ import { createApiApp, type DaemonStatus } from "./server/api.js";
 import { ChatNameRefreshJob } from "./server/chat-name-refresh-job.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
+import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
@@ -569,6 +571,7 @@ program
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
   .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
+  .option("--no-open", "Do not auto-open the browser after starting")
   .action(async (options) => {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
     if (!existsSync(serveConfigPath)) {
@@ -799,6 +802,15 @@ program
       },
     });
     console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    if (
+      shouldOpenBrowserOnServe({
+        open: options.open !== false,
+        mcp: !!options.mcp,
+        mcpHttp: !!options.mcpHttp,
+      })
+    ) {
+      openBrowser(`http://localhost:${server.port}`);
+    }
     if (scheduler) {
       console.log(
         `Scheduler running — tick every ${config.scheduler?.tick_interval_secs}s, sources: ${scheduler.getSourceIds().join(", ")}`,
