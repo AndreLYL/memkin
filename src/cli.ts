@@ -583,7 +583,10 @@ async function runServe(options: {
       process.exit(1);
     }
     const config = loadConfig(options.config);
-    const stateDir = ensureStateDir();
+    // Anchor the .memoark state dir to the config's project root, not process.cwd().
+    // A Finder-launched sidecar has cwd=/, so the default would try to mkdir /.memoark
+    // (EROFS on macOS). projectRoot = dirname(configPath), so it lives beside the config.
+    const stateDir = ensureStateDir(config.__context.projectRoot);
     const missingEnvVars = getMissingEnvVarsForCommand(config, "serve");
     if (missingEnvVars.length > 0) {
       console.warn(
