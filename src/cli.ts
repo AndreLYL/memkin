@@ -575,7 +575,8 @@ async function runServe(options: {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
     if (!existsSync(serveConfigPath)) {
       console.error(
-        "No configuration file found.\nRun `memoark init` (TUI) or `memoark init --web` (browser) to set up Memoark.",
+        "No configuration file found.\n" +
+          "Run `memoark start` for one-step setup + launch, or `memoark init --web` to configure first.",
       );
       process.exit(1);
     }
