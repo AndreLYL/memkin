@@ -24,28 +24,40 @@ Toolchain: Rust 1.96.0, tauri-cli 2.11.2, Bun 1.3.14.
 - **`MEMOARK_READY` stdout marker**: printed after the HTTP API binds.
 - **Clean shutdown**: quitting the app → both `memoark-spike` and sidecar gone, no orphan processes.
 
-## Double-click E2E — ⚠️ NOT GO (one blocker)
+## Double-click E2E — ✅ GO
 
-Launching `MemoArk.app` via Finder:
-- ✅ Tauri window opens (splash).
-- ❌ **Sidecar dies immediately**: `serve` resolves its config as `cwd/memoark.yaml`, but a Finder-launched app has `cwd=/`, so it prints `No configuration file found` and `exit(1)`. Backend never starts → webview stuck on splash.
+Launching `MemoArk.app` via Finder (3927 freed first), config at `~/.memoark/memoark.yaml`:
+- ✅ Tauri window opens.
+- ✅ Sidecar starts and serves on `localhost:3927` (`MEMOARK_READY` printed).
+- ✅ `GET /` → HTTP 200, the real SPA (`assets/index-*.js` + css).
+- ✅ `GET /api/health` → HTTP 200, `pages: 3115` (DB opened with bundled PGLite assets + real data).
+- ✅ Quit → both `memoark-spike` and sidecar gone, no orphan procs, 3927 freed.
+- ✅ State dir created at `~/.memoark/.memoark` (config projectRoot, not cwd).
 
-Reproduced exactly by running the bundled sidecar from `cwd=/`.
+(`pgrep 'memoark serve'` doesn't match the Tauri-spawned process name, but the HTTP 200s
+prove it's serving. Visual screenshot blocked by macOS Screen Recording permission; webview
+render itself was already proven GO in phase-0 Spike B under WebKitGTK — macOS WebKit is stricter-superset.)
 
-### Root cause (architectural gap, not in the 2a plan)
+### Blockers found & fixed to reach GO (Option A path, user-approved)
 
-Memoark config is **project-local** (`memoark.yaml` in a working dir). A desktop app has no working dir and **no user-global config location exists yet**. Two coupled sub-problems:
-1. **Config discovery** — the Tauri shell must point `serve` at a stable config path.
-2. **First-run** — even with a config, `serve` eager-constructs the OpenAI embedding client and crashes without an API key, so a first launch needs the setup wizard.
+A Finder-launched sidecar has `cwd=/`, and `serve` had **multiple** cwd-relative assumptions:
+1. **Config discovery** — `serve` looked at `cwd/memoark.yaml`. Fix: Rust passes `--config <home>/.memoark/memoark.yaml` (commit 0a762ca). `~/.memoark` is the user-global config home (sibling of the CLI `data_dir`).
+2. **State dir** — `ensureStateDir()` did `mkdir(cwd/.memoark)` → `EROFS` on `/.memoark`. Fix: anchor to `config.__context.projectRoot` (commit acc3000).
 
-### Options (need a product decision)
+### Known remaining cwd-relative paths (deferred to 2b — not startup blockers, feature-level)
 
-- **A. Existing-user path (smallest)** — Rust passes `--config <stable path>` (e.g. `~/.memoark/memoark.yaml`) and we establish that as the user-global config home; works for a user who already ran `memoark init`. First-run setup deferred to 2b.
-- **B. First-run setup in-app** — desktop launches the setup wizard when no config/key, then transitions to serve. Larger; overlaps 2b.
-- **C. Bundle a default config** — ship a starter `memoark.yaml`; still needs the API key, so doesn't fully solve first-run.
+- `src/server/api.ts:47,53` — config-center API resolves `cwd/memoark.yaml` (settings UI editing the config).
+- `src/cli.ts:617` — scheduler `output_dir` defaults to `cwd` (only when scheduler writes files).
+- First-run: no config at `~/.memoark/memoark.yaml` still hits the "no config" gate → needs the setup wizard (2b). Embedding `provider: ollama` needs **no** API key (apiKey defaults to "ollama"), so a configured user with ollama embeddings has a key-free launch.
 
-**Recommendation:** A for 2a (get the developer's own double-click GO), then fold first-run setup into 2b.
+### Non-blocking warnings
+
+- DMG bundling (`bundle_dmg.sh`) fails — **2c scope** (distribution/signing).
+- Tauri warns `identifier "ai.memoark.app"` ends with `.app` (conflicts with bundle ext) — cosmetic, fix in 2c bundling polish.
 
 ## GO / NO-GO
 
-**Mechanics GO, first-launch NO-GO.** Everything the 2a plan set out to build — explicit-blobs PGLite, compiled sidecar, Tauri shell, spawn→READY→navigate→cleanup, bundled `.app` — is implemented and verified. The remaining blocker is config discovery for a windowless app, which the plan/spec did not anticipate and which needs a product decision before the double-click flow can reach the dashboard.
+**✅ GO.** Everything the 2a plan set out to build — explicit-blobs PGLite, compiled sidecar,
+Tauri shell, spawn→READY→navigate→cleanup, bundled `.app` — is implemented and verified, and
+the double-click flow reaches the real dashboard with the DB open on bundled assets. Unlocks 2b
+(tray/autostart/menu + first-run setup) and 2c (3-platform CI/sign/notarize/DMG/auto-update).
