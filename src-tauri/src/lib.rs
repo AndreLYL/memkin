@@ -26,12 +26,19 @@ pub fn run() {
       let resource_dir = app.path().resource_dir()?;
       let assets = resource_dir.join("assets");
       let web_dist = resource_dir.join("web-dist");
+
+      // A Finder-launched app has cwd=/, so serve's default cwd/memoark.yaml lookup
+      // can't find anything. Point it at the user-global config home (sibling of the
+      // CLI's ~/.memoark/data data_dir). First-run setup (no config yet) is phase 2b.
+      let config = app.path().home_dir()?.join(".memoark").join("memoark.yaml");
       let (mut rx, child) = app
         .shell()
         .sidecar("memoark")?
         .args([
           "serve",
           "--no-open",
+          "--config",
+          config.to_str().unwrap(),
           "--pglite-assets",
           assets.to_str().unwrap(),
           "--web-dist",
