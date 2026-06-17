@@ -1,8 +1,5 @@
 name: spike-linux-webview
-on:
-  push:
-    branches: [feat/desktop-app]
-  workflow_dispatch:
+on: workflow_dispatch
 jobs:
   render-check:
     runs-on: ubuntu-latest
