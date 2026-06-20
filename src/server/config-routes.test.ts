@@ -196,4 +196,29 @@ describe("createConfigRoutes", () => {
     expect(data.sources?.feishu?.app_secret).not.toBe("supersecretvalue");
     expect(data.sources?.feishu?.app_secret).toContain("****");
   });
+
+  it("POST /api/config fires onConfigSaved after writing, returns ok immediately", async () => {
+    const onConfigSaved = vi.fn();
+    const app = createConfigRoutes({ configPath, onConfigSaved });
+    const res = await app.request("/api/config", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        llm: { provider: "openai", model: "gpt-4o-mini", api_key: "sk-test", base_url: "https://api.openai.com/v1" },
+        sources: { "claude-code": { enabled: true } },
+        embedding: { provider: "openai", model: "text-embedding-3-large", dimensions: 1536, api_key: "sk-test", base_url: "https://api.openai.com/v1" },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json() as { ok: boolean }).ok).toBe(true);
+    expect(onConfigSaved).toHaveBeenCalledOnce();
+  });
+
+  it("POST /api/config does NOT fire onConfigSaved on 422", async () => {
+    const onConfigSaved = vi.fn();
+    const app = createConfigRoutes({ configPath, onConfigSaved });
+    const res = await app.request("/api/config", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect(res.status).toBe(422);
+    expect(onConfigSaved).not.toHaveBeenCalled();
+  });
 });
