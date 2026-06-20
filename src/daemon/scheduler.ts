@@ -18,10 +18,11 @@ export class Scheduler {
   private running = false;
   private daemon_started_at: number;
   private last_heartbeat_at: number;
-  private readonly tick_interval_ms: number;
+  private tick_interval_ms: number;
   private readonly state_path: string;
   private onTick?: (sourceId: string, result: PipelineResult, duration_ms: number) => void;
   private runSource?: RunSourceFn;
+  private pending: SchedulerConfig | null = null;
 
   constructor(config: SchedulerConfig, stateDir: string) {
     this.tick_interval_ms = config.tick_interval_secs * 1000;
@@ -123,7 +124,13 @@ export class Scheduler {
     } finally {
       this.running = false;
       this.last_heartbeat_at = Date.now();
-      this.persistState();
+      if (this.pending) {
+        const next = this.pending;
+        this.pending = null;
+        this.applyConfig(next);
+      } else {
+        this.persistState();
+      }
     }
   }
 
@@ -141,6 +148,44 @@ export class Scheduler {
     return Array.from(this.schedules.entries())
       .filter(([_, s]) => s.shouldAlert())
       .map(([id, s]) => ({ source_id: id, state: s.serialize() }));
+  }
+
+  reconcile(config: SchedulerConfig): void {
+    if (this.running) {
+      this.pending = config;
+      return;
+    }
+    this.applyConfig(config);
+  }
+
+  private applyConfig(config: SchedulerConfig): void {
+    const nextIds = new Set(
+      Object.entries(config.sources)
+        .filter(([, c]) => c.enabled !== false)
+        .map(([id]) => id),
+    );
+    for (const id of [...this.schedules.keys()]) {
+      if (!nextIds.has(id)) this.schedules.delete(id);
+    }
+    for (const [id, sourceConfig] of Object.entries(config.sources)) {
+      if (sourceConfig.enabled === false) continue;
+      const interval = sourceConfig.interval_secs ?? config.defaults.interval_secs;
+      const existing = this.schedules.get(id);
+      if (!existing) {
+        this.schedules.set(id, new SourceSchedule(id, interval));
+      } else if (existing.interval_secs !== interval) {
+        this.schedules.set(id, SourceSchedule.fromSerialized(id, interval, existing.serialize()));
+      }
+    }
+    const newTick = config.tick_interval_secs * 1000;
+    if (newTick !== this.tick_interval_ms) {
+      this.tick_interval_ms = newTick;
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = setInterval(() => this.tick(), this.tick_interval_ms);
+      }
+    }
+    this.persistState();
   }
 
   private persistState(): void {
