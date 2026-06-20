@@ -84,6 +84,47 @@ describe("ReloadManager", () => {
     await Promise.all([mgr.run(tier2Config), mgr.run(tier2ConfigB)]);
     expect(order).toEqual(["build-start", "build-end", "build-start", "build-end"]);
   });
+
+  describe("ReloadManager race regressions", () => {
+    it("C2: build before drain; new scheduler starts only after old is drained (no double-run)", async () => {
+      const events: string[] = [];
+      const holder = new ServeRuntimeHolder({
+        scheduler: { reconcile: () => {}, drain: async () => { events.push("drain-start"); await new Promise((r) => setTimeout(r, 10)); events.push("drain-end"); }, start: async () => {} } as never,
+        chatNameRefreshJob: undefined,
+        getDaemonStatus: () => undefined,
+        dispose: async () => { events.push("dispose-old"); },
+      });
+      const mgr = new ReloadManager({
+        holder,
+        currentConfig: () => baseSigConfig,
+        buildRuntime: async () => {
+          events.push("build");
+          return { scheduler: { reconcile: () => {}, drain: async () => {}, start: async () => { events.push("start-new"); } } as never, chatNameRefreshJob: undefined, getDaemonStatus: () => undefined, dispose: async () => {} };
+        },
+      });
+      await mgr.run(tier2Config); // tier2Config has scheduler.enabled: true
+      expect(events).toEqual(["build", "drain-start", "drain-end", "start-new", "dispose-old"]);
+    });
+
+    it("Tier 2 build failure leaves old runtime untouched", async () => {
+      let oldDrained = false;
+      const holder = new ServeRuntimeHolder({
+        scheduler: { reconcile: () => {}, drain: async () => { oldDrained = true; }, start: async () => {} } as never,
+        chatNameRefreshJob: undefined,
+        getDaemonStatus: () => undefined,
+        dispose: async () => {},
+      });
+      const original = holder.current;
+      const mgr = new ReloadManager({
+        holder,
+        currentConfig: () => baseSigConfig,
+        buildRuntime: async () => { throw new Error("invalid api_key"); },
+      });
+      await expect(mgr.run(tier2Config)).rejects.toThrow("invalid api_key");
+      expect(oldDrained).toBe(false);        // old scheduler never drained
+      expect(holder.current).toBe(original); // holder still points at old runtime
+    });
+  });
 });
 
 describe("runtimeSignature", () => {
