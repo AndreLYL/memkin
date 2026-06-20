@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { planStartup, shouldOpenBrowserOnServe } from "./cli-helpers.js";
-import { ChatNameResolver } from "./collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
 import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
@@ -13,7 +12,6 @@ import { runDocSource } from "./collectors/feishu/docs/run.js";
 import { failedCards, summarizeCards } from "./collectors/feishu/docs/status.js";
 import { loadExistingCard, writeCard } from "./collectors/feishu/docs/store-writer.js";
 import { LarkCliHttpClient } from "./collectors/feishu/lark-cli-client.js";
-import { LarkCliIdentityBackend } from "./collectors/feishu/lark-cli-identity-backend.js";
 import { resolveSelfOpenId } from "./collectors/feishu/self-open-id.js";
 import {
   createClaudeCodeCollector,
@@ -35,14 +33,14 @@ import {
 import { CursorStore } from "./core/cursors.js";
 import { getMissingEnvVarsForCommand, validateEnvForCommand } from "./core/env-validation.js";
 import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js";
-import { type PipelineConfig, type PipelineResult, runPipeline } from "./core/pipeline.js";
+import { runPipeline } from "./core/pipeline.js";
 import { buildPipelineConfig } from "./core/pipeline-factory.js";
 import { ensureStateDir, statePath } from "./core/state.js";
-import { Scheduler } from "./daemon/scheduler.js";
+import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
+import { ReloadManager } from "./daemon/reload-manager.js";
 import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
-import { createApiApp, type DaemonStatus } from "./server/api.js";
-import { ChatNameRefreshJob } from "./server/chat-name-refresh-job.js";
+import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
 import { openBrowser } from "./server/open-browser.js";
@@ -596,146 +594,27 @@ async function runServe(options: {
     }
     const stores = await createStores(config);
 
-    let scheduler: Scheduler | undefined;
+    const initialRuntime = await buildServeRuntime(config, stores, stateDir);
+    const holder = new ServeRuntimeHolder(initialRuntime);
+    if (config.scheduler?.enabled) await holder.current.scheduler?.start();
 
-    if (config.scheduler?.enabled) {
-      bootstrapCollectors(config.sources, config.__context.projectRoot);
+    const reloadManager = new ReloadManager({
+      holder,
+      currentConfig: () => config,
+      buildRuntime: (next) => buildServeRuntime(next, stores, stateDir),
+    });
 
-      const llmConfig = config.llm;
-      const envKey =
-        llmConfig.provider === "anthropic"
-          ? process.env.ANTHROPIC_API_KEY
-          : process.env.OPENAI_API_KEY;
-      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
-      const provider = llmConfig.api_key
-        ? createLLMProvider(llmConfig)
-        : createMockProvider(new Map());
-
-      const pipelineConfig: PipelineConfig = {
-        dedup_checkpoint: statePath("dedup.jsonl"),
-        cursor_checkpoint: statePath("cursors.yaml"),
-        block_gap_minutes: config.block_builder.block_gap_minutes,
-        max_block_tokens: config.block_builder.max_block_tokens,
-        max_block_messages: config.block_builder.max_block_messages,
-        privacy: config.privacy,
-        output_dir: process.cwd(),
-        block_concurrency: config.pipeline?.block_concurrency,
-      };
-
-      const docsCursor = new CursorStore(statePath("cursors.yaml"));
-      const feishuCfg = config.sources.feishu;
-      const docsClient =
-        feishuCfg?.enabled && feishuCfg.sources?.docs?.enabled
-          ? new LarkCliHttpClient(feishuCfg.lark_bin)
-          : undefined;
-      const docsResolved = feishuCfg?.sources?.docs?.enabled
-        ? normalizeDocsConfig(feishuCfg.sources.docs)
-        : undefined;
-
-      const runDocsAsPipelineResult = async (): Promise<PipelineResult> => {
-        if (!docsClient || !docsResolved)
-          throw new Error("feishu.docs scheduled but docs source not enabled");
-        docsCursor.load();
-        const selfOpenId =
-          docsResolved.self_open_id ??
-          (await resolveSelfOpenId(docsClient, feishuCfg?.sources?.dm?.self_open_id)) ??
-          "";
-        const stats = await runDocSource({
-          client: docsClient,
-          stores,
-          provider,
-          config: docsResolved,
-          cursor: docsCursor,
-          selfOpenId,
-          nowMs: Date.now(),
-          nowIso: () => new Date().toISOString(),
-        });
-        console.log(
-          `[scheduler] feishu.docs: scanned=${stats.candidates_scanned} pointer=${stats.pointer_saved} full=${stats.full_card_generated} refreshed=${stats.full_card_refreshed} queue=${stats.upgrade_queue_size}`,
-        );
-        return {
-          fatal: false,
-          error: undefined,
-          totalMessages: stats.candidates_scanned,
-          totalBlocks: stats.full_card_generated + stats.pointer_saved + stats.full_card_refreshed,
-          okBlocks: stats.full_card_generated + stats.pointer_saved + stats.full_card_refreshed,
-          skippedBlocks: stats.skipped,
-          failedBlocks: stats.llm_failed,
-          okMessages: [],
-          skippedMessages: [],
-          failedMessages: [],
-          warnings: [],
-        };
-      };
-
-      scheduler = new Scheduler(config.scheduler, stateDir);
-      scheduler.setRunSource(async (sourceId) => {
-        if (sourceId === "feishu.docs") {
-          return runDocsAsPipelineResult();
-        }
-        const collector = getCollector(sourceId);
-        if (!collector) throw new Error(`Unknown source: ${sourceId}`);
-        return runPipeline(pipelineConfig, {
-          source: collector,
-          provider,
-          format: "json",
-          adapter: "store",
-          stores,
-          dryRun: false,
-        });
-      });
-      scheduler.setOnTick((sourceId, result, duration_ms) => {
-        const status = result.fatal ? "failed" : "ok";
-        console.log(`[scheduler] ${sourceId}: ${status} (${duration_ms}ms)`);
-      });
-      await scheduler.start();
-    }
-
-    const getDaemonStatus = scheduler
-      ? (): DaemonStatus => {
-          const hb = scheduler?.getHeartbeat();
-          const now = Date.now();
-          let lastRunAt: number | null = null;
-          let nextAt: number | null = null;
-          for (const id of scheduler?.getSourceIds() ?? []) {
-            const s = scheduler?.getSourceState(id);
-            if (!s) continue;
-            if (s.last_run_at !== null && (lastRunAt === null || s.last_run_at > lastRunAt)) {
-              lastRunAt = s.last_run_at;
-            }
-            const next = s.last_run_at !== null ? s.last_run_at + s.interval_secs * 1000 : now;
-            if (nextAt === null || next < nextAt) nextAt = next;
-          }
-          return {
-            running: true,
-            uptime_seconds: Math.floor((now - (hb?.daemon_started_at ?? now)) / 1000),
-            last_run: lastRunAt ? new Date(lastRunAt).toISOString() : null,
-            next_scheduled: nextAt !== null ? new Date(nextAt).toISOString() : null,
-          };
-        }
-      : undefined;
-
-    // Wire chat-name refresh job for serve mode. Uses lark-cli identity backend
-    // and relies on the user's existing OAuth session.
-    let chatNameRefreshJob: ChatNameRefreshJob | undefined;
-    if (config.sources.feishu?.enabled) {
-      const larkClient = new LarkCliHttpClient(config.sources.feishu.lark_bin);
-      const selfOpenId = await resolveSelfOpenId(
-        larkClient,
-        config.sources.feishu.sources?.dm?.self_open_id,
-      );
-      const backend = new LarkCliIdentityBackend(larkClient, selfOpenId ?? undefined);
-      const resolver = new ChatNameResolver(stores.db.pg, backend);
-      chatNameRefreshJob = new ChatNameRefreshJob(stores.db.pg, resolver);
-    }
-
-    const storesWithDaemon = { ...stores, getDaemonStatus, chatNameRefreshJob };
+    const storesWithDaemon = {
+      ...stores,
+      getDaemonStatus: () => holder.current.getDaemonStatus(),
+      get chatNameRefreshJob() { return holder.current.chatNameRefreshJob; },
+    };
 
     let shuttingDown = false;
     const shutdown = async () => {
       if (shuttingDown) return; // 防重入:连按 Ctrl-C 不会二次 db.close()
       shuttingDown = true;
-      scheduler?.stop();
+      await holder.current.dispose();
       try {
         await stores.db.close(); // 触发锁 release
       } finally {
@@ -794,7 +673,9 @@ async function runServe(options: {
       return;
     }
 
-    const app = createApiApp(storesWithDaemon);
+    const app = createApiApp(storesWithDaemon, {
+      onConfigSaved: () => { void reloadManager.run(loadConfig(options.config)); },
+    });
     // In a `bun --compile` sidecar, import.meta.url lives under $bunfs and web/dist is
     // NOT embedded, so the default path can't be served. The Tauri shell ships web/dist
     // as a resource and injects its real path via MEMOARK_WEB_DIST (mirrors pglite-assets).
@@ -829,9 +710,10 @@ async function runServe(options: {
     ) {
       openBrowser(`http://localhost:${server.port}`);
     }
-    if (scheduler) {
+    const activeScheduler = holder.current.scheduler;
+    if (activeScheduler && config.scheduler?.enabled) {
       console.log(
-        `Scheduler running — tick every ${config.scheduler?.tick_interval_secs}s, sources: ${scheduler.getSourceIds().join(", ")}`,
+        `Scheduler running — tick every ${config.scheduler.tick_interval_secs}s, sources: ${activeScheduler.getSourceIds().join(", ")}`,
       );
     }
   }

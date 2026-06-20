@@ -62,7 +62,7 @@ function bootstrapCollectors(sources: SourcesConfig, projectRoot: string): void 
     hermes: { factory: createHermesCollector, config: sources.hermes },
   };
 
-  for (const [_id, { factory, config }] of Object.entries(agentConfigs)) {
+  for (const { factory, config } of Object.values(agentConfigs)) {
     if (config?.enabled !== false) {
       registerCollector(factory(resolveProjectPath(config?.base_dir, projectRoot)));
     }
@@ -106,7 +106,7 @@ export async function buildServeRuntime(
     if (config.scheduler.enabled) {
       bootstrapCollectors(config.sources, config.__context.projectRoot);
 
-      const llmConfig = config.llm;
+      const llmConfig = { ...config.llm };
       const envKey =
         llmConfig.provider === "anthropic"
           ? process.env.ANTHROPIC_API_KEY
@@ -241,10 +241,10 @@ export async function buildServeRuntime(
   const dispose = async (): Promise<void> => {
     // Stop the scheduler timer (safe to call even if never started).
     scheduler?.stop();
-    // Release docs resources (no explicit close API; drop references via reassignment).
+    // ChatNameRefreshJob is on-demand only (no setInterval/timer); no teardown needed.
+    // Drop docs resource references to release the lark-cli handles.
     docsClient = undefined;
     docsCursor = undefined;
-    // Release chatNameRefreshJob's lark client reference.
     chatNameRefreshLarkClient = undefined;
   };
 

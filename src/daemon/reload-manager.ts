@@ -1,4 +1,4 @@
-import type { Config } from "../core/config.js";
+import type { Config, LoadedConfig } from "../core/config.js";
 import type { ServeRuntime, ServeRuntimeHolder } from "./serve-runtime.js";
 
 /**
@@ -24,12 +24,12 @@ export interface ReloadDeps {
   /** Returns the config currently in effect (pre-reload), for signature comparison. */
   currentConfig: () => Config;
   /** Build a brand-new runtime from a new config (= buildServeRuntime bound to stores/stateDir). */
-  buildRuntime: (config: Config) => Promise<ServeRuntime>;
+  buildRuntime: (config: LoadedConfig) => Promise<ServeRuntime>;
 }
 
 export class ReloadManager {
   private running = false;
-  private queued: Config | null = null;
+  private queued: LoadedConfig | null = null;
   private lastConfig: Config;
 
   constructor(private deps: ReloadDeps) {
@@ -37,7 +37,7 @@ export class ReloadManager {
   }
 
   /** single-flight: if a run is in progress, the latest config is queued and applied after. */
-  async run(config: Config): Promise<void> {
+  async run(config: LoadedConfig): Promise<void> {
     if (this.running) {
       this.queued = config;
       return;
@@ -55,7 +55,7 @@ export class ReloadManager {
     }
   }
 
-  private async apply(config: Config): Promise<void> {
+  private async apply(config: LoadedConfig): Promise<void> {
     const prevSig = runtimeSignature(this.lastConfig);
     const nextSig = runtimeSignature(config);
     if (prevSig === nextSig) {
