@@ -41,3 +41,57 @@ describe("Scheduler.reconcile", () => {
     expect(after?.last_run_at).toBe(before?.last_run_at ?? null);
   });
 });
+
+describe("Scheduler.drain + in-flight", () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "memoark-sched2-")); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("applies pending config at the start of the next tick", async () => {
+    const s = new Scheduler(baseConfig({ feishu: { enabled: true } }), dir);
+    let release: () => void = () => {};
+    s.setRunSource(
+      () =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve({
+              fatal: false, error: undefined, totalMessages: 0, totalBlocks: 0,
+              okBlocks: 0, skippedBlocks: 0, failedBlocks: 0,
+              okMessages: [], skippedMessages: [], failedMessages: [], warnings: [],
+            });
+        }),
+    );
+    const tick = s.tick();
+    s.reconcile(baseConfig({ feishu: { enabled: true }, codex: { enabled: true } }));
+    expect(s.getSourceIds()).toEqual(["feishu"]); // staged, not applied yet
+    release();
+    await tick;
+    await s.tick();
+    expect(s.getSourceIds().sort()).toEqual(["codex", "feishu"]);
+  });
+
+  it("drain awaits the in-flight tick and stops the timer", async () => {
+    const s = new Scheduler(baseConfig({ feishu: { enabled: true } }), dir);
+    let release: () => void = () => {};
+    let finished = false;
+    s.setRunSource(
+      () =>
+        new Promise((resolve) => {
+          release = () => {
+            finished = true;
+            resolve({
+              fatal: false, error: undefined, totalMessages: 0, totalBlocks: 0,
+              okBlocks: 0, skippedBlocks: 0, failedBlocks: 0,
+              okMessages: [], skippedMessages: [], failedMessages: [], warnings: [],
+            });
+          };
+        }),
+    );
+    const tick = s.tick();
+    const drain = s.drain();
+    release();
+    await drain;
+    await tick;
+    expect(finished).toBe(true);
+  });
+});
