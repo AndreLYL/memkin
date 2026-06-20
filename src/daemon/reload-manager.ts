@@ -22,7 +22,7 @@ export function runtimeSignature(config: Config): string {
 export interface ReloadDeps {
   holder: ServeRuntimeHolder;
   /** Returns the config currently in effect (pre-reload), for signature comparison. */
-  currentConfig: () => Config;
+  currentConfig: () => LoadedConfig;
   /** Build a brand-new runtime from a new config (= buildServeRuntime bound to stores/stateDir). */
   buildRuntime: (config: LoadedConfig) => Promise<ServeRuntime>;
 }
@@ -30,7 +30,7 @@ export interface ReloadDeps {
 export class ReloadManager {
   private running = false;
   private queued: LoadedConfig | null = null;
-  private lastConfig: Config;
+  private lastConfig: LoadedConfig;
 
   constructor(private deps: ReloadDeps) {
     this.lastConfig = deps.currentConfig();

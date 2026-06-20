@@ -607,6 +607,7 @@ async function runServe(options: {
     const storesWithDaemon = {
       ...stores,
       getDaemonStatus: () => holder.current.getDaemonStatus(),
+      // getter: always reads the current runtime, so a Tier-2 swap is seen by routes
       get chatNameRefreshJob() { return holder.current.chatNameRefreshJob; },
     };
 
@@ -674,7 +675,13 @@ async function runServe(options: {
     }
 
     const app = createApiApp(storesWithDaemon, {
-      onConfigSaved: () => { void reloadManager.run(loadConfig(options.config)); },
+      onConfigSaved: () => {
+        try {
+          void reloadManager.run(loadConfig(options.config));
+        } catch (err) {
+          console.error("[reload] Failed to load config after save:", err);
+        }
+      },
     });
     // In a `bun --compile` sidecar, import.meta.url lives under $bunfs and web/dist is
     // NOT embedded, so the default path can't be served. The Tauri shell ships web/dist
