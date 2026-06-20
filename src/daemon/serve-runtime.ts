@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { ChatNameResolver } from "../collectors/feishu/chat-name-resolver.js";
 import { normalizeDocsConfig } from "../collectors/feishu/docs/config.js";
 import { runDocSource } from "../collectors/feishu/docs/run.js";
@@ -17,6 +17,7 @@ import {
 } from "../collectors/index.js";
 import type { LoadedConfig, SourcesConfig } from "../core/config.js";
 import { CursorStore } from "../core/cursors.js";
+import { statePath } from "../core/state.js";
 import { type PipelineConfig, type PipelineResult, runPipeline } from "../core/pipeline.js";
 import { createLLMProvider, createMockProvider } from "../extractors/providers/index.js";
 import type { DaemonStatus, StoreContext } from "../server/api.js";
@@ -116,8 +117,8 @@ export async function buildServeRuntime(
         : createMockProvider(new Map());
 
       const pipelineConfig: PipelineConfig = {
-        dedup_checkpoint: join(stateDir, "dedup.jsonl"),
-        cursor_checkpoint: join(stateDir, "cursors.yaml"),
+        dedup_checkpoint: statePath("dedup.jsonl"),
+        cursor_checkpoint: statePath("cursors.yaml"),
         block_gap_minutes: config.block_builder.block_gap_minutes,
         max_block_tokens: config.block_builder.max_block_tokens,
         max_block_messages: config.block_builder.max_block_messages,
@@ -128,7 +129,7 @@ export async function buildServeRuntime(
 
       // ── G2: feishu.docs special case ────────────────────────────────────────
       // docs uses runDocSource (not runPipeline) and manages its own cursor state.
-      docsCursor = new CursorStore(join(stateDir, "cursors.yaml"));
+      docsCursor = new CursorStore(statePath("cursors.yaml"));
       const feishuCfg = config.sources.feishu;
       docsClient =
         feishuCfg?.enabled && feishuCfg.sources?.docs?.enabled
