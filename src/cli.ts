@@ -600,6 +600,7 @@ async function runServe(options: {
 
     const reloadManager = new ReloadManager({
       holder,
+      // only read once at construction for the initial signature; ReloadManager tracks lastConfig internally afterward
       currentConfig: () => config,
       buildRuntime: (next) => buildServeRuntime(next, stores, stateDir),
     });
@@ -677,7 +678,9 @@ async function runServe(options: {
     const app = createApiApp(storesWithDaemon, {
       onConfigSaved: () => {
         try {
-          void reloadManager.run(loadConfig(options.config));
+          void reloadManager.run(loadConfig(options.config)).catch((err) => {
+            console.error("[reload] Runtime reload failed:", err);
+          });
         } catch (err) {
           console.error("[reload] Failed to load config after save:", err);
         }
