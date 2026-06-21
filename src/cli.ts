@@ -36,8 +36,8 @@ import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js"
 import { runPipeline } from "./core/pipeline.js";
 import { buildPipelineConfig } from "./core/pipeline-factory.js";
 import { ensureStateDir, statePath } from "./core/state.js";
-import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { ReloadManager } from "./daemon/reload-manager.js";
+import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
 import { createApiApp } from "./server/api.js";
@@ -609,7 +609,9 @@ async function runServe(options: {
       ...stores,
       getDaemonStatus: () => holder.current.getDaemonStatus(),
       // getter: always reads the current runtime, so a Tier-2 swap is seen by routes
-      get chatNameRefreshJob() { return holder.current.chatNameRefreshJob; },
+      get chatNameRefreshJob() {
+        return holder.current.chatNameRefreshJob;
+      },
     };
 
     let shuttingDown = false;

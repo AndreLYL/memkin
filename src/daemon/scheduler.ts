@@ -151,7 +151,10 @@ export class Scheduler {
 
   async drain(): Promise<void> {
     this.draining = true;
-    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
     this.aborter?.abort();
     if (this.tickPromise) await this.tickPromise;
     this.persistState();

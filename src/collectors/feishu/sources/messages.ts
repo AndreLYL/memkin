@@ -33,7 +33,10 @@ export class MessageSource implements FeishuSource {
       try {
         live = await this.listAllGroupIds();
       } catch (err) {
-        console.error("[MessageSource] Failed to list all groups; falling back to configured chatIds:", err);
+        console.error(
+          "[MessageSource] Failed to list all groups; falling back to configured chatIds:",
+          err,
+        );
       }
       targets = [...new Set([...this.chatIds, ...live])];
     }
@@ -84,10 +87,9 @@ export class MessageSource implements FeishuSource {
 
   private async listAllGroupIds(): Promise<string[]> {
     const ids: string[] = [];
-    for await (const page of this.client.paginate<{ chat_id: string }>(
-      "/open-apis/im/v1/chats",
-      { page_size: "100" },
-    )) {
+    for await (const page of this.client.paginate<{ chat_id: string }>("/open-apis/im/v1/chats", {
+      page_size: "100",
+    })) {
       for (const item of page.items ?? []) {
         if (item.chat_id) ids.push(item.chat_id);
       }

@@ -26,7 +26,10 @@ describe("Scheduler.reconcile", () => {
   });
 
   it("removes a disabled source", () => {
-    const s = new Scheduler(baseConfig({ feishu: { enabled: true }, codex: { enabled: true } }), dir);
+    const s = new Scheduler(
+      baseConfig({ feishu: { enabled: true }, codex: { enabled: true } }),
+      dir,
+    );
     s.reconcile(baseConfig({ feishu: { enabled: true }, codex: { enabled: false } }));
     expect(s.getSourceIds()).toEqual(["feishu"]);
   });
@@ -44,7 +47,9 @@ describe("Scheduler.reconcile", () => {
 
 describe("Scheduler.drain + in-flight", () => {
   let dir: string;
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "memoark-sched2-")); });
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "memoark-sched2-"));
+  });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it("applies pending config at the start of the next tick", async () => {
@@ -55,9 +60,17 @@ describe("Scheduler.drain + in-flight", () => {
         new Promise((resolve) => {
           release = () =>
             resolve({
-              fatal: false, error: undefined, totalMessages: 0, totalBlocks: 0,
-              okBlocks: 0, skippedBlocks: 0, failedBlocks: 0,
-              okMessages: [], skippedMessages: [], failedMessages: [], warnings: [],
+              fatal: false,
+              error: undefined,
+              totalMessages: 0,
+              totalBlocks: 0,
+              okBlocks: 0,
+              skippedBlocks: 0,
+              failedBlocks: 0,
+              okMessages: [],
+              skippedMessages: [],
+              failedMessages: [],
+              warnings: [],
             });
         }),
     );
@@ -80,9 +93,17 @@ describe("Scheduler.drain + in-flight", () => {
           release = () => {
             finished = true;
             resolve({
-              fatal: false, error: undefined, totalMessages: 0, totalBlocks: 0,
-              okBlocks: 0, skippedBlocks: 0, failedBlocks: 0,
-              okMessages: [], skippedMessages: [], failedMessages: [], warnings: [],
+              fatal: false,
+              error: undefined,
+              totalMessages: 0,
+              totalBlocks: 0,
+              okBlocks: 0,
+              skippedBlocks: 0,
+              failedBlocks: 0,
+              okMessages: [],
+              skippedMessages: [],
+              failedMessages: [],
+              warnings: [],
             });
           };
         }),

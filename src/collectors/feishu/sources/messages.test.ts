@@ -19,14 +19,8 @@ function makeStaging(): CursorStaging {
  * `chatListFactory` is called fresh on each `paginate("/chats", …)` call so tests
  * can change it to simulate a newly-joined group appearing in the second fetch.
  */
-function makeMockClient(
-  chatListFactory: () => Array<{ chat_id: string }>,
-  queriedChats: string[],
-) {
-  const paginate = vi.fn(async function* (
-    path: string,
-    params?: Record<string, string>,
-  ) {
+function makeMockClient(chatListFactory: () => Array<{ chat_id: string }>, queriedChats: string[]) {
+  const paginate = vi.fn(async function* (path: string, params?: Record<string, string>) {
     if (path === "/open-apis/im/v1/chats") {
       yield { items: chatListFactory(), has_more: false };
       return;
@@ -51,10 +45,7 @@ function makeMockClient(
 describe("MessageSource — autoIncludeAllGroups", () => {
   it("fetches from all live groups when autoIncludeAllGroups=true and chatIds is empty", async () => {
     const queriedChats: string[] = [];
-    const client = makeMockClient(
-      () => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }],
-      queriedChats,
-    );
+    const client = makeMockClient(() => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }], queriedChats);
 
     const src = new MessageSource(client, [], {
       lookbackDays: 1,
@@ -114,10 +105,7 @@ describe("MessageSource — autoIncludeAllGroups", () => {
   // ---------------------------------------------------------------------------
   it("throws the existing empty-chat_ids error when autoIncludeAllGroups=false and chatIds is empty", async () => {
     const queriedChats: string[] = [];
-    const client = makeMockClient(
-      () => [{ chat_id: "oc_a" }],
-      queriedChats,
-    );
+    const client = makeMockClient(() => [{ chat_id: "oc_a" }], queriedChats);
 
     const src = new MessageSource(client, [], {
       lookbackDays: 1,
@@ -138,10 +126,7 @@ describe("MessageSource — autoIncludeAllGroups", () => {
     const queriedChats: string[] = [];
     // oc_a is returned by the live API; oc_x is the configured one
     // oc_a is also added to the live list to test dedup (if oc_x overlapped)
-    const client = makeMockClient(
-      () => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }],
-      queriedChats,
-    );
+    const client = makeMockClient(() => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }], queriedChats);
 
     const src = new MessageSource(client, ["oc_x"], {
       lookbackDays: 1,
@@ -167,10 +152,7 @@ describe("MessageSource — autoIncludeAllGroups", () => {
     const queriedChats: string[] = [];
     // chatIds = ["oc_a"], live returns ["oc_a", "oc_b"]
     // → messages queried for oc_a exactly once, plus oc_b
-    const client = makeMockClient(
-      () => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }],
-      queriedChats,
-    );
+    const client = makeMockClient(() => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }], queriedChats);
 
     const src = new MessageSource(client, ["oc_a"], {
       lookbackDays: 1,
@@ -182,7 +164,7 @@ describe("MessageSource — autoIncludeAllGroups", () => {
     }
 
     // oc_a should appear exactly once, even though it's in both configured and live
-    const ocACount = queriedChats.filter(id => id === "oc_a").length;
+    const ocACount = queriedChats.filter((id) => id === "oc_a").length;
     expect(ocACount).toBe(1);
     expect(queriedChats).toContain("oc_b");
     expect(queriedChats).toHaveLength(2);

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { ReloadManager } from "./reload-manager.js";
-import { ServeRuntimeHolder, type ServeRuntime } from "./serve-runtime.js";
+import { type ServeRuntime, ServeRuntimeHolder } from "./serve-runtime.js";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,10 +32,12 @@ const makeConfig = (apiKey: string, schedulerInterval = 3600) =>
     },
   }) as never;
 
-function makeRuntime(label: string, reconcileSpy?: () => void): ServeRuntime {
+function makeRuntime(_label: string, reconcileSpy?: () => void): ServeRuntime {
   return {
     scheduler: {
-      reconcile: () => { reconcileSpy?.(); },
+      reconcile: () => {
+        reconcileSpy?.();
+      },
       drain: async () => {},
       start: async () => {},
     } as never,
@@ -57,11 +59,16 @@ describe("Serve hot-reload integration (Task 8 wiring)", () => {
     const reloadManager = new ReloadManager({
       holder,
       currentConfig: () => makeConfig("sk-same"),
-      buildRuntime: async () => { buildCount++; return makeRuntime("rebuilt"); },
+      buildRuntime: async () => {
+        buildCount++;
+        return makeRuntime("rebuilt");
+      },
     });
 
     // Simulate onConfigSaved firing with a scheduler-only change (same signature)
-    const onConfigSaved = () => { void reloadManager.run(makeConfig("sk-same", 1800)); };
+    const onConfigSaved = () => {
+      void reloadManager.run(makeConfig("sk-same", 1800));
+    };
     onConfigSaved();
     // ReloadManager.run is async but single-flight; wait one tick
     await new Promise((r) => setTimeout(r, 0));
@@ -92,7 +99,9 @@ describe("Serve hot-reload integration (Task 8 wiring)", () => {
     });
 
     // Simulate onConfigSaved firing with a Tier-2 change (different LLM key)
-    const onConfigSaved = () => { void reloadManager.run(makeConfig("sk-NEW")); };
+    const onConfigSaved = () => {
+      void reloadManager.run(makeConfig("sk-NEW"));
+    };
     onConfigSaved();
     await new Promise((r) => setTimeout(r, 0));
 
@@ -121,7 +130,9 @@ describe("Serve hot-reload integration (Task 8 wiring)", () => {
       },
     });
 
-    const onConfigSaved = (key: string) => { void reloadManager.run(makeConfig(key)); };
+    const onConfigSaved = (key: string) => {
+      void reloadManager.run(makeConfig(key));
+    };
 
     // Fire twice with Tier-2 changes so both trigger rebuilds
     onConfigSaved("sk-A");

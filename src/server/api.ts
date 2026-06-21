@@ -98,8 +98,12 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
       signals_total: row.signals_total,
     }));
 
-    const daemon: DaemonStatus = stores.getDaemonStatus?.() ??
-      { running: false, uptime_seconds: null, last_run: null, next_scheduled: null };
+    const daemon: DaemonStatus = stores.getDaemonStatus?.() ?? {
+      running: false,
+      uptime_seconds: null,
+      last_run: null,
+      next_scheduled: null,
+    };
 
     return c.json({
       status: "ok",

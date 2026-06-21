@@ -17,8 +17,8 @@ import {
 } from "../collectors/index.js";
 import type { LoadedConfig, SourcesConfig } from "../core/config.js";
 import { CursorStore } from "../core/cursors.js";
-import { statePath } from "../core/state.js";
 import { type PipelineConfig, type PipelineResult, runPipeline } from "../core/pipeline.js";
+import { statePath } from "../core/state.js";
 import { createLLMProvider, createMockProvider } from "../extractors/providers/index.js";
 import type { DaemonStatus, StoreContext } from "../server/api.js";
 import { ChatNameRefreshJob } from "../server/chat-name-refresh-job.js";
@@ -140,9 +140,9 @@ export async function buildServeRuntime(
         : undefined;
 
       const runDocsAsPipelineResult = async (): Promise<PipelineResult> => {
-        if (!docsClient || !docsResolved)
+        if (!docsClient || !docsResolved || !docsCursor)
           throw new Error("feishu.docs scheduled but docs source not enabled");
-        docsCursor!.load();
+        docsCursor.load();
         const selfOpenId =
           docsResolved.self_open_id ??
           (await resolveSelfOpenId(docsClient, feishuCfg?.sources?.dm?.self_open_id)) ??
@@ -152,7 +152,7 @@ export async function buildServeRuntime(
           stores,
           provider,
           config: docsResolved,
-          cursor: docsCursor!,
+          cursor: docsCursor,
           selfOpenId,
           nowMs: Date.now(),
           nowIso: () => new Date().toISOString(),
