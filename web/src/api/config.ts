@@ -58,6 +58,8 @@ export interface WizardConfig {
   sources?: {
     "claude-code"?: { enabled: boolean };
     feishu?: WizardFeishuConfig;
+    codex?: { enabled: boolean };
+    hermes?: { enabled: boolean };
   };
   store?: { data_dir?: string };
   adapters?: { file?: { enabled: boolean; output_dir: string } };
