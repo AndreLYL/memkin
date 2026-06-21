@@ -74,6 +74,7 @@ export interface FeishuCollectorConfig {
   lark_bin?: string;
   base_url?: string;
   rate_limit_qps?: number;
+  auto_include_new_groups?: boolean;
   sources: {
     messages?: FeishuMessageSourceConfig;
     calendar?: FeishuCalendarSourceConfig;
