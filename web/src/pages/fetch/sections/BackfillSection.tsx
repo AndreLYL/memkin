@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { backfillApi } from "../../../api/backfill";
 import type { BackfillSourceType, BackfillStatus, CoverageBucket } from "../../../api/backfill";
+import { BACKFILLABLE_SOURCES } from "../../config/lib/backfillable";
 
 const WEEKS = 104;
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -206,6 +207,10 @@ export function BackfillSection() {
         <div className="flex flex-col gap-3">
           <p className="text-sm text-fg-default">
             回溯起始：<strong>{formatDate(sinceMs)}</strong>（{monthsAgo(sinceMs)}）
+          </p>
+          <p className="text-xs text-fg-muted">
+            仅支持回溯：{[...BACKFILLABLE_SOURCES].join(" / ")}
+            ；日历、任务、云文档暂不支持回溯。
           </p>
           <div className="flex flex-wrap gap-3">
             {ALL_SOURCES.map((src) => (
