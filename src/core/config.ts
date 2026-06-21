@@ -78,6 +78,7 @@ export interface FeishuSourceConfig {
   app_id: string;
   app_secret: string;
   lark_bin?: string;
+  auto_include_new_groups?: boolean;
   base_url?: string;
   rate_limit_qps?: number;
   sources: {

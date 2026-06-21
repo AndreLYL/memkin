@@ -37,6 +37,7 @@ export interface WizardFeishuConfig {
   lark_bin?: string;
   sources?: WizardFeishuSources;
   chat_ids?: string[];
+  auto_include_new_groups?: boolean;
 }
 
 export interface SchedulerSourceConfig {
