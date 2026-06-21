@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { WizardConfig } from "../../../api/config";
 import { configApi } from "../../../api/config";
+import { ToggleSwitch } from "../../../components/config/ToggleSwitch";
 
 interface StepProps {
   config: WizardConfig;
@@ -19,19 +20,27 @@ export function Review({ config, onBack }: StepProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [autoFetch, setAutoFetch] = useState(config.scheduler?.enabled ?? true);
 
   const save = async () => {
     setSaving(true);
     setErrors([]);
     try {
-      const configToSave: WizardConfig = {
+      const finalConfig: WizardConfig = {
         ...config,
         sources: {
           "claude-code": { enabled: true },
           ...config.sources,
         },
+        scheduler: {
+          ...(config.scheduler ?? {}),
+          enabled: autoFetch,
+          tick_interval_secs: config.scheduler?.tick_interval_secs ?? 60,
+          defaults: config.scheduler?.defaults ?? { interval_secs: 3600 },
+          sources: config.scheduler?.sources ?? {},
+        },
       };
-      const result = await configApi.saveConfig(configToSave);
+      const result = await configApi.saveConfig(finalConfig);
       if (!result.ok) {
         setErrors(result.diagnostics.filter((d) => d.severity === "error").map((d) => d.message));
         return;
@@ -83,6 +92,19 @@ export function Review({ config, onBack }: StepProps) {
           <span className="text-fg-muted">Database Path</span>
           <span className="text-fg-default font-mono">{config.store?.data_dir || "~/.memoark/data (default)"}</span>
         </div>
+      </div>
+
+      <div className="rounded border border-border-default px-4 py-3">
+        <ToggleSwitch
+          id="enable-autofetch"
+          label="启用后台定时抓取(开机后自动运行)"
+          description="开启后，Memoark 将按计划自动从各数据源抓取内容。"
+          checked={autoFetch}
+          onChange={setAutoFetch}
+        />
+        <p className="text-xs text-fg-muted mt-2">
+          桌面 App 将默认开机自启,可在系统托盘随时关闭。
+        </p>
       </div>
 
       {errors.length > 0 && (
