@@ -13,6 +13,8 @@ export interface ConfigRoutesOpts {
   configPath: string;
   larkBin?: string;
   onSetupComplete?: () => void;
+  /** Fired after a successful config write (triggers async reload). Not awaited. */
+  onConfigSaved?: () => void;
 }
 
 export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
@@ -64,6 +66,7 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
     const yaml = generateConfigYaml(body);
     mkdirSync(dirname(opts.configPath), { recursive: true });
     writeFileSync(opts.configPath, yaml, "utf-8");
+    opts.onConfigSaved?.();
     return c.json({ ok: true, diagnostics });
   });
 

@@ -30,7 +30,7 @@ export interface StoreContext {
   tags: TagStore;
   timeline: TimelineStore;
   embedding: EmbeddingService;
-  getDaemonStatus?: () => DaemonStatus;
+  getDaemonStatus?: () => DaemonStatus | undefined;
   eventBus?: EventBus;
   runExtract?: (source?: string) => Promise<{ written: number; skipped: number; errors: number }>;
   chatNameRefreshJob?: ChatNameRefreshJob;
@@ -40,11 +40,17 @@ function missing(c: { json: (body: unknown, status?: number) => Response }, name
   return c.json({ error: `Missing required parameter: ${name}` }, 400);
 }
 
-export function createApiApp(stores: StoreContext): Hono {
+export interface ApiAppOpts {
+  /** Fired after a successful config save (triggers async hot-reload). Not awaited. */
+  onConfigSaved?: () => void;
+}
+
+export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Hono {
   const app = new Hono();
 
   const configRoutes = createConfigRoutes({
     configPath: resolve(process.cwd(), "memoark.yaml"),
+    onConfigSaved: apiOpts.onConfigSaved,
   });
   app.route("/", configRoutes);
 
@@ -92,9 +98,12 @@ export function createApiApp(stores: StoreContext): Hono {
       signals_total: row.signals_total,
     }));
 
-    const daemon: DaemonStatus = stores.getDaemonStatus
-      ? stores.getDaemonStatus()
-      : { running: false, uptime_seconds: null, last_run: null, next_scheduled: null };
+    const daemon: DaemonStatus = stores.getDaemonStatus?.() ?? {
+      running: false,
+      uptime_seconds: null,
+      last_run: null,
+      next_scheduled: null,
+    };
 
     return c.json({
       status: "ok",

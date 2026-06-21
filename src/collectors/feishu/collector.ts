@@ -42,6 +42,7 @@ export class FeishuCollector implements Collector, CursorProvider {
           lookbackDays: config.sources.messages.lookback_days ?? 30,
           overrideSinceMs: config.sources.messages.override_since_ms,
           overlapMs: config.sources.messages.overlap_ms,
+          autoIncludeAllGroups: config.auto_include_new_groups ?? false,
         }),
       );
     }

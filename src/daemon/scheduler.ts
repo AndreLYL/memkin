@@ -18,10 +18,14 @@ export class Scheduler {
   private running = false;
   private daemon_started_at: number;
   private last_heartbeat_at: number;
-  private readonly tick_interval_ms: number;
+  private tick_interval_ms: number;
   private readonly state_path: string;
   private onTick?: (sourceId: string, result: PipelineResult, duration_ms: number) => void;
   private runSource?: RunSourceFn;
+  private pending: SchedulerConfig | null = null;
+  private tickPromise: Promise<void> | null = null;
+  private draining = false;
+  private aborter: AbortController | null = null;
 
   constructor(config: SchedulerConfig, stateDir: string) {
     this.tick_interval_ms = config.tick_interval_secs * 1000;
@@ -80,51 +84,80 @@ export class Scheduler {
 
   async tick(): Promise<void> {
     if (this.running) return;
+    if (this.draining) return;
     this.running = true;
-    this.last_heartbeat_at = Date.now();
-    try {
-      const now = Date.now();
-      for (const [sourceId, schedule] of this.schedules) {
-        if (!schedule.isDue(now)) continue;
-        this.last_heartbeat_at = Date.now();
-
-        if (!this.runSource) continue;
-
-        const start = Date.now();
-        try {
-          const result = await this.runSource(sourceId);
-          const duration_ms = Date.now() - start;
-          const classified = classifyResult(result);
-          schedule.recordResult(classified, Date.now(), result.error);
-          this.onTick?.(sourceId, result, duration_ms);
-        } catch (err) {
-          const duration_ms = Date.now() - start;
-          schedule.recordResult(
-            "failed",
-            Date.now(),
-            err instanceof Error ? err.message : String(err),
-          );
-          const fakeResult: PipelineResult = {
-            fatal: true,
-            error: err instanceof Error ? err.message : String(err),
-            totalMessages: 0,
-            totalBlocks: 0,
-            okBlocks: 0,
-            skippedBlocks: 0,
-            failedBlocks: 0,
-            okMessages: [],
-            skippedMessages: [],
-            failedMessages: [],
-            warnings: [],
-          };
-          this.onTick?.(sourceId, fakeResult, duration_ms);
-        }
-      }
-    } finally {
-      this.running = false;
+    this.aborter = new AbortController();
+    const signal = this.aborter.signal;
+    const run = (async () => {
       this.last_heartbeat_at = Date.now();
-      this.persistState();
+      try {
+        // Snapshot eligible sources before applying pending so that sources
+        // newly added by applyConfig are not run in the same tick they appear.
+        const eligible = [...this.schedules.keys()];
+        if (this.pending) {
+          this.applyConfig(this.pending);
+          this.pending = null;
+        }
+        const now = Date.now();
+        for (const sourceId of eligible) {
+          if (signal.aborted) break;
+          const schedule = this.schedules.get(sourceId);
+          if (!schedule) continue; // removed by applyConfig
+          if (!schedule.isDue(now)) continue;
+          if (!this.runSource) continue;
+          this.last_heartbeat_at = Date.now();
+          const start = Date.now();
+          try {
+            const result = await this.runSource(sourceId);
+            const duration_ms = Date.now() - start;
+            schedule.recordResult(classifyResult(result), Date.now(), result.error);
+            this.onTick?.(sourceId, result, duration_ms);
+          } catch (err) {
+            const duration_ms = Date.now() - start;
+            schedule.recordResult(
+              "failed",
+              Date.now(),
+              err instanceof Error ? err.message : String(err),
+            );
+            this.onTick?.(sourceId, this.fatalResult(err), duration_ms);
+          }
+        }
+      } finally {
+        this.running = false;
+        this.last_heartbeat_at = Date.now();
+        this.persistState();
+      }
+    })();
+    this.tickPromise = run;
+    await run;
+    this.tickPromise = null;
+  }
+
+  private fatalResult(err: unknown): PipelineResult {
+    return {
+      fatal: true,
+      error: err instanceof Error ? err.message : String(err),
+      totalMessages: 0,
+      totalBlocks: 0,
+      okBlocks: 0,
+      skippedBlocks: 0,
+      failedBlocks: 0,
+      okMessages: [],
+      skippedMessages: [],
+      failedMessages: [],
+      warnings: [],
+    };
+  }
+
+  async drain(): Promise<void> {
+    this.draining = true;
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
     }
+    this.aborter?.abort();
+    if (this.tickPromise) await this.tickPromise;
+    this.persistState();
   }
 
   getHeartbeat(): { daemon_started_at: number; last_heartbeat_at: number } {
@@ -141,6 +174,45 @@ export class Scheduler {
     return Array.from(this.schedules.entries())
       .filter(([_, s]) => s.shouldAlert())
       .map(([id, s]) => ({ source_id: id, state: s.serialize() }));
+  }
+
+  reconcile(config: SchedulerConfig): void {
+    if (this.running) {
+      // most-recent wins; earlier pending superseded
+      this.pending = config;
+      return;
+    }
+    this.applyConfig(config);
+  }
+
+  private applyConfig(config: SchedulerConfig): void {
+    const nextIds = new Set(
+      Object.entries(config.sources)
+        .filter(([, c]) => c.enabled !== false)
+        .map(([id]) => id),
+    );
+    for (const id of [...this.schedules.keys()]) {
+      if (!nextIds.has(id)) this.schedules.delete(id);
+    }
+    for (const [id, sourceConfig] of Object.entries(config.sources)) {
+      if (sourceConfig.enabled === false) continue;
+      const interval = sourceConfig.interval_secs ?? config.defaults.interval_secs;
+      const existing = this.schedules.get(id);
+      if (!existing) {
+        this.schedules.set(id, new SourceSchedule(id, interval));
+      } else if (existing.interval_secs !== interval) {
+        this.schedules.set(id, SourceSchedule.fromSerialized(id, interval, existing.serialize()));
+      }
+    }
+    const newTick = config.tick_interval_secs * 1000;
+    if (newTick !== this.tick_interval_ms) {
+      this.tick_interval_ms = newTick;
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = setInterval(() => this.tick(), this.tick_interval_ms);
+      }
+    }
+    this.persistState();
   }
 
   private persistState(): void {

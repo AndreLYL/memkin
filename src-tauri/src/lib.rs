@@ -177,8 +177,22 @@ pub fn run() {
       let menu = Menu::with_items(app, &[&app_menu, &edit_menu])?;
       app.set_menu(menu)?;
 
+      // ---- First-run autostart default: enable on the very first launch only ----
+      // A marker file under app_config_dir prevents re-enabling on subsequent launches,
+      // so users who later disable autostart in the tray won't have it forced back on.
+      if let Ok(dir) = app.path().app_config_dir() {
+        let marker = dir.join(".autostart-initialized");
+        if !marker.exists() {
+          let _ = std::fs::create_dir_all(&dir);
+          let _ = app.autolaunch().enable();
+          let _ = std::fs::write(&marker, "1");
+        }
+      }
+
       // ---- Tray: keep MemoArk resident so MCP/serve stay online ----
       let show_i = MenuItem::with_id(app, "show", "显示 MemoArk", true, None::<&str>)?;
+      // Read is_enabled() AFTER the first-run block above so the menu item reflects the
+      // actual state (enabled on first launch, user-chosen thereafter).
       let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
       let autostart_i =
         CheckMenuItem::with_id(app, "autostart", "开机自启", true, autostart_enabled, None::<&str>)?;

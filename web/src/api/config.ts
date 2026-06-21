@@ -6,6 +6,13 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface DaemonStatus {
+  running: boolean;
+  uptime_seconds: number | null;
+  last_run: string | null;
+  next_scheduled: string | null;
+}
+
 export interface WizardLLMConfig {
   provider: string;
   model: string;
@@ -37,6 +44,7 @@ export interface WizardFeishuConfig {
   lark_bin?: string;
   sources?: WizardFeishuSources;
   chat_ids?: string[];
+  auto_include_new_groups?: boolean;
 }
 
 export interface SchedulerSourceConfig {
@@ -57,6 +65,8 @@ export interface WizardConfig {
   sources?: {
     "claude-code"?: { enabled: boolean };
     feishu?: WizardFeishuConfig;
+    codex?: { enabled: boolean };
+    hermes?: { enabled: boolean };
   };
   store?: { data_dir?: string };
   adapters?: { file?: { enabled: boolean; output_dir: string } };
@@ -145,4 +155,7 @@ export const configApi = {
 
   setupComplete: (): Promise<Response> =>
     fetch(`${BASE}/setup/complete`, { method: "POST" }),
+
+  getDaemonStatus: (): Promise<DaemonStatus> =>
+    fetchJSON<{ daemon: DaemonStatus }>("/health").then((r) => r.daemon),
 };
