@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ConfigDiagnostic, WizardConfig } from "../../api/config";
 import { configApi } from "../../api/config";
+import { AutoFetchSection } from "../fetch/sections/AutoFetchSection";
+import { BackfillSection } from "../fetch/sections/BackfillSection";
+import { DataSourceSection } from "./sections/DataSourceSection";
 import { EmbeddingSection } from "./sections/EmbeddingSection";
 import { FeishuSection } from "./sections/FeishuSection";
 import { LLMSection } from "./sections/LLMSection";
@@ -64,8 +67,11 @@ export function ConfigPage() {
         <div className="flex flex-col gap-4">
           <Section title="LLM"><LLMSection config={config} onSave={handleSave} /></Section>
           <Section title="Embedding"><EmbeddingSection config={config} onSave={handleSave} /></Section>
-          <Section title="Feishu"><FeishuSection config={config} onSave={handleSave} /></Section>
-          <Section title="Storage"><StorageSection config={config} onSave={handleSave} /></Section>
+          <Section title="飞书凭证"><FeishuSection config={config} onSave={handleSave} /></Section>
+          <Section title="数据源"><DataSourceSection config={config} onSave={handleSave} /></Section>
+          <Section title="定时抓取（Auto-fetch）"><AutoFetchSection config={config} onSave={handleSave} /></Section>
+          <Section title="存储"><StorageSection config={config} onSave={handleSave} /></Section>
+          <Section title="历史回溯"><BackfillSection /></Section>
         </div>
       </div>
     </div>
