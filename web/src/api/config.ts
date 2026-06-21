@@ -6,6 +6,13 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface DaemonStatus {
+  running: boolean;
+  uptime_seconds: number | null;
+  last_run: string | null;
+  next_scheduled: string | null;
+}
+
 export interface WizardLLMConfig {
   provider: string;
   model: string;
@@ -148,4 +155,7 @@ export const configApi = {
 
   setupComplete: (): Promise<Response> =>
     fetch(`${BASE}/setup/complete`, { method: "POST" }),
+
+  getDaemonStatus: (): Promise<DaemonStatus> =>
+    fetchJSON<{ daemon: DaemonStatus }>("/health").then((r) => r.daemon),
 };

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ConfigDiagnostic, WizardConfig } from "../../api/config";
+import type { ConfigDiagnostic, DaemonStatus, WizardConfig } from "../../api/config";
 import { configApi } from "../../api/config";
 import { AutoFetchSection } from "../fetch/sections/AutoFetchSection";
 import { BackfillSection } from "../fetch/sections/BackfillSection";
@@ -9,6 +9,38 @@ import { EmbeddingSection } from "./sections/EmbeddingSection";
 import { FeishuSection } from "./sections/FeishuSection";
 import { LLMSection } from "./sections/LLMSection";
 import { StorageSection } from "./sections/StorageSection";
+
+/** Format an ISO datetime string as a short relative label (e.g. "2 分钟后"). */
+function formatRelative(isoString: string): string {
+  const diff = new Date(isoString).getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const mins = Math.round(abs / 60_000);
+  if (mins < 1) return diff >= 0 ? "即将开始" : "刚刚";
+  if (mins < 60) return diff >= 0 ? `${mins} 分钟后` : `${mins} 分钟前`;
+  const hrs = Math.round(abs / 3_600_000);
+  return diff >= 0 ? `${hrs} 小时后` : `${hrs} 小时前`;
+}
+
+function DaemonBanner({ status }: { status: DaemonStatus | undefined }) {
+  if (status?.running) {
+    return (
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-border-default bg-bg-subtle px-4 py-3 text-sm">
+        <span className="inline-block h-2 w-2 rounded-full bg-green-500 shrink-0" />
+        <span className="text-fg-default font-medium">后台运行中</span>
+        {status.next_scheduled && (
+          <span className="text-fg-muted">
+            · 下次抓取 {formatRelative(status.next_scheduled)}
+          </span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="mb-4 rounded-lg border border-border-default bg-bg-subtle px-4 py-3 text-sm text-fg-muted">
+      后台抓取未启用 — 在下方「定时抓取」开启
+    </div>
+  );
+}
 
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -31,6 +63,14 @@ export function ConfigPage() {
   const { data: config, isLoading } = useQuery({
     queryKey: ["config"],
     queryFn: configApi.getConfig,
+  });
+
+  // Poll daemon status every 30 s; errors silently fall back to the "not running" banner.
+  const { data: daemonStatus } = useQuery({
+    queryKey: ["daemon-status"],
+    queryFn: configApi.getDaemonStatus,
+    refetchInterval: 30_000,
+    retry: false,
   });
 
   const saveMutation = useMutation({
@@ -57,6 +97,8 @@ export function ConfigPage() {
     <div className="min-h-screen bg-bg-canvas px-4 py-10">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold text-fg-default mb-6">Configuration</h1>
+
+        <DaemonBanner status={daemonStatus} />
 
         {saveError && (
           <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
