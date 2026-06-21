@@ -38,6 +38,8 @@ function makeMockClient(
       yield { items: [], has_more: false };
       return;
     }
+
+    throw new Error(`unexpected paginate path: ${path}`);
   });
 
   return { paginate } as never;
@@ -156,5 +158,33 @@ describe("MessageSource — autoIncludeAllGroups", () => {
     // Must be deduped — each ID appears exactly once
     const unique = new Set(queriedChats);
     expect(queriedChats).toHaveLength(unique.size);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 5: dedup when a configured chatId also appears in the live list
+  // ---------------------------------------------------------------------------
+  it("dedups when a configured chatId also appears in the live list", async () => {
+    const queriedChats: string[] = [];
+    // chatIds = ["oc_a"], live returns ["oc_a", "oc_b"]
+    // → messages queried for oc_a exactly once, plus oc_b
+    const client = makeMockClient(
+      () => [{ chat_id: "oc_a" }, { chat_id: "oc_b" }],
+      queriedChats,
+    );
+
+    const src = new MessageSource(client, ["oc_a"], {
+      lookbackDays: 1,
+      autoIncludeAllGroups: true,
+    });
+
+    for await (const _ of src.fetch(null, makeStaging())) {
+      /* drain */
+    }
+
+    // oc_a should appear exactly once, even though it's in both configured and live
+    const ocACount = queriedChats.filter(id => id === "oc_a").length;
+    expect(ocACount).toBe(1);
+    expect(queriedChats).toContain("oc_b");
+    expect(queriedChats).toHaveLength(2);
   });
 });

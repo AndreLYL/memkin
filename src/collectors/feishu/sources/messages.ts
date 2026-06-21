@@ -29,7 +29,12 @@ export class MessageSource implements FeishuSource {
   ): AsyncGenerator<RawMessage> {
     let targets = this.chatIds;
     if (this.opts.autoIncludeAllGroups) {
-      const live = await this.listAllGroupIds();
+      let live: string[] = [];
+      try {
+        live = await this.listAllGroupIds();
+      } catch (err) {
+        console.error("[MessageSource] Failed to list all groups; falling back to configured chatIds:", err);
+      }
       targets = [...new Set([...this.chatIds, ...live])];
     }
     if (targets.length === 0) {
