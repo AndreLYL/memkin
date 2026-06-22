@@ -447,7 +447,7 @@ describe("MCP synthesis tools", () => {
     await db.close();
   });
 
-  it("registers synthesize + recall and not the unbuilt product tools", async () => {
+  it("registers synthesize + recall + prep_for_person, not the unbuilt product tools", async () => {
     const provider = createMockProvider(new Map([["", "ans [1]"]]));
     const server = createMcpServer(stores, { provider });
     const client = new Client({ name: "synth-test", version: "1.0.0" });
@@ -458,7 +458,7 @@ describe("MCP synthesis tools", () => {
     const names = (await client.listTools()).tools.map((t) => t.name);
     expect(names).toContain("synthesize");
     expect(names).toContain("recall");
-    expect(names).not.toContain("prep_for_person");
+    expect(names).toContain("prep_for_person"); // Spec 8 (now built)
     expect(names).not.toContain("daily_report");
     expect(names).not.toContain("troubleshoot");
 
