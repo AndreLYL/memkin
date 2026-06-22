@@ -59,9 +59,9 @@ interface FullCard extends DocCandidate {
 
 ### 3.3 action_items 落地为 task 信号（供日报与既有任务工具复用）
 
-文档卡片写库时（`docs/store-writer.ts`），对每个 `action_items[i]`：
+文档卡片写库时（`docs/store-writer.ts`，已核 main 存在、现 `writeCard` 把卡片写成 `feishu-docs/<token>` 页；本 spec 在此**新增** action_items→task 写入逻辑——回应 review S9-P1-4），对每个 `action_items[i]`：
 - `owner_slug` 经身份层解析（§四）；
-- **生成/更新 `type=task` 页**（slug `tasks/doc-<doc_token>-<i>`），`frontmatter` 带 `owner_slug`/`due`/`status`/`source=doc:<token>`；
+- **生成/更新 `type=task` 页**，slug **`tasks/doc-<doc_token>-<hash8(text)>`**（用 action_item 文本前缀的 sha256 前 8 位，**不用位置索引 `<i>`**——回应 review S9-P0-2，避免文档重抽后顺序变化导致 ID 漂移、旧任务残留/重复），`frontmatter` 带 `owner_slug`/`due`/`status`/`source=doc:<token>`；
 - `graph.addLink(taskSlug, owner_slug, "mentions")` 锚定到负责人，`addLink(taskSlug, "entities/me", "mentions")`（当 owner 是我）。
 
 这样日报、`get_session_context`、既有 task 工具都能看到这些待办，不另起数据通道。
@@ -91,18 +91,38 @@ interface FullCard extends DocCandidate {
 ### 5.1 意图（注册进 Spec 7 框架，`src/synth/intents/daily-report.ts`）
 
 ```typescript
+import { missingFieldRule } from "../../synth/gaps.js";   // 回应 CROSS-1/S9-P2-1
+
+// 回应 S9-P1-2：返回本地时区 YYYY-MM-DD
+function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 回应 S9-P0-1：LLM 按约定输出 "## <段标题>\n<正文>"，按 H2 标题切段
+function parseSections(answer: string): { title: string; body: string }[] {
+  const parts = answer.split(/^##\s+/m).filter((s) => s.trim());
+  return parts.map((p) => {
+    const nl = p.indexOf("\n");
+    return nl === -1
+      ? { title: p.trim(), body: "" }
+      : { title: p.slice(0, nl).trim(), body: p.slice(nl + 1).trim() };
+  });
+}
+
 export const dailyReportIntent: IntentTemplate = {
   id: "daily_report",
   format: "sections",                    // 见 Spec 7 §3.4
   staleDays: 0,                          // 日报不判过期
   buildScope: (args) => {
     const day = (args.date as string) ?? today();
+    // limit:200 仅为检索上限；context.ts 再按 token budget 截断（见 §六）
     return { time: { from: `${day}T00:00:00`, to: `${day}T23:59:59` }, limit: 200 };
   },
-  systemPrompt: /* §5.3 */,
+  systemPrompt: /* §5.3：要求 LLM 用 "## 段标题" 输出 7 段 */,
   expects: ["今日完成", "我的待办", "明日提醒"],
   gapRules: [missingFieldRule],
-  parseSections: /* 切出 7 段 */,
+  parseSections,
 };
 ```
 
@@ -113,7 +133,7 @@ server.tool("daily_report", { date: z.string().optional() },
   ({ date }) => synthesize("daily_report", dailyReportIntent.buildScope({ date })));
 ```
 
-时间窗缓存 → `reports/daily/<date>` 页（Spec 7 §九 time-scope 载体）。
+时间窗缓存 → `reports/daily/<date>` 页（Spec 7 §九 time-scope 载体）。该页 **`type="knowledge"` + `frontmatter.is_report=true`**（沿用 Spec 7 §九 / review CROSS-2 决定，不扩展 type union）。
 
 ### 5.3 七段模板（systemPrompt 约束 LLM 产出这些 section）
 
@@ -129,7 +149,11 @@ server.tool("daily_report", { date: z.string().optional() },
 
 ## 六、跨渠道聚合
 
-`daily_report` 的检索（Spec 7 `scope.retrieve` time 模式）：捞当天 `date` 落在窗口内的信号（timeline_entries + tasks + decisions + 文档卡片衍生 task），去重，按**项目实体**（backlinks）分组；"我的待办"经 §四 判定；第 6 段从当天有互动的 person 信号汇集。
+`daily_report` 的检索（Spec 7 `scope.retrieve` time 模式）：捞当天 `date` 落在窗口内的信号（timeline_entries + tasks + decisions + 文档卡片衍生 task），按**项目实体**（backlinks）分组；"我的待办"经 §四 判定；第 6 段从当天有互动的 person 信号汇集。
+
+**去重策略（回应 review S9-P1-3）**：两级——① 主键去重：相同 page `slug` 只留一条；② 内容去重：相同 `frontmatter.source_hash`（同一源 block 抽出的信号）视为重复，留信息最全的一条。**不做 LLM 语义去重**（成本高、起步不需要）。
+
+**token budget（回应 review S9-P1-5）**：`limit:200` 只是检索上限；`context.ts` 组装时按**总 token 预算**（如 12k）截断候选——按 tier/freshness 排序后累加，超预算即停。即"先检索 200，再截断到预算内 N 条"，不会把 200 条全塞给 LLM。
 
 ---
 
@@ -140,8 +164,8 @@ src/collectors/feishu/docs/
   types.ts          # FullCard 增 decisions/action_items（+ ActionItem/DocDecision）
   full-builder.ts   # buildPrompt 扩展抽取 decisions/action_items
   store-writer.ts   # action_items → task 信号 + 锚定链接
-src/identity/ (或 core/person-identity.ts 扩展)
-  me.ts             # entities/me 维护 + self handle 登记 + isMe() 判定
+src/core/person-identity.ts   # 扩展(不另建目录，回应 S9-P1-1)：
+                              #   ensureEntitiesMe() / registerSelfHandle() / isMe(slug)
 src/synth/intents/
   daily-report.ts   # daily_report 意图（注册进 Spec 7）
 ```

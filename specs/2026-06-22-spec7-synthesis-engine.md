@@ -69,9 +69,16 @@ interface SynthScope {
   entity?: string;                       // 围绕某实体（person/zhang-san）→ backlinks + timeline
   time?: { from: string; to: string };   // 时间窗 → 跨渠道按 date 过滤
   query?: string;                        // 自由语义检索 → hybrid search
-  types?: string[];                      // 限定信号类型
-  channels?: string[];                   // 限定来源渠道
+  types?: string[];                      // 限定信号类型（由 search.ts:133 的 `p.type = ANY($n)` 实现，scope.ts 透传）
+  channels?: string[];                   // 限定来源渠道，合法值与 timeline_entries.source 对齐：
+                                         //   feishu-dm | feishu-message | feishu-mail | feishu-calendar | feishu-task | feishu-docs | agent
   limit?: number;                        // 候选上限（默认 30）
+}
+
+// 合成调用选项：意图专属参数（如 daily_report 的 date、person_strategy 的 goal）经 extra 透传到 compose
+interface SynthOpts {
+  extra?: Record<string, unknown>;       // 透传给意图的 systemPrompt 拼装（见 §3.3 第 5 步）
+  noCache?: boolean;
 }
 
 // —— 组装上下文 ——
@@ -129,14 +136,16 @@ interface SynthesisResult {
 ### 3.3 `synthesize()` 6 步编排（`engine.ts`）
 
 ```
-synthesize(intent, scope, opts) → SynthesisResult
-  1. getIntent(intent)                  // intent.ts，未注册则抛错
-  2. cache.read(intent, scope)          // 命中且新鲜 → 直接返回（§九）
-  3. scope.retrieve(scope, {poolByPage:true})  // 检索候选（§七）
-  4. context.assemble(candidates)       // 编号 → AssembledContext
-  5. compose(intent.systemPrompt, ctx)  // LLM → ComposeOutput
+synthesize(intent, scope, opts?: SynthOpts) → SynthesisResult
+  1. getIntent(intent)                       // intent.ts，未注册则抛错
+  2. opts.noCache ? skip : cache.read(...)   // 命中且新鲜 → 直接返回（§九）
+  3. scope.retrieve(scope, {poolByPage:true})// 检索候选（§七）；scope.types 透传给 search 的 type 过滤
+  4. context.assemble(candidates)            // 编号 → AssembledContext
+  5. compose(intent, ctx, opts?.extra)       // LLM → ComposeOutput；extra（如 goal/date）拼入 systemPrompt
   6. citations.finalize + gaps.run + cache.write → SynthesisResult
 ```
+
+`compose(intent, ctx, extra)`：以 `intent.systemPrompt` 为基底，若 `extra` 非空则按意图约定拼入（如 `person_strategy` 把 `extra.goal` 作为"本次沟通目标"前置）。意图通过 `intent.systemPrompt` 中的占位或 compose 的拼装约定消费 `extra`，**Spec 8/9/11 不需改 `synthesize()` 签名**。
 
 ### 3.4 `answer` 与 `sections` 的关系（消除歧义）
 
@@ -203,9 +212,9 @@ export function getIntent(id: string): IntentTemplate {
 
 ## 七、best-chunk-per-page 池化（仅合成内部启用）
 
-`scope.ts` 检索时支持 `poolByPage` 参数：候选汇总后**按 `page_id` 分组，每页只保留最高分 chunk**，再做 RRF/tier/freshness 排序。
+**池化逻辑只实现一处**：在 `src/store/search.ts` 的 `hybridSearch` 内部，由 `poolByPage` 参数控制——候选汇总后**按 `page_id` 分组，每页只保留最高分 chunk**，再做 RRF/tier/freshness 排序。`src/synth/scope.ts` **只传 `poolByPage:true`，不自己二次 reduce**（避免双重池化，回应 review S10-P1-5）。
 
-- **`synthesize()` 内部默认 `poolByPage:true`**。
+- **`synthesize()` 经 scope.ts 传 `poolByPage:true`**。
 - **对外 `query`/`search` 默认 `poolByPage:false`——排序行为零变化，无回退风险**。
 - 是否对 `query`/`search` 默认开启，留待 Spec 10 评估（届时再处理既有测试的排序断言）。
 
@@ -235,6 +244,8 @@ server.tool("recall",     { entity: z.string().optional(), query: z.string().opt
 | `entity` | 该 entity page 的 `frontmatter.synth[intent]`（含 `input_hash` + `generated_at`） |
 | `time` | 专用摘要页 `reports/<intent>/<from..to>`（如 `reports/daily/2026-06-22`）的 `frontmatter.synth` |
 | `query` | 无单一 page 对应 → **起步不缓存**（后续可引入 `synth_cache` 表，key = `hash(intent+scope)`） |
+
+> **`reports/` 页的 type（回应 review CROSS-2 / S9-P0-3）**：`type = "knowledge"` + `frontmatter.is_report = true`（**不扩展 type union**）。Spec 9 沿用此约定。
 
 **新鲜度**：`input_hash`（候选 slug+date 集合的哈希）变化，或超过 `ttl` → 失效重算。混合预合成（夜间批量 + 当日增量）的具体策略由 Spec 8 落地，本 spec 只交付读写与新鲜度判定。
 

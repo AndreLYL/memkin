@@ -35,7 +35,11 @@ AI 沿边走即理解"先做什么、再做什么、关联问题怎么查"。
 
 1. **页类型**：新增 `playbook` / `problem-class` / `category`（扩展 `src/core/types.ts` 信号类型 union + slug 约定 `playbook/<kebab>` 等）。DB 列无需改。
 2. **边类型**：扩展 `LinkType` union（`core/types.ts:109`）增 `part_of` / `precedes` / `next` / `escalates_to`。DB `link_type` 自由 TEXT，无需改列；但需更新校验与（Spec 10 的）wikilink rel 白名单。
-3. **遍历接口**：复用现有 `traverse_graph` MCP 工具 + `graph` store；新增"取子树 / 沿 `precedes` 排序"的便捷查询（`src/store/graph.ts` 加方法）。
+3. **遍历接口**：复用现有 `traverse_graph` MCP 工具 + `graph` store；在 `src/store/graph.ts` 新增两个便捷查询（回应 review S11-P1-2，给出签名）：
+   ```typescript
+   getSubtree(slug: string, rel: LinkType, depth?: number): Promise<{ slug: string; title: string }[]>;       // 沿某关系取子树（如 category 的全部 problem-class/playbook）
+   getOrderedSequence(startSlug: string): Promise<{ slug: string; title: string }[]>;                          // 沿 precedes 链得排查顺序
+   ```
 
 ---
 
@@ -59,12 +63,12 @@ type: playbook
    - 无命中 → 转步骤 3
 
 ## 关联
-part_of:: [[problem-class/activation-failure]]
-precedes:: [[playbook/sensor-timeout]]
+[[part_of:problem-class/activation-failure]]
+[[precedes:playbook/sensor-timeout]]
 ```
 
 - 分支靠"命中 X → 含义/下一步"的 markdown 约定，LLM 在 `troubleshoot` 时理解。
-- 层级/顺序边用 Spec 10 的 wikilink/typed-link 语法 `[[rel:slug]]` 自动建（零 LLM）。
+- 层级/顺序边用 **Spec 10 统一的 `[[rel:slug]]` 语法**（回应 review S11-P0-1：与 Spec 10 对齐，弃用 `part_of:: [[...]]` 的 dataview 风格）自动建（零 LLM）。
 - 关键 playbook 后续可升级为结构化 JSON（留待迭代，不在本 spec）。
 
 ---
@@ -72,7 +76,10 @@ precedes:: [[playbook/sensor-timeout]]
 ## 五、知识来源（手动 + 自动，双支持）
 
 - **手动录入**：Agent 调现有 `put_page`（slug `playbook/...`）。"语音录入"是客户端的事（用户对 Claude/Cursor 口述 → Agent 写页），**现在即可用**，本 spec 只需保证 playbook 类型与约定成立。
-- **自动提取**：从排查类文档/对话沉淀。新增 **playbook-aware extractor**（复用现有抽取管线，加一个识别"这是排查流程"的 prompt 分支），把对话/文档中的步骤+分支抽成 playbook 页草稿（标 `confidence: inferred`，待人确认）。
+- **自动提取**：从排查类文档/对话沉淀。新增 **playbook-aware extractor**。三个落地细节（回应 review S11-P0-3）：
+  - **(A) 集成点**：在 `pipeline.ts` 的 SignalExtractor 阶段加一个 **pre-classify**——先用轻量判断"此 block 是否为排查流程"（规则关键词 `排查/步骤/grep/日志/如果.*则` + 可选 LLM 二判）；命中则走 playbook 抽取分支，否则走常规信号抽取。不改其他渠道行为。
+  - **(B) confidence 字段**：草稿写 **`frontmatter.confidence = "inferred"`**（page frontmatter 是自由 JSONB，无需改 schema），并打 tag `draft`，待人确认后改 `confirmed`。
+  - **(C) 抽取 prompt**：要求 LLM 输出 §四 的 markdown 结构（适用场景/步骤/命中→含义分支/关联 `[[rel:slug]]`），`responseFormat` 为文本 markdown（非 JSON，因正文即 compiled_truth）。
 
 ---
 
@@ -81,18 +88,24 @@ precedes:: [[playbook/sensor-timeout]]
 ### 6.1 意图（注册进 Spec 7，`src/synth/intents/troubleshoot.ts`）
 
 ```typescript
+import { missingFieldRule } from "../../synth/gaps.js";   // 回应 CROSS-1/S11-P2-1
+
 export const troubleshootIntent: IntentTemplate = {
   id: "troubleshoot",
   format: "single",
   staleDays: 0,
+  // types:["playbook"] 由 Spec 7 scope.ts 透传给 search.ts:133 既有的 `p.type = ANY($n)` 过滤（回应 S11-P1-1）
   buildScope: (args) => ({ query: args.query as string, types: ["playbook"], limit: 10 }),
   systemPrompt:
-    "你是排查助手。基于下列 playbook 片段，给出按序的排查步骤，并解释每步不同结果的含义。" +
-    "用 [n] 标注来源 playbook。沿 part_of/precedes 关系组织顺序。信息不足时直说。",
+    "你是排查助手。下面是按排查顺序排好的 playbook 片段。" +
+    "请按片段给定的编号顺序组织排查步骤，并解释每步不同结果的含义。" +
+    "用 [n] 标注来源 playbook。信息不足时直说。",
   expects: ["排查步骤"],
   gapRules: [missingFieldRule],
 };
 ```
+
+> **图边排序在检索阶段做，不指望 LLM（回应 review S11-P0-2）**：LLM 只看到平铺的 `[1]..[N]` 候选、感知不到图边。故 `scope.ts` 对 `troubleshoot` 检索结果**按 `precedes` 链预排序**（用 §三 的 `getOrderedSequence`）后再编号喂给 LLM；systemPrompt 只要求"按给定编号顺序组织"。
 
 ### 6.2 工具（本 spec 注册）
 
