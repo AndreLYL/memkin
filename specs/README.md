@@ -37,9 +37,9 @@ Spec 1 → Spec 2 → Spec 3
 |------|---------|------|
 | Spec 7：合成底座 | synthesize 引擎 + 意图框架 + 引用 + gap + best-chunk 池化 | 📝 待审查 |
 | Spec 8：人物沟通画像（Hero） | 三层人格（行为层+行为四象限主轴+关系层）+ 四色外壳；prep_for_person | 📝 待审查 |
-| Spec 9：日报 + 文档提取 | 卡片 schema 加 decisions/action_items；entities/me；daily_report | 📝 规划中 |
-| Spec 10：检索质量 | best-chunk 池化深化 / 零-LLM 边 / query 改写 | 📝 规划中 |
-| Spec 11：playbook | 分支 runbook + 分层树状图 + troubleshoot | 📝 规划中 |
+| Spec 9：日报 + 文档提取 | 卡片 schema 加 decisions/action_items；entities/me；daily_report | 📝 待审查 |
+| Spec 10：检索质量 | best-chunk 池化深化 / 零-LLM 边 / query 改写 | 📝 待审查 |
+| Spec 11：playbook | 分支 runbook + 分层树状图 + troubleshoot | 📝 待审查 |
 
 ## 规格文档速读
 
@@ -51,6 +51,9 @@ Spec 1 → Spec 2 → Spec 3
 - [行动决策记忆头脑风暴总纲](2026-06-22-action-memory-brainstorming.md) — thesis、三场景、防抄袭台账、Spec 7–11 蓝图
 - [Spec 7：合成底座](2026-06-22-spec7-synthesis-engine.md) — synthesize 引擎 + 意图框架 + 引用 + gap
 - [Spec 8：人物沟通画像（Hero）](2026-06-22-spec8-person-communication-profile.md) — 三层人格 + 行为层数据约束 + prep_for_person + 伦理护栏
+- [Spec 9：日报 + 文档提取](2026-06-22-spec9-daily-report-and-doc-extraction.md) — 卡片加 decisions/action_items + entities/me + daily_report
+- [Spec 10：检索质量](2026-06-22-spec10-retrieval-quality.md) — best-chunk 池化 / 零-LLM 边 / query 改写
+- [Spec 11：playbook](2026-06-22-spec11-playbook.md) — 分支 runbook + 分层树 + troubleshoot
 
 ## 实施计划速读
 
