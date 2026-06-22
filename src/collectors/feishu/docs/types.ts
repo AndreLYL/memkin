@@ -30,6 +30,20 @@ export interface TocItem {
   title: string;
 }
 
+// ── Decisions + action items extracted from a doc (Spec 9 §3.1) ───
+export interface DocDecision {
+  text: string;
+  made_by_raw?: string; // who made the decision, as written in the doc
+}
+
+export interface ActionItem {
+  text: string;
+  owner_raw?: string; // owner as written in the doc (name / @mention)
+  owner_slug?: string; // identity-layer-resolved person slug (§4)
+  due?: string; // ISO8601, optional
+  status: "open" | "done";
+}
+
 export interface PointerCard extends DocCandidate {
   extract_level: "pointer";
   extracted_at: string;
@@ -46,6 +60,8 @@ export interface FullCard extends DocCandidate {
   entities: EntityMention[];
   toc: TocItem[];
   overview: string;
+  decisions: DocDecision[];
+  action_items: ActionItem[];
   // metadata
   source_body_hash: string; // sha256(Feishu raw_content) — NOT pages.content_hash
   summary_generated_at: string;

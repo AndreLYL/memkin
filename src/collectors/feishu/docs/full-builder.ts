@@ -5,7 +5,14 @@ import { computeSourceBodyHash } from "./hash.js";
 import { LlmJsonParseError, parseLlmJson } from "./llm-json.js";
 import { buildPointerCard } from "./pointer-builder.js";
 import { extractTocFromBlocks } from "./toc.js";
-import type { DocCandidate, DocCard, EntityMention, FullCard } from "./types.js";
+import type {
+  ActionItem,
+  DocCandidate,
+  DocCard,
+  DocDecision,
+  EntityMention,
+  FullCard,
+} from "./types.js";
 
 const MIN_CONTENT_CHARS = 200;
 
@@ -15,12 +22,59 @@ function buildPrompt(rawText: string, userNote?: string): string {
     : "";
   return [
     "Summarize the following document into JSON with keys:",
-    '{ "purpose": string (<=50 chars), "topics": string[] (3-7), "entities": {name, type_guess}[], "overview": string (200-400 chars) }.',
-    "type_guess ∈ person|project|tool|concept|organization. Reply with JSON only, no markdown.",
+    '{ "purpose": string (<=50 chars), "topics": string[] (3-7), "entities": {name, type_guess}[], "overview": string (200-400 chars), "decisions": {text, made_by}[], "action_items": {text, owner, due}[] }.',
+    "type_guess ∈ person|project|tool|concept|organization.",
+    "decisions: concrete choices the document records (each with who made it, or null).",
+    'action_items: concrete to-dos, each with its owner (name/@mention, or null) and due date (ISO8601 "YYYY-MM-DD", or null). For meeting-minutes docs, extract every action item and its owner.',
+    "Reply with JSON only, no markdown.",
     noteLine,
     "\n---\n",
     rawText.slice(0, 12000),
   ].join("\n");
+}
+
+interface RawDecision {
+  text?: unknown;
+  made_by?: unknown;
+}
+
+interface RawActionItem {
+  text?: unknown;
+  owner?: unknown;
+  due?: unknown;
+  status?: unknown;
+}
+
+function parseDecisions(value: unknown): DocDecision[] {
+  if (!Array.isArray(value)) return [];
+  const out: DocDecision[] = [];
+  for (const raw of value as RawDecision[]) {
+    const text = typeof raw?.text === "string" ? raw.text.trim() : "";
+    if (!text) continue;
+    const decision: DocDecision = { text };
+    if (typeof raw.made_by === "string" && raw.made_by.trim()) {
+      decision.made_by_raw = raw.made_by.trim();
+    }
+    out.push(decision);
+  }
+  return out;
+}
+
+function parseActionItems(value: unknown): ActionItem[] {
+  if (!Array.isArray(value)) return [];
+  const out: ActionItem[] = [];
+  for (const raw of value as RawActionItem[]) {
+    const text = typeof raw?.text === "string" ? raw.text.trim() : "";
+    if (!text) continue;
+    const item: ActionItem = {
+      text,
+      status: raw.status === "done" ? "done" : "open",
+    };
+    if (typeof raw.owner === "string" && raw.owner.trim()) item.owner_raw = raw.owner.trim();
+    if (typeof raw.due === "string" && raw.due.trim()) item.due = raw.due.trim();
+    out.push(item);
+  }
+  return out;
 }
 
 export class FullCardBuilder {
@@ -96,6 +150,8 @@ export class FullCardBuilder {
       entities,
       toc: extractTocFromBlocks(feishuBlocksToDocBlocks(blocks)),
       overview: String(parsed.overview ?? ""),
+      decisions: parseDecisions(parsed.decisions),
+      action_items: parseActionItems(parsed.action_items),
       source_body_hash: computeSourceBodyHash(rawText),
       summary_generated_at: now,
       summary_model: this.model,
