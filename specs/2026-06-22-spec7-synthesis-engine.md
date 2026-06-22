@@ -17,7 +17,7 @@
 
 `src/server/mcp.ts` 的检索出口是 `query`（向量语义）和 `search`（关键词），二者都返回**排序后的 page/chunk 片段列表**。Agent 想要"我明天该注意什么"这类答案，必须自己把片段读完再归纳。
 
-**问题：** ① 只检索不合成；② 无 gap 意识（不会说"已过期/有矛盾/还缺什么"）；③ `vectorSearch`（`search.ts:397-429` 区段）逐 chunk 返回，同一页多 chunk 可能重复占榜。
+**问题：** ① 只检索不合成；② 无 gap 意识（不会说"已过期/有矛盾/还缺什么"）；③ `query()`（`search.ts:236`）对同页多 chunk **RRF 累加（sum）**，一页堆多个弱 chunk 反而占榜，而非以最强证据露出（见 §七 best-chunk 池化）。
 
 ### 目标
 
@@ -140,7 +140,7 @@ interface SynthesisResult {
 synthesize(intent, scope, opts?: SynthOpts) → SynthesisResult
   1. getIntent(intent)                       // intent.ts，未注册则抛错
   2. opts.noCache ? skip : cache.read(...)   // 命中且新鲜 → 直接返回（§九）
-  3. scope.retrieve(scope, {poolByPage:true})// 检索候选（§七）；scope.types 透传给 search 的 type 过滤
+  3. scope.retrieve(scope, {poolByPage:true})// 检索候选（§七，内部调 search.query(...,{poolByPage:true})）；scope.types 透传 type 过滤
   4. intent.sortCandidates?(candidates)      // 可选钩子：意图重排候选（如 Spec 11 沿 precedes）
   5. context.assemble(candidates)            // 编号 → AssembledContext
   6. intent.buildPinnedContext?(scope)       // 可选钩子：意图产出 ctx.pinnedContext（如 Spec 8 注入画像）
@@ -219,11 +219,13 @@ export function getIntent(id: string): IntentTemplate {
 
 ## 七、best-chunk-per-page 池化（仅合成内部启用）
 
-**池化逻辑只实现一处**：在 `src/store/search.ts` 的 `hybridSearch` 内部，由 `poolByPage` 参数控制——候选汇总后**按 `page_id` 分组，每页只保留最高分 chunk**，再做 RRF/tier/freshness 排序。`src/synth/scope.ts` **只传 `poolByPage:true`，不自己二次 reduce**（避免双重池化，回应 review S10-P1-5）。
+**现状（main@eebb1b6 核对）**：混合检索是 `SearchEngine.query()`（`src/store/search.ts:236`，**非 `hybridSearch`**）。其 `scoreMap` **已按页 `slug` 去重**（每页一行），但对同一页的多个命中 chunk 是 **RRF 累加（sum）**：`newScore = existing.score + rrfScore`。
 
-- **`synthesize()` 经 scope.ts 传 `poolByPage:true`**。
-- **对外 `query`/`search` 默认 `poolByPage:false`——排序行为零变化，无回退风险**。
-- 是否对 `query`/`search` 默认开启，留待 Spec 10 评估（届时再处理既有测试的排序断言）。
+**best-chunk 池化 = 把累加改为取最强单 chunk（max）**（gbrain"以最强证据露出"，回应 review S10-P1-5）：
+- 给 `query()` 的 opts 增 `poolByPage?: boolean`（默认 **false**）。
+- `poolByPage:false`（默认）：保持现有 **sum** 行为 → `query`/`search` 排序零变化、无回归。
+- `poolByPage:true`：同页多 chunk 取 **max** 单 chunk RRF 作页分（`newScore = max(existing, rrfScore)`），再走 tier/freshness 加权。
+- **池化只此一处**（`query()` 内，由参数控制）；`src/synth/scope.ts` 仅传 `poolByPage:true`，**不二次 reduce**（无双重池化）。
 
 ---
 
@@ -274,7 +276,7 @@ server.tool("recall",     { entity: z.string().optional(), query: z.string().opt
 2. `synthesize("recall", { entity })` 返回 `SynthesisResult`：`answer` 非空 + ≥1 条有效 `[n]` 引用 + `gaps` 列表。
 3. 引用后处理：mock provider 注入伪引用 `[99]`，断言被剔除、`citations` 不含其。
 4. `stale` gap：构造 20 天前信号、`staleDays=14`，断言返回 `stale` gap；`missing_field`：构造 `expects` 未覆盖项，断言返回。
-5. best-chunk 池化：`synthesize` 内同页多 chunk 命中 → 结果该页只出现一次取最强 chunk；**`query`/`search` 默认行为与排序零变化（既有测试全绿）**。
+5. best-chunk 池化：`query(q,{poolByPage:true})` 同页多 chunk 取 **max** 单 chunk 分（构造"一页多弱 chunk vs 另一页一强 chunk"，断言强者胜）；`poolByPage:false`（默认）保持 **sum** 行为，**`query`/`search` 既有测试全绿零回归**。
 6. MCP：注册 `synthesize` + `recall` 两个工具；**不注册任何占位/未实现工具**；现有工具行为不变。
 7. 缓存：`entity` scope 二次合成命中（mock provider 调用次数 = 1）；`time` scope 写回 `reports/<intent>/<date>` 页；`query` scope 不缓存。
 8. recall 意图：`buildScope`/`systemPrompt`/`gapRules`/`format` 在 `intents/recall.ts` 完整定义并端到端可跑。

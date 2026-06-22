@@ -27,8 +27,9 @@
 
 Spec 7 §七 已实现 `poolByPage`，且**对 `query`/`search` 默认关**（零回退）。本 spec 评估**默认开**：
 
-- 改 `src/store/search.ts` `hybridSearch` 默认 `poolByPage:true`。
-- **池化单点（回应 review S10-P1-5）**：池化逻辑**只在 `hybridSearch` 内**（Spec 7 §七已统一为此）；`src/synth/scope.ts` 仅传 `poolByPage:true`，**不二次 reduce**，无双重池化。
+- 改 `src/store/search.ts` `query()`（混合检索方法，非 `hybridSearch`）默认 `poolByPage:true`。
+- **语义**：把 `query()` 对同页多 chunk 的 RRF **累加(sum)** 改为默认 **取最强单 chunk(max)**（Spec 7 §七已实现该参数，默认 false；本 spec 评估翻转默认）。
+- **池化单点（回应 review S10-P1-5）**：逻辑**只在 `query()` 内**；`src/synth/scope.ts` 仅传参，**不二次 reduce**，无双重池化。
 - **影响**：现有对排序顺序有硬断言的测试可能变红 → 本 spec **负责审查并更新这些测试**（明确允许排序结果变化）。
 - **配置（回应 S10-P1-4）**：新增 `search.pool_by_page`（默认 true，可回退），**需同步在 `src/core/config.ts` 的 Zod schema 增此字段**，否则 `memoark.yaml` 读取报错。
 
@@ -64,7 +65,7 @@ parseWikiLinks(compiledTruth): { to: string; type: LinkType }[]
 
 ## 五、query 意图改写
 
-新增 `src/store/query-rewrite.ts`，在 `hybridSearch` 检索前对 query 预处理：
+新增 `src/store/query-rewrite.ts`，在 `query()` 检索前对 query 预处理：
 
 - **起步：规则式 + 零依赖**（回应 review S10-P1-3）——**不引入分词库**（jieba/`@node-rs/*` 在 Bun 下有 native binding 风险）。仅做：同义词/缩写扩展（可配置词表）、停用词表过滤、空白归一。CJK 检索召回已由现有 `tsvector('simple')` + 向量覆盖，分词不是起步必需。若后续确需分词，单独评估 Bun 兼容性。
 - **可选：LLM 改写**——按意图扩写检索词（开关 `search.llm_rewrite`，默认关，避免每次检索烧 LLM）。

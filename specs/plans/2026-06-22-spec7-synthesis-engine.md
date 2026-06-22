@@ -6,7 +6,7 @@
 
 **Goal:** 实现 `synthesize(intent, scope, opts?)` 合成引擎——检索 → 组装 → LLM 成段 → 引用 + gap，附意图模板框架、最小参考意图 `recall`、逐 scope 缓存、best-chunk 池化（仅合成内启用）。对外注册 `synthesize` + `recall` 两个 MCP 工具。
 
-**Architecture:** 新增 `src/synth/` 目录（与 `consolidator/` 平级），见 Spec §3.1。池化逻辑放进现有 `src/store/search.ts` 的 `hybridSearch`（`poolByPage` 参数，默认 false）。引擎不 import 任何具体意图——意图经 `intents/index.ts` 显式注册；可选钩子 `sortCandidates`/`buildPinnedContext` 由 engine 通用调用。
+**Architecture:** 新增 `src/synth/` 目录（与 `consolidator/` 平级），见 Spec §3.1。池化逻辑放进现有 `src/store/search.ts` 的 **`query()`**（混合检索方法，**非 `hybridSearch`**——已核 main：公开方法是 `query()`/`search()`）的 opts 增 `poolByPage`（默认 false）。引擎不 import 任何具体意图——意图经 `intents/index.ts` 显式注册；可选钩子 `sortCandidates`/`buildPinnedContext` 由 engine 通用调用。
 
 **Tech Stack:** TypeScript, PGlite, Zod, `@modelcontextprotocol/sdk`, Vitest。LLM 走现有 `src/extractors/providers`（含 mock）。
 
@@ -29,7 +29,7 @@
 | `src/synth/intents/recall.ts` | Create | 参考意图 recall |
 | `src/synth/intents/index.ts` | Create | 显式 `registerIntent(recallIntent)` |
 | `src/synth/index.ts` | Create | 对外导出 synthesize + 类型 |
-| `src/store/search.ts` | Modify | `hybridSearch` 加 `poolByPage`（默认 false） |
+| `src/store/search.ts` | Modify | `query()` opts 加 `poolByPage`（默认 false）：同页多 chunk 由 sum 改 max |
 | `src/server/mcp.ts` | Modify | 注册 `synthesize` + `recall` 工具 |
 | `tests/synth/*.test.ts` | Create | 各模块 + 端到端测试 |
 | `README.md` / `README.en.md` | Modify | Task 10：同步合成能力（见末尾 README 同步） |
@@ -48,11 +48,11 @@
 
 ## Task 2: best-chunk 池化 `src/store/search.ts`
 
-- [ ] **Step 1: 写失败测试** `tests/synth/pooling.test.ts`：构造同一 page 的多个 chunk 都命中，断言 `hybridSearch(q, {poolByPage:true})` 该 page 只出现一次且取最强 chunk；`hybridSearch(q)`（默认）行为与改动前一致（同页多 chunk 仍各自出现 / 原排序）。
+- [ ] **Step 1: 写失败测试** `tests/synth/pooling.test.ts`：`query()` 的 `scoreMap` 已按 slug 去重（每页一行），现状对同页多 chunk **累加(sum)**。构造"页 A 有多个弱 chunk、页 B 有一个强 chunk"：默认（sum）下 A 可能因累加占先；`query(q,{poolByPage:true})`（max）下 B 应胜。断言两种模式排序不同、且默认模式与改动前一致。
 
 - [ ] **Step 2: 跑测试确认失败** `bunx vitest run tests/synth/pooling.test.ts --pool=forks --poolOptions.forks.maxForks=2 --poolOptions.forks.minForks=2`
 
-- [ ] **Step 3: 实现** —— `hybridSearch(query, opts)` 增 `poolByPage?: boolean`（默认 `false`）。在候选合并、RRF/tier/freshness 加权**之后**，若 `poolByPage`，按 `page_id`（或 slug）分组取最高分项再排序。**默认 false ⇒ `query`/`search` 零行为变化**（回应 review S10-P1-5：池化只此一处）。
+- [ ] **Step 3: 实现** —— `query(query, opts)` 的 opts 增 `poolByPage?: boolean`（默认 `false`）。改 `addRanked` 内的合并：默认 `newScore = existing.score + rrfScore`（sum，现状）；`poolByPage` 时 `newScore = Math.max(existing.score, rrfScore)`（max，best-chunk）。其余 tier/freshness 不变。**默认 false ⇒ `query`/`search` 零行为变化**（回应 review S10-P1-5：池化只此一处，在 `query()` 内）。
 
 - [ ] **Step 4: 跑测试确认通过 + 现有 search 测试不回归**
 ```bash
@@ -65,11 +65,11 @@ bunx vitest run tests/synth/pooling.test.ts tests/store/search.test.ts --pool=fo
 
 ## Task 3: 检索 `src/synth/scope.ts`
 
-- [ ] **Step 1: 写失败测试** `tests/synth/scope.test.ts`：① entity scope → 取该实体 backlinks + timeline 转候选；② time scope → 按 date 窗口过滤；③ query scope → 走 `hybridSearch(poolByPage:true)`；④ `types:["x"]` 透传到 search 的 `p.type=ANY` 过滤（已存在于 `search.ts:133`）。
+- [ ] **Step 1: 写失败测试** `tests/synth/scope.test.ts`：① entity scope → 取该实体 backlinks + timeline 转候选；② time scope → 按 date 窗口过滤；③ query scope → 走 `search.query(...,{poolByPage:true})`；④ `types:["x"]` 透传到 search 的 `p.type=ANY` 过滤（已存在于 `search.ts:133`）。
 
 - [ ] **Step 2: 跑测试确认失败**
 
-- [ ] **Step 3: 实现 `retrieve(scope, opts, stores): Promise<AssembledCandidate[]>`** —— 按 scope 三模式分派；query 模式调 `hybridSearch(scope.query, { poolByPage:true, types: scope.types, limit })`；entity 模式用 `graph.getBacklinksEnriched` + `timeline.getTimeline`；time 模式按 date 过滤 pages/timeline。返回未编号的候选（编号在 context.ts）。
+- [ ] **Step 3: 实现 `retrieve(scope, opts, stores): Promise<AssembledCandidate[]>`** —— 按 scope 三模式分派；query 模式调 `stores.search.query(scope.query, { poolByPage:true, types: scope.types, limit })`；entity 模式用 `graph.getBacklinksEnriched` + `timeline.getTimeline`；time 模式按 date 过滤 pages/timeline。返回未编号的候选（编号在 context.ts）。
 
 - [ ] **Step 4: 跑测试确认通过**
 
