@@ -79,6 +79,7 @@ describe("MCP contract", () => {
       "synthesize",
       "recall",
       "prep_for_person",
+      "daily_report",
       "put_page",
       "add_timeline_entry",
       "manage_links",

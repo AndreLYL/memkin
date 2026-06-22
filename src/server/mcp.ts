@@ -23,6 +23,7 @@ import { PersonBehaviorStore } from "../store/person-behavior.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import { dailyReportIntent } from "../synth/intents/daily-report.js";
 import type { SynthScope } from "../synth/index.js";
 import { synthesize } from "../synth/index.js";
 import type { StoreContext as SynthStoreContext } from "./api.js";
@@ -617,6 +618,17 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
         { extra: goal ? { goal } : undefined },
       );
     },
+    // ── Spec 9: daily_report — cross-channel daily report (7 sections) ─────
+    daily_report: async ({ date }: { date?: string }) => {
+      const provider =
+        options.provider ??
+        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      return synthesize("daily_report", dailyReportIntent.buildScope({ date }), {
+        stores: stores as unknown as SynthStoreContext,
+        provider,
+        model: options.synthModel,
+      });
+    },
   };
 }
 
@@ -879,6 +891,24 @@ function registerPreferredTools(
       },
     },
     async (args) => text(await tools.prep_for_person(args)),
+  );
+
+  server.registerTool(
+    "daily_report",
+    {
+      title: "Daily Report (Cross-Channel)",
+      description: description(
+        "daily_report",
+        "Generate a synthesized cross-channel daily report in 7 fixed sections.\n\nWhen to use: 'help me write today's daily report' — aggregate the day's signals (mail / IM / calendar / docs) into 今日概览 / 今日完成 / 推进中 / 我的待办 / 待回复与被@ / 人脉动态 / 明日提醒.\nWhen NOT to use: arbitrary recall; use `recall`/`query`.\nReturns: a SynthesisResult with sections[] + answer + citations + gaps.\nOn error: ensure the date is a valid ISO date.",
+      ),
+      inputSchema: {
+        date: z
+          .string()
+          .optional()
+          .describe("Report date as `YYYY-MM-DD`. Defaults to today (local time)."),
+      },
+    },
+    async (args) => text(await tools.daily_report(args)),
   );
 
   if (!options.readOnly) {
