@@ -101,8 +101,7 @@ export function computeContribution(
     // find the next sent message after this received one (adjacent reply by us)
     const next = sorted[i + 1];
     if (next && next.direction === "sent") {
-      const latency =
-        (new Date(next.timestamp).getTime() - new Date(m.timestamp).getTime()) / 1000;
+      const latency = (new Date(next.timestamp).getTime() - new Date(m.timestamp).getTime()) / 1000;
       if (latency >= 0) {
         c.resp_latency_n += 1;
         c.resp_latency_sum_s += Math.round(latency);

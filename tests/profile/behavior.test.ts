@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { ConversationBlock, RawMessage } from "../../src/core/types.js";
 import { computeContribution, deriveProfile } from "../../src/profile/behavior.js";
 import type { PersonBehaviorRow } from "../../src/profile/types.js";
-import type { ConversationBlock, RawMessage } from "../../src/core/types.js";
 
 function msg(overrides: Partial<RawMessage>): RawMessage {
   return {
@@ -73,7 +73,12 @@ describe("profile/behavior computeContribution (DM, direction-based)", () => {
 
   it("self (sent) messages do not create a contribution for self", () => {
     const b = block([
-      msg({ contact: "ou_self", direction: "sent", content: "yo", timestamp: "2026-06-20T08:00:00.000Z" }),
+      msg({
+        contact: "ou_self",
+        direction: "sent",
+        content: "yo",
+        timestamp: "2026-06-20T08:00:00.000Z",
+      }),
     ]);
     const map = computeContribution(b, { resolveSender: resolve });
     expect(map.has("people/ou_self")).toBe(false);

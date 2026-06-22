@@ -25,10 +25,7 @@ describe("synth person_strategy intent", () => {
     const search = new SearchEngine(db.pg);
     stores = { db, pages, chunks, graph, timeline, search } as unknown as StoreContext;
 
-    await pages.putPage(
-      "people/zhang-san",
-      "---\ntitle: Zhang San\ntype: person\n---\nZhang San.",
-    );
+    await pages.putPage("people/zhang-san", "---\ntitle: Zhang San\ntype: person\n---\nZhang San.");
     const d = await pages.putPage(
       "decisions/ship-it",
       "---\ntitle: Ship It\ntype: decision\n---\nWe decided to ship the feature on Friday.",

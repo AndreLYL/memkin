@@ -20,15 +20,10 @@ import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { PersonBehaviorStore } from "../store/person-behavior.js";
 import type { TimelineStore } from "../store/timeline.js";
-import { deriveProfile } from "./behavior.js";
 import { isPersonProfilable } from "./accumulate.js";
+import { deriveProfile } from "./behavior.js";
 import { toFourColor } from "./four-color.js";
-import type {
-  BehaviorProfile,
-  ProfileObject,
-  RelationLayer,
-  TraitLayer,
-} from "./types.js";
+import type { BehaviorProfile, ProfileObject, RelationLayer, TraitLayer } from "./types.js";
 
 export interface ProfileSynthStores {
   pages: PageStore;
@@ -80,11 +75,7 @@ interface LLMTrait {
  * Write the structured profile into the page's frontmatter.profile, preserving
  * the rest of the page (frontmatter + body).
  */
-async function writeProfile(
-  pages: PageStore,
-  slug: string,
-  profile: ProfileObject,
-): Promise<void> {
+async function writeProfile(pages: PageStore, slug: string, profile: ProfileObject): Promise<void> {
   const page = await pages.getPage(slug);
   if (!page) return;
   const fm: Record<string, unknown> = {

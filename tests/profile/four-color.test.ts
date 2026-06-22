@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toFourColor, FOUR_COLOR_DISCLAIMER } from "../../src/profile/four-color.js";
+import { FOUR_COLOR_DISCLAIMER, toFourColor } from "../../src/profile/four-color.js";
 import type { TraitDimension, TraitLayer } from "../../src/profile/types.js";
 
 function dim(axis: TraitDimension["axis"], level: TraitDimension["level"]): TraitDimension {

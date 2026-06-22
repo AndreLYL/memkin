@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { accumulateBehavior } from "../../src/profile/accumulate.js";
 import type { ProfileConfig } from "../../src/core/config.js";
 import type { ConversationBlock, RawMessage } from "../../src/core/types.js";
+import { accumulateBehavior } from "../../src/profile/accumulate.js";
 import { Database } from "../../src/store/database.js";
 import { PersonBehaviorStore } from "../../src/store/person-behavior.js";
 
