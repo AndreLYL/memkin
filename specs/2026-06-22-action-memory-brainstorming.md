@@ -56,7 +56,8 @@ synthesize(intent, scope)
 | ② 特质层（推断） | 映射到 **DISC 四维**主轴（+ 可选 Big Five 校验） | LLM，喂行为层 + 真实对话片段，带置信度/证据 | 学术框架 |
 | ③ 关系层（专属） | 你和 TA 的历史基调、雷区、在意点 | LLM over 共享历史 | — |
 
-- **外壳**：DISC 结果**通俗映射成四色（红/蓝/黄/绿）**给中文用户看，标注"通俗映射，非临床诊断"。
+- **外壳**：行为四象限结果**通俗映射成四色（红/蓝/黄/绿）**给中文用户看，标注"通俗映射，非临床诊断"。
+- ⚠️ **商标合规（DiSC）**："DiSC" 是 Wiley 的注册商标。本系统内部仅把它当**理论参考**；**对外产品/演示统一用中性词「行为四象限」**，并附免责说明（不暗示官方 DiSC 认证/授权）。下文 spec 中出现 "DISC" 均指此内部理论参考。
 - **原创内核（防抄袭主武器）**：把成熟人格学（DISC/Big Five）用**被动行为数据 + LLM 落到真实职场关系，零问卷**。市面性格测试要做问卷，gbrain 只有 facts，我们两者都不是。天然接"本地优先"（用你自己的真实数据，画像不出本机）。
 - **接口**：`prep_for_person(person, goal?)` **目标条件化**（带 goal 给针对性策略）。
 - **方法论依据**：computational personality recognition 研究表明 LLM 零样本判人格不可靠，必须"行为特征 + 证据 + 置信度 + 精心 prompt"——反向验证三层模型的正确性。
@@ -65,7 +66,11 @@ synthesize(intent, scope)
 ### 场景 1：日报 → Spec 9
 
 - **文档压缩**：沿用现有 T1/T2/T4/T5 触发设计（`docs/triggers.ts`，不改）；**真正缺口是抽取 schema**——扩展卡片加 `decisions[]` / `action_items[]{owner, due}`，owner = 我的 → 进日报。
-- **"我"身份**：借 OpenClaw `user.md` 概念，做成特殊页 `entities/me`（compiled_truth = 可手编的自我信息：角色/公司/团队/项目/沟通偏好/各平台 handle），身份层把所有 self-handle 归并到它；self_open_id **优先自动解析**（`self-open-id.ts` 走用户 OAuth `getAuthStatus().userOpenId`），手填仅兜底。机器人 token 只代表应用自己，不等于"你"。
+- **"我"身份**：借 OpenClaw `user.md` 概念，做成特殊页 `entities/me`（compiled_truth = 可手编的自我信息：角色/公司/团队/项目/沟通偏好/各平台 handle），身份层把所有 self-handle 归并到它。
+- **self_open_id 解析（复杂度勿低估）**：两条路径——
+  - **手填**：兜底，确定可用。
+  - **自动解析**：`src/collectors/feishu/self-open-id.ts` 的 `resolveSelfOpenId()` → `getAuthStatus().userOpenId`（**main 已有此文件**，docs 分支落后不含）。但它依赖 lark-cli 完成**用户级 OAuth 会话**（`user_access_token`，与 bot/`tenant_access_token` 是**两套体系**）；获取"操作用户本人"的 open_id 需用户侧应用走 OAuth 授权，**远非一行调用**。机器人 token 只代表应用自己，不等于"你"。
+  - ⚠️ **Spec 9 落地前必须先做 Spike**：在真实 lark-cli 环境验证自动解析可行性与授权流程；不可行则以手填为默认，自动解析作增强。
 - **日报模板（7 段，第 6 段原创、在主线上）**：
   1. 今日概览（一句话 + 关键数字）
   2. 今日完成（达成的决策 + 完成的任务）
@@ -87,7 +92,8 @@ synthesize(intent, scope)
     └─ problem-class(无法激活类 ← 可含 100 个原因)
          └─ playbook(具体排查手册:步骤+分支, markdown)
   ```
-  层级 = `part_of`；先后顺序 = `precedes`/`next`；关联 = `relates_to`/`escalates_to`。AI 沿边走即理解"先做什么、再做什么、关联问题怎么查"。gbrain 自布线可从 markdown wikilink 自动建这些边。需要的只是：新增 `playbook`(+可选 `problem-class`/`category`) 类型 + 一组 playbook 专用边类型。
+  层级 = `part_of`；先后顺序 = `precedes`/`next`；关联 = `relates_to`/`escalates_to`。AI 沿边走即理解"先做什么、再做什么、关联问题怎么查"。gbrain 自布线可从 markdown wikilink 自动建这些边。
+  - **工作量勿低估（非"只是"）**：落地至少涉及 ① `schema.sql` 类型枚举新增 + migration ② `link_type` 扩展（`part_of`/`precedes`/`next`/`escalates_to`）+ 校验 ③ 图遍历查询接口（沿边导航 / 取子树）④ 自布线 wikilink 解析。Spec 11 计划者据此估工，不可按"加个类型"轻估。
 
 ---
 
