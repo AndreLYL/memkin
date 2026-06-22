@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProfileConfig } from "../../src/core/config.js";
 import { Consolidator } from "../../src/consolidator/consolidator.js";
 import * as profileSynth from "../../src/profile/profile-synth.js";
-import { ChunkStore } from "../../src/store/chunks.js";
 import { Database } from "../../src/store/database.js";
 import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
@@ -34,12 +33,11 @@ describe("consolidator profile synthesis wiring (gated)", () => {
     const graph = new GraphStore(db.pg);
     const tags = new TagStore(db.pg);
     const timeline = new TimelineStore(db.pg);
-    const chunks = new ChunkStore(db.pg);
     const behavior = new PersonBehaviorStore(db.pg);
     const llm = { chat: vi.fn().mockResolvedValue("[]") };
     const consolidator = new Consolidator({ pages, graph, tags, timeline }, llm, {
       profile: profileConfig,
-      profileStores: { pages, graph, timeline, chunks, behavior },
+      profileStores: { pages, graph, timeline, behavior },
     });
     return consolidator;
   }
