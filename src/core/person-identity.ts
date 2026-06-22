@@ -18,6 +18,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { stringify as stringifyYaml } from "yaml";
 import type { PageStore } from "../store/pages.js";
+import type { PersonBehaviorStore } from "../store/person-behavior.js";
 
 export type HandleKind = "feishu_open_id" | "email" | "name" | "nickname" | "slug";
 export type HandleStrength = "strong" | "weak";
@@ -60,10 +61,17 @@ export interface PersonIdentityStores {
   pages: PageStore;
 }
 
+/** Optional extra stores kept consistent across identity operations (Spec 8). */
+export interface PersonIdentityExtraStores {
+  /** Spec 8 behavior layer — counters are merged when two persons merge. */
+  behavior?: PersonBehaviorStore;
+}
+
 export class PersonIdentityStore {
   constructor(
     private db: PGlite,
     private stores?: PersonIdentityStores,
+    private extra?: PersonIdentityExtraStores,
   ) {}
 
   /** Resolve a single handle to its canonical person slug, or null. */
@@ -266,7 +274,16 @@ export class PersonIdentityStore {
       from.compiled_truth.trim().length > 0
         ? `${into.compiled_truth.trimEnd()}\n\n## Merged from ${fromSlug}\n\n${from.compiled_truth.trim()}`
         : into.compiled_truth;
-    await this.writePage(into, foldedBody, [...aliasValues]);
+    // Spec 8: the merged-into person's cached communication profile is now stale
+    // (it was computed before the behavior counters were folded in) — drop it so
+    // the next nightly synthesis recomputes from the combined evidence.
+    const { profile: _staleProfile, ...intoFm } = into.frontmatter;
+    await this.writePage({ ...into, frontmatter: intoFm }, foldedBody, [...aliasValues]);
+
+    // Spec 8: fold the behavior-layer counters (additive) into the target.
+    if (this.extra?.behavior) {
+      await this.extra.behavior.merge(fromSlug, intoSlug);
+    }
 
     // Re-point handle + identity-cache mappings, then drop the old page.
     await this.db.query("UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [

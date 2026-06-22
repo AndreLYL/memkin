@@ -18,6 +18,7 @@ import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
 import type { GraphStore } from "../store/graph.js";
 import type { Page, PageStore } from "../store/pages.js";
+import { PersonBehaviorStore } from "../store/person-behavior.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
@@ -241,7 +242,11 @@ function decodeSlug(value: unknown): string {
 }
 
 export function createMcpToolHandlers(stores: StoreContext, options: McpServerOptions = {}) {
-  const identity = new PersonIdentityStore(stores.db.pg, { pages: stores.pages });
+  const identity = new PersonIdentityStore(
+    stores.db.pg,
+    { pages: stores.pages },
+    { behavior: new PersonBehaviorStore(stores.db.pg) },
+  );
   return {
     query: async (args: MemoryFilter & { query: string }) => {
       const filter = normalizeSearchFilter(args);

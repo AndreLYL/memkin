@@ -139,7 +139,11 @@ async function openIdentityStore(config: LoadedConfig) {
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
   });
-  const identity = new PersonIdentityStore(db.pg, { pages: new PageStore(db.pg) });
+  const identity = new PersonIdentityStore(
+    db.pg,
+    { pages: new PageStore(db.pg) },
+    { behavior: new PersonBehaviorStore(db.pg) },
+  );
   return { db, identity };
 }
 
