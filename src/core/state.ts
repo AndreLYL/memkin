@@ -30,7 +30,8 @@ export function ensureStateDir(base?: string): string {
  * @param filename - Name of the state file (e.g., 'cursors.yaml', 'checkpoints.jsonl')
  * @returns Full path to the state file
  */
-export function statePath(filename: string): string {
-  const stateDir = resolve(process.cwd(), ".memoark");
+export function statePath(filename: string, base?: string): string {
+  const baseDir = base || process.cwd();
+  const stateDir = resolve(baseDir, ".memoark");
   return resolve(stateDir, filename);
 }

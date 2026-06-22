@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8" /><title>probe</title>
+<script>
+  // Layer 2: inline JS (no bundle dependency), paints a green banner on DOMContentLoaded
+  window.addEventListener('DOMContentLoaded', function () {
+    var d = document.createElement('div');
+    d.textContent = 'INLINE_JS_OK';
+    d.style.cssText = 'position:fixed;top:80px;left:0;background:lime;color:#000;font-size:40px;z-index:9999';
+    document.body.appendChild(d);
+    document.title = 'INLINE_DONE';
+  });
+</script>
+</head>
+<body style="background:#ffffff">
+  <!-- Layer 1: pure static HTML, no JS at all -->
+  <h1 style="color:red;background:yellow;font-size:48px;margin:0">STATIC_HTML_OK</h1>
+  <div id="root"></div>
+  <!-- Layer 3: bundle (main.tsx renders ForceGraph) -->
+  <script type="module" src="/main.tsx"></script>
+</body></html>

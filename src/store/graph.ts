@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { compactSourceRef } from "../core/source-ref.js";
 import type { SourceRef } from "../core/types.js";
 
 export interface LinkRow {
@@ -48,10 +49,34 @@ interface EnrichedLinkRawRow {
   to_slug: string;
   link_type: string;
   context: string;
-  provenance?: string;
+  provenance?: SourceRef | string | null;
   page_title: string;
   page_type: string;
   page_frontmatter: string | Record<string, unknown>;
+}
+
+interface LinkRawRow {
+  from_slug: string;
+  to_slug: string;
+  link_type: string;
+  context: string;
+  provenance?: SourceRef | string | null;
+}
+
+interface InsertRow {
+  id: number;
+}
+
+function parseProvenance(value: SourceRef | string | null | undefined): SourceRef | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as SourceRef;
+    } catch {
+      return undefined;
+    }
+  }
+  return value;
 }
 
 export class GraphStore {
@@ -65,21 +90,29 @@ export class GraphStore {
     provenance?: SourceRef,
     sourceHash?: string,
   ): Promise<void> {
-    await this.pg.query(
+    const result = await this.pg.query<InsertRow>(
       `INSERT INTO links (from_page_id, to_page_id, link_type, context, provenance, source_hash)
        SELECT f.id, t.id, $3, $4, $5, $6
        FROM pages f, pages t
        WHERE f.slug = $1 AND t.slug = $2
-       ON CONFLICT (from_page_id, to_page_id, link_type) DO UPDATE SET context = EXCLUDED.context`,
+       ON CONFLICT (from_page_id, to_page_id, link_type) DO UPDATE SET
+         context = EXCLUDED.context,
+         provenance = COALESCE(EXCLUDED.provenance, links.provenance),
+         source_hash = COALESCE(EXCLUDED.source_hash, links.source_hash)
+       RETURNING id`,
       [
         fromSlug,
         toSlug,
         type,
         context ?? "",
-        provenance ? JSON.stringify(provenance) : null,
+        provenance ? JSON.stringify(compactSourceRef(provenance)) : null,
         sourceHash ?? null,
       ],
     );
+    if (result.rows.length === 0) {
+      const missingSlug = (await this.pageExists(fromSlug)) ? toSlug : fromSlug;
+      throw new Error(`Page not found: ${missingSlug}`);
+    }
   }
 
   async removeLink(fromSlug: string, toSlug: string): Promise<void> {
@@ -92,7 +125,7 @@ export class GraphStore {
   }
 
   async getLinks(slug: string): Promise<LinkRow[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<LinkRawRow>(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id
@@ -100,7 +133,10 @@ export class GraphStore {
        WHERE pf.slug = $1`,
       [slug],
     );
-    return result.rows as LinkRow[];
+    return result.rows.map((row) => ({
+      ...row,
+      provenance: parseProvenance(row.provenance),
+    }));
   }
 
   async getAllLinksGrouped(): Promise<Map<string, LinkRow[]>> {
@@ -121,7 +157,7 @@ export class GraphStore {
   }
 
   async getBacklinks(slug: string): Promise<LinkRow[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<LinkRawRow>(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id
@@ -129,7 +165,10 @@ export class GraphStore {
        WHERE pt.slug = $1`,
       [slug],
     );
-    return result.rows as LinkRow[];
+    return result.rows.map((row) => ({
+      ...row,
+      provenance: parseProvenance(row.provenance),
+    }));
   }
 
   async getLinksEnriched(slug: string): Promise<EnrichedLinkRow[]> {
@@ -153,7 +192,7 @@ export class GraphStore {
         to_slug: r.to_slug,
         link_type: r.link_type,
         context: r.context,
-        provenance: r.provenance ? (JSON.parse(r.provenance) as SourceRef) : undefined,
+        provenance: parseProvenance(r.provenance),
         page: {
           title: r.page_title,
           type: r.page_type,
@@ -203,7 +242,7 @@ export class GraphStore {
         to_slug: r.to_slug,
         link_type: r.link_type,
         context: r.context,
-        provenance: r.provenance ? (JSON.parse(r.provenance) as SourceRef) : undefined,
+        provenance: parseProvenance(r.provenance),
         page: {
           title: r.page_title,
           type: r.page_type,
@@ -301,5 +340,10 @@ export class GraphStore {
       nodes,
       edges,
     };
+  }
+
+  private async pageExists(slug: string): Promise<boolean> {
+    const result = await this.pg.query("SELECT 1 FROM pages WHERE slug = $1", [slug]);
+    return result.rows.length > 0;
   }
 }

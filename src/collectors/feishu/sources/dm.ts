@@ -6,6 +6,7 @@ import type { FeishuSource } from "./base.js";
 
 interface DMSourceOpts {
   lookbackDays: number;
+  overrideSinceMs?: number;
   selfOpenId: string;
   overlapMs?: number;
 }
@@ -28,6 +29,12 @@ export class DMSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
+    if (this.chatIds.length === 0) {
+      throw new Error(
+        "dm source enabled but dm_chat_ids is empty — add specific DM chat IDs, " +
+          "or disable this source and use message_search with chat_types=[p2p] instead",
+      );
+    }
     for (const chatId of this.chatIds) {
       try {
         const startMs = this.resolveStartTime(checkpoint, chatId);
@@ -68,11 +75,15 @@ export class DMSource implements FeishuSource {
   }
 
   private resolveStartTime(checkpoint: SourceCheckpoint | null, chatId: string): number {
-    if (checkpoint?.[chatId]?.last_sync_at) {
-      return checkpoint[chatId].last_sync_at as number;
+    const checkpointMs = checkpoint?.[chatId]?.last_sync_at as number | undefined;
+    if (
+      this.opts.overrideSinceMs !== undefined &&
+      (checkpointMs === undefined || this.opts.overrideSinceMs < checkpointMs)
+    ) {
+      return this.opts.overrideSinceMs;
     }
-    const lookbackMs = this.opts.lookbackDays * 24 * 60 * 60 * 1000;
-    return Date.now() - lookbackMs;
+    if (checkpointMs !== undefined) return checkpointMs;
+    return Date.now() - this.opts.lookbackDays * 24 * 60 * 60 * 1000;
   }
 
   private mapMessage(msg: FeishuMessage, chatId: string): RawMessage {

@@ -1,5 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
-import type { SourceRef } from "../core/types.js";
+import { compactSourceRef } from "../core/source-ref.js";
+import type { MemoryFilter, SourceRef } from "../core/types.js";
 
 export interface TimelineEntry {
   id: number;
@@ -10,6 +11,142 @@ export interface TimelineEntry {
   source: string;
   provenance?: SourceRef;
   created_at: string;
+}
+
+export interface TimelineFeedEntry {
+  slug: string;
+  title: string;
+  type: string;
+  summary: string;
+  snippet: string;
+  time: string;
+  provenance?: SourceRef;
+}
+
+interface TimelineFeedRow {
+  slug: string;
+  title: string;
+  type: string;
+  summary: string;
+  snippet: string;
+  time: string;
+  provenance: SourceRef | string | null;
+}
+
+type TimelineRow = Omit<TimelineEntry, "provenance"> & {
+  provenance?: SourceRef | string | null;
+};
+
+interface InsertRow {
+  id: number;
+}
+
+const DEFAULT_TIMELINE_LIMIT = 20;
+const MAX_TIMELINE_LIMIT = 100;
+
+function clampLimit(limit: number | undefined): number {
+  if (!Number.isFinite(limit) || (limit ?? 0) <= 0) return DEFAULT_TIMELINE_LIMIT;
+  return Math.min(Math.floor(limit as number), MAX_TIMELINE_LIMIT);
+}
+
+function asArray(value: string | string[] | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  return Array.isArray(value) ? value : [value];
+}
+
+function sourceJson(): string {
+  return `COALESCE(te.provenance, p.frontmatter->'source', p.frontmatter->'first_seen')`;
+}
+
+function sourceField(field: string): string {
+  return `COALESCE(te.provenance->>'${field}', p.frontmatter->'source'->>'${field}', p.frontmatter->'first_seen'->>'${field}')`;
+}
+
+function isDateOnly(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseProvenance(value: SourceRef | string | null): SourceRef | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as SourceRef;
+    } catch {
+      return undefined;
+    }
+  }
+  return value;
+}
+
+function addFeedFilters(
+  conditions: string[],
+  params: unknown[],
+  opts?: MemoryFilter & { query?: string },
+): void {
+  if (opts?.query) {
+    params.push(`%${opts.query}%`);
+    conditions.push(
+      `(te.summary ILIKE $${params.length} OR te.detail ILIKE $${params.length} OR p.title ILIKE $${params.length})`,
+    );
+  }
+
+  const addArrayCondition = (field: "platform" | "source_type") => {
+    const values = asArray(opts?.[field]);
+    if (!values || values.length === 0) return;
+    params.push(values);
+    conditions.push(`${sourceField(field)} = ANY($${params.length}::text[])`);
+  };
+
+  addArrayCondition("platform");
+  addArrayCondition("source_type");
+
+  if (opts?.channel) {
+    params.push(opts.channel);
+    conditions.push(`${sourceField("channel")} = $${params.length}`);
+  }
+
+  if (opts?.channel_name) {
+    params.push(opts.channel_name);
+    conditions.push(`${sourceField("channel_name")} = $${params.length}`);
+  }
+
+  if (opts?.participant) {
+    params.push(opts.participant);
+    const param = `$${params.length}`;
+    conditions.push(`(
+      EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(COALESCE(${sourceJson()}->'participants', '[]'::jsonb)) AS participant
+        WHERE participant->>'name' = ${param} OR participant->>'id' = ${param}
+      )
+      OR ${sourceJson()}->'author'->>'name' = ${param}
+      OR ${sourceJson()}->'author'->>'id' = ${param}
+    )`);
+  }
+
+  if (opts?.type && opts.type.length > 0) {
+    params.push(opts.type);
+    conditions.push(`p.type = ANY($${params.length}::text[])`);
+  }
+
+  if (opts?.exclude_types && opts.exclude_types.length > 0) {
+    params.push(opts.exclude_types);
+    conditions.push(`p.type != ALL($${params.length}::text[])`);
+  }
+
+  if (opts?.from) {
+    params.push(opts.from);
+    conditions.push(`te.date::timestamptz >= $${params.length}::timestamptz`);
+  }
+
+  if (opts?.to) {
+    params.push(opts.to);
+    if (isDateOnly(opts.to)) {
+      conditions.push(`te.date::timestamptz < ($${params.length}::date + interval '1 day')`);
+    } else {
+      conditions.push(`te.date::timestamptz <= $${params.length}::timestamptz`);
+    }
+  }
 }
 
 export class TimelineStore {
@@ -25,32 +162,77 @@ export class TimelineStore {
       provenance?: SourceRef;
     },
   ): Promise<void> {
-    await this.pg.query(
+    const result = await this.pg.query<InsertRow>(
       `INSERT INTO timeline_entries (page_id, date, summary, detail, source, provenance)
        SELECT id, $2, $3, $4, $5, $6 FROM pages WHERE slug = $1
        ON CONFLICT (page_id, date, summary) DO UPDATE SET
          detail = EXCLUDED.detail,
-         source = EXCLUDED.source`,
+         source = EXCLUDED.source,
+         provenance = COALESCE(EXCLUDED.provenance, timeline_entries.provenance)
+       RETURNING id`,
       [
         pageSlug,
         entry.date,
         entry.summary,
         entry.detail ?? "",
         entry.source ?? "",
-        entry.provenance ? JSON.stringify(entry.provenance) : null,
+        entry.provenance ? JSON.stringify(compactSourceRef(entry.provenance)) : null,
       ],
     );
+    if (result.rows.length === 0) {
+      throw new Error(`Page not found: ${pageSlug}`);
+    }
   }
 
   async getTimeline(pageSlug: string): Promise<TimelineEntry[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<TimelineRow>(
       `SELECT te.* FROM timeline_entries te
        JOIN pages p ON p.id = te.page_id
        WHERE p.slug = $1
        ORDER BY te.date DESC`,
       [pageSlug],
     );
-    return result.rows as TimelineEntry[];
+    return result.rows.map((row) => ({
+      ...row,
+      provenance: parseProvenance(row.provenance ?? null),
+    }));
+  }
+
+  async feed(opts?: MemoryFilter & { query?: string }): Promise<TimelineFeedEntry[]> {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    addFeedFilters(conditions, params, opts);
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const limit = clampLimit(opts?.limit);
+    params.push(limit);
+
+    const result = await this.pg.query<TimelineFeedRow>(
+      `SELECT
+         p.slug,
+         p.title,
+         p.type,
+         te.summary,
+         COALESCE(NULLIF(te.detail, ''), LEFT(p.compiled_truth, 200)) AS snippet,
+         te.date AS time,
+         ${sourceJson()} AS provenance
+       FROM timeline_entries te
+       JOIN pages p ON p.id = te.page_id
+       ${whereClause}
+       ORDER BY te.date DESC, te.created_at DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+
+    return result.rows.map((row) => ({
+      slug: row.slug,
+      title: row.title,
+      type: row.type,
+      summary: row.summary,
+      snippet: row.snippet,
+      time: row.time,
+      provenance: parseProvenance(row.provenance),
+    }));
   }
 
   async getAllTimelineGrouped(): Promise<Map<string, TimelineEntry[]>> {

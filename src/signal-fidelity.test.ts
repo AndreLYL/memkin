@@ -254,22 +254,21 @@ describe("AC-7: Privacy redacts Link.source.quote", () => {
 
 // ── AC-10: first_seen provenance semantics ───────────────────
 
-describe("AC-10: first_seen provenance (ON CONFLICT preserves original)", () => {
-  it("GraphStore.addLink SQL uses DO UPDATE SET context only, not provenance", async () => {
+describe("AC-10: first_seen and latest provenance semantics", () => {
+  it("GraphStore.addLink SQL updates latest provenance on conflict", async () => {
     // This is a structural assertion — verify the SQL pattern in graph.ts
     const { readFileSync } = await import("node:fs");
     const graphSrc = readFileSync(new URL("./store/graph.ts", import.meta.url).pathname, "utf-8");
-    // ON CONFLICT should NOT update provenance
     expect(graphSrc).toContain("ON CONFLICT");
-    expect(graphSrc).toContain("DO UPDATE SET context = EXCLUDED.context");
-    // The ON CONFLICT clause should NOT mention provenance in the SET
     const onConflictMatch = graphSrc.match(/ON CONFLICT.*?DO UPDATE SET(.*?)(?:"|`)/s);
     if (onConflictMatch) {
-      expect(onConflictMatch[1]).not.toContain("provenance = EXCLUDED.provenance");
+      expect(onConflictMatch[1]).toContain("context = EXCLUDED.context");
+      expect(onConflictMatch[1]).toContain("provenance = COALESCE(EXCLUDED.provenance");
+      expect(onConflictMatch[1]).toContain("source_hash = COALESCE(EXCLUDED.source_hash");
     }
   });
 
-  it("TimelineStore.addEntry SQL preserves first provenance on conflict", async () => {
+  it("TimelineStore.addEntry SQL updates latest provenance on conflict", async () => {
     const { readFileSync } = await import("node:fs");
     const timelineSrc = readFileSync(
       new URL("./store/timeline.ts", import.meta.url).pathname,
@@ -278,7 +277,7 @@ describe("AC-10: first_seen provenance (ON CONFLICT preserves original)", () => 
     expect(timelineSrc).toContain("ON CONFLICT");
     const onConflictMatch = timelineSrc.match(/ON CONFLICT.*?DO UPDATE SET(.*?)(?:"|`)/s);
     if (onConflictMatch) {
-      expect(onConflictMatch[1]).not.toContain("provenance = EXCLUDED.provenance");
+      expect(onConflictMatch[1]).toContain("provenance = COALESCE(EXCLUDED.provenance");
     }
   });
 });
@@ -295,7 +294,7 @@ describe("AC-11: IdentityResolver enrichBatch", () => {
       CREATE TABLE IF NOT EXISTS identity_cache (
         platform TEXT NOT NULL,
         external_id TEXT NOT NULL,
-        display_name TEXT NOT NULL,
+        display_name TEXT,
         slug_hint TEXT,
         resolved_at TIMESTAMP DEFAULT NOW(),
         PRIMARY KEY (platform, external_id)
@@ -323,7 +322,7 @@ describe("AC-11: IdentityResolver enrichBatch", () => {
       CREATE TABLE IF NOT EXISTS identity_cache (
         platform TEXT NOT NULL,
         external_id TEXT NOT NULL,
-        display_name TEXT NOT NULL,
+        display_name TEXT,
         slug_hint TEXT,
         resolved_at TIMESTAMP DEFAULT NOW(),
         PRIMARY KEY (platform, external_id)
@@ -388,7 +387,7 @@ describe("AC-8: /provenance endpoint exists in API", () => {
     const { readFileSync } = await import("node:fs");
     const apiSrc = readFileSync(new URL("./server/api.ts", import.meta.url).pathname, "utf-8");
     expect(apiSrc).toContain('"/provenance"');
-    expect(apiSrc).toContain("app.get");
+    expect(apiSrc).toContain("dataRoutes.get");
     // Should query provenance from links and timeline_entries
     expect(apiSrc).toContain("l.provenance");
     expect(apiSrc).toContain("te.provenance");

@@ -4,7 +4,7 @@ import type {
   InteractionTag,
   RawMessage,
   SourceType,
-} from "./types";
+} from "./types.js";
 
 export function canonicalize(block: ConversationBlock): CanonicalisedBlock {
   const source_type = inferSourceType(block.channel);
@@ -53,7 +53,11 @@ function buildMarkdown(block: ConversationBlock, sourceType: SourceType): string
     case "document":
       return canonicalizeDocument(block.messages);
     case "structured":
+    case "calendar":
+    case "task":
       return canonicalizeStructured(block.messages);
+    default:
+      return canonicalizeChat(block.messages);
   }
 }
 
@@ -150,7 +154,7 @@ function canonicalizeStructured(messages: RawMessage[]): string {
       if (Array.isArray(meta.assignees))
         metaLines.push(`Assignees: ${(meta.assignees as string[]).join(", ")}`);
 
-      const metaBlock = metaLines.length > 0 ? metaLines.join("\n") + "\n\n" : "";
+      const metaBlock = metaLines.length > 0 ? `${metaLines.join("\n")}\n\n` : "";
       return `${metaBlock}${msg.content.trim()}`;
     })
     .join("\n\n");

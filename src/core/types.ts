@@ -39,22 +39,53 @@ export interface ConversationBlock {
   token_count: number;
 }
 
-export interface SourceRef {
+export type SourceType =
+  | "dm"
+  | "group"
+  | "email"
+  | "document"
+  | "calendar"
+  | "task"
+  | "agent_session"
+  | "meeting"
+  | "structured"
+  | "chat"
+  | (string & {});
+
+export interface SourceParticipant {
+  id?: string;
+  name: string;
+  role?: "author" | "sender" | "recipient" | "participant";
+}
+
+export interface SourceRefCore {
   platform: string;
   channel: string;
-  channel_name?: string;
   timestamp: string; // ISO 8601
+  raw_hash: string;
+  quote: string;
+}
+
+export interface SourceRef extends SourceRefCore {
+  source_type?: SourceType;
+  channel_name?: string;
   start_time?: string;
   end_time?: string;
+  external_id?: string;
   message_id?: string;
   message_ids?: string[];
   thread_id?: string;
+  conversation_id?: string;
+  author?: SourceParticipant;
+  participants?: SourceParticipant[];
+  account_id?: string;
+  tenant_id?: string;
   file_path?: string;
   line_range?: { start: number; end: number };
   attachment_id?: string;
   url?: string;
-  raw_hash: string;
-  quote: string;
+  sensitivity?: "normal" | "high";
+  metadata?: Record<string, unknown>;
 }
 
 export type SignalConfidence = "direct" | "paraphrased" | "inferred" | "speculative";
@@ -223,7 +254,18 @@ export interface DedupEntry {
   content_hash: string;
 }
 
-export type SourceType = "email" | "chat" | "dm" | "document" | "structured";
+export interface MemoryFilter {
+  platform?: string | string[];
+  source_type?: string | string[];
+  channel?: string;
+  channel_name?: string;
+  participant?: string;
+  from?: string;
+  to?: string;
+  type?: string[];
+  exclude_types?: string[];
+  limit?: number;
+}
 
 export type InteractionTag = "sent" | "reply" | "dm";
 

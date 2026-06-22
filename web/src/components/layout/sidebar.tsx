@@ -5,6 +5,7 @@ import { api } from "../../api/client";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "📊" },
   { to: "/timeline", label: "Timeline", icon: "⏱️" },
+  { to: "/fetch", label: "Fetch", icon: "📥" },
   { to: "/graph", label: "Graph", icon: "🕸️" },
   { to: "/entities", label: "All Entities", icon: "📄" },
   { to: "/search", label: "Search", icon: "🔍" },

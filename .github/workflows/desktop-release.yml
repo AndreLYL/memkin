@@ -1,0 +1,92 @@
+name: Desktop Release
+
+# Builds the Tauri desktop app for macOS (arm64 + x64), Windows and Linux, signs the
+# updater artifacts, and publishes a GitHub Release with a latest.json the in-app updater
+# reads from. Trigger by pushing a tag like `desktop-v0.1.0`, or run manually.
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+
+# Needed for tauri-action to create the release.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14 # Apple Silicon
+            target: aarch64-apple-darwin
+          - platform: macos-13 # Intel
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux: WebKitGTK + tray + AppIndicator deps for Tauri.
+      - name: Install Linux dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install JS dependencies
+        run: |
+          bun install
+          bun install --cwd web
+
+      - name: Build web UI
+        run: bun run web:build
+
+      - name: Build sidecar + stage assets
+        run: node scripts/build-sidecar.mjs
+
+      - name: Build, sign and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing (REQUIRED — createUpdaterArtifacts is on):
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarization (OPTIONAL — unsigned build if unset):
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: .
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
+          releaseName: "MemoArk Desktop ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"
+          releaseBody: "Automated desktop build. The in-app updater reads latest.json from this release."
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}

@@ -21,6 +21,7 @@ import { canonicalize } from "./canonicalize.js";
 import type { PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
+import type { IdentityResolver } from "./identity-resolver.js";
 import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
@@ -42,6 +43,8 @@ export interface PipelineConfig {
   max_block_messages: number;
   privacy: PrivacyConfig;
   output_dir: string;
+  block_concurrency?: number;
+  state_base?: string;
 }
 
 /**
@@ -56,6 +59,12 @@ export interface PipelineOpts {
   dryRun?: boolean;
   since?: string;
   limit?: number;
+  /**
+   * Optional identity resolver. When provided, person slugs are canonicalized
+   * (Stage 2.5) before results are pushed to the adapter, preventing duplicate
+   * person pages from LLM-produced slug variants.
+   */
+  identityResolver?: IdentityResolver;
 }
 
 /**
@@ -194,7 +203,7 @@ export async function runPipeline(
     }
 
     const extractor = createSignalExtractor(opts.provider);
-    const privacyProcessor = new PrivacyProcessor(config.privacy);
+    const privacyProcessor = new PrivacyProcessor(config.privacy, { stateBase: config.state_base });
 
     let adapter: Adapter;
     if (opts.adapter === "store") {
@@ -226,7 +235,7 @@ export async function runPipeline(
     }
 
     // Process blocks with concurrency
-    const CONCURRENCY = 5;
+    const CONCURRENCY = config.block_concurrency ?? 5;
     const extractedResults: ExtractionResult[] = [];
 
     const processBlock = async (block: ConversationBlock, idx: number): Promise<void> => {
@@ -312,6 +321,23 @@ export async function runPipeline(
     const t3 = Date.now();
     console.error(`[perf] stage3 extract: ${((t3 - t2) / 1000).toFixed(1)}s  blocks=${blocks.length}`);
 
+    // Stage 2.5: Person slug canonicalization
+    // Dedupe person pages produced from LLM slug variants before writing.
+    if (opts.identityResolver && extractedResults.length > 0) {
+      for (let i = 0; i < extractedResults.length; i++) {
+        try {
+          const { result: canonicalized, aliases } =
+            await opts.identityResolver.canonicalizeExtractionResult(extractedResults[i]);
+          canonicalized.personAliases = Object.fromEntries(aliases);
+          extractedResults[i] = canonicalized;
+        } catch (err) {
+          result.warnings.push(
+            `Person canonicalization failed (continuing with original slugs): ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    }
+
     // Stage 4: Adapter.push (all results in one batch)
     if (extractedResults.length > 0) {
       const t4 = Date.now();
@@ -343,7 +369,8 @@ export async function runPipeline(
       if (isCursorProvider(opts.source)) {
         const cursors = opts.source.getCommittableCursors();
         if (Object.keys(cursors).length > 0) {
-          cursorStore.setJSON(opts.source.id, cursors);
+          const existing = (cursorStore.getJSON(opts.source.id) as Record<string, unknown>) ?? {};
+          cursorStore.setJSON(opts.source.id, { ...existing, ...cursors });
           cursorStore.commit();
         }
       } else if (result.lastSuccessMessage?.metadata?.cursor) {

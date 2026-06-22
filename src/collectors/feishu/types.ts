@@ -2,6 +2,7 @@ export interface FeishuMessageSourceConfig {
   enabled: boolean;
   chat_ids?: string[];
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
 }
 
@@ -12,9 +13,25 @@ export interface FeishuCalendarSourceConfig {
 
 export interface FeishuDocSourceConfig {
   enabled: boolean;
-  doc_folders: string[];
-  doc_deep_extract_folders?: string[];
-  doc_summary_max_chars?: number;
+  my_space?: { enabled?: boolean; max_depth?: number };
+  wiki?: { enabled?: boolean; exclude_space_ids?: string[] };
+  folders?: Array<{ token: string; name: string }>;
+  gate?: { min_content_chars?: number };
+  triggers?: {
+    self_edit?: boolean;
+    recent_window_days?: number | null;
+    important_folders?: string[];
+    important_wiki_spaces?: string[];
+  };
+  refresh?: { on_hash_change?: boolean; cold_refresh_days?: number | null };
+  upgrade_queue?: {
+    batch_size?: number;
+    bootstrap_batch_size?: number;
+    bootstrap_runs?: number;
+    max_pending?: number;
+  };
+  llm?: { model?: string; qps?: number };
+  self_open_id?: string | null;
 }
 
 export interface FeishuTaskSourceConfig {
@@ -26,6 +43,7 @@ export interface FeishuDMSourceConfig {
   dm_chat_ids?: string[];
   self_open_id?: string;
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
 }
 
@@ -36,6 +54,7 @@ export interface FeishuMessageSearchSourceConfig {
   sender_type?: "user" | "bot";
   exclude_sender_type?: "user" | "bot";
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
   page_size?: number;
 }
@@ -43,7 +62,9 @@ export interface FeishuMessageSearchSourceConfig {
 export interface FeishuMailSourceConfig {
   enabled: boolean;
   lookback_days?: number;
+  override_since_ms?: number;
   overlap_ms?: number;
+  fetch_concurrency?: number;
 }
 
 export interface FeishuCollectorConfig {
@@ -53,6 +74,7 @@ export interface FeishuCollectorConfig {
   lark_bin?: string;
   base_url?: string;
   rate_limit_qps?: number;
+  auto_include_new_groups?: boolean;
   sources: {
     messages?: FeishuMessageSourceConfig;
     calendar?: FeishuCalendarSourceConfig;

@@ -1,12 +1,15 @@
-import type { RawMessage } from "../../../core/types";
-import type { CursorStaging } from "../cursor-staging";
-import type { LarkCliHttpClient } from "../lark-cli-client";
-import type { FeishuMailMessage, SourceCheckpoint } from "../types";
-import type { FeishuSource } from "./base";
+import { pMap } from "../../../core/concurrency.js";
+import type { RawMessage } from "../../../core/types.js";
+import type { CursorStaging } from "../cursor-staging.js";
+import type { LarkCliHttpClient } from "../lark-cli-client.js";
+import type { FeishuMailMessage, SourceCheckpoint } from "../types.js";
+import type { FeishuSource } from "./base.js";
 
 interface MailSourceOpts {
   lookbackDays: number;
+  overrideSinceMs?: number;
   overlapMs?: number;
+  fetchConcurrency?: number;
 }
 
 interface TriageItem {
@@ -32,30 +35,29 @@ export class MailSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
-    try {
-      const startMs = this.resolveStartTime(checkpoint);
-      const triageItems = await this.fetchTriage();
+    // fetchTriage errors (auth scope missing, 4013 user-not-found, etc.) must
+    // propagate so the collector / pipeline can surface them as a real source
+    // failure instead of silently reporting 0 messages.
+    const startMs = this.resolveStartTime(checkpoint);
+    const triageItems = await this.fetchTriage();
 
-      let maxDateMs = 0;
+    const filteredItems = triageItems.filter(
+      (item) => new Date(item.date).getTime() >= startMs - this.overlapMs,
+    );
 
-      for (const item of triageItems) {
-        const itemDateMs = new Date(item.date).getTime();
-        if (itemDateMs < startMs - this.overlapMs) continue;
+    const concurrency = this.opts.fetchConcurrency ?? 1;
+    let maxDateMs = 0;
 
-        const detail = await this.fetchMessage(item.message_id);
-        if (!detail) continue;
+    for await (const { item, detail } of this.fetchConcurrent(filteredItems, concurrency)) {
+      if (!detail) continue;
+      const itemDateMs = new Date(item.date).getTime();
+      if (itemDateMs > maxDateMs) maxDateMs = itemDateMs;
+      yield this.mapMessage(item, detail);
+    }
 
-        if (itemDateMs > maxDateMs) maxDateMs = itemDateMs;
-
-        yield this.mapMessage(item, detail);
-      }
-
-      if (maxDateMs > 0) {
-        cursorStaging.stage("mail", "INBOX", { last_sync_at: maxDateMs });
-        cursorStaging.commit("mail", "INBOX");
-      }
-    } catch (err) {
-      console.error("[MailSource] Failed to fetch mail:", err);
+    if (maxDateMs > 0) {
+      cursorStaging.stage("mail", "INBOX", { last_sync_at: maxDateMs });
+      cursorStaging.commit("mail", "INBOX");
     }
   }
 
@@ -63,12 +65,30 @@ export class MailSource implements FeishuSource {
     return true;
   }
 
-  private resolveStartTime(checkpoint: SourceCheckpoint | null): number {
-    if (checkpoint?.INBOX?.last_sync_at) {
-      return checkpoint.INBOX.last_sync_at as number;
+  private async *fetchConcurrent(
+    items: TriageItem[],
+    concurrency: number,
+  ): AsyncGenerator<{ item: TriageItem; detail: FeishuMailMessage | null }> {
+    const results = await pMap(
+      items,
+      async (item) => ({ item, detail: await this.fetchMessage(item.message_id) }),
+      concurrency,
+    );
+    for (const pair of results) {
+      yield pair;
     }
-    const lookbackMs = this.opts.lookbackDays * 24 * 60 * 60 * 1000;
-    return Date.now() - lookbackMs;
+  }
+
+  private resolveStartTime(checkpoint: SourceCheckpoint | null): number {
+    const checkpointMs = checkpoint?.INBOX?.last_sync_at as number | undefined;
+    if (
+      this.opts.overrideSinceMs !== undefined &&
+      (checkpointMs === undefined || this.opts.overrideSinceMs < checkpointMs)
+    ) {
+      return this.opts.overrideSinceMs;
+    }
+    if (checkpointMs !== undefined) return checkpointMs;
+    return Date.now() - this.opts.lookbackDays * 24 * 60 * 60 * 1000;
   }
 
   private async fetchTriage(): Promise<TriageItem[]> {

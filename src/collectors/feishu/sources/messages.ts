@@ -6,7 +6,9 @@ import type { FeishuSource } from "./base.js";
 
 interface MessageSourceOpts {
   lookbackDays: number;
+  overrideSinceMs?: number;
   overlapMs?: number;
+  autoIncludeAllGroups?: boolean;
 }
 
 export class MessageSource implements FeishuSource {
@@ -25,7 +27,26 @@ export class MessageSource implements FeishuSource {
     checkpoint: SourceCheckpoint | null,
     cursorStaging: CursorStaging,
   ): AsyncGenerator<RawMessage> {
-    for (const chatId of this.chatIds) {
+    let targets = this.chatIds;
+    if (this.opts.autoIncludeAllGroups) {
+      let live: string[] = [];
+      try {
+        live = await this.listAllGroupIds();
+      } catch (err) {
+        console.error(
+          "[MessageSource] Failed to list all groups; falling back to configured chatIds:",
+          err,
+        );
+      }
+      targets = [...new Set([...this.chatIds, ...live])];
+    }
+    if (targets.length === 0) {
+      throw new Error(
+        "messages source enabled but chat_ids is empty — add specific chat IDs, " +
+          "or disable this source and use message_search to scan all groups by time window",
+      );
+    }
+    for (const chatId of targets) {
       try {
         const startMs = this.resolveStartTime(checkpoint, chatId);
         const endMs = Date.now();
@@ -64,12 +85,28 @@ export class MessageSource implements FeishuSource {
     return true;
   }
 
-  private resolveStartTime(checkpoint: SourceCheckpoint | null, chatId: string): number {
-    if (checkpoint?.[chatId]?.last_sync_at) {
-      return checkpoint[chatId].last_sync_at as number;
+  private async listAllGroupIds(): Promise<string[]> {
+    const ids: string[] = [];
+    for await (const page of this.client.paginate<{ chat_id: string }>("/open-apis/im/v1/chats", {
+      page_size: "100",
+    })) {
+      for (const item of page.items ?? []) {
+        if (item.chat_id) ids.push(item.chat_id);
+      }
     }
-    const lookbackMs = this.opts.lookbackDays * 24 * 60 * 60 * 1000;
-    return Date.now() - lookbackMs;
+    return ids;
+  }
+
+  private resolveStartTime(checkpoint: SourceCheckpoint | null, chatId: string): number {
+    const checkpointMs = checkpoint?.[chatId]?.last_sync_at as number | undefined;
+    if (
+      this.opts.overrideSinceMs !== undefined &&
+      (checkpointMs === undefined || this.opts.overrideSinceMs < checkpointMs)
+    ) {
+      return this.opts.overrideSinceMs;
+    }
+    if (checkpointMs !== undefined) return checkpointMs;
+    return Date.now() - this.opts.lookbackDays * 24 * 60 * 60 * 1000;
   }
 
   private mapMessage(msg: FeishuMessage, chatId: string): RawMessage {

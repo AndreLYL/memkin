@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MemoArk",
+  "version": "0.1.0",
+  "identifier": "ai.memoark.desktop",
+  "build": {
+    "frontendDist": "splash"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MemoArk",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "externalBin": ["binaries/memoark"],
+    "resources": [
+      "assets/pglite.wasm",
+      "assets/initdb.wasm",
+      "assets/pglite.data",
+      "assets/vector.tar.gz",
+      "web-dist"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/AndreLYL/memoark/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1QTc2MjlBMEFBQTIxQTUKUldTbElhb0ttbUtueFI2WWJ5RkxKSUxtaTY5S3NiSlNvWmJ3d04zdHRZUU5uM3ZlY1BqN3JJeUoK"
+    }
+  }
+}

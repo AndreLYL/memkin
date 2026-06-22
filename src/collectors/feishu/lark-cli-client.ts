@@ -1,10 +1,29 @@
 import { execFile } from "node:child_process";
-import type { IFeishuHttpClient, PagedResult } from "./http-client";
-import { FeishuApiError } from "./types";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import type { IFeishuHttpClient, PagedResult } from "./http-client.js";
+import { FeishuApiError } from "./types.js";
 
-const DEFAULT_LARK_BIN = `${process.env.HOME}/.local/bin/lark`;
 const EXEC_TIMEOUT = 120_000;
 const MAX_BUFFER = 256 * 1024 * 1024;
+
+// Locate the lark-cli executable: PATH first, then ~/.local/bin (a common
+// install location that isn't always on PATH for non-interactive shells).
+// Returns undefined when nothing is found; callers fall through to "lark"
+// so the eventual ENOENT carries the bare binary name.
+function findLarkBin(): string | undefined {
+  const candidates = ["lark", "lark-cli"];
+  const dirs = (process.env.PATH ?? "").split(":").filter(Boolean);
+  const home = process.env.HOME;
+  if (home) dirs.push(join(home, ".local", "bin"));
+  for (const dir of dirs) {
+    for (const name of candidates) {
+      const p = join(dir, name);
+      if (existsSync(p)) return p;
+    }
+  }
+  return undefined;
+}
 
 function execLark(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -22,7 +41,7 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
   private readonly bin: string;
 
   constructor(larkBin?: string) {
-    this.bin = larkBin ?? DEFAULT_LARK_BIN;
+    this.bin = larkBin ?? findLarkBin() ?? "lark";
   }
 
   async request<T = unknown>(
@@ -71,6 +90,22 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
     const args = ["--as", "user", domain, `+${shortcut}`, "--format", "json"];
     if (flags) args.push(...flags);
     return execLark(this.bin, args);
+  }
+
+  /**
+   * Fetch the lark-cli auth state. Returns parsed JSON output from
+   * `lark auth status --verify --format json`. Throws if the subprocess
+   * fails or output is unparseable.
+   *
+   * Used by chat-name resolution to discover the current user's open_id
+   * (needed for distinguishing self from counterparty in p2p chats).
+   *
+   * Returned shape (subset of fields):
+   *   { userOpenId: string, tokenStatus: "valid" | ..., scope: string, userName: string, ... }
+   */
+  async getAuthStatus<T = unknown>(): Promise<T> {
+    const stdout = await execLark(this.bin, ["auth", "status", "--verify", "--format", "json"]);
+    return JSON.parse(stdout) as T;
   }
 
   async healthCheck(): Promise<{ ok: boolean; message: string }> {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { SourceRef } from "../../src/core/types.js";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
 import { TimelineStore } from "../../src/store/timeline.js";
@@ -16,6 +17,16 @@ describe("TimelineStore", () => {
   afterEach(async () => {
     await db.close();
   });
+
+  function sourceRef(raw_hash: string, platform = "test"): SourceRef {
+    return {
+      platform,
+      channel: `channel/${raw_hash}`,
+      timestamp: "2026-06-04T10:00:00.000Z",
+      raw_hash,
+      quote: `quote ${raw_hash}`,
+    };
+  }
 
   it("addEntry and getTimeline", async () => {
     await pages.putPage("test/tl", "---\ntitle: T\ntype: test\n---\nBody.");
@@ -48,6 +59,57 @@ describe("TimelineStore", () => {
     const entries = await timeline.getTimeline("test/dedup");
     expect(entries).toHaveLength(1);
     expect(entries[0].detail).toBe("V2 updated");
+  });
+
+  it("addEntry updates provenance on conflict", async () => {
+    await pages.putPage("test/provenance", "---\ntitle: P\ntype: test\n---\nBody.");
+    await timeline.addEntry("test/provenance", {
+      date: "2026-06-04",
+      summary: "Same event",
+      provenance: sourceRef("first-hash"),
+    });
+    await timeline.addEntry("test/provenance", {
+      date: "2026-06-04",
+      summary: "Same event",
+      provenance: sourceRef("latest-hash", "feishu"),
+    });
+
+    const entries = await timeline.getTimeline("test/provenance");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].provenance).toMatchObject({
+      platform: "feishu",
+      raw_hash: "latest-hash",
+    });
+  });
+
+  it("addEntry rejects missing page slugs instead of silently inserting zero rows", async () => {
+    await expect(
+      timeline.addEntry("missing/page", {
+        date: "2026-06-04",
+        summary: "Should fail",
+      }),
+    ).rejects.toThrow("Page not found: missing/page");
+  });
+
+  it("feed treats date-only to as end-of-day and datetime to as exact", async () => {
+    await pages.putPage("test/time-a", "---\ntitle: Time A\ntype: test\n---\nBody.");
+    await pages.putPage("test/time-b", "---\ntitle: Time B\ntype: test\n---\nBody.");
+    await timeline.addEntry("test/time-a", {
+      date: "2026-06-04T09:00:00.000Z",
+      summary: "Morning event",
+    });
+    await timeline.addEntry("test/time-b", {
+      date: "2026-06-04T11:00:00.000Z",
+      summary: "Late event",
+    });
+
+    expect((await timeline.feed({ to: "2026-06-04" })).map((e) => e.slug).sort()).toEqual([
+      "test/time-a",
+      "test/time-b",
+    ]);
+    expect((await timeline.feed({ to: "2026-06-04T10:00:00.000Z" })).map((e) => e.slug)).toEqual([
+      "test/time-a",
+    ]);
   });
 
   it("getTimeline returns empty for page with no entries", async () => {

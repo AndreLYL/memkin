@@ -41,7 +41,8 @@
       "!**/output",
       "!**/.dbe",
       "!**/bun.lockb",
-      "!**/package-lock.json"
+      "!**/package-lock.json",
+      "!src/embedded-assets.generated.ts"
     ]
   }
 }

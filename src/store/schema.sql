@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS pages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pages_search_vector ON pages USING GIN (search_vector);
-CREATE INDEX IF NOT EXISTS idx_pages_tier ON pages (tier);
-CREATE INDEX IF NOT EXISTS idx_pages_expires_at ON pages (expires_at) WHERE expires_at IS NOT NULL;
+-- idx_pages_tier and idx_pages_expires_at are created by M003 lifecycle_tier migration,
+-- which is the only place that guarantees the tier/expires_at columns exist on upgrade.
 
 CREATE TABLE IF NOT EXISTS content_chunks (
   id              SERIAL PRIMARY KEY,
@@ -118,10 +118,15 @@ DO $$ BEGIN
 END $$;
 
 -- Identity cache for person slug canonicalization
+-- identity_cache doubles as the person slug canonicalization store via
+-- platform = 'canonical':
+--   external_id  = model-produced slug or display name
+--   display_name = canonical person slug (e.g. 'person/wang-jiandu')
+--   slug_hint    = original entity.name (used for collision detection)
 CREATE TABLE IF NOT EXISTS identity_cache (
   platform      TEXT NOT NULL,
   external_id   TEXT NOT NULL,
-  display_name  TEXT NOT NULL,
+  display_name  TEXT,
   slug_hint     TEXT,
   resolved_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (platform, external_id)
@@ -135,3 +140,22 @@ DO $$ BEGIN
     ALTER TABLE identity_cache ADD COLUMN slug_hint TEXT;
   END IF;
 END $$;
+
+-- person_handles: the typed alias layer (Layer 1 of person identity).
+-- Maps any "handle" by which a person is known to the canonical person page
+-- slug. A handle is (kind, value); the pair is unique, so one handle resolves
+-- to exactly one person. Merging/aliasing is explicit (see core/person-identity).
+--   kind     = 'feishu_open_id' | 'email' | 'name' | 'nickname' | 'slug'
+--   value    = canonicalized handle value (lowercased / whitespace-collapsed)
+--   strength = 'strong' (auto-resolvable: open_id/email/name/slug)
+--            | 'weak'   (nickname/花名 — only created via explicit link)
+CREATE TABLE IF NOT EXISTS person_handles (
+  kind            TEXT NOT NULL,
+  value           TEXT NOT NULL,
+  canonical_slug  TEXT NOT NULL,
+  strength        TEXT NOT NULL DEFAULT 'strong',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (kind, value)
+);
+
+CREATE INDEX IF NOT EXISTS idx_person_handles_slug ON person_handles (canonical_slug);

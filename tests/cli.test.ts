@@ -4,7 +4,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,18 +37,40 @@ function runCli(args: string[], options: Parameters<typeof spawnSync>[2] = {}) {
 describe("CLI", () => {
   describe("build output", () => {
     test.skipIf(!existsSync(DIST_CLI))(
-      "includes runtime assets required by the compiled CLI",
+      "embeds runtime assets so the built CLI runs on plain Node",
       () => {
-        expect(existsSync(join(PROJECT_ROOT, "dist", "store", "schema.sql"))).toBe(true);
-        expect(existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "system.md"))).toBe(
-          true,
-        );
-        expect(
-          existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "signal-extract.md")),
-        ).toBe(true);
-        expect(
-          existsSync(join(PROJECT_ROOT, "dist", "extractors", "prompts", "significance.md")),
-        ).toBe(true);
+        // schema.sql + extractor prompts are inlined into this generated module at build
+        // time, so the dist (and a `bun --compile` binary) need no loose asset files.
+        expect(existsSync(join(PROJECT_ROOT, "dist", "embedded-assets.generated.js"))).toBe(true);
+
+        // Proves the embedded-asset chain resolves under Node ESM — guards against the
+        // packaging regressions that previously crashed `node dist/cli.js`.
+        const result = runCli(["--version"]);
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+      },
+    );
+
+    test.skipIf(!existsSync(DIST_CLI))(
+      "bin falls back to current Node when Bun is unavailable",
+      () => {
+        const emptyPath = mkdtempSync(join(tmpdir(), "memoark-empty-path-"));
+        try {
+          const result = spawnSync(
+            process.execPath,
+            [join(PROJECT_ROOT, "bin", "memoark.mjs"), "--help"],
+            {
+              cwd: PROJECT_ROOT,
+              encoding: "utf-8",
+              env: { ...process.env, PATH: emptyPath },
+            },
+          );
+
+          expect(result.status).toBe(0);
+          expect(result.stdout).toContain("memoark");
+        } finally {
+          rmSync(emptyPath, { recursive: true, force: true });
+        }
       },
     );
   });

@@ -13,6 +13,20 @@ describe("buildPipelineConfig", () => {
     expect(result.output_dir).toBe("/tmp/test-output");
     expect(result.dedup_checkpoint).toContain("dedup.jsonl");
     expect(result.cursor_checkpoint).toContain("cursors.yaml");
+    expect(result.state_base).toBe(config.__context.projectRoot);
+  });
+
+  it("passes block_concurrency from config.pipeline to PipelineConfig", () => {
+    const config = loadConfig();
+    (config as unknown as Record<string, unknown>).pipeline = { block_concurrency: 10 };
+    const result = buildPipelineConfig(config, "/tmp/test");
+    expect(result.block_concurrency).toBe(10);
+  });
+
+  it("block_concurrency is undefined when pipeline section absent", () => {
+    const config = loadConfig();
+    const result = buildPipelineConfig(config, "/tmp/test");
+    expect(result.block_concurrency).toBeUndefined();
   });
 });
 

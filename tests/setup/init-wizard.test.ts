@@ -85,7 +85,7 @@ describe("init wizard", () => {
     const output = new MemoryWritable();
 
     try {
-      await runInit({ input, output });
+      await runInit({ input, output, registerCommand: false });
     } finally {
       globalThis.fetch = originalFetch;
     }

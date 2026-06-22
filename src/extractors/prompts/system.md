@@ -20,6 +20,10 @@ Extract structured signals from conversation blocks, including:
 3. **Confidence levels**: Mark confidence appropriately (direct/paraphrased/inferred/speculative)
 4. **Quote discipline**: Keep quotes under 300 characters, select the most relevant excerpt
 5. **Slug format**: Use `{type}/{kebab-case-name}` (e.g., `person/alice-smith`, `project/auth-system`)
+6. **Language matching**: Always generate titles, details, reasoning, and context
+   in the same language as the source conversation. If the conversation is in Chinese,
+   output Chinese. If in English, output English. Never translate the source language
+   — preserve it. Slugs remain in English kebab-case regardless of language.
 
 ## Confidence Levels
 
