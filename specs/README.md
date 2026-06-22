@@ -24,12 +24,26 @@ Spec 1 → Spec 2 → Spec 3
 | Spec 2：记忆生命周期 | hot→warm→cold tier；consolidateHotToWarm/WarmToCold；CLI | ✅ PR 待合并 | `claude/repository-issues-review-TZG4j` |
 | Spec 3：MCP Agent 取用层 | get_session_context / list_signals_by_entity / get_entity_profile | ✅ PR 待合并 | 同上 |
 
+## 行动决策记忆（2026-06，对标 gbrain）
+
+> 主线：从"我知道什么"→"我该怎么做"。借 gbrain 的"读"（合成/自布线），守我们的"写"（中文职场多渠道抽取）。详见 [总纲](2026-06-22-action-memory-brainstorming.md)。
+
+| Spec | 核心交付 | 状态 |
+|------|---------|------|
+| Spec 7：合成底座 | synthesize 引擎 + 意图框架 + 引用 + gap + best-chunk 池化 | ✅ 待审查 |
+| Spec 8：人物沟通画像（Hero） | 三层人格（行为层+DISC 主轴+关系层）+ 四色外壳；prep_for_person | 📝 规划中 |
+| Spec 9：日报 + 文档提取 | 卡片 schema 加 decisions/action_items；entities/me；daily_report | 📝 规划中 |
+| Spec 10：检索质量 | best-chunk 池化深化 / 零-LLM 边 / query 改写 | 📝 规划中 |
+| Spec 11：playbook | 分支 runbook + 分层树状图 + troubleshoot | 📝 规划中 |
+
 ## 规格文档速读
 
 - [产品形态头脑风暴](specs/2026-06-04-product-form-brainstorming.md) — 三阶段规划的背景与动机
 - [Spec 1](specs/2026-06-04-spec1-signal-types-entity-architecture.md) — 信号类型重构 + Entity 锚定强化
 - [Spec 2](specs/2026-06-04-spec2-memory-lifecycle.md) — 记忆生命周期（tier 系统）
 - [Spec 3](specs/2026-06-04-spec3-mcp-agent-access.md) — MCP Agent 取用层
+- [行动决策记忆头脑风暴总纲](2026-06-22-action-memory-brainstorming.md) — thesis、三场景、防抄袭台账、Spec 7–11 蓝图
+- [Spec 7：合成底座](2026-06-22-spec7-synthesis-engine.md) — synthesize 引擎 + 意图框架 + 引用 + gap
 
 ## 实施计划速读
 
@@ -40,3 +54,4 @@ Spec 1 → Spec 2 → Spec 3
 ## 调研报告
 
 - [OpenHuman 提取架构调研](research/2026-06-08-openhuman-extraction-research.md) — 并发提取机制与性能优化参考
+- [gbrain × Memoark 细致对比](research/2026-06-22-gbrain-comparison-research.md) — 数据库/分渠道提取/检索栈逐项对比 + 可借鉴台账
