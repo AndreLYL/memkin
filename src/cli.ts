@@ -941,7 +941,6 @@ program
             pages: stores.pages,
             graph: stores.graph,
             timeline: stores.timeline,
-            chunks: stores.chunks,
             behavior: new PersonBehaviorStore(stores.db.pg),
           },
         },
