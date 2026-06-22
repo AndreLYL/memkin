@@ -9,9 +9,9 @@ import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
 import { SearchEngine } from "../../src/store/search.js";
 import { TimelineStore } from "../../src/store/timeline.js";
-import { registerIntent } from "../../src/synth/intent.js";
 import { staleRule } from "../../src/synth/gaps.js";
 import { synthesize } from "../../src/synth/index.js";
+import { registerIntent } from "../../src/synth/intent.js";
 import type { IntentTemplate } from "../../src/synth/types.js";
 
 describe("synth/engine synthesize", () => {
@@ -45,11 +45,7 @@ describe("synth/engine synthesize", () => {
 
   it("recall over an entity returns a SynthesisResult with answer, valid citation, gaps", async () => {
     const provider = createMockProvider(new Map([["", "We agreed to ship on Friday [1]."]]));
-    const result = await synthesize(
-      "recall",
-      { entity: "people/zhang-san" },
-      { stores, provider },
-    );
+    const result = await synthesize("recall", { entity: "people/zhang-san" }, { stores, provider });
     expect(result.answer).toBeTruthy();
     expect(result.citations.length).toBeGreaterThanOrEqual(1);
     expect(result.citations[0].ref).toBe(1);

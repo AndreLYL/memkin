@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { stringify as stringifyYaml } from "yaml";
 import type { StoreContext } from "../server/api.js";
 import type { Page } from "../store/pages.js";
-import type { AssembledCandidate, SynthScope, SynthesisResult } from "./types.js";
+import type { AssembledCandidate, SynthesisResult, SynthScope } from "./types.js";
 
 /** Cache entry shape stored under frontmatter.synth[intent]. */
 interface CacheEntry {

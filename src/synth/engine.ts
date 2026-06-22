@@ -12,9 +12,9 @@ import type {
   ComposeOutput,
   Gap,
   IntentTemplate,
+  SynthesisResult,
   SynthOpts,
   SynthScope,
-  SynthesisResult,
 } from "./types.js";
 
 export interface SynthDeps {
@@ -57,11 +57,7 @@ async function compose(
   return { answer };
 }
 
-function runGaps(
-  intent: IntentTemplate,
-  ctx: AssembledContext,
-  raw: ComposeOutput,
-): Gap[] {
+function runGaps(intent: IntentTemplate, ctx: AssembledContext, raw: ComposeOutput): Gap[] {
   const gaps: Gap[] = [];
   for (const rule of intent.gapRules) {
     gaps.push(...rule.evaluate(ctx, raw, intent));

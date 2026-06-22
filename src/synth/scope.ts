@@ -1,5 +1,5 @@
-import type { StoreContext } from "../server/api.js";
 import type { SourceRef } from "../core/types.js";
+import type { StoreContext } from "../server/api.js";
 import type { AssembledCandidate, SynthScope } from "./types.js";
 
 /** A retrieved candidate before ref numbering (assigned in context.assemble). */

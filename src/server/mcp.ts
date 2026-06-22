@@ -14,9 +14,6 @@ import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
 import { createMockProvider } from "../extractors/providers/mock.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
-import type { StoreContext as SynthStoreContext } from "./api.js";
-import { synthesize } from "../synth/index.js";
-import type { SynthScope } from "../synth/index.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
@@ -25,6 +22,9 @@ import type { Page, PageStore } from "../store/pages.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import type { SynthScope } from "../synth/index.js";
+import { synthesize } from "../synth/index.js";
+import type { StoreContext as SynthStoreContext } from "./api.js";
 import { getSessionContext } from "./context.js";
 import { getEntityProfile, listSignalsByEntity } from "./entity.js";
 
@@ -568,7 +568,9 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
 
     // ── Synthesis (Spec 7): synthesize + recall ──────────────────────────
     synthesize: async ({ intent, scope }: { intent: string; scope?: SynthScope }) => {
-      const provider = options.provider ?? createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      const provider =
+        options.provider ??
+        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
       return synthesize(intent, scope ?? {}, {
         stores: stores as unknown as SynthStoreContext,
         provider,
@@ -584,7 +586,9 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       query?: string;
       time?: { from: string; to: string };
     }) => {
-      const provider = options.provider ?? createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      const provider =
+        options.provider ??
+        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
       const scope: SynthScope = { entity, query, time, limit: 30 };
       return synthesize("recall", scope, {
         stores: stores as unknown as SynthStoreContext,

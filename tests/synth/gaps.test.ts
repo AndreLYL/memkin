@@ -23,11 +23,7 @@ function daysAgo(n: number): string {
 
 describe("synth/gaps staleRule", () => {
   it("returns a stale gap when latestDate is older than staleDays", () => {
-    const gaps = staleRule.evaluate(
-      ctx(daysAgo(20)),
-      { answer: "" },
-      intent({ staleDays: 14 }),
-    );
+    const gaps = staleRule.evaluate(ctx(daysAgo(20)), { answer: "" }, intent({ staleDays: 14 }));
     expect(gaps).toHaveLength(1);
     expect(gaps[0].type).toBe("stale");
   });
@@ -47,11 +43,7 @@ describe("synth/gaps missingFieldRule", () => {
   const raw: ComposeOutput = { answer: "We discussed the budget and the timeline." };
 
   it("flags expects points not covered by the answer", () => {
-    const gaps = missingFieldRule.evaluate(
-      ctx(),
-      raw,
-      intent({ expects: ["budget", "owner"] }),
-    );
+    const gaps = missingFieldRule.evaluate(ctx(), raw, intent({ expects: ["budget", "owner"] }));
     expect(gaps).toHaveLength(1);
     expect(gaps[0].type).toBe("missing_field");
     expect(gaps[0].message).toContain("owner");

@@ -43,10 +43,7 @@ describe("synth/cache", () => {
   });
 
   it("entity scope: writes & reads frontmatter.synth[intent]", async () => {
-    await stores.pages.putPage(
-      "people/zhang-san",
-      "---\ntitle: Zhang San\ntype: person\n---\nbio",
-    );
+    await stores.pages.putPage("people/zhang-san", "---\ntitle: Zhang San\ntype: person\n---\nbio");
     const scope = { entity: "people/zhang-san" };
     const hash = computeInputHash(candidates);
     await write("recall", scope, makeResult(scope), hash, stores);

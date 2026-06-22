@@ -467,9 +467,7 @@ describe("MCP synthesis tools", () => {
   });
 
   it("synthesize + recall handlers produce a synthesized answer with citations", async () => {
-    const provider = createMockProvider(
-      new Map([["", "We decided to ship on Friday [1]."]]),
-    );
+    const provider = createMockProvider(new Map([["", "We decided to ship on Friday [1]."]]));
     const tools = createMcpToolHandlers(stores, { provider });
 
     await tools.put_page({
