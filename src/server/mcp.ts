@@ -617,6 +617,22 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
         );
       }
     },
+    // ── Spec 8: prep_for_person — communication strategy for a person ─────
+    prep_for_person: async ({ person, goal }: { person: string; goal?: string }) => {
+      const provider =
+        options.provider ??
+        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      return synthesize(
+        "person_strategy",
+        { entity: person },
+        {
+          stores: stores as unknown as SynthStoreContext,
+          provider,
+          model: options.synthModel,
+        },
+        { extra: goal ? { goal } : undefined },
+      );
+    },
   };
 }
 
@@ -863,6 +879,22 @@ function registerPreferredTools(
       },
     },
     async (args) => text(await tools.recall(args)),
+  );
+
+  server.registerTool(
+    "prep_for_person",
+    {
+      title: "Prep for Person (Communication Strategy)",
+      description: description(
+        "prep_for_person",
+        "Prepare goal-conditioned communication strategy for a person from their passively-inferred communication profile.\n\nWhen to use: before talking to someone — get evidence-cited, ethical suggestions on how to communicate with them, optionally toward a specific goal.\nWhen NOT to use: raw facts about the person; use `get_entity_profile`/`query`.\nReturns: a SynthesisResult (cited suggestions + gaps). Suggestions only — never manipulation. Profiling is passive and local; the four-color shell is a popular mapping, not a clinical diagnosis.\nOn error: ensure the person page slug exists.",
+      ),
+      inputSchema: {
+        person: z.string().describe("Person page slug, e.g. `people/zhang-san`."),
+        goal: z.string().optional().describe("Optional goal for this conversation."),
+      },
+    },
+    async (args) => text(await tools.prep_for_person(args)),
   );
 
   if (!options.readOnly) {
