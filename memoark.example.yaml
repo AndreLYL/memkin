@@ -1,4 +1,11 @@
-# Memoark Configuration
+# Memoark Configuration — EXAMPLE TEMPLATE
+#
+# Copy this file to `memoark.yaml` and fill in your own values:
+#   cp memoark.example.yaml memoark.yaml
+#
+# `memoark.yaml` is git-ignored on purpose (it may contain secrets and
+# machine-specific paths). Never commit your real config. Prefer environment
+# variables (e.g. ${OPENAI_API_KEY}) over literal keys.
 
 # Privacy configuration
 privacy:
@@ -15,9 +22,9 @@ privacy:
 # LLM provider configuration
 llm:
   provider: openai
-  model: MiniMax-M2.5
-  base_url: https://api.tokenflying.top
-  api_key: ${TOKENFREE_API_KEY}
+  model: gpt-4o-mini                    # any model your endpoint serves
+  base_url: https://api.openai.com/v1   # or any OpenAI-compatible endpoint
+  api_key: ${OPENAI_API_KEY}            # set the env var; avoid literal keys
 
 # Block builder configuration
 block_builder:
@@ -36,8 +43,8 @@ sources:
   feishu:
     enabled: true
     auth_mode: user
-    app_id: cli_a9f10f0545f9dcb3
-    app_secret: unused-in-user-mode
+    app_id: <your-feishu-app-id>
+    app_secret: ""  # unused in user auth mode
     sources:
       messages:
         enabled: true
@@ -65,14 +72,14 @@ adapters:
 
 # Store (PGLite embedded PostgreSQL)
 store:
-  data_dir: /Users/yinglong.li/.memoark/data
+  data_dir: ~/.memoark/data
 
 # Embedding configuration
 embedding:
   provider: ollama
   model: nomic-embed-text
   dimensions: 768
-  # api_key: <your-api-key>  # Or set OPENAI_API_KEY env var
+  # api_key: ${OPENAI_API_KEY}  # only needed when provider is openai
 
 # Server configuration
 server:
