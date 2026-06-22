@@ -57,6 +57,9 @@ export function canonicalizeHandleValue(kind: HandleKind, value: string): string
 const OPEN_ID_RE = /\bou_[a-zA-Z0-9]+\b/;
 const EMAIL_RE = /[^\s@]+@[^\s@]+\.[^\s@]+/;
 
+/** Canonical slug of the special "me" identity page (Spec 9 §4.1). */
+export const ME_SLUG = "entities/me";
+
 export interface PersonIdentityStores {
   pages: PageStore;
 }
@@ -124,6 +127,57 @@ export class PersonIdentityStore {
     if (openId) {
       await this.insertHandle("feishu_open_id", openId, canonicalSlug, "strong", true);
     }
+  }
+
+  /**
+   * Ensure the special `entities/me` self-identity page exists (Spec 9 §4.1).
+   * Idempotent — returns the canonical slug; creates a minimal person page the
+   * user can hand-edit (role / company / team / handles) when absent.
+   */
+  async ensureEntitiesMe(): Promise<string> {
+    const pages = this.requirePages();
+    const existing = await pages.getPage(ME_SLUG);
+    if (!existing) {
+      const content = `---\ntitle: Me\ntype: person\nis_me: true\n---\n# Me\n\n（自我身份页：可手编你的角色 / 公司 / 团队 / 项目 / 沟通偏好 / 各平台 handle。）\n`;
+      await pages.putPage(ME_SLUG, content);
+    }
+    await this.insertHandle("slug", ME_SLUG, ME_SLUG, "strong", true);
+    return ME_SLUG;
+  }
+
+  /**
+   * Register one of the current user's own handles (open_id / email / name),
+   * pointing it at `entities/me` as a strong handle (Spec 9 §4.2 manual path).
+   * Ensures the me page exists first.
+   *
+   * Spike (Spec 9 §4.2): auto-resolving the self open_id via
+   * `resolveSelfOpenId()` (src/collectors/feishu/self-open-id.ts) is wired as a
+   * best-effort enhancement only — it depends on a live lark-cli user-level
+   * OAuth session (user_access_token, separate from the bot token). That session
+   * is not available in CI/test, so only this manual path is exercised by tests
+   * and is the reliable default. Callers may best-effort call resolveSelfOpenId
+   * and feed the result here when a real session exists.
+   */
+  async registerSelfHandle(kind: HandleKind, value: string): Promise<void> {
+    await this.ensureEntitiesMe();
+    await this.insertHandle(kind, value, ME_SLUG, "strong", false);
+  }
+
+  /**
+   * Whether `slugOrHandle` is the current user (Spec 9 §4.3). Accepts either a
+   * canonical slug (e.g. `entities/me`, `people/alice`) or a raw handle value
+   * (open_id / email / name / nickname); resolves to a canonical slug and
+   * compares against `entities/me`.
+   */
+  async isMe(slugOrHandle: string): Promise<boolean> {
+    if (slugOrHandle === ME_SLUG) return true;
+    // direct slug handle
+    if ((await this.resolveHandle("slug", slugOrHandle)) === ME_SLUG) return true;
+    // try the strong handle kinds it could be
+    for (const kind of ["feishu_open_id", "email", "name", "nickname"] as const) {
+      if ((await this.resolveHandle(kind, slugOrHandle)) === ME_SLUG) return true;
+    }
+    return false;
   }
 
   /**
