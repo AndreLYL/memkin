@@ -4,6 +4,7 @@ import type {
   LLMConfig,
   McpConfig,
   PrivacyConfig,
+  ProfileConfig,
   SchedulerConfig,
   ServerConfig,
   SourceConfig,
@@ -31,6 +32,7 @@ export interface PartialConfig {
     max_block_messages?: number;
   };
   scheduler?: SchedulerConfig;
+  profile?: Partial<ProfileConfig>;
 }
 
 export interface ValidationResult {
