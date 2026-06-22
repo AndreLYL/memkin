@@ -5,7 +5,15 @@
 **目的**：摸清 gbrain 最新形态，与 Memoark 现状做逐项对比，明确"该借什么 / 该守什么"，为 Spec 7–11 提供调研依据
 **关联**：[行动决策记忆头脑风暴总纲](../2026-06-22-action-memory-brainstorming.md)
 
-> 调研方法：gbrain 侧通过其公开 README / docs / 第三方解读获取（实现细节藏在 design docs，部分为外部描述）；Memoark 侧基于真实代码逐文件核对，所有结论附 `file:line`。
+> **调研方法**：Memoark 侧基于真实代码逐文件核对；gbrain 侧通过其公开 README / docs / 第三方解读获取。
+
+## 数据来源与可信度（先读这一节）
+
+**Memoark 侧**：所有 `file:line` 已对照 **main@eebb1b6（2026-06-22）实际 grep 核对**。注意：本调研文档存放在 `docs/specs-and-research` 分支，而它引用的代码在 **main** 上——该 docs 分支落后于 main、本地不含这些文件，按 main 阅读。`src/collectors/feishu/docs/*`（两级文档卡片系统）由 **PR #55（feat/feishu-doc-summary-cards）合并入 main（commit db6556a）**，是 main 上的已发布功能，非分支特性。
+
+**gbrain 侧**：图例 📗 = 官方 README/docs ｜ 📰 = 第三方解读（MarkTechPost / 博客 / 搜索）｜ 📕 = 直接阅读源码。
+
+> ⚠️ **本调研未直接阅读 gbrain 源码**（其实现细节藏在闭源 design docs 与外部描述中）。因此 **gbrain 侧所有结论应视为"待验证的设计灵感"，不可当"已验证实现"1:1 照搬**。Spec 7 等下游 spec 的自研实现以**行为对齐**为目标，不依赖 gbrain 内部代码的正确性。各结论的来源分级见 §六。
 
 ---
 
@@ -70,7 +78,7 @@ Memoark 核心模型在 `src/store/schema.sql`，5 张核心表 + 2 张身份表
 
 ### (a) 邮件 & 云文档
 
-**邮件**（`collectors/feishu/sources/mail.ts` + `core/canonicalize.ts:64`）
+**邮件**（`collectors/feishu/sources/mail.ts` + `core/canonicalize.ts:81` `canonicalizeEmail`）
 - Block：Rule 0a，每封邮件独立成块，绝不跨邮件合并
 - 压缩（canonicalize 是真正的压缩点）：剥回复链/引用块/原文标记/页脚，重组为 `From/Subject/Date + 正文`
 - L1 降噪：自动回复/out of office/会议取消 → skip；含决策关键词 → escalate
@@ -86,7 +94,7 @@ Memoark 核心模型在 `src/store/schema.sql`，5 张核心表 + 2 张身份表
 
 ### (b) 私聊 DM & 群聊
 
-**群聊**（`sources/messages.ts` + `canonicalize.ts:127`）
+**群聊**（`sources/messages.ts` + `canonicalize.ts:128` `canonicalizeChat`）
 - Block（核心压缩）：Rule 1 thread/reply 边界 → Rule 2 时间间隔（>30min 切）→ Rule 3 token 预算（>4000 切）→ Rule 4 条数（≥100 切）；中文 token 按 1.5/字估
 - 切块：300 词窗/50 词重叠
 - canonicalize：`[时间] 发言人: 内容`
@@ -99,7 +107,7 @@ Memoark 核心模型在 `src/store/schema.sql`，5 张核心表 + 2 张身份表
 
 ### (c) 日历 & 任务
 
-**日历**（`sources/calendar.ts` + `canonicalize.ts:138` structured）
+**日历**（`sources/calendar.ts` + `canonicalize.ts:140` `canonicalizeStructured`）
 - 支持 `sync_token` 增量；无 token 取 [−30d, +90d]
 - Block：Rule 0b 每事件独立；结构化 key-value 压缩；L1 不过滤直接进提取；权重 0.8
 - 抽取：decisions（会议结论）/timeline（事件日期）/entities（参会人）/links（协作）
@@ -146,3 +154,24 @@ Memoark 核心模型在 `src/store/schema.sql`，5 张核心表 + 2 张身份表
 - gbrain 的 `compiled truth 在上 + timeline 在下`，我们用 `pages.compiled_truth` + `timeline_entries` 已天然吻合。
 - gbrain 最大的、我们最该补的，是**读侧合成层**（P0）。
 - Memoark 最该守住、且 gbrain 给不了的，是**中文职场多渠道自动提取压缩**。
+
+---
+
+## 六、gbrain 结论可信度分级（落地前必读）
+
+下表给本文每条 gbrain 结论标来源等级，并给 Spec 7+ 的处置建议。**没有任何一条来自直接阅读 gbrain 源码（📕 为空）**，故均不可 1:1 照搬。
+
+| gbrain 结论 | 来源 | Spec 处置建议 |
+|---|---|---|
+| 双引擎 PGLite/Postgres+pgvector、HNSW | 📗 | 仅理念参考（我们单引擎），不照搬 |
+| **best-chunk-per-page 池化** | 📗 | ⚠️ Spec 7 §七**自实现**，以"每页取最强 chunk"的**行为对齐**为准，不依赖其代码 |
+| 混合检索＝vector+BM25+RRF+source-tier+intent 改写+reranker(ZeroEntropy)+图信号 | 📗 | **分项**借鉴（Spec 10），非整体照搬；ZeroEntropy 是外部组件，不引入 |
+| 三档模式 conservative/balanced/tokenmax | 📗 | 仅成本/质量分档**理念**参考 |
+| 自布线零-LLM typed edges（从 wikilink） | 📗 | Spec 10 借**思路**，自实现，作为 LLM 抽边兜底 |
+| schema packs（15 类、detect/suggest） | 📗 | 后续，自实现 |
+| **`think` 合成 + gap 分析** | 📗 + 📰 | **P0 核心借鉴**（Spec 7），自实现"一引擎多意图"，不抄其 prompt |
+| dream cycle：salience 打分 / 矛盾检测 / entity sweep / citation 修复 | 📰（cron-schedule 解读 + 博客，可信度最低） | ⚠️ 仅作灵感，**落地前需再核实**，不进 Spec 7 验收 |
+| BrainEngine ~47 ops 单源生成 CLI+MCP | 📗 | 仅架构**理念**参考 |
+| 人物页＝facts、compiled truth 在上+timeline 在下 | 📗 + 📰 | 与我们现状吻合（已验证 Memoark 侧），可放心对齐 |
+
+**总原则**：📗 类可作"设计参考"，📰 类只作"灵感、需再验证"。所有借鉴均以**自研 + 行为对齐**落地，Spec 验收标准只测我们自己的行为，不假设 gbrain 实现正确。

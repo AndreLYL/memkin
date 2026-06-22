@@ -33,6 +33,8 @@
 
 ## 二、调研依据
 
+> ⚠️ 本节 gbrain 结论均来自其 README/第三方解读，**未经源码核实**（见[调研 doc §六可信度分级](research/2026-06-22-gbrain-comparison-research.md#六gbrain-结论可信度分级落地前必读)）。本 spec 一律**自研 + 行为对齐**，验收只测我们自己的行为（§十一），不假设 gbrain 实现正确。
+
 ### 2.1 gbrain 的 `think`
 
 gbrain 区分 `search`（返回片段，无 LLM）与 `think`（同样检索后，**合成带引用的成段答案 + gap 分析**："告诉你某页已过期、某断言无引用、两页矛盾、哪有该补的洞"）。这是它区别于裸 RAG 的核心。
