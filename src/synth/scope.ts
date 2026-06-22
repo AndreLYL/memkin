@@ -117,6 +117,26 @@ interface TimePageRow {
   compiled_truth: string;
   signal_time: string | null;
   source: SourceRef | string | null;
+  source_hash: string | null;
+}
+
+/**
+ * Cross-channel dedupe (Spec 9 §6): drop rows whose `frontmatter.source_hash`
+ * was already seen — the same source block surfaced under two slugs (e.g. a mail
+ * forwarded into a group). Rows without a source_hash are always kept. The first
+ * occurrence (DESC by signal_time) wins.
+ */
+function dedupeBySourceHash(rows: TimePageRow[]): TimePageRow[] {
+  const seenHash = new Set<string>();
+  const out: TimePageRow[] = [];
+  for (const row of rows) {
+    if (row.source_hash) {
+      if (seenHash.has(row.source_hash)) continue;
+      seenHash.add(row.source_hash);
+    }
+    out.push(row);
+  }
+  return out;
 }
 
 async function retrieveByTime(
@@ -139,7 +159,8 @@ async function retrieveByTime(
   const result = await stores.db.pg.query<TimePageRow>(
     `SELECT slug, title, type, compiled_truth,
        COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text) AS signal_time,
-       COALESCE(frontmatter->'source', frontmatter->'first_seen') AS source
+       COALESCE(frontmatter->'source', frontmatter->'first_seen') AS source,
+       frontmatter->>'source_hash' AS source_hash
      FROM pages
      WHERE ${conditions.join(" AND ")}
      ORDER BY signal_time DESC
@@ -147,7 +168,7 @@ async function retrieveByTime(
     params,
   );
 
-  return result.rows.map((row) => {
+  return dedupeBySourceHash(result.rows).map((row) => {
     const source =
       typeof row.source === "string"
         ? (JSON.parse(row.source) as SourceRef)

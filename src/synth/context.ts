@@ -2,12 +2,54 @@ import type { RawCandidate } from "./scope.js";
 import type { AssembledContext, SynthScope } from "./types.js";
 
 /**
+ * Token budget for assembled candidates (Spec 9 §6). `limit` only caps how many
+ * candidates are retrieved; here we truncate the retrieved set to a total token
+ * budget so a busy day never dumps hundreds of signals into the LLM. We use a
+ * cheap chars≈tokens heuristic (CJK-heavy text → ~1 token/char is a safe upper
+ * bound) and accumulate in order, stopping once the budget is exceeded.
+ */
+const TOKEN_BUDGET = 12_000;
+const CHARS_PER_TOKEN = 1;
+
+function estimateTokens(c: RawCandidate): number {
+  return Math.ceil((c.title.length + c.text.length) / CHARS_PER_TOKEN);
+}
+
+/** Drop repeated slugs, keeping the first occurrence (Spec 9 §6 primary-key dedupe). */
+function dedupeBySlug(candidates: RawCandidate[]): RawCandidate[] {
+  const seen = new Set<string>();
+  const out: RawCandidate[] = [];
+  for (const c of candidates) {
+    if (seen.has(c.slug)) continue;
+    seen.add(c.slug);
+    out.push(c);
+  }
+  return out;
+}
+
+/** Accumulate candidates in order until the token budget is reached. Always keeps ≥1. */
+function truncateToBudget(candidates: RawCandidate[]): RawCandidate[] {
+  const out: RawCandidate[] = [];
+  let used = 0;
+  for (const c of candidates) {
+    const cost = estimateTokens(c);
+    if (out.length > 0 && used + cost > TOKEN_BUDGET) break;
+    out.push(c);
+    used += cost;
+  }
+  return out;
+}
+
+/**
  * Assemble retrieved candidates into a numbered AssembledContext (Spec 7 §3.3 step 5).
- * Assigns ref=1..N (in order) and derives latestDate=max(date).
- * pinnedContext is left undefined; intents may set it via the buildPinnedContext hook.
+ * Dedupes by slug, truncates to a token budget (Spec 9 §6), assigns ref=1..N (in
+ * order), and derives latestDate=max(date). pinnedContext is left undefined;
+ * intents may set it via the buildPinnedContext hook.
  */
 export function assemble(scope: SynthScope, candidates: RawCandidate[]): AssembledContext {
-  const numbered = candidates.map((c, i) => ({ ...c, ref: i + 1 }));
+  const deduped = dedupeBySlug(candidates);
+  const budgeted = truncateToBudget(deduped);
+  const numbered = budgeted.map((c, i) => ({ ...c, ref: i + 1 }));
 
   let latestDate: string | undefined;
   for (const c of numbered) {
