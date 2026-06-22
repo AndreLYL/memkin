@@ -182,6 +182,17 @@ export interface PipelineOptsConfig {
 }
 
 /**
+ * Person communication profile configuration (Spec 8 §9).
+ * Disabled by default. allow/deny gate per-person opt-in/out by canonical slug.
+ */
+export interface ProfileConfig {
+  enabled: boolean;
+  allow: string[];
+  deny: string[];
+  min_sample_size: number;
+}
+
+/**
  * Complete configuration interface
  */
 export interface Config {
@@ -196,6 +207,7 @@ export interface Config {
   mcp: McpConfig;
   scheduler?: SchedulerConfig;
   pipeline?: PipelineOptsConfig;
+  profile: ProfileConfig;
 }
 
 export interface ConfigContext {
@@ -261,6 +273,12 @@ const DEFAULT_CONFIG: Config = {
       auth_token_env: "",
       read_only: true,
     },
+  },
+  profile: {
+    enabled: false,
+    allow: [],
+    deny: [],
+    min_sample_size: 20,
   },
 };
 

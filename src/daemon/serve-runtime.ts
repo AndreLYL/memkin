@@ -17,8 +17,11 @@ import {
 } from "../collectors/index.js";
 import type { LoadedConfig, SourcesConfig } from "../core/config.js";
 import { CursorStore } from "../core/cursors.js";
+import { PersonIdentityStore } from "../core/person-identity.js";
 import { type PipelineConfig, type PipelineResult, runPipeline } from "../core/pipeline.js";
 import { statePath } from "../core/state.js";
+import type { AccumulateDeps } from "../profile/accumulate.js";
+import { PersonBehaviorStore } from "../store/person-behavior.js";
 import { createLLMProvider, createMockProvider } from "../extractors/providers/index.js";
 import type { DaemonStatus, StoreContext } from "../server/api.js";
 import { ChatNameRefreshJob } from "../server/chat-name-refresh-job.js";
@@ -127,6 +130,20 @@ export async function buildServeRuntime(
         block_concurrency: config.pipeline?.block_concurrency,
       };
 
+      // ── Person communication profile (Spec 8): behavior-layer accumulation.
+      // No-op unless config.profile.enabled (checked inside accumulateBehavior),
+      // so it is wired unconditionally. resolveSender maps a sender open id to its
+      // canonical person slug via the identity handle table, falling back to a
+      // deterministic slug when unknown.
+      const behaviorIdentity = new PersonIdentityStore(stores.db.pg, { pages: stores.pages });
+      const behaviorDeps: AccumulateDeps = {
+        store: new PersonBehaviorStore(stores.db.pg),
+        config: config.profile,
+        resolveSender: async (contact) =>
+          (await behaviorIdentity.resolveHandle("feishu_open_id", contact)) ??
+          `people/${contact}`,
+      };
+
       // ── G2: feishu.docs special case ────────────────────────────────────────
       // docs uses runDocSource (not runPipeline) and manages its own cursor state.
       docsCursor = new CursorStore(statePath("cursors.yaml"));
@@ -189,6 +206,7 @@ export async function buildServeRuntime(
           adapter: "store",
           stores,
           dryRun: false,
+          behavior: behaviorDeps,
         });
       });
       scheduler.setOnTick((sourceId, result, duration_ms) => {

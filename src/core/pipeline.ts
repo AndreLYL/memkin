@@ -16,6 +16,7 @@ import {
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
+import { accumulateBehavior, type AccumulateDeps } from "../profile/accumulate.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
 import type { PrivacyConfig } from "./config.js";
@@ -65,6 +66,13 @@ export interface PipelineOpts {
    * person pages from LLM-produced slug variants.
    */
   identityResolver?: IdentityResolver;
+  /**
+   * Optional person-communication-profile behavior accumulation (Spec 8 §4.1).
+   * When provided AND config.profile.enabled, DM/group blocks contribute to the
+   * person_behavior table while raw messages are still in memory. No-op when the
+   * config is disabled, so callers can wire it unconditionally.
+   */
+  behavior?: AccumulateDeps;
 }
 
 /**
@@ -238,6 +246,19 @@ export async function runPipeline(
     const processBlock = async (block: ConversationBlock, idx: number): Promise<void> => {
       process.stdout.write(`  [${idx + 1}/${blocks.length}] filtering block ${block.block_id} ...`);
       try {
+        // Behavior layer (Spec 8 §4.1): accumulate per-person counters from the raw
+        // messages before any noise filter drops them. Statistical, so it runs even
+        // for low-signal blocks. No-op unless config.profile.enabled.
+        if (opts.behavior) {
+          try {
+            await accumulateBehavior(block, opts.behavior);
+          } catch (err) {
+            result.warnings.push(
+              `Behavior accumulation failed for block ${block.block_id}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+
         // L1: rule-based filter
         const l1Verdict = filterNoiseL1(block);
         let filterVerdict: NoiseFilterVerdict;

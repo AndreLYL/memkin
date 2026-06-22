@@ -125,6 +125,12 @@ export function buildConfigObject(config: PartialConfig): Config {
         read_only: config.mcp?.http?.read_only ?? true,
       },
     },
+    profile: {
+      enabled: config.profile?.enabled ?? false,
+      allow: config.profile?.allow ?? [],
+      deny: config.profile?.deny ?? [],
+      min_sample_size: config.profile?.min_sample_size ?? 20,
+    },
   };
 }
 
