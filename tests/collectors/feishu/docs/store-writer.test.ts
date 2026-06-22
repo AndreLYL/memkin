@@ -33,8 +33,7 @@ describe("writeCard", () => {
   });
 });
 
-const hash8 = (text: string): string =>
-  createHash("sha256").update(text).digest("hex").slice(0, 8);
+const hash8 = (text: string): string => createHash("sha256").update(text).digest("hex").slice(0, 8);
 
 function fullCardWithActionItems(): FullCard {
   return {

@@ -80,7 +80,9 @@ describe("daily report cross-channel aggregation", () => {
       { poolByPage: true },
       stores,
     );
-    const hashedSlugs = out.map((c) => c.slug).filter((s) => s.startsWith("mail/dup") || s === "im/dup2");
+    const hashedSlugs = out
+      .map((c) => c.slug)
+      .filter((s) => s.startsWith("mail/dup") || s === "im/dup2");
     expect(hashedSlugs.length).toBe(1);
     expect(out.some((c) => c.slug === "mail/keep")).toBe(true);
   });

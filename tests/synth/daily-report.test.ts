@@ -7,9 +7,9 @@ import { GraphStore } from "../../src/store/graph.js";
 import { PageStore } from "../../src/store/pages.js";
 import { SearchEngine } from "../../src/store/search.js";
 import { TimelineStore } from "../../src/store/timeline.js";
+import { synthesize } from "../../src/synth/index.js";
 import { getIntent } from "../../src/synth/intent.js";
 import { dailyReportIntent } from "../../src/synth/intents/daily-report.js";
-import { synthesize } from "../../src/synth/index.js";
 
 const SEVEN_SECTIONS = [
   "## 今日概览\n忙碌的一天。[1]",
