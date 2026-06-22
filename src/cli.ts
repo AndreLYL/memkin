@@ -46,6 +46,7 @@ import { createMcpHttpApp } from "./server/mcp-http.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { ChunkStore } from "./store/chunks.js";
+import { PersonBehaviorStore } from "./store/person-behavior.js";
 import { Database } from "./store/database.js";
 import { EmbeddingService } from "./store/embedding.js";
 import { GraphStore } from "./store/graph.js";
@@ -934,6 +935,16 @@ program
           timeline: stores.timeline,
         },
         llmProvider,
+        {
+          profile: config.profile,
+          profileStores: {
+            pages: stores.pages,
+            graph: stores.graph,
+            timeline: stores.timeline,
+            chunks: stores.chunks,
+            behavior: new PersonBehaviorStore(stores.db.pg),
+          },
+        },
       );
 
       const mode: ConsolidateMode = options.hot
@@ -954,6 +965,7 @@ program
       console.log(`  warm→cold pages archived: ${result.warmToCold}`);
       console.log(`  dead links checked:       ${result.deadLinksChecked}`);
       console.log(`  preferences inferred:     ${result.preferencesInferred}`);
+      console.log(`  profiles synthesized:     ${result.profilesSynthesized}`);
 
       await stores.db.close();
     } catch (error) {
