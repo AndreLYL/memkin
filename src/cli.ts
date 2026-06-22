@@ -629,28 +629,33 @@ async function runServe(options: {
     process.on("SIGINT", shutdown);
 
     if (options.mcp) {
+      const llmConfig = { ...config.llm };
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const synthProvider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+
       let ingestDeps: IngestDeps | undefined;
       const feishu = config.sources.feishu;
       if (feishu?.enabled && feishu.sources?.docs?.enabled) {
         const client = new LarkCliHttpClient(feishu.lark_bin);
-        const llmConfig = { ...config.llm };
-        const envKey =
-          llmConfig.provider === "anthropic"
-            ? process.env.ANTHROPIC_API_KEY
-            : process.env.OPENAI_API_KEY;
-        if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
-        const provider = llmConfig.api_key
-          ? createLLMProvider(llmConfig)
-          : createMockProvider(new Map());
         ingestDeps = {
           client,
           stores: storesWithDaemon,
-          provider,
+          provider: synthProvider,
           model: feishu.sources.docs.llm?.model ?? llmConfig.model,
           nowIso: () => new Date().toISOString(),
         };
       }
-      const server = createMcpServer(storesWithDaemon, {}, ingestDeps);
+      const server = createMcpServer(
+        storesWithDaemon,
+        { provider: synthProvider, synthModel: llmConfig.model },
+        ingestDeps,
+      );
       await server.connect(new StdioServerTransport());
       return;
     }

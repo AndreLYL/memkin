@@ -12,6 +12,11 @@ import {
 } from "../core/person-identity.js";
 import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
+import { createMockProvider } from "../extractors/providers/mock.js";
+import type { LLMProvider } from "../extractors/providers/types.js";
+import type { StoreContext as SynthStoreContext } from "./api.js";
+import { synthesize } from "../synth/index.js";
+import type { SynthScope } from "../synth/index.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
@@ -48,6 +53,10 @@ export interface McpServerOptions {
   exposeLegacyTools?: boolean;
   readOnly?: boolean;
   version?: string;
+  /** LLM provider for synthesis tools (synthesize/recall). Falls back to a mock when omitted. */
+  provider?: LLMProvider;
+  /** Model id recorded in synthesis result meta. */
+  synthModel?: string;
 }
 
 interface ToolError {
@@ -556,6 +565,33 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       await identity.recanonicalize(from, to);
       return { ok: true, from, to, handles: await identity.listHandles(to) };
     },
+
+    // ── Synthesis (Spec 7): synthesize + recall ──────────────────────────
+    synthesize: async ({ intent, scope }: { intent: string; scope?: SynthScope }) => {
+      const provider = options.provider ?? createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      return synthesize(intent, scope ?? {}, {
+        stores: stores as unknown as SynthStoreContext,
+        provider,
+        model: options.synthModel,
+      });
+    },
+    recall: async ({
+      entity,
+      query,
+      time,
+    }: {
+      entity?: string;
+      query?: string;
+      time?: { from: string; to: string };
+    }) => {
+      const provider = options.provider ?? createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      const scope: SynthScope = { entity, query, time, limit: 30 };
+      return synthesize("recall", scope, {
+        stores: stores as unknown as SynthStoreContext,
+        provider,
+        model: options.synthModel,
+      });
+    },
   };
 }
 
@@ -752,6 +788,56 @@ function registerPreferredTools(
       const value = await tools.explore_graph(args);
       return structuredText(value, value as unknown as Record<string, unknown>);
     },
+  );
+
+  server.registerTool(
+    "synthesize",
+    {
+      title: "Synthesize Memory",
+      description: description(
+        "synthesize",
+        "Synthesize a cited, gap-aware answer from memory using an intent template.\n\nWhen to use: you want a composed answer (not raw snippets) about an entity, time window, or query.\nWhen NOT to use: raw ranked snippets; use `query`/`search`.\nReturns: answer with inline [n] citations, citations[], and gaps[] (stale / missing).\nOn error: ensure the intent is registered and the scope is non-empty.",
+      ),
+      inputSchema: {
+        intent: z.string().describe("Registered synthesis intent, for example `recall`."),
+        scope: z
+          .object({
+            entity: z.string().optional().describe("Anchor entity slug, e.g. `people/zhang-san`."),
+            query: z.string().optional().describe("Free-text semantic query."),
+            time: z
+              .object({ from: z.string(), to: z.string() })
+              .optional()
+              .describe("Time window (ISO dates)."),
+            types: z.array(z.string()).optional().describe("Limit to signal types."),
+            channels: z.array(z.string()).optional().describe("Limit to source channels."),
+            limit: z.number().optional().describe("Candidate cap, default 30."),
+          })
+          .partial()
+          .optional()
+          .describe("Retrieval scope (entity / time / query)."),
+      },
+    },
+    async (args) => text(await tools.synthesize(args)),
+  );
+
+  server.registerTool(
+    "recall",
+    {
+      title: "Recall Memory (Synthesized)",
+      description: description(
+        "recall",
+        "Recall a synthesized, cited summary about an entity, query, or time window.\n\nWhen to use: a quick composed recall with citations and gap flags.\nWhen NOT to use: raw snippets; use `query`/`search`.\nReturns: a SynthesisResult (answer + citations + gaps).\nOn error: provide at least one of entity, query, or time.",
+      ),
+      inputSchema: {
+        entity: z.string().optional().describe("Anchor entity slug, e.g. `people/zhang-san`."),
+        query: z.string().optional().describe("Free-text semantic query."),
+        time: z
+          .object({ from: z.string(), to: z.string() })
+          .optional()
+          .describe("Time window (ISO dates)."),
+      },
+    },
+    async (args) => text(await tools.recall(args)),
   );
 
   if (!options.readOnly) {
@@ -1468,6 +1554,8 @@ export function createMcpServer(
     exposeLegacyTools: options.exposeLegacyTools ?? false,
     readOnly: options.readOnly ?? false,
     version: options.version ?? packageVersion,
+    provider: options.provider,
+    synthModel: options.synthModel,
   });
 
   registerPreferredTools(server, tools, options);

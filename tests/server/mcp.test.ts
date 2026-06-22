@@ -1,4 +1,7 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMockProvider } from "../../src/extractors/providers/mock.js";
 import { createMcpServer, createMcpToolHandlers } from "../../src/server/mcp.js";
 import { ChunkStore } from "../../src/store/chunks.js";
 import { Database } from "../../src/store/database.js";
@@ -420,5 +423,74 @@ describe("MCP server", () => {
           "Provide at least platform and channel; timestamp, raw_hash, and quote are filled with safe defaults when omitted.",
       },
     });
+  });
+});
+
+describe("MCP synthesis tools", () => {
+  let db: Database;
+  let stores: Parameters<typeof createMcpToolHandlers>[0];
+
+  beforeEach(async () => {
+    db = await Database.create();
+    stores = {
+      db,
+      pages: new PageStore(db.pg),
+      chunks: new ChunkStore(db.pg),
+      graph: new GraphStore(db.pg),
+      tags: new TagStore(db.pg),
+      timeline: new TimelineStore(db.pg),
+      search: new SearchEngine(db.pg),
+      embedding: new EmbeddingService(db.pg, { provider: "openai", apiKey: "test-key" }),
+    };
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  it("registers synthesize + recall and not the unbuilt product tools", async () => {
+    const provider = createMockProvider(new Map([["", "ans [1]"]]));
+    const server = createMcpServer(stores, { provider });
+    const client = new Client({ name: "synth-test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    expect(names).toContain("synthesize");
+    expect(names).toContain("recall");
+    expect(names).not.toContain("prep_for_person");
+    expect(names).not.toContain("daily_report");
+    expect(names).not.toContain("troubleshoot");
+
+    await client.close();
+    await server.close();
+  });
+
+  it("synthesize + recall handlers produce a synthesized answer with citations", async () => {
+    const provider = createMockProvider(
+      new Map([["", "We decided to ship on Friday [1]."]]),
+    );
+    const tools = createMcpToolHandlers(stores, { provider });
+
+    await tools.put_page({
+      slug: "people/zhang-san",
+      content: "---\ntitle: Zhang San\ntype: person\n---\nTeammate.",
+    });
+    await tools.put_page({
+      slug: "decisions/ship-it",
+      content: "---\ntitle: Ship It\ntype: decision\n---\nShip the feature on Friday.",
+    });
+    await tools.add_link({ from: "decisions/ship-it", to: "people/zhang-san", type: "mentions" });
+
+    const viaSynthesize = await tools.synthesize({
+      intent: "recall",
+      scope: { entity: "people/zhang-san" },
+    });
+    expect(viaSynthesize.answer).toBeTruthy();
+    expect(viaSynthesize.citations.length).toBeGreaterThanOrEqual(1);
+
+    const viaRecall = await tools.recall({ entity: "people/zhang-san" });
+    expect(viaRecall.intent).toBe("recall");
+    expect(viaRecall.answer).toBeTruthy();
   });
 });
