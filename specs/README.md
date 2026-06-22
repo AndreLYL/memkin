@@ -60,7 +60,8 @@ Spec 1 → Spec 2 → Spec 3
 - [Spec 1 实施计划](plans/2026-06-07-spec1-signal-types-implementation.md) — 含 TDD 步骤、迁移 SQL、Zod 验证
 - [Spec 2 实施计划](plans/2026-06-07-spec2-memory-lifecycle.md) — 含 9 个任务、consolidator 架构
 - [Spec 3 实施计划](plans/2026-06-08-spec3-mcp-agent-access.md) — 含 MCP 工具注册、session context 设计
-- [Spec 7 实施计划](plans/2026-06-22-spec7-synthesis-engine.md) — 合成引擎 TDD（实现分支 `claude/spec7-synthesis-engine`）
+- [Spec 7 实施计划](plans/2026-06-22-spec7-synthesis-engine.md) — 合成引擎 TDD（实现分支 `claude/spec7-synthesis-engine`，✅ 已实现/测试绿）
+- [Spec 8 实施计划](plans/2026-06-22-spec8-person-communication-profile.md) — 人物画像 TDD（实现分支 `claude/spec8-...`，堆叠于 spec7）
 
 ## 调研报告
 
