@@ -176,6 +176,10 @@ export interface Collector {
 export interface CursorProvider {
   getCommittableCursors(): Record<string, unknown>;
   discardSource(sourceName: string): void;
+  /** Promote a sub-source's staged cursor to committable. */
+  commitSource?(sourceName: string): void;
+  /** Restore a persisted structured cursor before fetching (incremental sync). */
+  restoreCursors?(data: Record<string, unknown>): void;
 }
 
 export interface Formatter {

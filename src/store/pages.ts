@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import { parse as parseYaml } from "yaml";
+import type { Queryable } from "./database.js";
 
 export interface Page {
   id: number;
@@ -51,11 +52,12 @@ function parseMarkdownWithFrontmatter(content: string): ParsedContent {
 export class PageStore {
   constructor(private pg: PGlite) {}
 
-  async putPage(slug: string, content: string): Promise<Page> {
+  async putPage(slug: string, content: string, exec?: Queryable): Promise<Page> {
+    const db = exec ?? this.pg;
     const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
     const contentHash = createHash("sha256").update(content).digest("hex");
 
-    const result = await this.pg.query<PageRow>(
+    const result = await db.query<PageRow>(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (slug) DO UPDATE SET
@@ -71,8 +73,9 @@ export class PageStore {
     return this.rowToPage(result.rows[0]);
   }
 
-  async getPage(slug: string): Promise<Page | null> {
-    const result = await this.pg.query<PageRow>("SELECT * FROM pages WHERE slug = $1", [slug]);
+  async getPage(slug: string, exec?: Queryable): Promise<Page | null> {
+    const db = exec ?? this.pg;
+    const result = await db.query<PageRow>("SELECT * FROM pages WHERE slug = $1", [slug]);
     return result.rows.length > 0 ? this.rowToPage(result.rows[0]) : null;
   }
 

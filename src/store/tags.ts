@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import type { Queryable } from "./database.js";
 
 interface TagRow {
   tag: string;
@@ -7,8 +8,9 @@ interface TagRow {
 export class TagStore {
   constructor(private pg: PGlite) {}
 
-  async addTag(slug: string, tag: string): Promise<void> {
-    await this.pg.query(
+  async addTag(slug: string, tag: string, exec?: Queryable): Promise<void> {
+    const db = exec ?? this.pg;
+    await db.query(
       `INSERT INTO tags (page_id, tag)
        SELECT id, $2 FROM pages WHERE slug = $1
        ON CONFLICT (page_id, tag) DO NOTHING`,

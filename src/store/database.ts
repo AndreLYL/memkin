@@ -8,6 +8,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
+/**
+ * Minimal query surface shared by both `PGlite` and a `Transaction`.
+ * Store write methods accept an optional `Queryable` so the same code path can
+ * run either standalone (auto-commit) or inside a caller-managed transaction.
+ */
+export interface Queryable {
+  query<T = Record<string, unknown>>(query: string, params?: unknown[]): Promise<{ rows: T[] }>;
+}
+
 export interface DatabaseOptions {
   embeddingDimensions?: number;
 }

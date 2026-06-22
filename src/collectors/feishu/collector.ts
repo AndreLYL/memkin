@@ -65,6 +65,20 @@ export class FeishuCollector implements Collector, CursorProvider {
     this.lastCheckpoint = checkpoint;
   }
 
+  /**
+   * Restore a persisted structured cursor (as produced by getCommittableCursors)
+   * so incremental sources resolve their start time from last_sync_at instead of
+   * always re-scanning the full lookback window.
+   */
+  restoreCursors(data: Record<string, unknown>): void {
+    this.lastCheckpoint = data as FeishuCheckpoint;
+  }
+
+  /** Promote a sub-source's staged cursor to committable (called by the pipeline). */
+  commitSource(sourceName: string): void {
+    this.cursorStaging.commitSource(sourceName);
+  }
+
   async healthCheck(): Promise<{ ok: boolean; message: string }> {
     try {
       await this.auth.getToken();
@@ -84,7 +98,13 @@ export class FeishuCollector implements Collector, CursorProvider {
       try {
         const sourceCheckpoint =
           this.lastCheckpoint?.[source.name as keyof FeishuCheckpoint] ?? null;
-        yield* source.fetch(sourceCheckpoint, this.cursorStaging);
+        // Stamp each message with its sub-source so the pipeline can advance
+        // cursors per sub-source (only sources whose messages all ingested).
+        for await (const msg of source.fetch(sourceCheckpoint, this.cursorStaging)) {
+          if (!msg.metadata) msg.metadata = {};
+          msg.metadata.sub_source = source.name;
+          yield msg;
+        }
       } catch (err) {
         console.error(`feishu: source=${source.name} fatal error:`, err);
         this.cursorStaging.discardSource(source.name);

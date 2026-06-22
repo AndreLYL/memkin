@@ -59,8 +59,8 @@ export class CalendarSource implements FeishuSource {
     }
 
     if (data.sync_token) {
+      // Stage only — the pipeline commits this cursor after confirming ingestion.
       cursorStaging.stage(this.name, calendarId, { sync_token: data.sync_token });
-      cursorStaging.commit(this.name, calendarId);
     }
   }
 

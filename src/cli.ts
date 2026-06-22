@@ -72,6 +72,7 @@ async function createStores(config: ReturnType<typeof loadConfig>) {
   const search = new SearchEngine(db.pg, { embedText: (q) => embedding.embedText(q) });
   return {
     db,
+    pg: db.pg,
     pages,
     chunks,
     search,

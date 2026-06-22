@@ -54,8 +54,8 @@ export class DMSource implements FeishuSource {
         }
 
         if (maxCreateTime > 0) {
+          // Stage only — the pipeline commits this cursor after confirming ingestion.
           cursorStaging.stage("dm", chatId, { last_sync_at: maxCreateTime });
-          cursorStaging.commit("dm", chatId);
         }
       } catch (err) {
         console.error(`[DMSource] Failed to fetch chat ${chatId}:`, err);

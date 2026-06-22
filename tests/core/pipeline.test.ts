@@ -3,12 +3,14 @@
  * Uses all mocks: mock collector, mock provider, temp directories
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { parse as parseYaml } from "yaml";
+import { CursorStaging } from "../../src/collectors/feishu/cursor-staging.js";
 import { type PipelineConfig, type PipelineOpts, runPipeline } from "../../src/core/pipeline.js";
-import type { Collector, FetchOpts, RawMessage } from "../../src/core/types.js";
+import type { Collector, CursorProvider, FetchOpts, RawMessage } from "../../src/core/types.js";
 import { createMockProvider } from "../../src/extractors/providers/mock.js";
 
 /**
@@ -44,6 +46,52 @@ function createMockCollector(messages: RawMessage[]): Collector {
       }
     },
   };
+}
+
+/**
+ * Mock collector that persists structured per-sub-source cursors, mirroring the
+ * FeishuCollector contract (stage-only sources; pipeline decides the commit).
+ */
+function createMockCursorCollector(
+  specs: Array<{ sub: string; cursorVal: number; content: string }>,
+): { collector: Collector & CursorProvider; state: { restored: Record<string, unknown> | null } } {
+  const state = { staging: new CursorStaging(), restored: null as Record<string, unknown> | null };
+  const collector: Collector & CursorProvider = {
+    id: "mock-feishu",
+    name: "Mock Feishu",
+    description: "Test cursor provider",
+    async healthCheck() {
+      return { ok: true, message: "ok" };
+    },
+    async *fetch(): AsyncGenerator<RawMessage> {
+      state.staging = new CursorStaging();
+      for (const s of specs) {
+        state.staging.stage(s.sub, "key", { last_sync_at: s.cursorVal });
+        yield {
+          platform: "feishu",
+          channel: `c/${s.sub}`,
+          contact: "u",
+          timestamp: new Date(s.cursorVal).toISOString(),
+          content: s.content,
+          direction: "sent",
+          metadata: { sub_source: s.sub, message_id: `${s.sub}-id` },
+        };
+      }
+    },
+    getCommittableCursors() {
+      return state.staging.getCommittable();
+    },
+    commitSource(n: string) {
+      state.staging.commitSource(n);
+    },
+    discardSource(n: string) {
+      state.staging.discardSource(n);
+    },
+    restoreCursors(d: Record<string, unknown>) {
+      state.restored = d;
+    },
+  };
+  return { collector, state };
 }
 
 describe("Pipeline", () => {
@@ -494,5 +542,107 @@ describe("Pipeline", () => {
 
     // Second run should skip all messages (dedup)
     expect(result2.totalMessages).toBe(0);
+  });
+
+  test("runPipeline - advances cursor only for sub-sources that fully ingested", async () => {
+    // "alpha" extraction fails; "beta" succeeds. They live on different channels
+    // so they become separate blocks.
+    const { collector } = createMockCursorCollector([
+      {
+        sub: "alpha",
+        cursorVal: 1000,
+        content: "FAILBLOCK alpha message with some content to avoid being dropped by scoring",
+      },
+      {
+        sub: "beta",
+        cursorVal: 2000,
+        content: "Beta message with some content and enough context to pass scoring filters",
+      },
+    ]);
+
+    const mockProvider = createMockProvider(new Map([["", " "]]));
+    mockProvider.chat = async (msgs) => {
+      const prompt = msgs.map((m) => m.content).join(" ");
+      if (prompt.includes("FAILBLOCK")) {
+        throw new Error("Simulated extraction failure");
+      }
+      return JSON.stringify({
+        source: {
+          platform: "feishu",
+          channel: "c/beta",
+          timestamp: new Date(2000).toISOString(),
+          raw_hash: "beta-hash",
+          quote: "Beta",
+        },
+        entities: [
+          {
+            slug: "person/beta",
+            name: "Beta Person",
+            type: "person",
+            context: "ctx",
+            confidence: "direct",
+          },
+        ],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      });
+    };
+
+    const config: PipelineConfig = {
+      dedup_checkpoint: join(tempDir, "dedup.jsonl"),
+      cursor_checkpoint: join(tempDir, "cursors.yaml"),
+      block_gap_minutes: 30,
+      max_block_tokens: 4000,
+      max_block_messages: 100,
+      privacy: {
+        enabled: false,
+        mode: "irreversible",
+        redact_phone: false,
+        redact_id_card: false,
+        redact_bank_card: false,
+        blocked_words: [],
+        replacement: "[REDACTED]",
+      },
+      output_dir: join(tempDir, "output"),
+    };
+
+    const result = await runPipeline(config, {
+      source: collector,
+      provider: mockProvider,
+      format: "json",
+      adapter: "file",
+      dryRun: false,
+    });
+
+    expect(result.failedBlocks).toBe(1);
+    expect(result.okBlocks).toBe(1);
+
+    // Persisted cursor must contain beta (ingested) and NOT alpha (failed).
+    const raw = await readFile(join(tempDir, "cursors.yaml"), "utf-8");
+    const parsed = parseYaml(raw) as Record<string, string>;
+    const cursors = JSON.parse(parsed["mock-feishu"]) as Record<string, unknown>;
+    expect(cursors).toHaveProperty("beta");
+    expect(cursors).not.toHaveProperty("alpha");
+
+    // A fresh run restores the persisted cursor before fetching.
+    const second = createMockCursorCollector([
+      {
+        sub: "beta",
+        cursorVal: 3000,
+        content: "Beta message with some content and enough context to pass scoring filters",
+      },
+    ]);
+    await runPipeline(config, {
+      source: second.collector,
+      provider: mockProvider,
+      format: "json",
+      adapter: "file",
+      dryRun: false,
+    });
+    expect(second.state.restored).toEqual({ beta: { key: { last_sync_at: 2000 } } });
   });
 });

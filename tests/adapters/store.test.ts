@@ -37,6 +37,7 @@ describe("StoreAdapter", () => {
     timeline = new TimelineStore(db.pg);
 
     adapter = new StoreAdapter({
+      pg: db.pg,
       pages,
       chunks,
       graph,
@@ -475,6 +476,53 @@ To context`,
       // Verify link was created
       const links = await graph.getLinks("from-entity");
       expect(links.some((l) => l.to_slug === "to-entity" && l.link_type === "works_at")).toBe(true);
+    });
+  });
+
+  describe("push - transaction atomicity", () => {
+    it("rolls back the page when a later write in the same signal fails", async () => {
+      // ChunkStore.rechunk fails after the page INSERT — the whole signal must roll back.
+      const brokenChunks = {
+        rechunk: async () => {
+          throw new Error("simulated disk failure");
+        },
+      } as unknown as ChunkStore;
+      const brokenAdapter = new StoreAdapter({
+        pg: db.pg,
+        pages,
+        chunks: brokenChunks,
+        graph,
+        tags,
+        timeline,
+      });
+
+      const entity: Entity = {
+        slug: "person/atomic-test",
+        name: "Atomic Test",
+        type: "person",
+        context: "should not persist",
+        confidence: "direct",
+      };
+      const result: ExtractionResult = {
+        source: createSourceRef(),
+        entities: [entity],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      const pushResult = await brokenAdapter.push([result]);
+
+      expect(pushResult.written).toBe(0);
+      expect(pushResult.errors).toHaveLength(1);
+      expect(pushResult.errors[0].signal).toContain("person/atomic-test");
+
+      // The page INSERT must have been rolled back together with the failed rechunk.
+      const page = await pages.getPage("person/atomic-test");
+      expect(page).toBeNull();
     });
   });
 });

@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import type { Queryable } from "./database.js";
 
 export interface Chunk {
   id: number;
@@ -33,11 +34,12 @@ function splitIntoChunks(text: string): string[] {
 export class ChunkStore {
   constructor(private pg: PGlite) {}
 
-  async rechunk(pageId: number, content: string): Promise<void> {
+  async rechunk(pageId: number, content: string, exec?: Queryable): Promise<void> {
+    const db = exec ?? this.pg;
     const textChunks = splitIntoChunks(content);
     for (let i = 0; i < textChunks.length; i++) {
       const wordCount = textChunks[i].split(/\s+/).length;
-      await this.pg.query(
+      await db.query(
         `INSERT INTO content_chunks (page_id, chunk_index, chunk_text, chunk_source, token_count)
          VALUES ($1, $2, $3, 'compiled_truth', $4)
          ON CONFLICT (page_id, chunk_index) DO UPDATE SET
@@ -55,7 +57,7 @@ export class ChunkStore {
         [pageId, i, textChunks[i], wordCount],
       );
     }
-    await this.pg.query("DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2", [
+    await db.query("DELETE FROM content_chunks WHERE page_id = $1 AND chunk_index >= $2", [
       pageId,
       textChunks.length,
     ]);

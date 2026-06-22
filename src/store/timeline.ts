@@ -1,5 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type { SourceRef } from "../core/types.js";
+import type { Queryable } from "./database.js";
 
 export interface TimelineEntry {
   id: number;
@@ -24,8 +25,10 @@ export class TimelineStore {
       source?: string;
       provenance?: SourceRef;
     },
+    exec?: Queryable,
   ): Promise<void> {
-    await this.pg.query(
+    const db = exec ?? this.pg;
+    await db.query(
       `INSERT INTO timeline_entries (page_id, date, summary, detail, source, provenance)
        SELECT id, $2, $3, $4, $5, $6 FROM pages WHERE slug = $1
        ON CONFLICT (page_id, date, summary) DO UPDATE SET

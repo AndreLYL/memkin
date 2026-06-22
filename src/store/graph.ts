@@ -1,5 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type { SourceRef } from "../core/types.js";
+import type { Queryable } from "./database.js";
 
 export interface LinkRow {
   from_slug: string;
@@ -64,8 +65,10 @@ export class GraphStore {
     context?: string,
     provenance?: SourceRef,
     sourceHash?: string,
+    exec?: Queryable,
   ): Promise<void> {
-    await this.pg.query(
+    const db = exec ?? this.pg;
+    await db.query(
       `INSERT INTO links (from_page_id, to_page_id, link_type, context, provenance, source_hash)
        SELECT f.id, t.id, $3, $4, $5, $6
        FROM pages f, pages t

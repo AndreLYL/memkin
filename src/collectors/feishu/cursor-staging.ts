@@ -24,6 +24,15 @@ export class CursorStaging {
     }
   }
 
+  /** Mark every staged key under a source as committable. */
+  commitSource(source: string): void {
+    const sourceMap = this.entries.get(source);
+    if (!sourceMap) return;
+    for (const entry of sourceMap.values()) {
+      entry.committed = true;
+    }
+  }
+
   discard(source: string, key: string): void {
     this.entries.get(source)?.delete(key);
   }

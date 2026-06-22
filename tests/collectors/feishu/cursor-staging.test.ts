@@ -52,6 +52,21 @@ describe("CursorStaging", () => {
     });
   });
 
+  it("commitSource promotes every staged key under a source", () => {
+    staging.stage("messages", "oc_aaa", { last_sync_at: 100 });
+    staging.stage("messages", "oc_bbb", { last_sync_at: 200 });
+    staging.stage("dm", "oc_ccc", { last_sync_at: 300 });
+    staging.commitSource("messages");
+    expect(staging.getCommittable()).toEqual({
+      messages: { oc_aaa: { last_sync_at: 100 }, oc_bbb: { last_sync_at: 200 } },
+    });
+  });
+
+  it("commitSource on an unknown source is a no-op", () => {
+    staging.commitSource("nope");
+    expect(staging.getCommittable()).toEqual({});
+  });
+
   it("stage overwrites previous staged value for same key", () => {
     staging.stage("messages", "oc_xxx", { last_sync_at: 100 });
     staging.stage("messages", "oc_xxx", { last_sync_at: 200 });

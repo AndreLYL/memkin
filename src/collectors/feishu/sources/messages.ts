@@ -51,8 +51,8 @@ export class MessageSource implements FeishuSource {
         }
 
         if (maxCreateTime > 0) {
+          // Stage only — the pipeline commits this cursor after confirming ingestion.
           cursorStaging.stage("messages", chatId, { last_sync_at: maxCreateTime });
-          cursorStaging.commit("messages", chatId);
         }
       } catch (err) {
         console.error(`[MessageSource] Failed to fetch chat ${chatId}:`, err);

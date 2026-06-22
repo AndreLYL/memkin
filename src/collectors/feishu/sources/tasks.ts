@@ -32,8 +32,8 @@ export class TaskSource implements FeishuSource {
     }
 
     if (maxUpdatedAt > 0) {
+      // Stage only — the pipeline commits this cursor after confirming ingestion.
       cursorStaging.stage(this.name, "default", { last_update_time: maxUpdatedAt });
-      cursorStaging.commit(this.name, "default");
     }
   }
 

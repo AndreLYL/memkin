@@ -63,8 +63,8 @@ export class DocSource implements FeishuSource {
 
     const cursorTime = maxModifiedTime > 0 ? maxModifiedTime : lastEditTime;
     if (cursorTime > 0) {
+      // Stage only — the pipeline commits this cursor after confirming ingestion.
       cursorStaging.stage(this.name, folderToken, { last_edit_time: cursorTime });
-      cursorStaging.commit(this.name, folderToken);
     }
   }
 

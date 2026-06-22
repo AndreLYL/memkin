@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { PGlite } from "@electric-sql/pglite";
 import { stringify as yamlStringify } from "yaml";
 import type {
   Adapter,
@@ -15,11 +16,12 @@ import type {
 } from "../core/types.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { GraphStore } from "../store/graph.js";
-import type { PageStore } from "../store/pages.js";
+import type { Page, PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 
 export interface StoreAdapterContext {
+  pg: PGlite;
   pages: PageStore;
   chunks: ChunkStore;
   graph: GraphStore;
@@ -154,69 +156,71 @@ export class StoreAdapter implements Adapter {
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
     try {
-      const existingPage = await this.stores.pages.getPage(entity.slug);
-      if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
-        result.skipped += 1;
-        return result;
-      }
-
-      const frontmatter: Record<string, unknown> = {
-        title: entity.name,
-        type: entity.type,
-        confidence: entity.confidence,
-        source_hash: sourceHash,
-        created_at: existingPage?.frontmatter.created_at ?? new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      if (source) {
-        if (!existingPage?.frontmatter.first_seen) {
-          frontmatter.first_seen = source;
-        } else {
-          frontmatter.first_seen = existingPage.frontmatter.first_seen;
+      let writtenPage: Page | null = null;
+      const skipped = await this.stores.pg.transaction(async (tx) => {
+        const existingPage = await this.stores.pages.getPage(entity.slug, tx);
+        if (existingPage && existingPage.frontmatter.source_hash === sourceHash) {
+          return true;
         }
-      }
 
-      // Handle person aliases
-      if (entity.type === "person" && personAliases?.[entity.slug]) {
-        const newAliases = personAliases[entity.slug];
-        const existingAliases = (existingPage?.frontmatter.aliases as string[]) ?? [];
+        const frontmatter: Record<string, unknown> = {
+          title: entity.name,
+          type: entity.type,
+          confidence: entity.confidence,
+          source_hash: sourceHash,
+          created_at: existingPage?.frontmatter.created_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
 
-        // Merge and deduplicate aliases
-        const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases]));
+        if (source) {
+          if (!existingPage?.frontmatter.first_seen) {
+            frontmatter.first_seen = source;
+          } else {
+            frontmatter.first_seen = existingPage.frontmatter.first_seen;
+          }
+        }
 
-        frontmatter.aliases = mergedAliases;
-      }
+        // Handle person aliases
+        if (entity.type === "person" && personAliases?.[entity.slug]) {
+          const newAliases = personAliases[entity.slug];
+          const existingAliases = (existingPage?.frontmatter.aliases as string[]) ?? [];
 
-      const bodyParts = [`## Context\n\n${entity.context}`];
+          // Merge and deduplicate aliases
+          const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases]));
 
-      // Add aliases section to body for person entities
-      if (entity.type === "person" && frontmatter.aliases) {
-        const aliasesList = (frontmatter.aliases as string[])
-          .map((alias) => `- ${alias}`)
-          .join("\n");
-        bodyParts.unshift(`## Aliases\n\n${aliasesList}`);
-      }
+          frontmatter.aliases = mergedAliases;
+        }
 
-      const content = `---
+        const bodyParts = [`## Context\n\n${entity.context}`];
+
+        // Add aliases section to body for person entities
+        if (entity.type === "person" && frontmatter.aliases) {
+          const aliasesList = (frontmatter.aliases as string[])
+            .map((alias) => `- ${alias}`)
+            .join("\n");
+          bodyParts.unshift(`## Aliases\n\n${aliasesList}`);
+        }
+
+        const content = `---
 ${yamlStringify(frontmatter).trimEnd()}
 ---
 
 ${bodyParts.join("\n\n")}
 `;
 
-      // Write page
-      const page = await this.stores.pages.putPage(entity.slug, content);
+        // Write page + chunks + tag atomically
+        const page = await this.stores.pages.putPage(entity.slug, content, tx);
+        await this.stores.chunks.rechunk(page.id, page.compiled_truth, tx);
+        await this.stores.tags.addTag(entity.slug, "entity", tx);
+        writtenPage = page;
+        return false;
+      });
 
-      // Notify callback
-      this.notifyPageWritten(page);
-
-      // Rechunk
-      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
-
-      // Add entity tag
-      await this.stores.tags.addTag(entity.slug, "entity");
-
+      if (skipped) {
+        result.skipped += 1;
+        return result;
+      }
+      if (writtenPage) this.notifyPageWritten(writtenPage);
       result.written += 1;
     } catch (error) {
       result.errors.push({
@@ -280,44 +284,44 @@ ${yamlStringify(frontmatter).trimEnd()}
 
 ${parts.join("\n")}`;
 
-      // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      let writtenPage: Page | null = null;
+      await this.stores.pg.transaction(async (tx) => {
+        // Write page + chunks + tags + links + timeline atomically
+        const page = await this.stores.pages.putPage(slug, content, tx);
+        await this.stores.chunks.rechunk(page.id, page.compiled_truth, tx);
+        await this.stores.tags.addTag(slug, "decision", tx);
 
-      // Notify callback
-      this.notifyPageWritten(page);
-
-      // Rechunk
-      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
-
-      // Add tags
-      await this.stores.tags.addTag(slug, "decision");
-
-      // Create links to entities
-      for (const entitySlug of decision.entities) {
-        await this.stores.graph.addLink(
-          slug,
-          entitySlug,
-          "mentions",
-          "Referenced in decision",
-          decision.source,
-          sourceHash,
-        );
-      }
-
-      for (const entitySlug of decision.entities) {
-        try {
-          await this.stores.timeline.addEntry(entitySlug, {
-            date: decision.date,
-            summary: `Decision: ${decision.summary}`,
-            detail: decision.reasoning ?? "",
-            source: decision.source.platform,
-            provenance: decision.source,
-          });
-        } catch {
-          // Entity page might not exist yet, skip
+        // Create links to entities (no-op rows for entities not yet present)
+        for (const entitySlug of decision.entities) {
+          await this.stores.graph.addLink(
+            slug,
+            entitySlug,
+            "mentions",
+            "Referenced in decision",
+            decision.source,
+            sourceHash,
+            tx,
+          );
         }
-      }
 
+        // Timeline entries (INSERT...SELECT is a no-op when the entity page is absent)
+        for (const entitySlug of decision.entities) {
+          await this.stores.timeline.addEntry(
+            entitySlug,
+            {
+              date: decision.date,
+              summary: `Decision: ${decision.summary}`,
+              detail: decision.reasoning ?? "",
+              source: decision.source.platform,
+              provenance: decision.source,
+            },
+            tx,
+          );
+        }
+        writtenPage = page;
+      });
+
+      if (writtenPage) this.notifyPageWritten(writtenPage);
       result.written += 1;
     } catch (error) {
       result.errors.push({
@@ -365,18 +369,15 @@ ${yamlStringify(frontmatter).trimEnd()}
 # ${task.title}
 `;
 
-      // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      let writtenPage: Page | null = null;
+      await this.stores.pg.transaction(async (tx) => {
+        const page = await this.stores.pages.putPage(slug, content, tx);
+        await this.stores.chunks.rechunk(page.id, page.compiled_truth, tx);
+        await this.stores.tags.addTag(slug, "task", tx);
+        writtenPage = page;
+      });
 
-      // Notify callback
-      this.notifyPageWritten(page);
-
-      // Rechunk
-      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
-
-      // Add tags
-      await this.stores.tags.addTag(slug, "task");
-
+      if (writtenPage) this.notifyPageWritten(writtenPage);
       result.written += 1;
     } catch (error) {
       result.errors.push({
@@ -430,31 +431,29 @@ ${yamlStringify(frontmatter).trimEnd()}
 
 ${parts.join("\n")}`;
 
-      // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      let writtenPage: Page | null = null;
+      await this.stores.pg.transaction(async (tx) => {
+        const page = await this.stores.pages.putPage(slug, content, tx);
+        await this.stores.chunks.rechunk(page.id, page.compiled_truth, tx);
+        await this.stores.tags.addTag(slug, "discovery", tx);
+        await this.stores.tags.addTag(slug, discovery.type, tx);
 
-      // Notify callback
-      this.notifyPageWritten(page);
+        // Create links to entities (no-op rows for entities not yet present)
+        for (const entitySlug of discovery.entities) {
+          await this.stores.graph.addLink(
+            slug,
+            entitySlug,
+            "mentions",
+            "Referenced in discovery",
+            discovery.source,
+            sourceHash,
+            tx,
+          );
+        }
+        writtenPage = page;
+      });
 
-      // Rechunk
-      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
-
-      // Add tags
-      await this.stores.tags.addTag(slug, "discovery");
-      await this.stores.tags.addTag(slug, discovery.type);
-
-      // Create links to entities
-      for (const entitySlug of discovery.entities) {
-        await this.stores.graph.addLink(
-          slug,
-          entitySlug,
-          "mentions",
-          "Referenced in discovery",
-          discovery.source,
-          sourceHash,
-        );
-      }
-
+      if (writtenPage) this.notifyPageWritten(writtenPage);
       result.written += 1;
     } catch (error) {
       result.errors.push({
@@ -524,31 +523,29 @@ ${yamlStringify(frontmatter).trimEnd()}
 
 ${parts.join("\n")}`;
 
-      // Write page
-      const page = await this.stores.pages.putPage(slug, content);
+      let writtenPage: Page | null = null;
+      await this.stores.pg.transaction(async (tx) => {
+        const page = await this.stores.pages.putPage(slug, content, tx);
+        await this.stores.chunks.rechunk(page.id, page.compiled_truth, tx);
+        await this.stores.tags.addTag(slug, "knowledge", tx);
+        await this.stores.tags.addTag(slug, knowledge.topic, tx);
 
-      // Notify callback
-      this.notifyPageWritten(page);
+        // Create links to related entities (no-op rows for entities not yet present)
+        for (const entitySlug of knowledge.related_entities) {
+          await this.stores.graph.addLink(
+            slug,
+            entitySlug,
+            "mentions",
+            "Referenced in knowledge",
+            knowledge.source,
+            sourceHash,
+            tx,
+          );
+        }
+        writtenPage = page;
+      });
 
-      // Rechunk
-      await this.stores.chunks.rechunk(page.id, page.compiled_truth);
-
-      // Add tags
-      await this.stores.tags.addTag(slug, "knowledge");
-      await this.stores.tags.addTag(slug, knowledge.topic);
-
-      // Create links to related entities
-      for (const entitySlug of knowledge.related_entities) {
-        await this.stores.graph.addLink(
-          slug,
-          entitySlug,
-          "mentions",
-          "Referenced in knowledge",
-          knowledge.source,
-          sourceHash,
-        );
-      }
-
+      if (writtenPage) this.notifyPageWritten(writtenPage);
       result.written += 1;
     } catch (error) {
       result.errors.push({
@@ -563,24 +560,29 @@ ${parts.join("\n")}`;
   private async appendTimelineEntry(entry: TimelineEntry): Promise<AdapterPushResult> {
     const result: AdapterPushResult = { written: 0, skipped: 0, errors: [] };
 
-    // Add timeline entry to all related entity pages
-    for (const entitySlug of entry.entities) {
-      try {
-        await this.stores.timeline.addEntry(entitySlug, {
-          date: entry.date,
-          summary: entry.summary,
-          source: entry.source.platform,
-          provenance: entry.source,
-        });
-
-        result.written += 1;
-      } catch (error) {
-        // Entity page might not exist yet, skip
-        result.errors.push({
-          signal: `timeline:${entitySlug}`,
-          reason: error instanceof Error ? error.message : String(error),
-        });
-      }
+    try {
+      await this.stores.pg.transaction(async (tx) => {
+        // Add timeline entry to all related entity pages atomically.
+        // INSERT...SELECT is a no-op when the entity page does not exist yet.
+        for (const entitySlug of entry.entities) {
+          await this.stores.timeline.addEntry(
+            entitySlug,
+            {
+              date: entry.date,
+              summary: entry.summary,
+              source: entry.source.platform,
+              provenance: entry.source,
+            },
+            tx,
+          );
+        }
+      });
+      result.written += entry.entities.length;
+    } catch (error) {
+      result.errors.push({
+        signal: `timeline:${entry.summary}`,
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return result;

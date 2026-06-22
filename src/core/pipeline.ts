@@ -24,12 +24,32 @@ import { DedupStore } from "./dedup.js";
 import { scoreBlock } from "./signal-scoring.js";
 import type {
   Adapter,
+  AdapterPushResult,
   BlockResult,
   Collector,
   ConversationBlock,
+  CursorProvider,
   ExtractionResult,
   RawMessage,
 } from "./types.js";
+
+/** A collector that persists structured per-sub-source cursors (e.g. Feishu). */
+function isCursorProvider(s: unknown): s is CursorProvider {
+  return typeof s === "object" && s !== null && "getCommittableCursors" in s;
+}
+
+/** Merge newly-committed cursors into the previously-persisted set per sub-source. */
+function mergeCursors(
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(existing ?? {}) };
+  for (const [src, keys] of Object.entries(incoming)) {
+    const prev = (out[src] ?? {}) as Record<string, unknown>;
+    out[src] = { ...prev, ...(keys as Record<string, unknown>) };
+  }
+  return out;
+}
 
 /**
  * Pipeline configuration
@@ -110,6 +130,15 @@ export async function runPipeline(
 
     // Get cursor for this collector
     const cursor = cursorStore.get(opts.source.id);
+
+    // Restore structured cursor so incremental sources resume from last_sync_at
+    // instead of always re-scanning the full lookback window.
+    if (isCursorProvider(opts.source) && typeof opts.source.restoreCursors === "function") {
+      const saved = cursorStore.getJSON(opts.source.id);
+      if (saved) {
+        opts.source.restoreCursors(saved);
+      }
+    }
 
     // Stage 1: Collector.fetch + Dedup.check
     const newOrModifiedMessages: RawMessage[] = [];
@@ -307,9 +336,10 @@ export async function runPipeline(
     }
 
     // Stage 4: Adapter.push (all results in one batch)
+    let pushResult: AdapterPushResult | null = null;
     if (extractedResults.length > 0) {
       try {
-        const pushResult = await adapter.push(extractedResults);
+        pushResult = await adapter.push(extractedResults);
 
         // Log adapter errors as warnings
         for (const error of pushResult.errors) {
@@ -322,23 +352,53 @@ export async function runPipeline(
       }
     }
 
-    // Stage 5: Commit (only if no failed blocks)
-    if (result.failedBlocks === 0) {
-      // Commit dedup entries for ok + skipped messages
-      const messagesToCommit = [...result.okMessages, ...result.skippedMessages];
-      dedupStore.commit(messagesToCommit);
-
-      // Commit cursor — check for CursorProvider (structured) or legacy string cursor
-      const isCursorProvider = (s: unknown): s is import("./types.js").CursorProvider =>
-        typeof s === "object" && s !== null && "getCommittableCursors" in s;
+    // Stage 5: Commit cursors/dedup only for data confirmed in the store.
+    //
+    // A partial write failure must NOT advance any checkpoint: those signals are
+    // not durably persisted, so the messages behind them have to be re-fetched.
+    const pushFailures = pushResult?.errors.length ?? 0;
+    if (pushFailures > 0) {
+      result.warnings.push(
+        `Cursor/dedup NOT advanced: ${pushFailures} write failure(s) this run; messages will be retried next run.`,
+      );
+    } else {
+      // Dedup: ok + skipped messages are durably in the store. Failed-extraction
+      // messages are intentionally excluded so they get re-processed next run.
+      dedupStore.commit([...result.okMessages, ...result.skippedMessages]);
 
       if (isCursorProvider(opts.source)) {
-        const cursors = opts.source.getCommittableCursors();
-        if (Object.keys(cursors).length > 0) {
-          cursorStore.setJSON(opts.source.id, cursors);
+        // Per-sub-source advance: a sub-source's cursor moves only if none of its
+        // messages failed extraction this run.
+        const subSourceOf = (m: RawMessage): string | undefined =>
+          m.metadata?.sub_source as string | undefined;
+        const failedSources = new Set(
+          result.failedMessages.map(subSourceOf).filter((s): s is string => Boolean(s)),
+        );
+        const seenSources = new Set(
+          [...result.okMessages, ...result.skippedMessages]
+            .map(subSourceOf)
+            .filter((s): s is string => Boolean(s)),
+        );
+
+        if (typeof opts.source.commitSource === "function") {
+          for (const s of seenSources) {
+            if (!failedSources.has(s)) opts.source.commitSource(s);
+          }
+        }
+        for (const s of failedSources) {
+          opts.source.discardSource(s);
+        }
+
+        const newCursors = opts.source.getCommittableCursors();
+        if (Object.keys(newCursors).length > 0) {
+          // Merge into the persisted set so sub-sources that did not advance this
+          // run keep their previously-saved cursor.
+          const merged = mergeCursors(cursorStore.getJSON(opts.source.id), newCursors);
+          cursorStore.setJSON(opts.source.id, merged);
           cursorStore.commit();
         }
-      } else if (result.lastSuccessMessage?.metadata?.cursor) {
+      } else if (result.failedBlocks === 0 && result.lastSuccessMessage?.metadata?.cursor) {
+        // Legacy string cursor (agent collectors): advance only on a clean run.
         cursorStore.set(opts.source.id, String(result.lastSuccessMessage.metadata.cursor));
         cursorStore.commit();
       }
