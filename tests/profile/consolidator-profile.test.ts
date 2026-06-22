@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProfileConfig } from "../../src/core/config.js";
 import { Consolidator } from "../../src/consolidator/consolidator.js";
+import type { ProfileConfig } from "../../src/core/config.js";
 import * as profileSynth from "../../src/profile/profile-synth.js";
 import { Database } from "../../src/store/database.js";
 import { GraphStore } from "../../src/store/graph.js";

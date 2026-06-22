@@ -1,9 +1,6 @@
 import type { ProfileConfig } from "../core/config.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
-import {
-  type ProfileSynthStores,
-  synthesizeProfiles,
-} from "../profile/profile-synth.js";
+import { type ProfileSynthStores, synthesizeProfiles } from "../profile/profile-synth.js";
 import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";

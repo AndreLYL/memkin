@@ -16,7 +16,7 @@ import {
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
-import { accumulateBehavior, type AccumulateDeps } from "../profile/accumulate.js";
+import { type AccumulateDeps, accumulateBehavior } from "../profile/accumulate.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
 import type { PrivacyConfig } from "./config.js";

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { BehaviorContribution } from "../../src/profile/types.js";
 import { Database } from "../../src/store/database.js";
 import { PersonBehaviorStore } from "../../src/store/person-behavior.js";
-import type { BehaviorContribution } from "../../src/profile/types.js";
 
 function contribution(overrides: Partial<BehaviorContribution> = {}): BehaviorContribution {
   return {

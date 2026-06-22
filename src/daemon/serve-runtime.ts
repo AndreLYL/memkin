@@ -20,11 +20,11 @@ import { CursorStore } from "../core/cursors.js";
 import { PersonIdentityStore } from "../core/person-identity.js";
 import { type PipelineConfig, type PipelineResult, runPipeline } from "../core/pipeline.js";
 import { statePath } from "../core/state.js";
-import type { AccumulateDeps } from "../profile/accumulate.js";
-import { PersonBehaviorStore } from "../store/person-behavior.js";
 import { createLLMProvider, createMockProvider } from "../extractors/providers/index.js";
+import type { AccumulateDeps } from "../profile/accumulate.js";
 import type { DaemonStatus, StoreContext } from "../server/api.js";
 import { ChatNameRefreshJob } from "../server/chat-name-refresh-job.js";
+import { PersonBehaviorStore } from "../store/person-behavior.js";
 import { Scheduler } from "./scheduler.js";
 
 /** A serve session's config-derived runtime, rebuilt/replaced as a whole on reload. */
@@ -140,8 +140,7 @@ export async function buildServeRuntime(
         store: new PersonBehaviorStore(stores.db.pg),
         config: config.profile,
         resolveSender: async (contact) =>
-          (await behaviorIdentity.resolveHandle("feishu_open_id", contact)) ??
-          `people/${contact}`,
+          (await behaviorIdentity.resolveHandle("feishu_open_id", contact)) ?? `people/${contact}`,
       };
 
       // ── G2: feishu.docs special case ────────────────────────────────────────
