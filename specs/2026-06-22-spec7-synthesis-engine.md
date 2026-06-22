@@ -94,7 +94,8 @@ interface AssembledCandidate {
 interface AssembledContext {
   scope: SynthScope;
   candidates: AssembledCandidate[];
-  latestDate?: string;   // candidates 中 max(date)，供 stale gap 用
+  latestDate?: string;       // candidates 中 max(date)，供 stale gap 用
+  pinnedContext?: string;    // 非可引用的前置框架文本（如人物画像摘要）；由意图的 buildPinnedContext 钩子产出，置于候选之前喂 LLM。不分配 ref，引用仍指向 candidates。
 }
 
 // —— LLM 产出（compose 阶段原始输出，未做引用校验/gap）——
@@ -140,12 +141,15 @@ synthesize(intent, scope, opts?: SynthOpts) → SynthesisResult
   1. getIntent(intent)                       // intent.ts，未注册则抛错
   2. opts.noCache ? skip : cache.read(...)   // 命中且新鲜 → 直接返回（§九）
   3. scope.retrieve(scope, {poolByPage:true})// 检索候选（§七）；scope.types 透传给 search 的 type 过滤
-  4. context.assemble(candidates)            // 编号 → AssembledContext
-  5. compose(intent, ctx, opts?.extra)       // LLM → ComposeOutput；extra（如 goal/date）拼入 systemPrompt
-  6. citations.finalize + gaps.run + cache.write → SynthesisResult
+  4. intent.sortCandidates?(candidates)      // 可选钩子：意图重排候选（如 Spec 11 沿 precedes）
+  5. context.assemble(candidates)            // 编号 → AssembledContext
+  6. intent.buildPinnedContext?(scope)       // 可选钩子：意图产出 ctx.pinnedContext（如 Spec 8 注入画像）
+  7. compose(intent, ctx, opts?.extra)       // LLM → ComposeOutput；pinnedContext + extra 拼入
+  8. citations.finalize + gaps.run + cache.write → SynthesisResult
 ```
 
-`compose(intent, ctx, extra)`：以 `intent.systemPrompt` 为基底，若 `extra` 非空则按意图约定拼入（如 `person_strategy` 把 `extra.goal` 作为"本次沟通目标"前置）。意图通过 `intent.systemPrompt` 中的占位或 compose 的拼装约定消费 `extra`，**Spec 8/9/11 不需改 `synthesize()` 签名**。
+- **钩子由 `engine.ts` 通用调用**：`sortCandidates`/`buildPinnedContext` 是 `IntentTemplate` 的可选方法，Spec 8/11 在各自意图文件里实现（如调 `getOrderedSequence`、读 `frontmatter.profile`）。**`engine.ts`/`scope.ts` 不 import 任何具体意图或 Spec 8/11 的函数**——彻底消除通用层→具体意图的反向依赖（回应 R2）。
+- `compose(intent, ctx, extra)`：先放 `ctx.pinnedContext`（若有，作非可引用前置框架），再放编号候选 `[1..N]`；以 `intent.systemPrompt` 为基底，`extra` 非空按意图约定拼入（如 `person_strategy` 把 `extra.goal` 作"本次沟通目标"）。**Spec 8/9/11 不需改 `synthesize()` 签名**。
 
 ### 3.4 `answer` 与 `sections` 的关系（消除歧义）
 
@@ -169,6 +173,9 @@ interface IntentTemplate {
   staleDays?: number;                          // stale gap 阈值（缺省 14）
   gapRules: GapRule[];
   parseSections?(answer: string): { title: string; body: string }[]; // format="sections" 必填
+  // —— 可选扩展钩子：通用层只调用，不感知具体意图，杜绝 Spec 7 反向依赖 Spec 8/11（回应 R2-S8-P1-1 / R2-S11-P1-1）——
+  buildPinnedContext?(scope: SynthScope, stores: StoreContext): Promise<string | undefined>; // 产出 AssembledContext.pinnedContext（如 Spec 8 读 frontmatter.profile）；StoreContext 见 src/server/api.ts:36
+  sortCandidates?(candidates: AssembledCandidate[], stores: StoreContext): Promise<AssembledCandidate[]>; // 重排候选（如 Spec 11 沿 precedes 链）
 }
 
 const intentRegistry = new Map<string, IntentTemplate>();
@@ -271,6 +278,7 @@ server.tool("recall",     { entity: z.string().optional(), query: z.string().opt
 6. MCP：注册 `synthesize` + `recall` 两个工具；**不注册任何占位/未实现工具**；现有工具行为不变。
 7. 缓存：`entity` scope 二次合成命中（mock provider 调用次数 = 1）；`time` scope 写回 `reports/<intent>/<date>` 页；`query` scope 不缓存。
 8. recall 意图：`buildScope`/`systemPrompt`/`gapRules`/`format` 在 `intents/recall.ts` 完整定义并端到端可跑。
+9. 扩展钩子：当 intent 提供 `sortCandidates`/`buildPinnedContext` 时 `engine.ts` 正确调用（候选被重排、`ctx.pinnedContext` 被设置并前置进 compose）；`engine.ts`/`scope.ts` **不 import 任何具体意图模块**（静态检查/约定），保证通用层零反向依赖。
 
 ---
 

@@ -162,14 +162,30 @@ export const personStrategyIntent: IntentTemplate = {
   format: "single",
   staleDays: 21,
   buildScope: (args) => ({ entity: args.person as string, limit: 40 }),
-  systemPrompt: /* §6.3 含护栏 */,
+  // 真字符串（同 R2-S9-P1-1 教训，不留注释占位）；完整护栏见 §6.3
+  systemPrompt:
+    "你基于用户与某人的真实互动画像（前置 pinnedContext）和下列带编号的信号，给出实用的沟通建议。\n" +
+    "要求：① 只给「如何更好沟通/协作」的建议，不得给操纵、PUA、施压话术；② 尊重对方、假设善意；\n" +
+    "③ 每条建议后用 [n] 标注证据；④ 若提供了「本次沟通目标」，针对该目标给策略；⑤ 证据不足直说，不编造性格判断。",
   expects: ["沟通建议"],
   gapRules: [staleRule],
 };
 registerIntent(personStrategyIntent);   // 在 intents/index.ts 追加
 ```
 
-**画像注入合成上下文（回应 review S8-P1-2）**：Spec 7 的 entity-scope 检索只捞 pages/timeline，**结构化 `frontmatter.profile` 不会自动进候选集**。处理方式**不给 IntentTemplate 加新字段**（避免新跨 spec 耦合）：`scope.ts` 的 **entity-scope 检索统一加一步——若 `entities/<entity>` 的 `frontmatter.profile` 存在，则把它渲染成一个 pinned 上下文块（置于候选 `ref` 之前的固定前置）** 注入 `AssembledContext`。对无 profile 的实体此步是 no-op，对 `person_strategy` 即自动带上画像，再叠加检索到的近期未决事项与当日增量信号。
+**画像注入合成上下文（回应 review S8-P1-2 / R2-S8-P1-1）**：Spec 7 entity-scope 检索只捞 pages/timeline，结构化 `frontmatter.profile` 不会自动进候选集。通过 **Spec 7 `IntentTemplate.buildPinnedContext` 钩子**（Spec 7 §四已定义的通用扩展点，`AssembledContext.pinnedContext` 字段承载）解决，**不在 Spec 7 通用层硬编码 profile 逻辑**：
+
+```typescript
+// person-strategy.ts 内实现钩子（属于 Spec 8 的文件改动）
+personStrategyIntent.buildPinnedContext = async (scope, stores) => {
+  const page = await stores.pages.getPage(scope.entity!);
+  const profile = page?.frontmatter?.profile;       // 特质+关系+四色
+  return profile ? renderProfileBlock(profile) : undefined;
+};
+```
+
+- **谁实现（B）**：钩子实现写在 **Spec 8 的 `person-strategy.ts`**；`engine.ts` 通用调用，不感知 profile。
+- **可引用性（C）**：`pinnedContext` 是**非可引用的前置框架**（无 `ref`）。沟通建议的 `[n]` 引用仍指向**候选信号**——画像各维的 `evidence_refs`（§4.2）就是这些信号的 slug，检索时它们会作为候选进入候选集，从而 LLM 既看到画像结论、又能 `[n]` 引到底层证据。再叠加近期未决事项与当日增量信号。
 
 **目标条件化（回应 review S8-P0-2）**：`goal` 经 Spec 7 的 `SynthOpts.extra` 透传（Spec 7 §3.2/§3.3 已定义 `opts.extra` 并在 `compose(intent, ctx, extra)` 拼入）；`person_strategy` 的 systemPrompt 约定把 `extra.goal` 作为"本次沟通目标"前置。**不需改 `synthesize()` 签名**。
 

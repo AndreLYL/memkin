@@ -105,7 +105,16 @@ export const troubleshootIntent: IntentTemplate = {
 };
 ```
 
-> **图边排序在检索阶段做，不指望 LLM（回应 review S11-P0-2）**：LLM 只看到平铺的 `[1]..[N]` 候选、感知不到图边。故 `scope.ts` 对 `troubleshoot` 检索结果**按 `precedes` 链预排序**（用 §三 的 `getOrderedSequence`）后再编号喂给 LLM；systemPrompt 只要求"按给定编号顺序组织"。
+> **图边排序在检索阶段做，不指望 LLM（回应 review S11-P0-2 / R2-S11-P1-1）**：LLM 只看到平铺的 `[1]..[N]` 候选、感知不到图边。通过 **Spec 7 `IntentTemplate.sortCandidates` 钩子**实现（通用层只调钩子，**不让 `scope.ts` import Spec 11 的 `getOrderedSequence`**，杜绝反向依赖）：
+>
+> ```typescript
+> // troubleshoot.ts 内实现钩子（属于 Spec 11 的文件改动）
+> troubleshootIntent.sortCandidates = async (candidates, stores) => {
+>   const order = await stores.graph.getOrderedSequence(candidates[0]?.slug);  // 沿 precedes 链
+>   return reorderBy(candidates, order);
+> };
+> ```
+> `engine.ts` 通用调用此钩子后再编号喂 LLM；systemPrompt 只要求"按给定编号顺序组织"。
 
 ### 6.2 工具（本 spec 注册）
 
