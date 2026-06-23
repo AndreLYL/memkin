@@ -116,6 +116,12 @@ export async function synthesizeProfiles(
     // Gather shared-history evidence (backlinked signals + timeline).
     const backlinks = await stores.graph.getBacklinks(person.slug);
     const evidenceSlugs = backlinks.map((b) => b.from_slug).filter(Boolean);
+
+    // Skip re-synthesis when the evidence is unchanged (avoids redundant LLM calls).
+    const newHash = computeInputHash(person.slug, bp.sample_size, evidenceSlugs);
+    const existing = person.frontmatter.profile as { input_hash?: string } | undefined;
+    if (existing?.input_hash === newHash) continue; // no LLM, no write
+
     const timeline = await stores.timeline.getTimeline(person.slug);
     const timelineSummary = timeline
       .slice(0, 50)
@@ -182,7 +188,7 @@ export async function synthesizeProfiles(
       relation,
       four_color: toFourColor(trait),
       generated_at: nowIso,
-      input_hash: computeInputHash(person.slug, bp.sample_size, evidenceSlugs),
+      input_hash: newHash,
       sample_size: bp.sample_size,
     };
     await writeProfile(stores.pages, person.slug, profile);
