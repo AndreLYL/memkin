@@ -13,7 +13,6 @@
  */
 
 import { createHash } from "node:crypto";
-import { stringify as yamlStringify } from "yaml";
 import type { ProfileConfig } from "../core/config.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import type { GraphStore } from "../store/graph.js";
@@ -72,20 +71,11 @@ interface LLMTrait {
 }
 
 /**
- * Write the structured profile into the page's frontmatter.profile, preserving
- * the rest of the page (frontmatter + body).
+ * Write the structured profile into the page's frontmatter.profile WITHOUT
+ * bumping updated_at or re-chunking (nightly synthesis must not pollute recency).
  */
 async function writeProfile(pages: PageStore, slug: string, profile: ProfileObject): Promise<void> {
-  const page = await pages.getPage(slug);
-  if (!page) return;
-  const fm: Record<string, unknown> = {
-    title: page.title,
-    type: page.type,
-    ...page.frontmatter,
-    profile,
-  };
-  const content = `---\n${yamlStringify(fm).trimEnd()}\n---\n\n${page.compiled_truth}`;
-  await pages.putPage(slug, content);
+  await pages.patchFrontmatter(slug, { profile });
 }
 
 export async function synthesizeProfiles(
@@ -126,6 +116,12 @@ export async function synthesizeProfiles(
     // Gather shared-history evidence (backlinked signals + timeline).
     const backlinks = await stores.graph.getBacklinks(person.slug);
     const evidenceSlugs = backlinks.map((b) => b.from_slug).filter(Boolean);
+
+    // Skip re-synthesis when the evidence is unchanged (avoids redundant LLM calls).
+    const newHash = computeInputHash(person.slug, bp.sample_size, evidenceSlugs);
+    const existing = person.frontmatter.profile as { input_hash?: string } | undefined;
+    if (existing?.input_hash === newHash) continue; // no LLM, no write
+
     const timeline = await stores.timeline.getTimeline(person.slug);
     const timelineSummary = timeline
       .slice(0, 50)
@@ -170,8 +166,27 @@ export async function synthesizeProfiles(
       continue; // non-JSON → skip
     }
 
+    // Validate LLM output against the schema and enforce evidence grounding:
+    // only dimensions with a valid axis/level survive, and every cited slug must
+    // exist in the gathered evidence set (drop hallucinated refs).
+    const evidenceSet = new Set(evidenceSlugs);
+    const rawDims = Array.isArray(parsed.trait?.dimensions) ? parsed.trait.dimensions : [];
+    const validDims = rawDims
+      .filter(
+        (d) =>
+          d &&
+          (["D", "I", "S", "C"] as const).includes(d.axis) &&
+          (["low", "medium", "high"] as const).includes(d.level),
+      )
+      .map((d) => {
+        const refs = Array.isArray(d.evidence_refs)
+          ? d.evidence_refs.filter((s) => evidenceSet.has(s))
+          : [];
+        return { ...d, evidence_refs: refs, evidence_count: refs.length };
+      });
+
     const trait: TraitLayer = {
-      dimensions: Array.isArray(parsed.trait?.dimensions) ? parsed.trait.dimensions : [],
+      dimensions: validDims,
       big_five: parsed.trait?.big_five,
       insufficient: parsed.trait?.insufficient === true,
     };
@@ -183,7 +198,7 @@ export async function synthesizeProfiles(
       concerns: Array.isArray(parsed.relation?.concerns) ? parsed.relation.concerns : [],
       landmines: Array.isArray(parsed.relation?.landmines) ? parsed.relation.landmines : [],
       evidence_refs: Array.isArray(parsed.relation?.evidence_refs)
-        ? parsed.relation.evidence_refs
+        ? parsed.relation.evidence_refs.filter((s) => evidenceSet.has(s))
         : [],
     };
 
@@ -192,7 +207,7 @@ export async function synthesizeProfiles(
       relation,
       four_color: toFourColor(trait),
       generated_at: nowIso,
-      input_hash: computeInputHash(person.slug, bp.sample_size, evidenceSlugs),
+      input_hash: newHash,
       sample_size: bp.sample_size,
     };
     await writeProfile(stores.pages, person.slug, profile);

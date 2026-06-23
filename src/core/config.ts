@@ -190,6 +190,8 @@ export interface ProfileConfig {
   allow: string[];
   deny: string[];
   min_sample_size: number;
+  /** Hours to add to UTC for the active-hours histogram (default 8 for CN workplace). */
+  tz_offset_hours: number;
 }
 
 /**
@@ -279,6 +281,7 @@ const DEFAULT_CONFIG: Config = {
     allow: [],
     deny: [],
     min_sample_size: 20,
+    tz_offset_hours: 8,
   },
 };
 
