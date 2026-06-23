@@ -9,7 +9,7 @@ import { decide, decideAfterBodyCheck } from "./decision.js";
 import { FullCardBuilder } from "./full-builder.js";
 import { computeSourceBodyHash } from "./hash.js";
 import { buildPointerCard } from "./pointer-builder.js";
-import { loadExistingCard, writeCard } from "./store-writer.js";
+import { type ActionItemDeps, loadExistingCard, writeCard } from "./store-writer.js";
 import type { DocCandidate, DocCard, DocDecisionConfig, FullCard } from "./types.js";
 import { batchSizeForRun, UpgradeQueue } from "./upgrade-queue.js";
 import { iterateCandidates } from "./walkers.js";
@@ -40,10 +40,17 @@ export interface RunDocSourceDeps {
   selfOpenId: string;
   nowMs: number;
   nowIso: () => string;
+  /**
+   * Identity/graph deps for persisting action_items as task signals. When
+   * provided, FULL cards built this run also write their action_items as
+   * `tasks/doc-*` pages (Spec 9 §3.3). Omitted for runs that only need cards.
+   */
+  actionItemDeps?: ActionItemDeps;
 }
 
 export async function runDocSource(deps: RunDocSourceDeps): Promise<DocSourceStats> {
-  const { client, stores, provider, config, cursor, selfOpenId, nowMs, nowIso } = deps;
+  const { client, stores, provider, config, cursor, selfOpenId, nowMs, nowIso, actionItemDeps } =
+    deps;
   const stats: DocSourceStats = {
     candidates_scanned: 0,
     pointer_saved: 0,
@@ -98,16 +105,20 @@ export async function runDocSource(deps: RunDocSourceDeps): Promise<DocSourceSta
         } else if (action === "metadata_refresh") {
           // existing is a FullCard here (only needs_body_check reaches this); refresh
           // the cheap metadata, KEEP the LLM summary, do NOT call the LLM.
-          await writeCard(stores, {
-            ...(existing as FullCard),
-            title: candidate.title,
-            url: candidate.url,
-            modified_at: candidate.modified_at,
-            last_editor_id: candidate.last_editor_id,
-            parent_path: candidate.parent_path,
-            source: candidate.source,
-            extracted_at: nowIso(),
-          });
+          await writeCard(
+            stores,
+            {
+              ...(existing as FullCard),
+              title: candidate.title,
+              url: candidate.url,
+              modified_at: candidate.modified_at,
+              last_editor_id: candidate.last_editor_id,
+              parent_path: candidate.parent_path,
+              source: candidate.source,
+              extracted_at: nowIso(),
+            },
+            actionItemDeps,
+          );
           stats.full_card_refreshed++;
         } else if (action === "save_pointer") {
           await writeCard(stores, buildPointerCard(candidate, nowIso()));
@@ -142,7 +153,7 @@ export async function runDocSource(deps: RunDocSourceDeps): Promise<DocSourceSta
           enqueuedCandidates.get(docToken) ?? (await rebuildCandidate(stores, docToken));
         if (!candidate) continue;
         const card = await builder.build(candidate);
-        await writeCard(stores, card);
+        await writeCard(stores, card, actionItemDeps);
         if (card.extract_level === "full") stats.full_card_generated++;
         else stats.llm_failed++;
       } catch (err) {
