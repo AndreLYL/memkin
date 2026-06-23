@@ -35,11 +35,11 @@ Spec 1 → Spec 2 → Spec 3
 
 | Spec | 核心交付 | 状态 |
 |------|---------|------|
-| Spec 7：合成底座 | synthesize 引擎 + 意图框架 + 引用 + gap + best-chunk 池化 | 📝 待审查 |
-| Spec 8：人物沟通画像（Hero） | 三层人格（行为层+行为四象限主轴+关系层）+ 四色外壳；prep_for_person | 📝 待审查 |
-| Spec 9：日报 + 文档提取 | 卡片 schema 加 decisions/action_items；entities/me；daily_report | 📝 待审查 |
-| Spec 10：检索质量 | best-chunk 池化深化 / 零-LLM 边 / query 改写 | 📝 待审查 |
-| Spec 11：playbook | 分支 runbook + 分层树状图 + troubleshoot | 📝 待审查 |
+| Spec 7：合成底座 | synthesize 引擎 + 意图框架 + 引用 + gap + best-chunk 池化 | ✅ 已合并 main |
+| Spec 8：人物沟通画像（Hero） | 三层人格（行为层+行为四象限主轴+关系层）+ 四色外壳；prep_for_person | ✅ 已合并 main |
+| Spec 9：日报 + 文档提取 | 卡片 schema 加 decisions/action_items；entities/me；daily_report | ✅ 已合并 main |
+| Spec 10：检索质量 | best-chunk 池化深化 / 零-LLM 边 / query 改写 | ✅ 已合并 main |
+| Spec 11：playbook | 分支 runbook + 分层树状图 + troubleshoot | ✅ 已合并 main |
 
 ## 规格文档速读
 

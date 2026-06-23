@@ -1,13 +1,41 @@
 # 行动决策记忆 — 实施进度（Spec 7–11）
 
-**日期**：2026-06-22（夜间自主实施）
-**状态**：✅ 五份 spec 全部实现、测试绿、已推送各自 feature 分支，待人工 review/合并。
+**日期**：2026-06-22 实施 / 2026-06-23 全部合入
+**状态**：✅ **五份 spec 全部经深度 review、修复、测试绿、已合入 main**(PR #62–#66)；README 三大 Hero 场景 showcase 也已合入(#67)。
+
+## 合入记录
+
+| PR | Spec / 内容 | 状态 |
+|----|------|------|
+| #62 | Spec 7 合成底座(synthesize/recall + 意图框架 + 引用 + gap + best-chunk 池化) | ✅ 已合 main |
+| #63 | Spec 8 人物沟通画像(Hero,三层人格 + 四色 + prep_for_person) | ✅ 已合 main |
+| #64 | Spec 9 日报 + 文档提取 + entities/me(daily_report) | ✅ 已合 main |
+| #65 | Spec 10 检索质量(best-chunk 池化 + 零-LLM wikilink 边 + query 改写) | ✅ 已合 main |
+| #66 | Spec 11 playbook(分层树 + troubleshoot) | ✅ 已合 main |
+| #67 | README 三大 Hero 场景 showcase + daily_report/troubleshoot | ✅ 已合 main |
+
+MCP 工具:26 → **31**(synthesize / recall / prep_for_person / daily_report / troubleshoot)。
+
+### 合入前深度 review 修复的真问题(测试都侥幸过了,是 review 挡下的)
+- 缓存写回污染实体页 recency + re-embed(Spec 7);夜间画像同类污染(Spec 8)
+- 无 LLM 时静默返回假答案 → 改结构化错误(全部合成工具)
+- 空候选不短路、LLM 失败不结构化(Spec 7)
+- entity-scope timeline 被 slug-only 去重折叠(Spec 9)
+- action_items→task 是暗代码、未接真实文档管线(Spec 9)
+- wikilink.ts 被写成二进制(裸 NUL 字节)(Spec 10)
+- wikilink 白名单回退导致 playbook 自布线失效(Spec 11)
+- 多处堆叠分支语义合并冲突(createMockProvider 残留、migrations 版本断言、契约工具清单)
+
+### 待跟踪(后续 issue,不阻塞)
+- 群聊行为累加未排除"自己"(待与 isMe 配套)
+- 日报跨日时区边界;isMe 串行查询;query 改写作用于向量腿;MCP 手动 ingest 未接 action_items
+- 缓存/画像仍存于 frontmatter(大库可考虑独立表)
 
 ---
 
-## 一、分支结构（堆叠，main 受保护无法直推）
+## 一、分支结构（历史记录 · 堆叠实现）
 
-实现采**堆叠式 feature 分支**，每个从上一个切出（满足依赖；main 403 无法直接合）：
+实现采**堆叠式 feature 分支**，每个从上一个切出（满足依赖；main 受保护，逐个 PR 合入,合入前各自 merge main + 线性化）：
 
 ```
 main
