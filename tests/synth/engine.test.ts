@@ -65,6 +65,23 @@ describe("synth/engine synthesize", () => {
     expect(chat).toHaveBeenCalledTimes(1);
   });
 
+  it("short-circuits on empty candidates without calling the provider", async () => {
+    const chat = vi.fn().mockResolvedValue("should not be called");
+    const provider = { chat };
+
+    const result = await synthesize(
+      "recall",
+      { entity: "people/does-not-exist" },
+      { stores, provider },
+    );
+
+    expect(chat).toHaveBeenCalledTimes(0);
+    expect(result.answer).toBe("(未找到相关记忆)");
+    expect(result.citations).toEqual([]);
+    expect(result.gaps).toEqual([]);
+    expect(result.meta.cached).toBe(false);
+  });
+
   it("invokes sortCandidates and buildPinnedContext hooks", async () => {
     const sortCandidates = vi.fn(async (cands) => [...cands].reverse());
     const buildPinnedContext = vi.fn(async () => "PINNED-FRAMEWORK-TEXT");
