@@ -652,14 +652,25 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
     },
     // ── Spec 9: daily_report — cross-channel daily report (7 sections) ─────
     daily_report: async ({ date }: { date?: string }) => {
-      const provider =
-        options.provider ??
-        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
-      return synthesize("daily_report", dailyReportIntent.buildScope({ date }), {
-        stores: stores as unknown as SynthStoreContext,
-        provider,
-        model: options.synthModel,
-      });
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use daily_report.",
+        );
+      }
+      try {
+        return await synthesize("daily_report", dailyReportIntent.buildScope({ date }), {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     },
   };
 }
