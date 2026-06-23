@@ -34,4 +34,50 @@ describe("synth/context assemble", () => {
     const ctx = assemble({ query: "x" }, [{ slug: "c", title: "C", type: "note", text: "g" }]);
     expect(ctx.latestDate).toBeUndefined();
   });
+
+  it("keeps distinct timeline entries that share one entity slug (different text)", () => {
+    // Entity-scope retrieval pushes every timeline entry under slug=scope.entity;
+    // dedupe must key on slug+text so these are NOT collapsed to one.
+    const timeline: RawCandidate[] = [
+      {
+        slug: "entities/alice",
+        title: "Met",
+        type: "timeline",
+        text: "kickoff",
+        date: "2026-06-01",
+      },
+      {
+        slug: "entities/alice",
+        title: "Met",
+        type: "timeline",
+        text: "review",
+        date: "2026-06-10",
+      },
+      { slug: "entities/alice", title: "Met", type: "timeline", text: "ship", date: "2026-06-20" },
+    ];
+    const ctx = assemble({ entity: "entities/alice" }, timeline);
+    expect(ctx.candidates.length).toBe(3);
+    expect(ctx.candidates.map((c) => c.text)).toEqual(["kickoff", "review", "ship"]);
+  });
+
+  it("dedupes candidates with identical slug AND text to one", () => {
+    const dupes: RawCandidate[] = [
+      {
+        slug: "entities/alice",
+        title: "Met",
+        type: "timeline",
+        text: "kickoff",
+        date: "2026-06-01",
+      },
+      {
+        slug: "entities/alice",
+        title: "Met",
+        type: "timeline",
+        text: "kickoff",
+        date: "2026-06-01",
+      },
+    ];
+    const ctx = assemble({ entity: "entities/alice" }, dupes);
+    expect(ctx.candidates.length).toBe(1);
+  });
 });

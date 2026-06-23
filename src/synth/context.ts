@@ -15,13 +15,20 @@ function estimateTokens(c: RawCandidate): number {
   return Math.ceil((c.title.length + c.text.length) / CHARS_PER_TOKEN);
 }
 
-/** Drop repeated slugs, keeping the first occurrence (Spec 9 §6 primary-key dedupe). */
+/**
+ * Drop exact-duplicate candidates, keeping the first occurrence (Spec 9 §6
+ * primary-key dedupe). Keyed on `slug::text` (not slug alone) so that
+ * entity-scope retrieval, which emits every timeline entry under the same
+ * `slug = scope.entity`, is not collapsed to a single entry. Matches the
+ * composite key used by scope.ts's own dedupe.
+ */
 function dedupeBySlug(candidates: RawCandidate[]): RawCandidate[] {
   const seen = new Set<string>();
   const out: RawCandidate[] = [];
   for (const c of candidates) {
-    if (seen.has(c.slug)) continue;
-    seen.add(c.slug);
+    const key = `${c.slug}::${c.text}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(c);
   }
   return out;
