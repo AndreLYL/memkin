@@ -21,6 +21,8 @@ export interface ComputeOpts {
   resolveSender: (contact: string) => string;
   /** Treat the block as a group conversation (use first-sender = initiator). */
   isGroup?: boolean;
+  /** Hours to add to the message's UTC hour for the active-hours histogram (default 0). */
+  tzOffsetHours?: number;
 }
 
 const AT_RE = /@/g;
@@ -39,10 +41,11 @@ function emptyContribution(slug: string): BehaviorContribution {
   };
 }
 
-function hourOf(ts: string): number {
+function hourOf(ts: string, tzOffsetHours = 0): number {
   const d = new Date(ts);
   const h = d.getUTCHours();
-  return Number.isNaN(h) ? 0 : h;
+  if (Number.isNaN(h)) return 0;
+  return (h + tzOffsetHours + 24) % 24;
 }
 
 function countAts(content: string): number {
@@ -59,6 +62,7 @@ export function computeContribution(
   opts: ComputeOpts,
 ): Map<string, BehaviorContribution> {
   const out = new Map<string, BehaviorContribution>();
+  const tzOffsetHours = opts.tzOffsetHours ?? 0;
   const sorted = [...block.messages].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
@@ -78,7 +82,7 @@ export function computeContribution(
     for (const m of sorted) {
       const slug = opts.resolveSender(m.contact);
       const c = get(slug);
-      accumulateBasics(c, m);
+      accumulateBasics(c, m, tzOffsetHours);
       if (!firstAttributed && m.contact === firstSender) {
         c.initiated_count += 1;
         firstAttributed = true;
@@ -96,7 +100,7 @@ export function computeContribution(
     if (m.direction === "sent") continue; // our own messages don't profile us
     const slug = opts.resolveSender(m.contact);
     const c = get(slug);
-    accumulateBasics(c, m);
+    accumulateBasics(c, m, tzOffsetHours);
 
     // find the next sent message after this received one (adjacent reply by us)
     const next = sorted[i + 1];
@@ -111,10 +115,10 @@ export function computeContribution(
   return out;
 }
 
-function accumulateBasics(c: BehaviorContribution, m: RawMessage): void {
+function accumulateBasics(c: BehaviorContribution, m: RawMessage, tzOffsetHours = 0): void {
   c.msg_count += 1;
   c.sum_msg_chars += m.content.length;
-  c.hour_histogram[hourOf(m.timestamp)] += 1;
+  c.hour_histogram[hourOf(m.timestamp, tzOffsetHours)] += 1;
   c.at_count += countAts(m.content);
 }
 

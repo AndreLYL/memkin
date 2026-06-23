@@ -130,6 +130,7 @@ export function buildConfigObject(config: PartialConfig): Config {
       allow: config.profile?.allow ?? [],
       deny: config.profile?.deny ?? [],
       min_sample_size: config.profile?.min_sample_size ?? 20,
+      tz_offset_hours: config.profile?.tz_offset_hours ?? 8,
     },
   };
 }

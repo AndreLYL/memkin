@@ -15,6 +15,7 @@ const cfg = (over: Partial<ProfileConfig> = {}): ProfileConfig => ({
   allow: [],
   deny: [],
   min_sample_size: 20,
+  tz_offset_hours: 8,
   ...over,
 });
 
