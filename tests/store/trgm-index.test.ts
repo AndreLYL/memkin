@@ -24,7 +24,7 @@ async function seed(db: Database) {
   }
 }
 
-describe("trgm index usage", () => {
+describe("trgm index structure & predicate coverage (enable_seqscan=off)", () => {
   it("single-term Chinese ILIKE uses a Bitmap Index Scan (enable_seqscan=off)", async () => {
     const db = await Database.create();
     await seed(db);
