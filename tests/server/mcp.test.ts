@@ -459,7 +459,7 @@ describe("MCP synthesis tools", () => {
     expect(names).toContain("synthesize");
     expect(names).toContain("recall");
     expect(names).toContain("prep_for_person"); // Spec 8 (now built)
-    expect(names).not.toContain("daily_report");
+    expect(names).toContain("daily_report"); // Spec 9 (now built)
     expect(names).not.toContain("troubleshoot");
 
     await client.close();

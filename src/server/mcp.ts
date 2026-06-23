@@ -24,6 +24,7 @@ import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import type { SynthScope } from "../synth/index.js";
 import { synthesize } from "../synth/index.js";
+import { dailyReportIntent } from "../synth/intents/daily-report.js";
 import type { StoreContext as SynthStoreContext } from "./api.js";
 import { getSessionContext } from "./context.js";
 import { getEntityProfile, listSignalsByEntity } from "./entity.js";
@@ -649,6 +650,28 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
         );
       }
     },
+    // ── Spec 9: daily_report — cross-channel daily report (7 sections) ─────
+    daily_report: async ({ date }: { date?: string }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use daily_report.",
+        );
+      }
+      try {
+        return await synthesize("daily_report", dailyReportIntent.buildScope({ date }), {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
   };
 }
 
@@ -911,6 +934,24 @@ function registerPreferredTools(
       },
     },
     async (args) => text(await tools.prep_for_person(args)),
+  );
+
+  server.registerTool(
+    "daily_report",
+    {
+      title: "Daily Report (Cross-Channel)",
+      description: description(
+        "daily_report",
+        "Generate a synthesized cross-channel daily report in 7 fixed sections.\n\nWhen to use: 'help me write today's daily report' — aggregate the day's signals (mail / IM / calendar / docs) into 今日概览 / 今日完成 / 推进中 / 我的待办 / 待回复与被@ / 人脉动态 / 明日提醒.\nWhen NOT to use: arbitrary recall; use `recall`/`query`.\nReturns: a SynthesisResult with sections[] + answer + citations + gaps.\nOn error: ensure the date is a valid ISO date.",
+      ),
+      inputSchema: {
+        date: z
+          .string()
+          .optional()
+          .describe("Report date as `YYYY-MM-DD`. Defaults to today (local time)."),
+      },
+    },
+    async (args) => text(await tools.daily_report(args)),
   );
 
   if (!options.readOnly) {

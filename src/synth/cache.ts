@@ -21,7 +21,14 @@ export function computeInputHash(candidates: AssembledCandidate[]): string {
 /** Page slug carrying the cache for a given scope, or null for non-cacheable (query) scopes. */
 function cacheCarrierSlug(intent: string, scope: SynthScope): string | null {
   if (scope.entity) return scope.entity;
-  if (scope.time) return `reports/${intent}/${scope.time.from}..${scope.time.to}`;
+  if (scope.time) {
+    // Spec 9 §5.2: a daily report keyed by a single day caches to reports/daily/<date>.
+    if (intent === "daily_report") {
+      const date = scope.time.from.slice(0, 10);
+      return `reports/daily/${date}`;
+    }
+    return `reports/${intent}/${scope.time.from}..${scope.time.to}`;
+  }
   return null; // query scope → not cached (Spec 7 §九)
 }
 

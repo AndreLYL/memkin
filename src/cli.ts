@@ -1105,6 +1105,15 @@ docsCmd
       const cursor = new CursorStore(statePath("cursors.yaml"));
       cursor.load();
 
+      // Identity layer for canonicalizing action_item owners → person slugs and
+      // detecting self-ownership, so doc/meeting action_items become task signals
+      // the daily report can surface (Spec 9 §3.3).
+      const identity = new PersonIdentityStore(
+        stores.db.pg,
+        { pages: stores.pages },
+        { behavior: new PersonBehaviorStore(stores.db.pg) },
+      );
+
       const stats = await runDocSource({
         client,
         stores,
@@ -1114,6 +1123,19 @@ docsCmd
         selfOpenId,
         nowMs: Date.now(),
         nowIso: () => new Date().toISOString(),
+        actionItemDeps: {
+          graph: stores.graph,
+          resolveOwner: async (ownerRaw) => {
+            if (!ownerRaw) return null;
+            // best-effort: map a name/@mention to a canonical person slug
+            return (
+              (await identity.resolveHandle("name", ownerRaw)) ??
+              (await identity.resolveHandle("nickname", ownerRaw)) ??
+              null
+            );
+          },
+          isMe: (slug) => identity.isMe(slug),
+        },
       });
 
       console.log(
