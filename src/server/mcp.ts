@@ -624,19 +624,30 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
     },
     // ── Spec 8: prep_for_person — communication strategy for a person ─────
     prep_for_person: async ({ person, goal }: { person: string; goal?: string }) => {
-      const provider =
-        options.provider ??
-        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
-      return synthesize(
-        "person_strategy",
-        { entity: person },
-        {
-          stores: stores as unknown as SynthStoreContext,
-          provider,
-          model: options.synthModel,
-        },
-        { extra: goal ? { goal } : undefined },
-      );
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use prep_for_person.",
+        );
+      }
+      try {
+        return await synthesize(
+          "person_strategy",
+          { entity: person },
+          {
+            stores: stores as unknown as SynthStoreContext,
+            provider: options.provider,
+            model: options.synthModel,
+          },
+          { extra: goal ? { goal } : undefined },
+        );
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     },
   };
 }
