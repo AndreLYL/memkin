@@ -484,11 +484,36 @@ describe("MCP synthesis tools", () => {
       intent: "recall",
       scope: { entity: "people/zhang-san" },
     });
-    expect(viaSynthesize.answer).toBeTruthy();
-    expect(viaSynthesize.citations.length).toBeGreaterThanOrEqual(1);
+    expect("error" in viaSynthesize).toBe(false);
+    if (!("error" in viaSynthesize)) {
+      expect(viaSynthesize.answer).toBeTruthy();
+      expect(viaSynthesize.citations.length).toBeGreaterThanOrEqual(1);
+    }
 
     const viaRecall = await tools.recall({ entity: "people/zhang-san" });
-    expect(viaRecall.intent).toBe("recall");
-    expect(viaRecall.answer).toBeTruthy();
+    expect("error" in viaRecall).toBe(false);
+    if (!("error" in viaRecall)) {
+      expect(viaRecall.intent).toBe("recall");
+      expect(viaRecall.answer).toBeTruthy();
+    }
+  });
+
+  it("synthesize + recall return a structured error when no provider is configured", async () => {
+    const tools = createMcpToolHandlers(stores, {});
+
+    const viaSynthesize = await tools.synthesize({
+      intent: "recall",
+      scope: { entity: "people/zhang-san" },
+    });
+    expect("error" in viaSynthesize).toBe(true);
+    if ("error" in viaSynthesize) {
+      expect(viaSynthesize.error.code).toBe("INVALID_ARGUMENT");
+    }
+
+    const viaRecall = await tools.recall({ entity: "people/zhang-san" });
+    expect("error" in viaRecall).toBe(true);
+    if ("error" in viaRecall) {
+      expect(viaRecall.error.code).toBe("INVALID_ARGUMENT");
+    }
   });
 });
