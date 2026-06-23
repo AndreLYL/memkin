@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { PGliteOptions } from "@electric-sql/pglite";
+import { pg_trgm as stockPgTrgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { vector as stockVector } from "@electric-sql/pglite/vector";
 
 export function isCompiledBinary(metaUrl: string = import.meta.url): boolean {
@@ -27,7 +28,7 @@ export async function buildPGliteOptions(
 ): Promise<PGliteOptions> {
   const compiled = opts.compiled ?? isCompiledBinary();
   if (!compiled) {
-    return { dataDir, extensions: { vector: stockVector } };
+    return { dataDir, extensions: { vector: stockVector, pg_trgm: stockPgTrgm } };
   }
   const nodeModulesDir = ""; // compiled 不走这支
   const execDir = dirname(process.execPath);
@@ -36,7 +37,7 @@ export async function buildPGliteOptions(
   const pgliteWasmModule = await WebAssembly.compile(await readFile(asset("pglite.wasm")));
   const initdbWasmModule = await WebAssembly.compile(await readFile(asset("initdb.wasm")));
   const fsBundle = new Blob([await readFile(asset("pglite.data"))]);
-  const vectorBundleURL = new URL("file://" + asset("vector.tar.gz"));
+  const vectorBundleURL = new URL(`file://${asset("vector.tar.gz")}`);
   const vector = {
     name: "pgvector",
     setup: async (_pg: unknown, em: unknown) => ({
@@ -44,5 +45,13 @@ export async function buildPGliteOptions(
       bundlePath: vectorBundleURL,
     }),
   };
-  return { dataDir, pgliteWasmModule, initdbWasmModule, fsBundle, extensions: { vector } };
+  const pgTrgmBundleURL = new URL(`file://${asset("pg_trgm.tar.gz")}`);
+  const pg_trgm = {
+    name: "pg_trgm",
+    setup: async (_pg: unknown, em: unknown) => ({
+      emscriptenOpts: em,
+      bundlePath: pgTrgmBundleURL,
+    }),
+  };
+  return { dataDir, pgliteWasmModule, initdbWasmModule, fsBundle, extensions: { vector, pg_trgm } };
 }

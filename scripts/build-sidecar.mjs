@@ -17,7 +17,7 @@ execSync(`bun build --compile src/cli.ts --outfile src-tauri/binaries/memoark-${
   env: process.env,
 });
 const dist = join(root, "node_modules/@electric-sql/pglite/dist");
-for (const f of ["pglite.wasm", "initdb.wasm", "pglite.data", "vector.tar.gz"]) {
+for (const f of ["pglite.wasm", "initdb.wasm", "pglite.data", "vector.tar.gz", "pg_trgm.tar.gz"]) {
   cpSync(join(dist, f), join(root, "src-tauri/assets", f));
 }
 
