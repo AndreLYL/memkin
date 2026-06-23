@@ -342,6 +342,80 @@ export class GraphStore {
     };
   }
 
+  /**
+   * Spec 11 §三: descendants of `slug` along a relation `rel`.
+   *
+   * Children point *up* to their parent via the relation (e.g. a problem-class page
+   * carries `[[part_of:category/...]]`, so the edge is child --part_of--> parent).
+   * Descendants are therefore found by walking incoming `rel` edges (backlinks).
+   * Returns descendants in BFS order, excluding the root; deduped; depth-capped.
+   */
+  async getSubtree(
+    slug: string,
+    rel: string,
+    depth = 5,
+  ): Promise<{ slug: string; title: string }[]> {
+    const maxDepth = Math.min(depth, 10);
+    const visited = new Set<string>([slug]);
+    const out: { slug: string; title: string }[] = [];
+    let frontier = [slug];
+
+    for (let d = 1; d <= maxDepth && frontier.length > 0; d++) {
+      const next: string[] = [];
+      for (const current of frontier) {
+        const children = await this.pg.query<PageSummaryRow>(
+          `SELECT pf.slug, pf.title, pf.type
+           FROM links l
+           JOIN pages pf ON pf.id = l.from_page_id
+           WHERE l.to_page_id = (SELECT id FROM pages WHERE slug = $1)
+             AND l.link_type = $2`,
+          [current, rel],
+        );
+        for (const child of children.rows) {
+          if (visited.has(child.slug)) continue;
+          visited.add(child.slug);
+          out.push({ slug: child.slug, title: child.title });
+          next.push(child.slug);
+        }
+      }
+      frontier = next;
+    }
+    return out;
+  }
+
+  /**
+   * Spec 11 §三: ordered chain starting at `startSlug`, following outgoing `precedes`
+   * edges (each page declares `[[precedes:next-slug]]`). Includes the start node first.
+   * Cycle-safe; returns [] when the start page does not exist.
+   */
+  async getOrderedSequence(startSlug: string): Promise<{ slug: string; title: string }[]> {
+    const out: { slug: string; title: string }[] = [];
+    const visited = new Set<string>();
+    let current: string | undefined = startSlug;
+
+    while (current && !visited.has(current)) {
+      visited.add(current);
+      const page = await this.pg.query<PageSummaryRow>(
+        "SELECT slug, title, type FROM pages WHERE slug = $1",
+        [current],
+      );
+      if (page.rows.length === 0) break;
+      out.push({ slug: page.rows[0].slug, title: page.rows[0].title });
+
+      const nextRow = await this.pg.query<{ slug: string }>(
+        `SELECT pt.slug
+         FROM links l
+         JOIN pages pt ON pt.id = l.to_page_id
+         WHERE l.from_page_id = (SELECT id FROM pages WHERE slug = $1)
+           AND l.link_type = 'precedes'
+         LIMIT 1`,
+        [current],
+      );
+      current = nextRow.rows[0]?.slug as string | undefined;
+    }
+    return out;
+  }
+
   private async pageExists(slug: string): Promise<boolean> {
     const result = await this.pg.query("SELECT 1 FROM pages WHERE slug = $1", [slug]);
     return result.rows.length > 0;

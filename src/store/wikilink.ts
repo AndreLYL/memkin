@@ -14,6 +14,11 @@ const LINK_TYPES: ReadonlySet<string> = new Set<LinkType>([
   "mentions",
   "approves",
   "uses",
+  // Spec 11 playbook hierarchy/sequence rels — keep in sync with LinkType union.
+  "part_of",
+  "precedes",
+  "next",
+  "escalates_to",
   "custom",
 ]);
 

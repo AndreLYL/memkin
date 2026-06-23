@@ -80,6 +80,7 @@ describe("MCP contract", () => {
       "recall",
       "prep_for_person",
       "daily_report",
+      "troubleshoot",
       "put_page",
       "add_timeline_entry",
       "manage_links",
