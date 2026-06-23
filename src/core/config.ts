@@ -195,6 +195,16 @@ export interface ProfileConfig {
 }
 
 /**
+ * Retrieval-quality configuration (Spec 10).
+ * pool_by_page: best-chunk-per-page pooling for query() (default on).
+ * llm_rewrite: optional LLM-based query rewrite before retrieval (default off).
+ */
+export interface SearchConfig {
+  pool_by_page: boolean;
+  llm_rewrite: boolean;
+}
+
+/**
  * Complete configuration interface
  */
 export interface Config {
@@ -210,6 +220,7 @@ export interface Config {
   scheduler?: SchedulerConfig;
   pipeline?: PipelineOptsConfig;
   profile: ProfileConfig;
+  search: SearchConfig;
 }
 
 export interface ConfigContext {
@@ -282,6 +293,10 @@ const DEFAULT_CONFIG: Config = {
     deny: [],
     min_sample_size: 20,
     tz_offset_hours: 8,
+  },
+  search: {
+    pool_by_page: true,
+    llm_rewrite: false,
   },
 };
 
