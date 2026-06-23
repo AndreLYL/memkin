@@ -1,4 +1,6 @@
+import type { ProfileConfig } from "../core/config.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
+import { type ProfileSynthStores, synthesizeProfiles } from "../profile/profile-synth.js";
 import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
@@ -15,11 +17,21 @@ export interface ConsolidatorStores {
   timeline: TimelineStore;
 }
 
+/**
+ * Optional person-communication-profile wiring (Spec 8). When provided AND
+ * profile.enabled, consolidateWarm runs nightly profile synthesis.
+ */
+export interface ConsolidatorProfileOpts {
+  profile: ProfileConfig;
+  profileStores: ProfileSynthStores;
+}
+
 export interface ConsolidateResult {
   hotToWarm: number;
   warmToCold: number;
   deadLinksChecked: number;
   preferencesInferred: number;
+  profilesSynthesized: number;
 }
 
 export type ConsolidateMode = "hot" | "warm" | "all";
@@ -31,6 +43,7 @@ export class Consolidator {
   constructor(
     private stores: ConsolidatorStores,
     private llm?: LLMProvider,
+    private profileOpts?: ConsolidatorProfileOpts,
   ) {}
 
   start(): void {
@@ -51,6 +64,7 @@ export class Consolidator {
       warmToCold: 0,
       deadLinksChecked: 0,
       preferencesInferred: 0,
+      profilesSynthesized: 0,
     };
     if (mode === "hot" || mode === "all") {
       result.hotToWarm = await this.consolidateHot(dryRun);
@@ -60,6 +74,7 @@ export class Consolidator {
       result.warmToCold = warmResult.warmToCold;
       result.deadLinksChecked = warmResult.deadLinksChecked;
       result.preferencesInferred = warmResult.preferencesInferred;
+      result.profilesSynthesized = warmResult.profilesSynthesized;
     }
     return result;
   }
@@ -75,6 +90,17 @@ export class Consolidator {
     const { warmToCold } = await consolidateWarmToCold(this.stores, this.llm, dryRun);
     const deadLinksChecked = dryRun ? 0 : await checkDeadLinks(this.stores.pages);
     const preferencesInferred = dryRun ? 0 : await inferPreferences(this.stores, this.llm);
-    return { warmToCold, deadLinksChecked, preferencesInferred };
+
+    // Spec 8: nightly profile synthesis (trait + relation layers), gated by config.
+    let profilesSynthesized = 0;
+    if (!dryRun && this.profileOpts?.profile.enabled) {
+      profilesSynthesized = await synthesizeProfiles(
+        this.profileOpts.profileStores,
+        this.llm,
+        this.profileOpts.profile,
+      );
+    }
+
+    return { warmToCold, deadLinksChecked, preferencesInferred, profilesSynthesized };
   }
 }

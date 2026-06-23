@@ -50,6 +50,7 @@ import { Database } from "./store/database.js";
 import { EmbeddingService } from "./store/embedding.js";
 import { GraphStore } from "./store/graph.js";
 import { PageStore } from "./store/pages.js";
+import { PersonBehaviorStore } from "./store/person-behavior.js";
 import { SearchEngine } from "./store/search.js";
 import { TagStore } from "./store/tags.js";
 import { TimelineStore } from "./store/timeline.js";
@@ -114,7 +115,13 @@ async function createStores(config: LoadedConfig) {
     apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
     baseUrl: config.embedding.base_url,
   });
-  const search = new SearchEngine(db.pg, { embedText: (q) => embedding.embedText(q) });
+  const search = new SearchEngine(db.pg, {
+    embedText: (q) => embedding.embedText(q),
+    search: {
+      pool_by_page: config.search.pool_by_page,
+      llm_rewrite: config.search.llm_rewrite,
+    },
+  });
   return {
     db,
     pages,
@@ -138,7 +145,11 @@ async function openIdentityStore(config: LoadedConfig) {
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
   });
-  const identity = new PersonIdentityStore(db.pg, { pages: new PageStore(db.pg) });
+  const identity = new PersonIdentityStore(
+    db.pg,
+    { pages: new PageStore(db.pg) },
+    { behavior: new PersonBehaviorStore(db.pg) },
+  );
   return { db, identity };
 }
 
@@ -629,28 +640,33 @@ async function runServe(options: {
     process.on("SIGINT", shutdown);
 
     if (options.mcp) {
+      const llmConfig = { ...config.llm };
+      const envKey =
+        llmConfig.provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
+      const synthProvider = llmConfig.api_key
+        ? createLLMProvider(llmConfig)
+        : createMockProvider(new Map());
+
       let ingestDeps: IngestDeps | undefined;
       const feishu = config.sources.feishu;
       if (feishu?.enabled && feishu.sources?.docs?.enabled) {
         const client = new LarkCliHttpClient(feishu.lark_bin);
-        const llmConfig = { ...config.llm };
-        const envKey =
-          llmConfig.provider === "anthropic"
-            ? process.env.ANTHROPIC_API_KEY
-            : process.env.OPENAI_API_KEY;
-        if (!llmConfig.api_key && envKey) llmConfig.api_key = envKey;
-        const provider = llmConfig.api_key
-          ? createLLMProvider(llmConfig)
-          : createMockProvider(new Map());
         ingestDeps = {
           client,
           stores: storesWithDaemon,
-          provider,
+          provider: synthProvider,
           model: feishu.sources.docs.llm?.model ?? llmConfig.model,
           nowIso: () => new Date().toISOString(),
         };
       }
-      const server = createMcpServer(storesWithDaemon, {}, ingestDeps);
+      const server = createMcpServer(
+        storesWithDaemon,
+        { provider: synthProvider, synthModel: llmConfig.model },
+        ingestDeps,
+      );
       await server.connect(new StdioServerTransport());
       return;
     }
@@ -929,6 +945,15 @@ program
           timeline: stores.timeline,
         },
         llmProvider,
+        {
+          profile: config.profile,
+          profileStores: {
+            pages: stores.pages,
+            graph: stores.graph,
+            timeline: stores.timeline,
+            behavior: new PersonBehaviorStore(stores.db.pg),
+          },
+        },
       );
 
       const mode: ConsolidateMode = options.hot
@@ -949,6 +974,7 @@ program
       console.log(`  warm→cold pages archived: ${result.warmToCold}`);
       console.log(`  dead links checked:       ${result.deadLinksChecked}`);
       console.log(`  preferences inferred:     ${result.preferencesInferred}`);
+      console.log(`  profiles synthesized:     ${result.profilesSynthesized}`);
 
       await stores.db.close();
     } catch (error) {
@@ -1085,6 +1111,15 @@ docsCmd
       const cursor = new CursorStore(statePath("cursors.yaml"));
       cursor.load();
 
+      // Identity layer for canonicalizing action_item owners → person slugs and
+      // detecting self-ownership, so doc/meeting action_items become task signals
+      // the daily report can surface (Spec 9 §3.3).
+      const identity = new PersonIdentityStore(
+        stores.db.pg,
+        { pages: stores.pages },
+        { behavior: new PersonBehaviorStore(stores.db.pg) },
+      );
+
       const stats = await runDocSource({
         client,
         stores,
@@ -1094,6 +1129,19 @@ docsCmd
         selfOpenId,
         nowMs: Date.now(),
         nowIso: () => new Date().toISOString(),
+        actionItemDeps: {
+          graph: stores.graph,
+          resolveOwner: async (ownerRaw) => {
+            if (!ownerRaw) return null;
+            // best-effort: map a name/@mention to a canonical person slug
+            return (
+              (await identity.resolveHandle("name", ownerRaw)) ??
+              (await identity.resolveHandle("nickname", ownerRaw)) ??
+              null
+            );
+          },
+          isMe: (slug) => identity.isMe(slug),
+        },
       });
 
       console.log(

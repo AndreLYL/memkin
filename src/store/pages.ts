@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import { parse as parseYaml } from "yaml";
+import type { SourceRef } from "../core/types.js";
+import { GraphStore } from "./graph.js";
+import { parseWikiLinks } from "./wikilink.js";
 
 export interface Page {
   id: number;
@@ -21,6 +24,10 @@ export interface Page {
 export interface PutPageOptions {
   halflife_days?: number | null;
   expires_at?: Date | null; // explicit override; null clears it; undefined = auto-compute from halflife_days
+  // Spec 10: auto-wire [[wikilinks]] from compiled_truth into typed edges. Default true.
+  // Set false for callers that manage their own [[...]] semantics (e.g. Obsidian sync,
+  // which creates "obsidian"-typed links and must not be shadowed by generic "mentions").
+  autoWikilink?: boolean;
 }
 
 interface ParsedContent {
@@ -62,7 +69,11 @@ function parseMarkdownWithFrontmatter(content: string): ParsedContent {
 }
 
 export class PageStore {
-  constructor(private pg: PGlite) {}
+  private graph: GraphStore;
+
+  constructor(private pg: PGlite) {
+    this.graph = new GraphStore(pg);
+  }
 
   async putPage(slug: string, content: string, opts?: PutPageOptions): Promise<Page> {
     const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
@@ -105,12 +116,63 @@ export class PageStore {
         expiresAt,
       ],
     );
-    return this.rowToPage(result.rows[0]);
+    const page = this.rowToPage(result.rows[0]);
+
+    // Spec 10 §4: zero-LLM auto-wiring. Scan ONLY compiled_truth for wikilinks
+    // and create typed edges. Missing targets are skipped (addLink no-ops when a
+    // slug is absent); this never throws and never breaks the write.
+    // Skippable (autoWikilink:false) for callers that own [[...]] semantics (Obsidian sync).
+    if (opts?.autoWikilink !== false) {
+      await this.wireWikiLinks(slug, compiled_truth);
+    }
+
+    return page;
+  }
+
+  private async wireWikiLinks(fromSlug: string, compiledTruth: string): Promise<void> {
+    const links = parseWikiLinks(compiledTruth);
+    if (links.length === 0) return;
+    const provenance = { auto: "wikilink" } as unknown as SourceRef;
+    for (const link of links) {
+      if (link.to === fromSlug) continue; // never self-link
+      try {
+        await this.graph.addLink(fromSlug, link.to, link.type, "", provenance);
+      } catch {
+        // Target slug missing (or any transient edge error) -> skip, never break the write.
+      }
+    }
   }
 
   async getPage(slug: string): Promise<Page | null> {
     const result = await this.pg.query<PageRow>("SELECT * FROM pages WHERE slug = $1", [slug]);
     return result.rows.length > 0 ? this.rowToPage(result.rows[0]) : null;
+  }
+
+  /** Merge a synth cache entry into frontmatter.synth[intent] WITHOUT bumping updated_at or re-chunking. Returns false if the page does not exist. */
+  async setSynthCache(slug: string, intent: string, entry: unknown): Promise<boolean> {
+    const page = await this.getPage(slug);
+    if (!page) return false;
+    const fm = { ...(page.frontmatter as Record<string, unknown>) };
+    const synth = (fm.synth as Record<string, unknown> | undefined) ?? {};
+    synth[intent] = entry;
+    fm.synth = synth;
+    await this.pg.query("UPDATE pages SET frontmatter = $2 WHERE slug = $1", [
+      slug,
+      JSON.stringify(fm),
+    ]);
+    return true;
+  }
+
+  /** Merge top-level keys into a page's frontmatter WITHOUT bumping updated_at or re-chunking. Returns false if the page does not exist. */
+  async patchFrontmatter(slug: string, patch: Record<string, unknown>): Promise<boolean> {
+    const page = await this.getPage(slug);
+    if (!page) return false;
+    const fm = { ...(page.frontmatter as Record<string, unknown>), ...patch };
+    await this.pg.query("UPDATE pages SET frontmatter = $2 WHERE slug = $1", [
+      slug,
+      JSON.stringify(fm),
+    ]);
+    return true;
   }
 
   async deletePage(slug: string): Promise<void> {

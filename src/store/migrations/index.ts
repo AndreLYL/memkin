@@ -64,11 +64,34 @@ const M004_IDENTITY_CACHE_NULLABLE = `
 ALTER TABLE identity_cache ALTER COLUMN display_name DROP NOT NULL;
 `;
 
+// Migration 005: person_behavior table (Spec 8 §4.1) — the behavior layer of the
+// person communication profile. Behavior metrics (response latency, message length,
+// active hours, initiation, @-frequency) cannot be recomputed after extraction
+// (raw messages are dropped), so they are accumulated incrementally as mergeable
+// counters keyed by the OTHER person's canonical slug. hour_histogram defaults to a
+// length-24 zero array so upsert can add element-wise without a null check.
+const M005_PERSON_BEHAVIOR = `
+CREATE TABLE IF NOT EXISTS person_behavior (
+  person_slug        TEXT PRIMARY KEY,
+  msg_count          INTEGER NOT NULL DEFAULT 0,
+  sum_msg_chars      INTEGER NOT NULL DEFAULT 0,
+  initiated_count    INTEGER NOT NULL DEFAULT 0,
+  reply_count        INTEGER NOT NULL DEFAULT 0,
+  resp_latency_n     INTEGER NOT NULL DEFAULT 0,
+  resp_latency_sum_s BIGINT  NOT NULL DEFAULT 0,
+  hour_histogram     JSONB   NOT NULL DEFAULT '[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]',
+  at_count           INTEGER NOT NULL DEFAULT 0,
+  window_start       TIMESTAMPTZ,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
   { version: 3, name: "lifecycle_tier", sql: M003_LIFECYCLE_TIER },
   { version: 4, name: "identity_cache_nullable", sql: M004_IDENTITY_CACHE_NULLABLE },
+  { version: 5, name: "person_behavior", sql: M005_PERSON_BEHAVIOR },
 ];
 
 export async function runMigrations(pg: PGlite): Promise<void> {

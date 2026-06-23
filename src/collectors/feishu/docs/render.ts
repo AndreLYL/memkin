@@ -31,6 +31,8 @@ function frontmatter(card: DocCard): Record<string, unknown> {
     fm.entities = card.entities;
     fm.toc = card.toc;
     fm.overview = card.overview;
+    fm.decisions = card.decisions;
+    fm.action_items = card.action_items;
     fm.source_body_hash = card.source_body_hash;
     fm.summary_generated_at = card.summary_generated_at;
     fm.summary_model = card.summary_model;

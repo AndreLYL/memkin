@@ -4,7 +4,9 @@ import type {
   LLMConfig,
   McpConfig,
   PrivacyConfig,
+  ProfileConfig,
   SchedulerConfig,
+  SearchConfig,
   ServerConfig,
   SourceConfig,
   StoreConfig,
@@ -31,6 +33,8 @@ export interface PartialConfig {
     max_block_messages?: number;
   };
   scheduler?: SchedulerConfig;
+  profile?: Partial<ProfileConfig>;
+  search?: Partial<SearchConfig>;
 }
 
 export interface ValidationResult {

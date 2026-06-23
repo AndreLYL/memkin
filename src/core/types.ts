@@ -115,6 +115,10 @@ export type LinkType =
   | "mentions"
   | "approves"
   | "uses"
+  | "part_of"
+  | "precedes"
+  | "next"
+  | "escalates_to"
   | "custom";
 
 export interface Link {

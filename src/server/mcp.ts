@@ -12,14 +12,21 @@ import {
 } from "../core/person-identity.js";
 import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
+import type { LLMProvider } from "../extractors/providers/types.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
 import type { GraphStore } from "../store/graph.js";
 import type { Page, PageStore } from "../store/pages.js";
+import { PersonBehaviorStore } from "../store/person-behavior.js";
 import type { SearchEngine } from "../store/search.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
+import type { SynthScope } from "../synth/index.js";
+import { synthesize } from "../synth/index.js";
+import { dailyReportIntent } from "../synth/intents/daily-report.js";
+import { troubleshootIntent } from "../synth/intents/troubleshoot.js";
+import type { StoreContext as SynthStoreContext } from "./api.js";
 import { getSessionContext } from "./context.js";
 import { getEntityProfile, listSignalsByEntity } from "./entity.js";
 
@@ -48,6 +55,10 @@ export interface McpServerOptions {
   exposeLegacyTools?: boolean;
   readOnly?: boolean;
   version?: string;
+  /** LLM provider for synthesis tools (synthesize/recall). When omitted, synthesize/recall return a structured INVALID_ARGUMENT error. */
+  provider?: LLMProvider;
+  /** Model id recorded in synthesis result meta. */
+  synthModel?: string;
 }
 
 interface ToolError {
@@ -233,7 +244,11 @@ function decodeSlug(value: unknown): string {
 }
 
 export function createMcpToolHandlers(stores: StoreContext, options: McpServerOptions = {}) {
-  const identity = new PersonIdentityStore(stores.db.pg, { pages: stores.pages });
+  const identity = new PersonIdentityStore(
+    stores.db.pg,
+    { pages: stores.pages },
+    { behavior: new PersonBehaviorStore(stores.db.pg) },
+  );
   return {
     query: async (args: MemoryFilter & { query: string }) => {
       const filter = normalizeSearchFilter(args);
@@ -556,6 +571,130 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       await identity.recanonicalize(from, to);
       return { ok: true, from, to, handles: await identity.listHandles(to) };
     },
+
+    // ── Synthesis (Spec 7): synthesize + recall ──────────────────────────
+    synthesize: async ({ intent, scope }: { intent: string; scope?: SynthScope }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use synthesize/recall.",
+        );
+      }
+      try {
+        return await synthesize(intent, scope ?? {}, {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
+    recall: async ({
+      entity,
+      query,
+      time,
+    }: {
+      entity?: string;
+      query?: string;
+      time?: { from: string; to: string };
+    }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use synthesize/recall.",
+        );
+      }
+      const scope: SynthScope = { entity, query, time, limit: 30 };
+      try {
+        return await synthesize("recall", scope, {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
+    // ── Spec 8: prep_for_person — communication strategy for a person ─────
+    prep_for_person: async ({ person, goal }: { person: string; goal?: string }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use prep_for_person.",
+        );
+      }
+      try {
+        return await synthesize(
+          "person_strategy",
+          { entity: person },
+          {
+            stores: stores as unknown as SynthStoreContext,
+            provider: options.provider,
+            model: options.synthModel,
+          },
+          { extra: goal ? { goal } : undefined },
+        );
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
+    // ── Spec 9: daily_report — cross-channel daily report (7 sections) ─────
+    daily_report: async ({ date }: { date?: string }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use daily_report.",
+        );
+      }
+      try {
+        return await synthesize("daily_report", dailyReportIntent.buildScope({ date }), {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
+    // ── Spec 11: troubleshoot — one-shot playbook troubleshooting ──────────
+    troubleshoot: async ({ query }: { query: string }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use troubleshoot.",
+        );
+      }
+      try {
+        return await synthesize("troubleshoot", troubleshootIntent.buildScope({ query }), {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
   };
 }
 
@@ -752,6 +891,107 @@ function registerPreferredTools(
       const value = await tools.explore_graph(args);
       return structuredText(value, value as unknown as Record<string, unknown>);
     },
+  );
+
+  server.registerTool(
+    "synthesize",
+    {
+      title: "Synthesize Memory",
+      description: description(
+        "synthesize",
+        "Synthesize a cited, gap-aware answer from memory using an intent template.\n\nWhen to use: you want a composed answer (not raw snippets) about an entity, time window, or query.\nWhen NOT to use: raw ranked snippets; use `query`/`search`.\nReturns: answer with inline [n] citations, citations[], and gaps[] (stale / missing).\nOn error: ensure the intent is registered and the scope is non-empty.",
+      ),
+      inputSchema: {
+        intent: z.string().describe("Registered synthesis intent, for example `recall`."),
+        scope: z
+          .object({
+            entity: z.string().optional().describe("Anchor entity slug, e.g. `people/zhang-san`."),
+            query: z.string().optional().describe("Free-text semantic query."),
+            time: z
+              .object({ from: z.string(), to: z.string() })
+              .optional()
+              .describe("Time window (ISO dates)."),
+            types: z.array(z.string()).optional().describe("Limit to signal types."),
+            channels: z.array(z.string()).optional().describe("Limit to source channels."),
+            limit: z.number().optional().describe("Candidate cap, default 30."),
+          })
+          .partial()
+          .optional()
+          .describe("Retrieval scope (entity / time / query)."),
+      },
+    },
+    async (args) => text(await tools.synthesize(args)),
+  );
+
+  server.registerTool(
+    "recall",
+    {
+      title: "Recall Memory (Synthesized)",
+      description: description(
+        "recall",
+        "Recall a synthesized, cited summary about an entity, query, or time window.\n\nWhen to use: a quick composed recall with citations and gap flags.\nWhen NOT to use: raw snippets; use `query`/`search`.\nReturns: a SynthesisResult (answer + citations + gaps).\nOn error: provide at least one of entity, query, or time.",
+      ),
+      inputSchema: {
+        entity: z.string().optional().describe("Anchor entity slug, e.g. `people/zhang-san`."),
+        query: z.string().optional().describe("Free-text semantic query."),
+        time: z
+          .object({ from: z.string(), to: z.string() })
+          .optional()
+          .describe("Time window (ISO dates)."),
+      },
+    },
+    async (args) => text(await tools.recall(args)),
+  );
+
+  server.registerTool(
+    "prep_for_person",
+    {
+      title: "Prep for Person (Communication Strategy)",
+      description: description(
+        "prep_for_person",
+        "Prepare goal-conditioned communication strategy for a person from their passively-inferred communication profile.\n\nWhen to use: before talking to someone — get evidence-cited, ethical suggestions on how to communicate with them, optionally toward a specific goal.\nWhen NOT to use: raw facts about the person; use `get_entity_profile`/`query`.\nReturns: a SynthesisResult (cited suggestions + gaps). Suggestions only — never manipulation. Profiling is passive and local; the four-color shell is a popular mapping, not a clinical diagnosis.\nOn error: ensure the person page slug exists.",
+      ),
+      inputSchema: {
+        person: z.string().describe("Person page slug, e.g. `people/zhang-san`."),
+        goal: z.string().optional().describe("Optional goal for this conversation."),
+      },
+    },
+    async (args) => text(await tools.prep_for_person(args)),
+  );
+
+  server.registerTool(
+    "daily_report",
+    {
+      title: "Daily Report (Cross-Channel)",
+      description: description(
+        "daily_report",
+        "Generate a synthesized cross-channel daily report in 7 fixed sections.\n\nWhen to use: 'help me write today's daily report' — aggregate the day's signals (mail / IM / calendar / docs) into 今日概览 / 今日完成 / 推进中 / 我的待办 / 待回复与被@ / 人脉动态 / 明日提醒.\nWhen NOT to use: arbitrary recall; use `recall`/`query`.\nReturns: a SynthesisResult with sections[] + answer + citations + gaps.\nOn error: ensure the date is a valid ISO date.",
+      ),
+      inputSchema: {
+        date: z
+          .string()
+          .optional()
+          .describe("Report date as `YYYY-MM-DD`. Defaults to today (local time)."),
+      },
+    },
+    async (args) => text(await tools.daily_report(args)),
+  );
+
+  server.registerTool(
+    "troubleshoot",
+    {
+      title: "Troubleshoot (Playbook)",
+      description: description(
+        "troubleshoot",
+        "Walk through a troubleshooting playbook in one shot.\n\nWhen to use: '怎么排查 X' — pull the matching playbook pages, ordered along their `precedes` chain, into a step-by-step procedure with branch meanings ('命中 X → 含义/下一步').\nWhen NOT to use: general recall; use `recall`/`query`.\nReturns: a SynthesisResult with ordered steps + [n] citations + gaps.\nOn error: rephrase the symptom or save a playbook page first.",
+      ),
+      inputSchema: {
+        query: z
+          .string()
+          .describe("Symptom or problem to troubleshoot, for example `智驾无法激活`."),
+      },
+    },
+    async (args) => text(await tools.troubleshoot(args)),
   );
 
   if (!options.readOnly) {
@@ -1468,6 +1708,8 @@ export function createMcpServer(
     exposeLegacyTools: options.exposeLegacyTools ?? false,
     readOnly: options.readOnly ?? false,
     version: options.version ?? packageVersion,
+    provider: options.provider,
+    synthModel: options.synthModel,
   });
 
   registerPreferredTools(server, tools, options);

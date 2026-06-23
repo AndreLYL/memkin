@@ -182,6 +182,29 @@ export interface PipelineOptsConfig {
 }
 
 /**
+ * Person communication profile configuration (Spec 8 §9).
+ * Disabled by default. allow/deny gate per-person opt-in/out by canonical slug.
+ */
+export interface ProfileConfig {
+  enabled: boolean;
+  allow: string[];
+  deny: string[];
+  min_sample_size: number;
+  /** Hours to add to UTC for the active-hours histogram (default 8 for CN workplace). */
+  tz_offset_hours: number;
+}
+
+/**
+ * Retrieval-quality configuration (Spec 10).
+ * pool_by_page: best-chunk-per-page pooling for query() (default on).
+ * llm_rewrite: optional LLM-based query rewrite before retrieval (default off).
+ */
+export interface SearchConfig {
+  pool_by_page: boolean;
+  llm_rewrite: boolean;
+}
+
+/**
  * Complete configuration interface
  */
 export interface Config {
@@ -196,6 +219,8 @@ export interface Config {
   mcp: McpConfig;
   scheduler?: SchedulerConfig;
   pipeline?: PipelineOptsConfig;
+  profile: ProfileConfig;
+  search: SearchConfig;
 }
 
 export interface ConfigContext {
@@ -261,6 +286,17 @@ const DEFAULT_CONFIG: Config = {
       auth_token_env: "",
       read_only: true,
     },
+  },
+  profile: {
+    enabled: false,
+    allow: [],
+    deny: [],
+    min_sample_size: 20,
+    tz_offset_hours: 8,
+  },
+  search: {
+    pool_by_page: true,
+    llm_rewrite: false,
   },
 };
 

@@ -13,9 +13,11 @@ import {
   mapScoreDecision,
   type NoiseFilterVerdict,
 } from "../extractors/noise-filter.js";
+import { classifyPlaybook, extractPlaybookDraft } from "../extractors/playbook-extractor.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
+import { type AccumulateDeps, accumulateBehavior } from "../profile/accumulate.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
 import type { PrivacyConfig } from "./config.js";
@@ -65,6 +67,13 @@ export interface PipelineOpts {
    * person pages from LLM-produced slug variants.
    */
   identityResolver?: IdentityResolver;
+  /**
+   * Optional person-communication-profile behavior accumulation (Spec 8 §4.1).
+   * When provided AND config.profile.enabled, DM/group blocks contribute to the
+   * person_behavior table while raw messages are still in memory. No-op when the
+   * config is disabled, so callers can wire it unconditionally.
+   */
+  behavior?: AccumulateDeps;
 }
 
 /**
@@ -241,6 +250,19 @@ export async function runPipeline(
     const processBlock = async (block: ConversationBlock, idx: number): Promise<void> => {
       process.stdout.write(`  [${idx + 1}/${blocks.length}] filtering block ${block.block_id} ...`);
       try {
+        // Behavior layer (Spec 8 §4.1): accumulate per-person counters from the raw
+        // messages before any noise filter drops them. Statistical, so it runs even
+        // for low-signal blocks. No-op unless config.profile.enabled.
+        if (opts.behavior) {
+          try {
+            await accumulateBehavior(block, opts.behavior);
+          } catch (err) {
+            result.warnings.push(
+              `Behavior accumulation failed for block ${block.block_id}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+
         // L1: rule-based filter
         const l1Verdict = filterNoiseL1(block);
         let filterVerdict: NoiseFilterVerdict;
@@ -259,6 +281,29 @@ export async function runPipeline(
           result.skippedBlocks++;
           result.skippedMessages.push(...block.messages);
           return;
+        }
+
+        // Spec 11 §五: playbook-aware pre-classify. If this block describes a
+        // troubleshooting procedure AND we can write pages, emit a `type=playbook`
+        // draft (confidence: inferred, tag draft) instead of the regular signal
+        // extraction. Other channels/blocks are untouched.
+        const blockText = block.messages.map((m) => m.content).join("\n");
+        if (opts.stores?.pages && opts.provider && classifyPlaybook(blockText)) {
+          try {
+            const slug = await extractPlaybookDraft(block, opts.provider, opts.stores.pages);
+            if (slug) {
+              process.stdout.write(` playbook draft → ${slug}\n`);
+              result.okBlocks++;
+              result.okMessages.push(...block.messages);
+              result.lastSuccessMessage = block.messages[block.messages.length - 1];
+              return;
+            }
+          } catch (err) {
+            result.warnings.push(
+              `Playbook draft extraction failed for block ${block.block_id}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            // Fall through to regular extraction on failure.
+          }
         }
 
         process.stdout.write(" extracting ...");

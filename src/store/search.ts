@@ -1,5 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
+import type { LLMProvider } from "../extractors/providers/types.js";
+import { rewriteQuery } from "./query-rewrite.js";
 
 export interface SearchResult {
   slug: string;
@@ -11,10 +13,32 @@ export interface SearchResult {
   provenance?: SourceRef;
 }
 
-export type SearchFilterOpts = MemoryFilter;
+export type SearchFilterOpts = MemoryFilter & {
+  /**
+   * best-chunk-per-page pooling (Spec 7 §七; default flipped on in Spec 10).
+   * When true (default): a page scores as its single strongest chunk (max RRF),
+   * so the best evidence surfaces and many-weak-chunk pages do not inflate via accumulation.
+   * When false: same-page chunks accumulate (sum) RRF scores (legacy behavior).
+   * If unset, falls back to the engine's config default (`search.pool_by_page`, default true).
+   * Only consulted by `query()`; `search()` ignores it.
+   */
+  poolByPage?: boolean;
+};
 
 interface SearchEngineOpts {
   embedText?: (text: string) => Promise<number[]>;
+  /**
+   * Retrieval-quality config (Spec 10). When omitted, defaults to
+   * pool_by_page=true (best-chunk pooling on) and llm_rewrite=false.
+   */
+  search?: {
+    pool_by_page?: boolean;
+    llm_rewrite?: boolean;
+    /** abbreviation/synonym expansion map for rule-based query rewrite. */
+    synonyms?: Record<string, string[]>;
+  };
+  /** LLM provider; only used for query rewrite when search.llm_rewrite is true. */
+  llm?: LLMProvider;
 }
 
 interface PageSearchRow {
@@ -173,12 +197,36 @@ function parseProvenance(value: SourceRef | string | null): SourceRef | undefine
 
 export class SearchEngine {
   private embedText?: (text: string) => Promise<number[]>;
+  private poolByPageDefault: boolean;
+  private llmRewrite: boolean;
+  private synonyms?: Record<string, string[]>;
+  private llm?: LLMProvider;
 
   constructor(
     private pg: PGlite,
     opts?: SearchEngineOpts,
   ) {
     this.embedText = opts?.embedText;
+    // Spec 10: best-chunk pooling defaults on; config can flip it back off.
+    this.poolByPageDefault = opts?.search?.pool_by_page ?? true;
+    this.llmRewrite = opts?.search?.llm_rewrite ?? false;
+    this.synonyms = opts?.search?.synonyms;
+    this.llm = opts?.llm;
+  }
+
+  /**
+   * Spec 10 §5: rule-based query rewrite (synonym expansion, stopword filter,
+   * whitespace normalize) before retrieval; optional LLM rewrite only when
+   * search.llm_rewrite is true AND a provider is configured. Recall-only.
+   */
+  private async rewrite(query: string): Promise<string> {
+    if (this.llmRewrite && this.llm) {
+      return rewriteQuery(query, {
+        synonyms: this.synonyms,
+        llm: { enabled: true, provider: this.llm },
+      });
+    }
+    return rewriteQuery(query, { synonyms: this.synonyms });
   }
 
   async search(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
@@ -235,9 +283,14 @@ export class SearchEngine {
 
   async query(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
     const limit = clampLimit(opts?.limit);
+    // Spec 10: per-call opt overrides config default (which itself defaults to true).
+    const poolByPage = opts?.poolByPage ?? this.poolByPageDefault;
+    // Spec 10 §5: rewrite for recall (rule-based; optional LLM). Falls back to the
+    // original query if rewriting produces nothing usable.
+    const effectiveQuery = (await this.rewrite(query)) || query;
     const [ftsResults, vectorResults] = await Promise.all([
-      this.ftsChunkSearch(query, opts, candidateLimit(limit)),
-      this.vectorSearch(query, opts, candidateLimit(limit)),
+      this.ftsChunkSearch(effectiveQuery, opts, candidateLimit(limit)),
+      this.vectorSearch(effectiveQuery, opts, candidateLimit(limit)),
     ]);
 
     const scoreMap = new Map<
@@ -269,7 +322,10 @@ export class SearchEngine {
         const r = results[rank];
         const rrfScore = 1 / (RRF_K + rank + 1);
         const existing = scoreMap.get(r.slug);
-        const newScore = (existing?.score ?? 0) + rrfScore;
+        // best-chunk pooling: max of strongest single chunk; default: accumulate (sum).
+        const newScore = poolByPage
+          ? Math.max(existing?.score ?? 0, rrfScore)
+          : (existing?.score ?? 0) + rrfScore;
         if (!existing || newScore > existing.score) {
           scoreMap.set(r.slug, {
             slug: r.slug,

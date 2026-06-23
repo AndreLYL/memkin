@@ -87,7 +87,7 @@ Your data never leaves your machine. PGLite embedded database stores everything,
 Signals are anchored to entities (people, projects, tools) and linked in a directed graph. You get answers *with context* — who, why, and what it relates to — instead of isolated similar-text fragments.
 
 **🤖 MCP-native + Feishu capture**
-**26 built-in MCP tools** let any agent both query and write back to your memory. Full Feishu capture (7 sources) turns your real work — requirements, proposals, team decisions — into a first-class data source, something neither pure RAG nor note apps can do.
+**29 built-in MCP tools** let any agent both query and write back to your memory. Full Feishu capture (7 sources) turns your real work — requirements, proposals, team decisions — into a first-class data source, something neither pure RAG nor note apps can do.
 
 ## Features
 
@@ -95,7 +95,7 @@ Signals are anchored to entities (people, projects, tools) and linked in a direc
 Your work lives in Feishu. Memoark collects across **7 sources** — DMs, group chats, email, calendar, docs, tasks, and message search — turning your working relationships into structured memory. Doc capture produces upgradable "summary cards" (DocSource v2).
 
 **🤖 Agents That Know You (MCP)**
-Use Memoark as the memory layer for any MCP agent — Claude Code, Cursor, Claude Desktop, Windsurf. **26 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
+Use Memoark as the memory layer for any MCP agent — Claude Code, Cursor, Claude Desktop, Windsurf. **29 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
 
 **🧠 AI-Powered Signal Extraction**
 An LLM pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
@@ -187,7 +187,7 @@ The full capability list (✅ = shipped and included in the package).
 
 ### 🔗 Sync & Interop
 - ✅ Obsidian bidirectional sync (export vault / import back)
-- ✅ MCP stdio server (26 tools)
+- ✅ MCP stdio server (29 tools)
 - ✅ REST API (Hono — pages / search / graph / tags / timeline / embed / extract / provenance / event stream)
 
 ### 🖥️ Web UI (React + Vite)
@@ -208,14 +208,22 @@ The full capability list (✅ = shipped and included in the package).
 
 ## Use Cases
 
-**Onboard your agent to a project in seconds**
-Start a Claude Code session and ask *"what's the current state of the memoark project?"* — your agent pulls the aggregated decisions, open tasks, and recent timeline straight from your memory, no re-explaining.
+> Memoark answers not "what do I know" but "**what should I do**" — every scenario returns a cited, traceable action, not a pile of chunks.
 
-**Recall a person or a thread**
-*"What did I discuss with my colleague last week?"* — Memoark stitches together the Feishu DMs, the meeting, and the follow-up task into one answer.
+**🌟 Know how to talk to someone before you meet them (Hero)**
+*"I'm meeting Director Zhang tomorrow to negotiate a renewal price increase — what should I keep in mind?"* — `prep_for_person` **passively infers** a communication profile from your real interactions (direct vs. indirect, data-driven vs. relationship-driven, landmines), tailors advice to this goal, and flags gaps (*"nothing new about Zhang in 18 days — the profile may be stale"*). Zero questionnaire; the profile never leaves your machine.
 
-**Auto-written work log**
-Browse your timeline like a diary that writes itself — what you decided, what you shipped, and across which platforms.
+**📋 Generate a cross-channel daily report in one line**
+*"Help me write today's daily report"* — `daily_report` aggregates today's signals scattered across DMs, group chats, email, Feishu Minutes notes, and calendar into 7 sections: decisions / in-progress / my tasks / awaiting-reply·@mentions / relationship updates / tomorrow's reminders. Action items in meeting notes that name you land in "my tasks" automatically.
+
+**🔧 Troubleshoot by the playbook**
+*"Why won't the ADAS engage?"* — `troubleshoot` walks the playbook's diagnostic chain (`precedes`) to give ordered steps and explain what each result means. Playbooks can be authored by hand or auto-extracted (as drafts) from your troubleshooting conversations.
+
+**⚡ Onboard your agent to a project in seconds**
+*"What's the current state of the memoark project?"* — `get_session_context` pulls the aggregated decisions, open tasks, and recent timeline straight from memory, no re-explaining.
+
+**🔎 Recall a person or a thread**
+*"What did I discuss with this colleague last week?"* — stitches Feishu DMs, the meeting, and the follow-up task into one cited answer.
 
 ## Why Memoark
 
@@ -420,7 +428,7 @@ flowchart TB
   end
   subgraph L5["⑤ Interfaces & Consumption"]
     cli["CLI"]
-    mcp["MCP (26 tools)"]
+    mcp["MCP (29 tools)"]
     rest["REST API"]
     web["Web UI (read-only)"]
     obs["Obsidian bidirectional sync"]
@@ -452,7 +460,7 @@ flowchart TB
 | **② Collection** | Feishu (DMs / groups / email / calendar / tasks / message search / docs), AI-agent sessions (Claude Code / Codex / Hermes); incremental capture (per-source cursor + content dedup), historical Backfill. **Planned**: DingTalk, WeCom, local documents |
 | **③ Extraction Pipeline** | Block Builder → Noise Filter (L1 rules + L2 LLM) → Signal Extractor (OpenAI / Anthropic) → entity extraction → scoring → privacy redaction; emits 7 signal types via output adapters (store / file / gbrain / stdout) |
 | **④ Memory Store** | PGLite (in-process embedded PostgreSQL) + pgvector; Page / Chunk / Tag / Timeline / Graph stores; hybrid search (tsvector FTS + vector + RRF) |
-| **⑤ Interfaces & Consumption** | CLI, MCP Server (26 tools — agent read / write / maintain), REST API (Hono), Web UI (search / view / graph / timeline, **read-only today**), Obsidian bidirectional sync |
+| **⑤ Interfaces & Consumption** | CLI, MCP Server (29 tools — agent read / write / maintain), REST API (Hono), Web UI (search / view / graph / timeline, **read-only today**), Obsidian bidirectional sync |
 
 **Cross-cutting concerns (span layers, not standalone pipeline stages):**
 
@@ -499,11 +507,12 @@ flowchart TB
 
 ## MCP Tools
 
-Memoark's MCP server exposes **26 tools** spanning retrieval, page CRUD, graph, tags, timeline, identity, and Feishu doc ingestion. Prefer the high-level tools first:
+Memoark's MCP server exposes **29 tools** spanning retrieval, synthesis, page CRUD, graph, tags, timeline, identity, and Feishu doc ingestion. Prefer the high-level tools first:
 
 | Category | Tools |
 |----------|-------|
 | **Retrieval (high-level)** | `query`, `get_session_context`, `get_entity_profile`, `list_signals_by_entity` |
+| **Synthesis** | `synthesize`, `recall` (cited, gap-aware composed answers with inline `[n]`), `prep_for_person` (person communication profile → goal-conditioned strategy; passively inferred, no questionnaire, local-first, ethics-guardrailed), `daily_report` (cross-channel 7-section daily report), `troubleshoot` (one-shot diagnosis along a playbook chain) |
 | **Search** | `search` |
 | **Pages / content** | `get_page`, `put_page`, `list_pages`, `get_chunks` |
 | **Graph** | `add_link`, `remove_link`, `get_links`, `get_backlinks`, `traverse_graph` |
@@ -788,7 +797,7 @@ Extracts session data from OpenClaw Hermes agents.
 - [x] EmbeddingService (OpenAI / Ollama)
 - [x] StoreAdapter — pipeline writes directly to PGLite
 - [x] Hono REST API
-- [x] MCP Server with 26 stdio tools
+- [x] MCP Server with 29 stdio tools
 - [x] CLI serve, search, embed commands
 
 ### Phase 3 — Web UI (Complete)
@@ -819,8 +828,13 @@ Extracts session data from OpenClaw Hermes agents.
 - [ ] WeChat chat history
 - [ ] Local document source (scan local files, community-driven · low priority)
 
-### Phase 7 — Context-Aware Extraction & Q&A (Planned)
+### Phase 7 — Context-Aware Extraction & Q&A (In Progress)
 
+- [x] Synthesis layer (basic): `synthesize` / `recall` — cited composed answers with inline `[n]` + gap analysis, intent-template framework, per-scope caching
+- [x] **Person communication profile (Hero)**: `prep_for_person(person, goal?)` — passively infers a communication profile from real interactions (zero-LLM behavior layer + behavior-quadrant trait layer + relation layer + four-color shell) and gives goal-conditioned, `[n]`-cited communication strategy. No questionnaire, local-first, ethics-guardrailed (suggestions, not manipulation); disabled by default, per-person opt-in
+- [x] **Cross-channel daily report**: `daily_report(date?)` — aggregates today's signals across DMs/group/email/Feishu Minutes/calendar into 7 sections; meeting notes yield `decisions` and owner-tagged `action_items` (yours land in "my tasks")
+- [x] **Troubleshooting Playbooks**: `troubleshoot(query)` — ordered steps along the playbook `precedes` chain with per-result meaning; hierarchical tree (`part_of`) organizes problem domains; playbooks authored by hand or auto-extracted (draft) from conversations
+- [x] **Retrieval quality**: best-chunk-per-page pooling (surface on strongest evidence), zero-LLM self-wiring (`[[slug]]`/`[[rel:slug]]` graph edges on write), rule-based query rewrite
 - [ ] ContextBuffer — share context across conversation blocks
 - [ ] Weighted admission scoring (replaces binary noise filter)
 - [ ] Narrative assembler — aggregate signals into per-entity narratives

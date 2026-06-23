@@ -656,7 +656,11 @@ export async function importFromVault(
       // If the process crashes mid-write, the next `memoark import` run will
       // re-process the file (file_hash will still differ) and reach a
       // consistent state. Worst case: chunks briefly out of date.
-      const newPage = await stores.pages.putPage(slug, parsed.cleanMarkdown);
+      // autoWikilink:false — Obsidian sync owns [[...]] semantics (creates "obsidian"-typed
+      // links below); disable Spec 10 generic auto-wiring so it doesn't shadow them with "mentions".
+      const newPage = await stores.pages.putPage(slug, parsed.cleanMarkdown, {
+        autoWikilink: false,
+      });
       for (const tag of parsed.tags) {
         await stores.tags.addTag(slug, tag);
       }
