@@ -128,6 +128,18 @@ export class PageStore {
     return true;
   }
 
+  /** Merge top-level keys into a page's frontmatter WITHOUT bumping updated_at or re-chunking. Returns false if the page does not exist. */
+  async patchFrontmatter(slug: string, patch: Record<string, unknown>): Promise<boolean> {
+    const page = await this.getPage(slug);
+    if (!page) return false;
+    const fm = { ...(page.frontmatter as Record<string, unknown>), ...patch };
+    await this.pg.query("UPDATE pages SET frontmatter = $2 WHERE slug = $1", [
+      slug,
+      JSON.stringify(fm),
+    ]);
+    return true;
+  }
+
   async deletePage(slug: string): Promise<void> {
     await this.pg.query("DELETE FROM pages WHERE slug = $1", [slug]);
   }
