@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import { parse as parseYaml } from "yaml";
+import type { SourceRef } from "../core/types.js";
+import { GraphStore } from "./graph.js";
+import { parseWikiLinks } from "./wikilink.js";
 
 export interface Page {
   id: number;
@@ -21,6 +24,10 @@ export interface Page {
 export interface PutPageOptions {
   halflife_days?: number | null;
   expires_at?: Date | null; // explicit override; null clears it; undefined = auto-compute from halflife_days
+  // Spec 10: auto-wire [[wikilinks]] from compiled_truth into typed edges. Default true.
+  // Set false for callers that manage their own [[...]] semantics (e.g. Obsidian sync,
+  // which creates "obsidian"-typed links and must not be shadowed by generic "mentions").
+  autoWikilink?: boolean;
 }
 
 interface ParsedContent {
@@ -62,7 +69,11 @@ function parseMarkdownWithFrontmatter(content: string): ParsedContent {
 }
 
 export class PageStore {
-  constructor(private pg: PGlite) {}
+  private graph: GraphStore;
+
+  constructor(private pg: PGlite) {
+    this.graph = new GraphStore(pg);
+  }
 
   async putPage(slug: string, content: string, opts?: PutPageOptions): Promise<Page> {
     const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
@@ -105,7 +116,31 @@ export class PageStore {
         expiresAt,
       ],
     );
-    return this.rowToPage(result.rows[0]);
+    const page = this.rowToPage(result.rows[0]);
+
+    // Spec 10 §4: zero-LLM auto-wiring. Scan ONLY compiled_truth for wikilinks
+    // and create typed edges. Missing targets are skipped (addLink no-ops when a
+    // slug is absent); this never throws and never breaks the write.
+    // Skippable (autoWikilink:false) for callers that own [[...]] semantics (Obsidian sync).
+    if (opts?.autoWikilink !== false) {
+      await this.wireWikiLinks(slug, compiled_truth);
+    }
+
+    return page;
+  }
+
+  private async wireWikiLinks(fromSlug: string, compiledTruth: string): Promise<void> {
+    const links = parseWikiLinks(compiledTruth);
+    if (links.length === 0) return;
+    const provenance = { auto: "wikilink" } as unknown as SourceRef;
+    for (const link of links) {
+      if (link.to === fromSlug) continue; // never self-link
+      try {
+        await this.graph.addLink(fromSlug, link.to, link.type, "", provenance);
+      } catch {
+        // Target slug missing (or any transient edge error) -> skip, never break the write.
+      }
+    }
   }
 
   async getPage(slug: string): Promise<Page | null> {

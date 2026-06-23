@@ -10,8 +10,12 @@ import { SearchEngine } from "../../src/store/search.js";
  *   - Page B (one strong chunk): a single chunk that ranks first (rank 0).
  *   - Page A (many weak chunks): several chunks that each match but rank lower.
  *
- * Default (sum): Page A's accumulated RRF beats Page B → A first.
- * poolByPage:true (max): Page B's single strongest chunk wins → B first.
+ * poolByPage:false (sum): Page A's accumulated RRF beats Page B → A first.
+ * Default / poolByPage:true (max): Page B's single strongest chunk wins → B first.
+ *
+ * Spec 10 Task 1 flipped the default from sum to max. These assertions were
+ * updated accordingly: the no-opts call now exercises the max default, and the
+ * sum behavior is asserted only via the explicit poolByPage:false override.
  */
 describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
   let db: Database;
@@ -58,16 +62,18 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
     await db.close();
   });
 
-  it("default (sum) lets a many-weak-chunk page outrank a single-strong-chunk page", async () => {
-    const results = await search.query("poolword");
+  it("explicit poolByPage:false (sum) lets a many-weak-chunk page outrank a single-strong-chunk page", async () => {
+    // Sum behavior is now opt-in (default flipped to max in Spec 10).
+    const results = await search.query("poolword", { poolByPage: false });
     const slugs = results.map((r) => r.slug);
     expect(slugs).toContain("pages/weak-a");
     expect(slugs).toContain("pages/strong-b");
     expect(slugs.indexOf("pages/weak-a")).toBeLessThan(slugs.indexOf("pages/strong-b"));
   });
 
-  it("poolByPage:true (max) surfaces the single-strong-chunk page first", async () => {
-    const results = await search.query("poolword", { poolByPage: true });
+  it("default (max) surfaces the single-strong-chunk page first", async () => {
+    // No opts: exercises the Spec 10 default (max / best-chunk pooling).
+    const results = await search.query("poolword");
     const slugs = results.map((r) => r.slug);
     expect(slugs).toContain("pages/weak-a");
     expect(slugs).toContain("pages/strong-b");
@@ -75,7 +81,9 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
   });
 
   it("the two modes produce different orderings", async () => {
-    const sumOrder = (await search.query("poolword")).map((r) => r.slug);
+    // Compare explicit sum vs explicit max (default now equals max, so it can't
+    // be used as the contrasting mode anymore).
+    const sumOrder = (await search.query("poolword", { poolByPage: false })).map((r) => r.slug);
     const maxOrder = (await search.query("poolword", { poolByPage: true })).map((r) => r.slug);
     expect(sumOrder).not.toEqual(maxOrder);
   });

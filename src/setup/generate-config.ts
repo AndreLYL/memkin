@@ -132,6 +132,10 @@ export function buildConfigObject(config: PartialConfig): Config {
       min_sample_size: config.profile?.min_sample_size ?? 20,
       tz_offset_hours: config.profile?.tz_offset_hours ?? 8,
     },
+    search: {
+      pool_by_page: config.search?.pool_by_page ?? true,
+      llm_rewrite: config.search?.llm_rewrite ?? false,
+    },
   };
 }
 

@@ -115,7 +115,13 @@ async function createStores(config: LoadedConfig) {
     apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
     baseUrl: config.embedding.base_url,
   });
-  const search = new SearchEngine(db.pg, { embedText: (q) => embedding.embedText(q) });
+  const search = new SearchEngine(db.pg, {
+    embedText: (q) => embedding.embedText(q),
+    search: {
+      pool_by_page: config.search.pool_by_page,
+      llm_rewrite: config.search.llm_rewrite,
+    },
+  });
   return {
     db,
     pages,

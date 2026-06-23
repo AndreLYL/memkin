@@ -6,6 +6,7 @@ import type {
   PrivacyConfig,
   ProfileConfig,
   SchedulerConfig,
+  SearchConfig,
   ServerConfig,
   SourceConfig,
   StoreConfig,
@@ -33,6 +34,7 @@ export interface PartialConfig {
   };
   scheduler?: SchedulerConfig;
   profile?: Partial<ProfileConfig>;
+  search?: Partial<SearchConfig>;
 }
 
 export interface ValidationResult {
