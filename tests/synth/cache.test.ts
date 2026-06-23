@@ -56,6 +56,29 @@ describe("synth/cache", () => {
     expect(hit?.answer).toBe("synthesized answer [1]");
   });
 
+  it("entity scope: cache write does not bump updated_at or re-embed the carrier", async () => {
+    await stores.pages.putPage(
+      "people/zhang-san",
+      "---\ntitle: Zhang San\ntype: person\n---\nZhang San is a teammate.",
+    );
+    const before = await stores.pages.getPage("people/zhang-san");
+    const chunksBefore = await stores.chunks.getChunks("people/zhang-san");
+
+    const scope = { entity: "people/zhang-san" };
+    const hash = computeInputHash(candidates);
+    await write("recall", scope, makeResult(scope), hash, stores);
+
+    const after = await stores.pages.getPage("people/zhang-san");
+    const chunksAfter = await stores.chunks.getChunks("people/zhang-san");
+
+    expect(String(after?.updated_at)).toBe(String(before?.updated_at));
+    expect(chunksAfter.length).toBe(chunksBefore.length);
+
+    // Cache is still readable.
+    const hit = await read("recall", scope, hash, stores);
+    expect(hit?.answer).toBe("synthesized answer [1]");
+  });
+
   it("entity scope: input_hash change invalidates the cache", async () => {
     await stores.pages.putPage("people/zhang-san", "---\ntitle: Z\ntype: person\n---\nbio");
     const scope = { entity: "people/zhang-san" };
