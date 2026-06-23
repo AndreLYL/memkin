@@ -208,14 +208,22 @@ The full capability list (✅ = shipped and included in the package).
 
 ## Use Cases
 
-**Onboard your agent to a project in seconds**
-Start a Claude Code session and ask *"what's the current state of the memoark project?"* — your agent pulls the aggregated decisions, open tasks, and recent timeline straight from your memory, no re-explaining.
+> Memoark answers not "what do I know" but "**what should I do**" — every scenario returns a cited, traceable action, not a pile of chunks.
 
-**Recall a person or a thread**
-*"What did I discuss with my colleague last week?"* — Memoark stitches together the Feishu DMs, the meeting, and the follow-up task into one answer.
+**🌟 Know how to talk to someone before you meet them (Hero)**
+*"I'm meeting Director Zhang tomorrow to negotiate a renewal price increase — what should I keep in mind?"* — `prep_for_person` **passively infers** a communication profile from your real interactions (direct vs. indirect, data-driven vs. relationship-driven, landmines), tailors advice to this goal, and flags gaps (*"nothing new about Zhang in 18 days — the profile may be stale"*). Zero questionnaire; the profile never leaves your machine.
 
-**Auto-written work log**
-Browse your timeline like a diary that writes itself — what you decided, what you shipped, and across which platforms.
+**📋 Generate a cross-channel daily report in one line**
+*"Help me write today's daily report"* — `daily_report` aggregates today's signals scattered across DMs, group chats, email, Feishu Minutes notes, and calendar into 7 sections: decisions / in-progress / my tasks / awaiting-reply·@mentions / relationship updates / tomorrow's reminders. Action items in meeting notes that name you land in "my tasks" automatically.
+
+**🔧 Troubleshoot by the playbook**
+*"Why won't the ADAS engage?"* — `troubleshoot` walks the playbook's diagnostic chain (`precedes`) to give ordered steps and explain what each result means. Playbooks can be authored by hand or auto-extracted (as drafts) from your troubleshooting conversations.
+
+**⚡ Onboard your agent to a project in seconds**
+*"What's the current state of the memoark project?"* — `get_session_context` pulls the aggregated decisions, open tasks, and recent timeline straight from memory, no re-explaining.
+
+**🔎 Recall a person or a thread**
+*"What did I discuss with this colleague last week?"* — stitches Feishu DMs, the meeting, and the follow-up task into one cited answer.
 
 ## Why Memoark
 
@@ -504,7 +512,7 @@ Memoark's MCP server exposes **29 tools** spanning retrieval, synthesis, page CR
 | Category | Tools |
 |----------|-------|
 | **Retrieval (high-level)** | `query`, `get_session_context`, `get_entity_profile`, `list_signals_by_entity` |
-| **Synthesis** | `synthesize`, `recall` (cited, gap-aware composed answers with inline `[n]`), `prep_for_person` (person communication profile → goal-conditioned communication strategy; passively inferred, no questionnaire, local-first, ethics-guardrailed) |
+| **Synthesis** | `synthesize`, `recall` (cited, gap-aware composed answers with inline `[n]`), `prep_for_person` (person communication profile → goal-conditioned strategy; passively inferred, no questionnaire, local-first, ethics-guardrailed), `daily_report` (cross-channel 7-section daily report), `troubleshoot` (one-shot diagnosis along a playbook chain) |
 | **Search** | `search` |
 | **Pages / content** | `get_page`, `put_page`, `list_pages`, `get_chunks` |
 | **Graph** | `add_link`, `remove_link`, `get_links`, `get_backlinks`, `traverse_graph` |
@@ -824,6 +832,9 @@ Extracts session data from OpenClaw Hermes agents.
 
 - [x] Synthesis layer (basic): `synthesize` / `recall` — cited composed answers with inline `[n]` + gap analysis, intent-template framework, per-scope caching
 - [x] **Person communication profile (Hero)**: `prep_for_person(person, goal?)` — passively infers a communication profile from real interactions (zero-LLM behavior layer + behavior-quadrant trait layer + relation layer + four-color shell) and gives goal-conditioned, `[n]`-cited communication strategy. No questionnaire, local-first, ethics-guardrailed (suggestions, not manipulation); disabled by default, per-person opt-in
+- [x] **Cross-channel daily report**: `daily_report(date?)` — aggregates today's signals across DMs/group/email/Feishu Minutes/calendar into 7 sections; meeting notes yield `decisions` and owner-tagged `action_items` (yours land in "my tasks")
+- [x] **Troubleshooting Playbooks**: `troubleshoot(query)` — ordered steps along the playbook `precedes` chain with per-result meaning; hierarchical tree (`part_of`) organizes problem domains; playbooks authored by hand or auto-extracted (draft) from conversations
+- [x] **Retrieval quality**: best-chunk-per-page pooling (surface on strongest evidence), zero-LLM self-wiring (`[[slug]]`/`[[rel:slug]]` graph edges on write), rule-based query rewrite
 - [ ] ContextBuffer — share context across conversation blocks
 - [ ] Weighted admission scoring (replaces binary noise filter)
 - [ ] Narrative assembler — aggregate signals into per-entity narratives
