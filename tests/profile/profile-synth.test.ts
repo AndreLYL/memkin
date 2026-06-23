@@ -73,6 +73,12 @@ describe("profile/profile-synth synthesizeProfiles", () => {
 
   it("writes a full profile with evidence_refs and confidence when sample is sufficient", async () => {
     await pages.putPage("people/bob", "---\ntitle: Bob\ntype: person\n---\nBob.");
+    // Seed a real backlink so the cited evidence is grounded (Fix #7).
+    await pages.putPage(
+      "decisions/ship-it",
+      "---\ntitle: Ship It\ntype: decision\n---\n[[people/bob]] shipped.",
+    );
+    await graph.addLink("decisions/ship-it", "people/bob", "mentions");
     await behavior.upsertContribution({
       person_slug: "people/bob",
       msg_count: 50,
@@ -190,6 +196,83 @@ describe("profile/profile-synth synthesizeProfiles", () => {
     const count2 = await synthesizeProfiles(stores(), llm, cfg());
     expect(llm.chat).toHaveBeenCalledTimes(1);
     expect(count2).toBe(0);
+  });
+
+  it("drops invalid dimensions and hallucinated evidence_refs", async () => {
+    await pages.putPage("people/frank", "---\ntitle: Frank\ntype: person\n---\nFrank.");
+    // Real evidence the LLM is allowed to cite (a backlink from a signal page).
+    await pages.putPage(
+      "decisions/real-call",
+      "---\ntitle: Real Call\ntype: decision\n---\n[[people/frank]] decided.",
+    );
+    await graph.addLink("decisions/real-call", "people/frank", "mentions");
+    await behavior.upsertContribution({
+      person_slug: "people/frank",
+      msg_count: 50,
+      sum_msg_chars: 500,
+      initiated_count: 20,
+      reply_count: 10,
+      resp_latency_n: 10,
+      resp_latency_sum_s: 600,
+      hour_histogram: new Array(24).fill(0).map((_, i) => (i === 9 ? 30 : 0)),
+      at_count: 5,
+    });
+
+    const llmJson = JSON.stringify({
+      trait: {
+        dimensions: [
+          // valid axis + level, but one hallucinated evidence ref mixed in
+          {
+            axis: "D",
+            level: "high",
+            confidence: "high",
+            evidence_count: 2,
+            evidence_refs: ["decisions/real-call", "fake/slug"],
+            note: "直接",
+          },
+          // invalid axis → dropped
+          {
+            axis: "X",
+            level: "high",
+            confidence: "high",
+            evidence_count: 1,
+            evidence_refs: ["decisions/real-call"],
+            note: "bad axis",
+          },
+          // invalid level → dropped
+          {
+            axis: "I",
+            level: "extreme",
+            confidence: "high",
+            evidence_count: 1,
+            evidence_refs: ["decisions/real-call"],
+            note: "bad level",
+          },
+        ],
+        insufficient: false,
+      },
+      relation: {
+        tone: "合作顺畅",
+        concerns: [],
+        landmines: [],
+        evidence_refs: ["decisions/real-call", "fake/slug"],
+      },
+    });
+    const llm = { chat: vi.fn().mockResolvedValue(llmJson) };
+
+    await synthesizeProfiles(stores(), llm, cfg());
+
+    const page = await pages.getPage("people/frank");
+    const profile = page?.frontmatter.profile as ProfileObject;
+    // Only the valid D dimension survives.
+    expect(profile.trait.dimensions).toHaveLength(1);
+    const dim = profile.trait.dimensions[0];
+    expect(dim.axis).toBe("D");
+    // Hallucinated ref removed; only the grounded one remains; count recomputed.
+    expect(dim.evidence_refs).toEqual(["decisions/real-call"]);
+    expect(dim.evidence_count).toBe(1);
+    // Relation refs also filtered to the evidence set.
+    expect(profile.relation.evidence_refs).toEqual(["decisions/real-call"]);
   });
 
   it("respects deny list (skips denied person)", async () => {
