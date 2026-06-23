@@ -42,15 +42,6 @@ interface SearchEngineOpts {
   llm?: LLMProvider;
 }
 
-interface PageSearchRow {
-  slug: string;
-  title: string;
-  type: string;
-  snippet: string;
-  page_rank: number | string;
-  provenance: SourceRef | string | null;
-}
-
 interface ChunkSearchRow {
   slug: string;
   title: string;
@@ -232,54 +223,50 @@ export class SearchEngine {
 
   async search(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
     const limit = clampLimit(opts?.limit);
+    const terms = splitTerms(query);
+    if (terms.length === 0) return [];
 
-    const tsquery = query
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((w) => w.replace(/[^a-zA-Z0-9一-鿿]/g, ""))
-      .filter(Boolean)
-      .join(" & ");
-
-    if (!tsquery) return [];
-
-    const conditions: string[] = ["p.search_vector @@ to_tsquery('simple', $1)"];
-    const params: unknown[] = [tsquery];
-    let paramIndex = 2;
-
+    const params: unknown[] = [query.trim()]; // $1: similarity() ranking input
+    const trgm = buildTrgmConditions(terms, ["p.title", "p.compiled_truth"], params);
+    if (!trgm) return [];
+    const conditions: string[] = [trgm];
     addMemoryFilterConditions(conditions, params, opts, "p");
-    paramIndex = params.length + 1;
-
     params.push(limit);
 
-    const result = await this.pg.query<PageSearchRow>(
+    const result = await this.pg.query<{
+      slug: string;
+      title: string;
+      type: string;
+      page_rank: number | string;
+      body: string;
+      provenance: SourceRef | string | null;
+    }>(
       `SELECT
          p.slug,
          p.title,
          p.type,
-         ts_rank(p.search_vector, to_tsquery('simple', $1)) AS page_rank,
-         COALESCE(
-           ts_headline('simple', p.compiled_truth, to_tsquery('simple', $1),
-             'MaxWords=30, MinWords=15, StartSel=**, StopSel=**'),
-           ''
-         ) AS snippet,
+         GREATEST(similarity(p.title, $1), similarity(p.compiled_truth, $1)) AS page_rank,
+         p.compiled_truth AS body,
          ${sourceJson("p")} AS provenance
        FROM pages p
        WHERE ${conditions.join(" AND ")}
-       ORDER BY page_rank DESC
-       LIMIT $${paramIndex}`,
+       ORDER BY page_rank DESC, p.updated_at DESC, p.slug ASC
+       LIMIT $${params.length}`,
       params,
     );
 
-    return result.rows.map((row) => ({
-      slug: row.slug,
-      title: row.title,
-      type: row.type,
-      snippet: row.snippet,
-      score: Number(row.page_rank),
-      highlights: row.snippet ? [row.snippet] : [],
-      provenance: parseProvenance(row.provenance),
-    }));
+    return result.rows.map((row) => {
+      const snippet = buildSnippet(row.body, terms);
+      return {
+        slug: row.slug,
+        title: row.title,
+        type: row.type,
+        snippet,
+        score: Number(row.page_rank),
+        highlights: snippet ? [snippet] : [],
+        provenance: parseProvenance(row.provenance),
+      };
+    });
   }
 
   async query(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
