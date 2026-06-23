@@ -126,6 +126,42 @@ describe("profile/profile-synth synthesizeProfiles", () => {
     expect(profile.relation.tone).toBe("合作顺畅");
   });
 
+  it("does not bump the person page's updated_at when writing the profile", async () => {
+    await pages.putPage("people/dave", "---\ntitle: Dave\ntype: person\n---\nDave.");
+    await behavior.upsertContribution({
+      person_slug: "people/dave",
+      msg_count: 50,
+      sum_msg_chars: 500,
+      initiated_count: 20,
+      reply_count: 10,
+      resp_latency_n: 10,
+      resp_latency_sum_s: 600,
+      hour_histogram: new Array(24).fill(0).map((_, i) => (i === 9 ? 30 : 0)),
+      at_count: 5,
+    });
+
+    const before = await pages.getPage("people/dave");
+    const updatedBefore = before?.updated_at;
+    // Let wall-clock advance so a regression (putPage → updated_at = NOW()) is detectable.
+    await new Promise((r) => setTimeout(r, 20));
+
+    const llmJson = JSON.stringify({
+      trait: { dimensions: [], insufficient: false },
+      relation: { tone: "合作顺畅", concerns: [], landmines: [], evidence_refs: [] },
+    });
+    const llm = { chat: vi.fn().mockResolvedValue(llmJson) };
+
+    await synthesizeProfiles(stores(), llm, cfg());
+
+    const after = await pages.getPage("people/dave");
+    // profile written...
+    expect((after?.frontmatter.profile as ProfileObject | undefined)?.relation.tone).toBe(
+      "合作顺畅",
+    );
+    // ...but updated_at unchanged (recency not polluted)
+    expect(String(after?.updated_at)).toBe(String(updatedBefore));
+  });
+
   it("respects deny list (skips denied person)", async () => {
     await pages.putPage("people/carol", "---\ntitle: Carol\ntype: person\n---\nCarol.");
     await behavior.upsertContribution({

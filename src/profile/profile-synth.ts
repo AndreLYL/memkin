@@ -13,7 +13,6 @@
  */
 
 import { createHash } from "node:crypto";
-import { stringify as yamlStringify } from "yaml";
 import type { ProfileConfig } from "../core/config.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import type { GraphStore } from "../store/graph.js";
@@ -72,20 +71,11 @@ interface LLMTrait {
 }
 
 /**
- * Write the structured profile into the page's frontmatter.profile, preserving
- * the rest of the page (frontmatter + body).
+ * Write the structured profile into the page's frontmatter.profile WITHOUT
+ * bumping updated_at or re-chunking (nightly synthesis must not pollute recency).
  */
 async function writeProfile(pages: PageStore, slug: string, profile: ProfileObject): Promise<void> {
-  const page = await pages.getPage(slug);
-  if (!page) return;
-  const fm: Record<string, unknown> = {
-    title: page.title,
-    type: page.type,
-    ...page.frontmatter,
-    profile,
-  };
-  const content = `---\n${yamlStringify(fm).trimEnd()}\n---\n\n${page.compiled_truth}`;
-  await pages.putPage(slug, content);
+  await pages.patchFrontmatter(slug, { profile });
 }
 
 export async function synthesizeProfiles(
