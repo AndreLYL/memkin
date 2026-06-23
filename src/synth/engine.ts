@@ -82,6 +82,23 @@ export async function synthesize(
   // 3. retrieve candidates (best-chunk pooling enabled inside scope retrieval)
   const rawCandidates = await retrieve(scope, { poolByPage: true }, stores);
 
+  // Short-circuit: no candidates → never call the LLM (avoid hallucination + cost).
+  if (rawCandidates.length === 0) {
+    return {
+      intent: intentId,
+      answer: "(未找到相关记忆)",
+      sections: undefined,
+      citations: [],
+      gaps: [],
+      meta: {
+        model: deps.model ?? "unknown",
+        generated_at: new Date().toISOString(),
+        scope,
+        cached: false,
+      },
+    };
+  }
+
   // 4. optional hook: re-rank candidates
   let raw = rawCandidates;
   if (intent.sortCandidates) {

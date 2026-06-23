@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
-import { stringify as stringifyYaml } from "yaml";
 import type { StoreContext } from "../server/api.js";
-import type { Page } from "../store/pages.js";
 import type { AssembledCandidate, SynthesisResult, SynthScope } from "./types.js";
 
 /** Cache entry shape stored under frontmatter.synth[intent]. */
@@ -32,17 +30,6 @@ function cacheCarrierSlug(intent: string, scope: SynthScope): string | null {
     return `reports/${intent}/${scope.time.from}..${scope.time.to}`;
   }
   return null; // query scope → not cached (Spec 7 §九)
-}
-
-function serializePage(
-  title: string,
-  type: string,
-  frontmatter: Record<string, unknown>,
-  body: string,
-): string {
-  const { title: _t, type: _ty, ...rest } = frontmatter;
-  const fm: Record<string, unknown> = { title, type, ...rest };
-  return `---\n${stringifyYaml(fm)}---\n${body}`;
 }
 
 /**
@@ -90,22 +77,18 @@ export async function write(
     result,
   };
 
-  const existing: Page | null = await stores.pages.getPage(slug);
   const isReport = Boolean(scope.time);
+  const existing = await stores.pages.getPage(slug);
 
-  const title = existing?.title ?? (isReport ? `${intent} report ${slug}` : slug);
-  const type = existing?.type ?? (isReport ? "knowledge" : "entity");
-  const body = existing?.compiled_truth ?? "";
-
-  const frontmatter: Record<string, unknown> = { ...(existing?.frontmatter ?? {}) };
-  if (isReport) frontmatter.is_report = true;
-  const synth = (frontmatter.synth as Record<string, CacheEntry> | undefined) ?? {};
-  synth[intent] = entry;
-  frontmatter.synth = synth;
-
-  const content = serializePage(title, type, frontmatter, body);
-  const page = await stores.pages.putPage(slug, content);
-  if (page.compiled_truth.trim()) {
-    await stores.chunks.rechunk(page.id, page.compiled_truth);
+  if (!existing) {
+    // Entity scope: never create a phantom entity page just to cache a synthesis.
+    if (!isReport) return;
+    // Report (time) scope: create the dedicated report page once.
+    await stores.pages.putPage(
+      slug,
+      `---\ntitle: ${intent} report ${slug}\ntype: knowledge\nis_report: true\n---\n`,
+    );
   }
+
+  await stores.pages.setSynthCache(slug, intent, entry);
 }

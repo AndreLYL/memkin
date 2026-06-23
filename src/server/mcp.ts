@@ -12,7 +12,6 @@ import {
 } from "../core/person-identity.js";
 import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
-import { createMockProvider } from "../extractors/providers/mock.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
@@ -55,7 +54,7 @@ export interface McpServerOptions {
   exposeLegacyTools?: boolean;
   readOnly?: boolean;
   version?: string;
-  /** LLM provider for synthesis tools (synthesize/recall). Falls back to a mock when omitted. */
+  /** LLM provider for synthesis tools (synthesize/recall). When omitted, synthesize/recall return a structured INVALID_ARGUMENT error. */
   provider?: LLMProvider;
   /** Model id recorded in synthesis result meta. */
   synthModel?: string;
@@ -574,14 +573,25 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
 
     // ── Synthesis (Spec 7): synthesize + recall ──────────────────────────
     synthesize: async ({ intent, scope }: { intent: string; scope?: SynthScope }) => {
-      const provider =
-        options.provider ??
-        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
-      return synthesize(intent, scope ?? {}, {
-        stores: stores as unknown as SynthStoreContext,
-        provider,
-        model: options.synthModel,
-      });
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use synthesize/recall.",
+        );
+      }
+      try {
+        return await synthesize(intent, scope ?? {}, {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     },
     recall: async ({
       entity,
@@ -592,31 +602,53 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       query?: string;
       time?: { from: string; to: string };
     }) => {
-      const provider =
-        options.provider ??
-        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use synthesize/recall.",
+        );
+      }
       const scope: SynthScope = { entity, query, time, limit: 30 };
-      return synthesize("recall", scope, {
-        stores: stores as unknown as SynthStoreContext,
-        provider,
-        model: options.synthModel,
-      });
+      try {
+        return await synthesize("recall", scope, {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     },
     // ── Spec 8: prep_for_person — communication strategy for a person ─────
     prep_for_person: async ({ person, goal }: { person: string; goal?: string }) => {
-      const provider =
-        options.provider ??
-        createMockProvider(new Map([["", "(synthesis unavailable: no LLM provider configured)"]]));
-      return synthesize(
-        "person_strategy",
-        { entity: person },
-        {
-          stores: stores as unknown as SynthStoreContext,
-          provider,
-          model: options.synthModel,
-        },
-        { extra: goal ? { goal } : undefined },
-      );
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use prep_for_person.",
+        );
+      }
+      try {
+        return await synthesize(
+          "person_strategy",
+          { entity: person },
+          {
+            stores: stores as unknown as SynthStoreContext,
+            provider: options.provider,
+            model: options.synthModel,
+          },
+          { extra: goal ? { goal } : undefined },
+        );
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     },
     // ── Spec 9: daily_report — cross-channel daily report (7 sections) ─────
     daily_report: async ({ date }: { date?: string }) => {

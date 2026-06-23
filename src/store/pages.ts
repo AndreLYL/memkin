@@ -113,6 +113,21 @@ export class PageStore {
     return result.rows.length > 0 ? this.rowToPage(result.rows[0]) : null;
   }
 
+  /** Merge a synth cache entry into frontmatter.synth[intent] WITHOUT bumping updated_at or re-chunking. Returns false if the page does not exist. */
+  async setSynthCache(slug: string, intent: string, entry: unknown): Promise<boolean> {
+    const page = await this.getPage(slug);
+    if (!page) return false;
+    const fm = { ...(page.frontmatter as Record<string, unknown>) };
+    const synth = (fm.synth as Record<string, unknown> | undefined) ?? {};
+    synth[intent] = entry;
+    fm.synth = synth;
+    await this.pg.query("UPDATE pages SET frontmatter = $2 WHERE slug = $1", [
+      slug,
+      JSON.stringify(fm),
+    ]);
+    return true;
+  }
+
   async deletePage(slug: string): Promise<void> {
     await this.pg.query("DELETE FROM pages WHERE slug = $1", [slug]);
   }
