@@ -162,6 +162,36 @@ describe("profile/profile-synth synthesizeProfiles", () => {
     expect(String(after?.updated_at)).toBe(String(updatedBefore));
   });
 
+  it("skips re-synthesis (no LLM call) when evidence is unchanged", async () => {
+    await pages.putPage("people/erin", "---\ntitle: Erin\ntype: person\n---\nErin.");
+    await behavior.upsertContribution({
+      person_slug: "people/erin",
+      msg_count: 50,
+      sum_msg_chars: 500,
+      initiated_count: 20,
+      reply_count: 10,
+      resp_latency_n: 10,
+      resp_latency_sum_s: 600,
+      hour_histogram: new Array(24).fill(0).map((_, i) => (i === 9 ? 30 : 0)),
+      at_count: 5,
+    });
+
+    const llmJson = JSON.stringify({
+      trait: { dimensions: [], insufficient: false },
+      relation: { tone: "合作顺畅", concerns: [], landmines: [], evidence_refs: [] },
+    });
+    const llm = { chat: vi.fn().mockResolvedValue(llmJson) };
+
+    // First run synthesizes (1 LLM call).
+    await synthesizeProfiles(stores(), llm, cfg());
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+
+    // Second run with identical evidence → input_hash matches → skip, no LLM call.
+    const count2 = await synthesizeProfiles(stores(), llm, cfg());
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+    expect(count2).toBe(0);
+  });
+
   it("respects deny list (skips denied person)", async () => {
     await pages.putPage("people/carol", "---\ntitle: Carol\ntype: person\n---\nCarol.");
     await behavior.upsertContribution({
