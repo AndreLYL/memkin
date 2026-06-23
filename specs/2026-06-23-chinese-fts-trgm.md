@@ -37,7 +37,7 @@ Memoark 主打中国职场（飞书）用户，但中文全文检索（FTS）实
 
 1. ✅ `pg_trgm` 在 PGLite 正常 `CREATE EXTENSION`；`gin_trgm_ops` GIN 索引可建。
 2. ✅ **中文词法召回**用 `body ILIKE '%phrase%'`（精确子串）可靠命中：`认证中间件`、`中间件`、`回滚`、`中间`、`认证`、`数据库选型` 全部命中（此前全 0）。
-3. ✅ **GIN 索引在规模下被使用**：3000 行中文表上 `EXPLAIN` 显示 `Bitmap Index Scan on docs_body_trgm, Index Cond: (body ~~* '%中间件%')`，即便 `enable_seqscan=on`。中文 `ILIKE` 子串是**索引加速**的，不是 seq scan。
+3. ⚠️ **GIN 索引可被使用，但 PGLite 规划器是否选它取决于数据/选择性**。早期 spike 在一张窄的单列表（3000 行、短文本）上 `EXPLAIN` 看到自然走 `Bitmap Index Scan`（`enable_seqscan=on` 也选索引）。但**实现期在真实 `pages` 宽表（~800–2000 行）上，规划器更偏好 Seq Scan**（索引代价高于 seq）——PGLite 内存态低 I/O 成本模型所致。因此索引使用守卫测试用 `SET enable_seqscan=off` 验证"索引存在且能服务 ILIKE 谓词"，而非"规划器自然选它"。**结论：trgm 索引是正确且可用的；在大库上中文 `ILIKE` 可能退化成 O(n) 顺扫——对本地优先、单用户、个人记忆规模（进程内嵌入式库）可接受**。若日后库规模显著增大，再单独评估（follow-up）。
 4. ✅ **无需重抽取 / 重嵌入**：trgm 索引直接建在现有文本列上，是一次迁移 + 查询改写，不动采集/提取管线。
 
 spike 暴露的两个注意点：
@@ -130,3 +130,14 @@ spike 暴露的两个注意点：
 - `query()` 混合检索对上述中文查询能召回并合理排序。
 - 全量测试通过；新增：中文召回（双路径）、保列回归、迁移幂等（真实数据 + 版本计数）、单/多词索引守卫、扩展装载 smoke。
 - 全新库与迁移后存量库结构一致；dev/npx 路径加载 `pg_trgm`（无需 tar），compiled/sidecar 路径 `pg_trgm.tar.gz` 已暂存并可 `CREATE EXTENSION`。
+
+## 9. 已知限制与后续（实现 + 终审后补）
+
+实现已完成并通过逐任务审查 + 全分支终审（ready-with-caveats），代码分支 7 个提交，全量测试 1341 通过 / 1 已知失败（FileAdapter 在 root 下的非 hermetic 测试，与本改动无关，main 上同样失败）/ 2 跳过。
+
+**已知限制：**
+- **索引规模行为**（见 §2.3）：PGLite 规划器在真实宽表上可能选 Seq Scan 而非 GIN trgm 索引；大库上中文 `ILIKE` 可能 O(n) 顺扫。对单用户本地规模可接受。
+
+**建议后续（不阻塞合入）：**
+- 加一条端到端"转义词往返"测试：含字面 `% _ \` 的查询经 `buildTrgmConditions` 应被当字面量处理（当前 `escapeIlikeTerm` 已单测，缺端到端覆盖）。
+- 去重 `ftsChunkSearch` 内联行类型与 `ChunkSearchRow` 接口（DRY，非缺陷）。
