@@ -75,6 +75,7 @@ describe("config.profile defaults", () => {
     const cfg = loadConfig(p);
     expect(cfg.profile.enabled).toBe(false);
     expect(cfg.profile.min_sample_size).toBe(20);
+    expect(cfg.profile.tz_offset_hours).toBe(8);
     expect(cfg.profile.allow).toEqual([]);
     expect(cfg.profile.deny).toEqual([]);
   });

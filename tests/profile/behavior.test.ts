@@ -71,6 +71,22 @@ describe("profile/behavior computeContribution (DM, direction-based)", () => {
     expect(c.at_count).toBe(1);
   });
 
+  it("places messages in local-hour buckets using tzOffsetHours (+8)", () => {
+    // 23:00 UTC + 8 = 07:00 next-day local hour bucket.
+    const b = block([
+      msg({
+        contact: "ou_other",
+        direction: "received",
+        content: "morning",
+        timestamp: "2026-06-20T23:00:00.000Z",
+      }),
+    ]);
+    const map = computeContribution(b, { resolveSender: resolve, tzOffsetHours: 8 });
+    const c = map.get("people/ou_other");
+    expect(c?.hour_histogram[7]).toBe(1);
+    expect(c?.hour_histogram[23]).toBe(0);
+  });
+
   it("self (sent) messages do not create a contribution for self", () => {
     const b = block([
       msg({

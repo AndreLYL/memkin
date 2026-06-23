@@ -55,6 +55,7 @@ export async function accumulateBehavior(
   const contributions = computeContribution(block, {
     resolveSender: (contact) => resolved.get(contact) ?? `people/${contact}`,
     isGroup: isGroupBlock(block),
+    tzOffsetHours: deps.config.tz_offset_hours,
   });
 
   for (const [slug, contribution] of contributions) {
