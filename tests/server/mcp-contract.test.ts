@@ -76,6 +76,8 @@ describe("MCP contract", () => {
       "get_page_context",
       "timeline_feed",
       "explore_graph",
+      "synthesize",
+      "recall",
       "put_page",
       "add_timeline_entry",
       "manage_links",

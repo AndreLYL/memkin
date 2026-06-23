@@ -11,7 +11,15 @@ export interface SearchResult {
   provenance?: SourceRef;
 }
 
-export type SearchFilterOpts = MemoryFilter;
+export type SearchFilterOpts = MemoryFilter & {
+  /**
+   * best-chunk-per-page pooling (Spec 7 §七). Default false.
+   * When false (default): same-page chunks accumulate (sum) RRF scores (unchanged behavior).
+   * When true: a page scores as its single strongest chunk (max RRF), so the best evidence surfaces.
+   * Only consulted by `query()`; `search()` ignores it.
+   */
+  poolByPage?: boolean;
+};
 
 interface SearchEngineOpts {
   embedText?: (text: string) => Promise<number[]>;
@@ -235,6 +243,7 @@ export class SearchEngine {
 
   async query(query: string, opts?: SearchFilterOpts): Promise<SearchResult[]> {
     const limit = clampLimit(opts?.limit);
+    const poolByPage = opts?.poolByPage ?? false;
     const [ftsResults, vectorResults] = await Promise.all([
       this.ftsChunkSearch(query, opts, candidateLimit(limit)),
       this.vectorSearch(query, opts, candidateLimit(limit)),
@@ -269,7 +278,10 @@ export class SearchEngine {
         const r = results[rank];
         const rrfScore = 1 / (RRF_K + rank + 1);
         const existing = scoreMap.get(r.slug);
-        const newScore = (existing?.score ?? 0) + rrfScore;
+        // best-chunk pooling: max of strongest single chunk; default: accumulate (sum).
+        const newScore = poolByPage
+          ? Math.max(existing?.score ?? 0, rrfScore)
+          : (existing?.score ?? 0) + rrfScore;
         if (!existing || newScore > existing.score) {
           scoreMap.set(r.slug, {
             slug: r.slug,
