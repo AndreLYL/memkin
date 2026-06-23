@@ -166,8 +166,27 @@ export async function synthesizeProfiles(
       continue; // non-JSON → skip
     }
 
+    // Validate LLM output against the schema and enforce evidence grounding:
+    // only dimensions with a valid axis/level survive, and every cited slug must
+    // exist in the gathered evidence set (drop hallucinated refs).
+    const evidenceSet = new Set(evidenceSlugs);
+    const rawDims = Array.isArray(parsed.trait?.dimensions) ? parsed.trait.dimensions : [];
+    const validDims = rawDims
+      .filter(
+        (d) =>
+          d &&
+          (["D", "I", "S", "C"] as const).includes(d.axis) &&
+          (["low", "medium", "high"] as const).includes(d.level),
+      )
+      .map((d) => {
+        const refs = Array.isArray(d.evidence_refs)
+          ? d.evidence_refs.filter((s) => evidenceSet.has(s))
+          : [];
+        return { ...d, evidence_refs: refs, evidence_count: refs.length };
+      });
+
     const trait: TraitLayer = {
-      dimensions: Array.isArray(parsed.trait?.dimensions) ? parsed.trait.dimensions : [],
+      dimensions: validDims,
       big_five: parsed.trait?.big_five,
       insufficient: parsed.trait?.insufficient === true,
     };
@@ -179,7 +198,7 @@ export async function synthesizeProfiles(
       concerns: Array.isArray(parsed.relation?.concerns) ? parsed.relation.concerns : [],
       landmines: Array.isArray(parsed.relation?.landmines) ? parsed.relation.landmines : [],
       evidence_refs: Array.isArray(parsed.relation?.evidence_refs)
-        ? parsed.relation.evidence_refs
+        ? parsed.relation.evidence_refs.filter((s) => evidenceSet.has(s))
         : [],
     };
 
