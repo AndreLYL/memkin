@@ -13,6 +13,7 @@ import {
   mapScoreDecision,
   type NoiseFilterVerdict,
 } from "../extractors/noise-filter.js";
+import { classifyPlaybook, extractPlaybookDraft } from "../extractors/playbook-extractor.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { createSignalExtractor } from "../extractors/signal-extractor.js";
 import { PrivacyProcessor } from "../processors/privacy.js";
@@ -277,6 +278,29 @@ export async function runPipeline(
           result.skippedBlocks++;
           result.skippedMessages.push(...block.messages);
           return;
+        }
+
+        // Spec 11 §五: playbook-aware pre-classify. If this block describes a
+        // troubleshooting procedure AND we can write pages, emit a `type=playbook`
+        // draft (confidence: inferred, tag draft) instead of the regular signal
+        // extraction. Other channels/blocks are untouched.
+        const blockText = block.messages.map((m) => m.content).join("\n");
+        if (opts.stores?.pages && opts.provider && classifyPlaybook(blockText)) {
+          try {
+            const slug = await extractPlaybookDraft(block, opts.provider, opts.stores.pages);
+            if (slug) {
+              process.stdout.write(` playbook draft → ${slug}\n`);
+              result.okBlocks++;
+              result.okMessages.push(...block.messages);
+              result.lastSuccessMessage = block.messages[block.messages.length - 1];
+              return;
+            }
+          } catch (err) {
+            result.warnings.push(
+              `Playbook draft extraction failed for block ${block.block_id}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            // Fall through to regular extraction on failure.
+          }
         }
 
         process.stdout.write(" extracting ...");

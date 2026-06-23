@@ -25,6 +25,7 @@ import type { TimelineStore } from "../store/timeline.js";
 import type { SynthScope } from "../synth/index.js";
 import { synthesize } from "../synth/index.js";
 import { dailyReportIntent } from "../synth/intents/daily-report.js";
+import { troubleshootIntent } from "../synth/intents/troubleshoot.js";
 import type { StoreContext as SynthStoreContext } from "./api.js";
 import { getSessionContext } from "./context.js";
 import { getEntityProfile, listSignalsByEntity } from "./entity.js";
@@ -672,6 +673,28 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
         );
       }
     },
+    // ── Spec 11: troubleshoot — one-shot playbook troubleshooting ──────────
+    troubleshoot: async ({ query }: { query: string }) => {
+      if (!options.provider) {
+        return structuredError(
+          "INVALID_ARGUMENT",
+          "No LLM provider configured for synthesis.",
+          "Configure an LLM provider (llm config) to use troubleshoot.",
+        );
+      }
+      try {
+        return await synthesize("troubleshoot", troubleshootIntent.buildScope({ query }), {
+          stores: stores as unknown as SynthStoreContext,
+          provider: options.provider,
+          model: options.synthModel,
+        });
+      } catch (e) {
+        return structuredError(
+          "INTERNAL_ERROR",
+          `synthesis failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    },
   };
 }
 
@@ -952,6 +975,23 @@ function registerPreferredTools(
       },
     },
     async (args) => text(await tools.daily_report(args)),
+  );
+
+  server.registerTool(
+    "troubleshoot",
+    {
+      title: "Troubleshoot (Playbook)",
+      description: description(
+        "troubleshoot",
+        "Walk through a troubleshooting playbook in one shot.\n\nWhen to use: '怎么排查 X' — pull the matching playbook pages, ordered along their `precedes` chain, into a step-by-step procedure with branch meanings ('命中 X → 含义/下一步').\nWhen NOT to use: general recall; use `recall`/`query`.\nReturns: a SynthesisResult with ordered steps + [n] citations + gaps.\nOn error: rephrase the symptom or save a playbook page first.",
+      ),
+      inputSchema: {
+        query: z
+          .string()
+          .describe("Symptom or problem to troubleshoot, for example `智驾无法激活`."),
+      },
+    },
+    async (args) => text(await tools.troubleshoot(args)),
   );
 
   if (!options.readOnly) {
