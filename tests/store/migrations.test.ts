@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { vector } from "@electric-sql/pglite/vector";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database, loadSchemaSql } from "../../src/store/database.js";
@@ -19,7 +20,7 @@ describe("migration runner", () => {
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("adds halflife_days column to pages", async () => {
@@ -46,7 +47,32 @@ describe("migration runner", () => {
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("migration 006 installs pg_trgm + trgm indexes and drops tsvector machinery", async () => {
+    const pg = db.pg;
+    // tsvector columns dropped
+    const cols = await pg.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_name IN ('pages','content_chunks') AND column_name = 'search_vector'`,
+    );
+    expect(cols.rows).toHaveLength(0);
+    // triggers + functions dropped
+    const trg = await pg.query<{ tgname: string }>(
+      `SELECT tgname FROM pg_trigger WHERE tgname IN ('trg_pages_search_vector','chunk_search_vector_trigger')`,
+    );
+    expect(trg.rows).toHaveLength(0);
+    // trgm indexes present
+    const idx = await pg.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE indexname IN ('idx_pages_title_trgm','idx_pages_compiled_truth_trgm','idx_chunks_chunk_text_trgm')`,
+    );
+    expect(idx.rows.map((r) => r.indexname).sort()).toEqual([
+      "idx_chunks_chunk_text_trgm",
+      "idx_pages_compiled_truth_trgm",
+      "idx_pages_title_trgm",
+    ]);
   });
 
   it("remaps discovery-preference pages to preference type (first migration run)", async () => {
@@ -55,7 +81,7 @@ describe("migration runner", () => {
     // under skip-gate semantics, rows inserted after the migration has already run
     // are the application write path's responsibility (it normalizes the type and
     // stamps halflife_days directly), not a re-run of this historical migration.
-    const freshPg = new PGlite({ extensions: { vector } });
+    const freshPg = new PGlite({ extensions: { vector, pg_trgm } });
     try {
       await freshPg.exec(loadSchemaSql());
 
@@ -83,7 +109,7 @@ describe("migration runner", () => {
     // the real-world scenario a backfill migration exists to handle: legacy rows
     // that existed *before* the migration first ran (not rows inserted afterward,
     // which the application write path stamps directly).
-    const freshPg = new PGlite({ extensions: { vector } });
+    const freshPg = new PGlite({ extensions: { vector, pg_trgm } });
     try {
       await freshPg.exec(loadSchemaSql());
 
@@ -137,7 +163,7 @@ describe("migration runner", () => {
   });
 
   it("backfills expires_at for existing hot pages with halflife_days", async () => {
-    const freshPg = new PGlite({ extensions: { vector } });
+    const freshPg = new PGlite({ extensions: { vector, pg_trgm } });
     try {
       await freshPg.exec(loadSchemaSql());
       // Insert legacy row that has halflife_days but no expires_at

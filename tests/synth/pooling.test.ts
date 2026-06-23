@@ -27,7 +27,7 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
     pageStore = new PageStore(db.pg);
     search = new SearchEngine(db.pg);
 
-    // Page B: one strong chunk (lots of matching terms → highest ts_rank → rank 0).
+    // Page B: one strong chunk (lots of matching terms → highest trgm similarity → rank 0).
     const b = await pageStore.putPage(
       "pages/strong-b",
       "---\ntitle: Strong B\ntype: note\n---\nplaceholder",
@@ -38,7 +38,7 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
       [b.id, "poolword poolword poolword poolword poolword strong evidence"],
     );
 
-    // Page A: several weak chunks (each matches once → lower ts_rank → ranks 1..N).
+    // Page A: several weak chunks (each matches once → lower trgm similarity → ranks 1..N).
     const a = await pageStore.putPage(
       "pages/weak-a",
       "---\ntitle: Weak A\ntype: note\n---\nplaceholder",

@@ -217,4 +217,23 @@ describe("SearchEngine — FTS", () => {
     expect(await search.search("clampword", { limit: 999 })).toHaveLength(50);
     expect(await search.query("clampword", { limit: 999 })).toHaveLength(50);
   });
+
+  it("search() recalls Chinese exact-substring queries", async () => {
+    const p1 = await pageStore.putPage(
+      "decisions/rollback",
+      "---\ntitle: 上线回滚开关\ntype: decision\n---\n上线回滚开关的设计决策",
+    );
+    await chunkStore.rechunk(p1.id, p1.compiled_truth);
+    const p2 = await pageStore.putPage(
+      "knowledge/mw",
+      "---\ntitle: 认证中间件\ntype: knowledge\n---\n认证中间件链路梳理",
+    );
+    await chunkStore.rechunk(p2.id, p2.compiled_truth);
+    expect((await search.search("回滚")).map((r) => r.slug)).toContain("decisions/rollback");
+    expect((await search.search("中间件")).map((r) => r.slug)).toContain("knowledge/mw");
+  });
+
+  it("search() returns [] for empty/whitespace query", async () => {
+    expect(await search.search("   ")).toEqual([]);
+  });
 });

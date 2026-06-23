@@ -86,12 +86,35 @@ CREATE TABLE IF NOT EXISTS person_behavior (
 );
 `;
 
+// Migration 006: Chinese FTS fix. Replace the tsvector('simple') lexical machinery with
+// pg_trgm. Chinese has no whitespace, so to_tsvector('simple') collapsed each run into one
+// giant lexeme and to_tsquery matched only exact whole-run strings — Chinese FTS was broken.
+// pg_trgm GIN + ILIKE substring gives correct CJK recall with no re-extraction. CREATE
+// EXTENSION must precede any gin_trgm_ops index.
+const M006_TRGM_FTS = `
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS idx_pages_title_trgm ON pages USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_pages_compiled_truth_trgm ON pages USING gin (compiled_truth gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_chunks_chunk_text_trgm ON content_chunks USING gin (chunk_text gin_trgm_ops);
+
+DROP TRIGGER IF EXISTS trg_pages_search_vector ON pages;
+DROP TRIGGER IF EXISTS chunk_search_vector_trigger ON content_chunks;
+DROP FUNCTION IF EXISTS update_page_search_vector();
+DROP FUNCTION IF EXISTS update_chunk_search_vector();
+DROP INDEX IF EXISTS idx_pages_search_vector;
+DROP INDEX IF EXISTS idx_chunks_search_vector;
+ALTER TABLE pages DROP COLUMN IF EXISTS search_vector;
+ALTER TABLE content_chunks DROP COLUMN IF EXISTS search_vector;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
   { version: 3, name: "lifecycle_tier", sql: M003_LIFECYCLE_TIER },
   { version: 4, name: "identity_cache_nullable", sql: M004_IDENTITY_CACHE_NULLABLE },
   { version: 5, name: "person_behavior", sql: M005_PERSON_BEHAVIOR },
+  { version: 6, name: "trgm_fts", sql: M006_TRGM_FTS },
 ];
 
 export async function runMigrations(pg: PGlite): Promise<void> {

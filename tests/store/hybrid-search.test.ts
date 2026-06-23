@@ -90,4 +90,15 @@ describe("SearchEngine — hybrid query", () => {
     const results = await search.query("xyzzyzzyx12345");
     expect(Array.isArray(results)).toBe(true);
   });
+
+  it("query() recalls Chinese pages via trigram FTS leg (no embeddings)", async () => {
+    const chineseSearch = new SearchEngine(db.pg); // no embedText -> vector leg empty
+    const p = await pageStore.putPage(
+      "knowledge/auth-mw",
+      "---\ntitle: 认证中间件重构与上线回滚决策\ntype: knowledge\n---\n认证中间件重构与上线回滚决策",
+    );
+    await chunkStore.rechunk(p.id, p.compiled_truth);
+    const res = await chineseSearch.query("中间件");
+    expect(res.map((r) => r.slug)).toContain("knowledge/auth-mw");
+  });
 });

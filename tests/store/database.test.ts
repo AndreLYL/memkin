@@ -30,16 +30,25 @@ describe("Database", () => {
     expect(ext.rows).toHaveLength(1);
   });
 
-  it("has FTS triggers installed", async () => {
+  it("has pg_trgm extension and GIN indexes installed (search_vector + triggers dropped in migration 006)", async () => {
     db = await Database.create();
 
-    await db.pg.query(`
-      INSERT INTO pages (slug, type, title, compiled_truth)
-      VALUES ('test-page', 'test', 'Hello World', 'some content here')
-    `);
-    const result = await db.pg.query(
-      "SELECT search_vector IS NOT NULL AS has_sv FROM pages WHERE slug = 'test-page'",
+    // Migration 006 dropped the tsvector search_vector column and its triggers;
+    // full-text search now uses pg_trgm GIN indexes via ILIKE.
+    const ext = await db.pg.query<{ extname: string }>(
+      "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'",
     );
-    expect(result.rows[0].has_sv).toBe(true);
+    expect(ext.rows).toHaveLength(1);
+
+    const idx = await db.pg.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE tablename = 'pages'
+         AND indexname IN ('idx_pages_title_trgm', 'idx_pages_compiled_truth_trgm')
+       ORDER BY indexname`,
+    );
+    expect(idx.rows.map((r) => r.indexname)).toEqual([
+      "idx_pages_compiled_truth_trgm",
+      "idx_pages_title_trgm",
+    ]);
   });
 });

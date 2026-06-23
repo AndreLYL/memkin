@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE TABLE IF NOT EXISTS pages (
   id              SERIAL PRIMARY KEY,
@@ -12,12 +13,12 @@ CREATE TABLE IF NOT EXISTS pages (
   tier            TEXT NOT NULL DEFAULT 'hot',
   expires_at      TIMESTAMPTZ,
   consolidated_into INTEGER REFERENCES pages(id),
-  search_vector   TSVECTOR,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_pages_search_vector ON pages USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_pages_title_trgm ON pages USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_pages_compiled_truth_trgm ON pages USING gin (compiled_truth gin_trgm_ops);
 -- idx_pages_tier and idx_pages_expires_at are created by M003 lifecycle_tier migration,
 -- which is the only place that guarantees the tier/expires_at columns exist on upgrade.
 
@@ -32,14 +33,12 @@ CREATE TABLE IF NOT EXISTS content_chunks (
   embedding       vector(__EMBEDDING_DIM__),
   model           TEXT NOT NULL DEFAULT 'text-embedding-3-large',
   embedded_at     TIMESTAMPTZ,
-  search_vector   TSVECTOR,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON content_chunks
   USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX IF NOT EXISTS idx_chunks_search_vector ON content_chunks
-  USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_chunks_chunk_text_trgm ON content_chunks USING gin (chunk_text gin_trgm_ops);
 
 CREATE TABLE IF NOT EXISTS links (
   id              SERIAL PRIMARY KEY,
@@ -78,44 +77,6 @@ CREATE TABLE IF NOT EXISTS timeline_entries (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(page_id, date, summary)
 );
-
--- FTS Triggers
-CREATE OR REPLACE FUNCTION update_page_search_vector() RETURNS trigger AS $$
-BEGIN
-  NEW.search_vector :=
-    setweight(to_tsvector('simple', coalesce(NEW.title, '')), 'A') ||
-    setweight(to_tsvector('simple', coalesce(NEW.compiled_truth, '')), 'B');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_trigger WHERE tgname = 'trg_pages_search_vector'
-  ) THEN
-    CREATE TRIGGER trg_pages_search_vector
-      BEFORE INSERT OR UPDATE ON pages
-      FOR EACH ROW EXECUTE FUNCTION update_page_search_vector();
-  END IF;
-END $$;
-
-CREATE OR REPLACE FUNCTION update_chunk_search_vector() RETURNS trigger AS $$
-BEGIN
-  NEW.search_vector :=
-    setweight(to_tsvector('simple', coalesce(NEW.chunk_text, '')), 'B');
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_trigger WHERE tgname = 'chunk_search_vector_trigger'
-  ) THEN
-    CREATE TRIGGER chunk_search_vector_trigger
-      BEFORE INSERT OR UPDATE OF chunk_text ON content_chunks
-      FOR EACH ROW EXECUTE FUNCTION update_chunk_search_vector();
-  END IF;
-END $$;
 
 -- Identity cache for person slug canonicalization
 -- identity_cache doubles as the person slug canonicalization store via

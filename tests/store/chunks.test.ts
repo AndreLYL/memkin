@@ -92,13 +92,16 @@ describe("ChunkStore", () => {
     expect(stale).toHaveLength(1);
   });
 
-  it("chunk search_vector is auto-populated by trigger", async () => {
+  it("chunk text is stored and searchable via trgm ILIKE (search_vector dropped in migration 006)", async () => {
     const page = await pages.putPage("test/fts", "---\ntitle: F\ntype: test\n---\nBody.");
     await chunks.rechunk(page.id, "Hello world full text search.");
-    const result = await db.pg.query(
-      "SELECT search_vector IS NOT NULL AS has_sv FROM content_chunks WHERE page_id = $1",
+    // Migration 006 dropped search_vector column and tsvector triggers; chunked text
+    // is now retrieved via trgm ILIKE on chunk_text.
+    const result = await db.pg.query<{ chunk_text: string }>(
+      "SELECT chunk_text FROM content_chunks WHERE page_id = $1",
       [page.id],
     );
-    expect(result.rows[0].has_sv).toBe(true);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].chunk_text).toBe("Hello world full text search.");
   });
 });
