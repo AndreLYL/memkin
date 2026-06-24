@@ -12,7 +12,10 @@ describe("runUserPrompt", () => {
       { slug: "c", score: 0.7, snippet: "gamma" },
       { slug: "d", score: 0.95, snippet: "delta" },
     ];
-    const out = (await runUserPrompt({ prompt: "what about a?" }, { recall: async () => hits })) as HookOutput;
+    const out = (await runUserPrompt(
+      { prompt: "what about a?" },
+      { recall: async () => hits },
+    )) as HookOutput;
     const ctx = out.hookSpecificOutput.additionalContext;
     expect(out.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
     expect(ctx).toContain("[a]");
@@ -28,7 +31,9 @@ describe("runUserPrompt", () => {
   });
 
   it("truncates over-budget injections", async () => {
-    const big: ScoredHit[] = [{ slug: "big", score: 0.9, snippet: "x".repeat(INJECT_MAX_CHARS * 2) }];
+    const big: ScoredHit[] = [
+      { slug: "big", score: 0.9, snippet: "x".repeat(INJECT_MAX_CHARS * 2) },
+    ];
     const out = (await runUserPrompt({ prompt: "p" }, { recall: async () => big })) as HookOutput;
     expect(out.hookSpecificOutput.additionalContext.length).toBeLessThanOrEqual(INJECT_MAX_CHARS);
   });
