@@ -448,6 +448,35 @@ memoark serve --mcp-http
 
 ### 接入你的 Agent（MCP）
 
+**一键接入（推荐）**：`memoark install` 会自动把 MCP 配置 + 一份极简「记忆指令」写进你的 AI 客户端（**默认全局**，对所有项目生效），支持 **Claude Code · Claude Desktop · Cursor · Codex · Windsurf**：
+
+```bash
+memoark install                      # 探测本机已装的客户端并接入
+memoark install --agent claude-code  # 指定单个客户端
+memoark install --dry-run            # 先预览会改哪些文件，不写盘
+memoark uninstall                    # 干净移除（幂等）
+```
+
+装完重开客户端即可——之后你问「X 上周跟我聊了啥」「这个项目推进到哪了」，Agent 会按注入的「记忆指令」**主动来 Memoark 检索**（cheap-first：先 `search` 零成本关键词，不够再 `query`/`recall`），而不是凭空作答。
+
+> Claude Desktop 没有规则文件，靠 MCP server 的 `instructions` 字段兜底。也可按下面的方式手动配置。
+
+**Claude Code 自动召回（可选 · hooks）**：在 Claude Code 上更进一步，让记忆「零感知」自动到手：
+
+```bash
+memoark hooks install               # SessionStart + UserPromptSubmit 读侧 hook（默认开）
+memoark hooks install --write-back  # 额外开启会话结束自动写回（opt-in）
+memoark hooks uninstall             # 移除
+```
+
+- **SessionStart**：开新会话自动注入「近期项目 / 决策 / 待办 / 关键人」摘要（常驻 core）。
+- **UserPromptSubmit**：每条提问前用**零成本 FTS** 试召回，命中才注入（限 3 条、≤3000 字符、追加在用户消息后以保 prompt 缓存）。
+- **SessionEnd**（`--write-back`，默认关）：会话结束**异步增量**抽取写回，记忆自生长。
+
+> 读侧默认开（本地、便宜）；写回需显式 `--write-back`（成本 + 隐私，逐项 opt-in）。其它客户端没有生命周期 hook，靠上面的指令层让模型自主召回。
+
+**让 Agent 自己接入**：对能读取外链的 Agent，直接说「按 [`MEMOARK_FOR_AGENTS.md`](MEMOARK_FOR_AGENTS.md) 把我接入 Memoark」，它会自跑上面的命令完成接入并自检。**OpenClaw / Hermes** 用 `memoark install --agent hermes`（写 `config.yaml` 的 `mcp_servers` + 铺 `memoark` skill，会话里 `/reload-mcp` 生效）；也可 `memoark skill scaffold --dir ~/.hermes/skills` 单独铺 skill。
+
 Memoark 提供两种 MCP 接入方式，按场景选：
 
 - **stdio（`--mcp`）** —— 本地直连，Agent 把 `memoark` 作为子进程拉起，零网络配置，单机单客户端首选。

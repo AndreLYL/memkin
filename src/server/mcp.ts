@@ -13,6 +13,7 @@ import {
 import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
+import { DIRECTIVE_L2 } from "../install/directive.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
@@ -1703,7 +1704,10 @@ export function createMcpServer(
   options: McpServerOptions = {},
   ingestDeps?: IngestDeps,
 ): McpServer {
-  const server = new McpServer({ name: "memoark", version: options.version ?? packageVersion });
+  const server = new McpServer(
+    { name: "memoark", version: options.version ?? packageVersion },
+    { instructions: DIRECTIVE_L2 },
+  );
   const tools = createMcpToolHandlers(stores, {
     exposeLegacyTools: options.exposeLegacyTools ?? false,
     readOnly: options.readOnly ?? false,

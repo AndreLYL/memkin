@@ -370,6 +370,35 @@ memoark serve --mcp-http
 
 ### Connect Your Agent (MCP)
 
+**One command (recommended)**: `memoark install` writes the MCP config plus a tiny memory directive into your AI client (**global by default**, across all projects). Supports **Claude Code · Claude Desktop · Cursor · Codex · Windsurf**:
+
+```bash
+memoark install                      # detect installed clients and wire them up
+memoark install --agent claude-code  # target a single client
+memoark install --dry-run            # preview file changes, write nothing
+memoark uninstall                    # clean removal (idempotent)
+```
+
+Reopen the client and you're set — ask "what did X tell me last week?" or "where is this project at?" and the agent will **proactively query Memoark** per the injected directive (cheap-first: `search` keyword lookup at zero cost, escalating to `query`/`recall` only if thin) instead of guessing.
+
+> Claude Desktop has no rules file, so it relies on the MCP server's `instructions` field. You can also configure things manually below.
+
+**Automatic recall on Claude Code (optional · hooks)**: go further on Claude Code so memory arrives with zero effort:
+
+```bash
+memoark hooks install               # SessionStart + UserPromptSubmit read hooks (on by default)
+memoark hooks install --write-back  # also enable end-of-session auto write-back (opt-in)
+memoark hooks uninstall             # remove
+```
+
+- **SessionStart**: injects an "active projects / decisions / open tasks / key people" digest at the start of each session (the always-on core).
+- **UserPromptSubmit**: a **zero-cost FTS** probe before each prompt; injects only on a hit (≤3 items, ≤3000 chars, appended after the user message to preserve prompt cache).
+- **SessionEnd** (`--write-back`, off by default): asynchronous incremental extraction back into memory, so it compounds.
+
+> Read hooks default on (local, cheap); write-back is explicit `--write-back` (cost + privacy, opt-in). Other clients have no lifecycle hooks and rely on the instruction layer above for model-initiated recall.
+
+**Let the agent install itself**: for agents that can read a URL, just say "onboard me to Memoark following [`MEMOARK_FOR_AGENTS.md`](MEMOARK_FOR_AGENTS.md)" and it runs the commands above and self-checks. For **OpenClaw / Hermes**, use `memoark install --agent hermes` (writes `mcp_servers` into `config.yaml` + drops the `memoark` skill; run `/reload-mcp` in-session to apply); or scaffold the skill alone with `memoark skill scaffold --dir ~/.hermes/skills`.
+
 Memoark offers two MCP transports — pick by scenario:
 
 - **stdio (`--mcp`)** — local direct connect; the agent spawns `memoark` as a subprocess. Zero network setup; best for a single client on one machine.
