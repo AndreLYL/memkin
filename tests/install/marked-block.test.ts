@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DIRECTIVE_L1, MEMOARK_BLOCK_END, MEMOARK_BLOCK_START } from "../../src/install/directive.js";
+import {
+  DIRECTIVE_L1,
+  MEMOARK_BLOCK_END,
+  MEMOARK_BLOCK_START,
+} from "../../src/install/directive.js";
 import { hasBlock, removeBlock, upsertBlock } from "../../src/install/marked-block.js";
 
 function countBlocks(text: string): number {

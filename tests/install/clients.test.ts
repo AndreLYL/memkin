@@ -106,9 +106,7 @@ describe("client adapters", () => {
     expect(windsurf.detect(home, "linux")).toBe(true);
     const ops = windsurf.plan(ctx());
     expect(ops[0].path).toBe(join(home, ".codeium", "windsurf", "mcp_config.json"));
-    expect(ops[1].path).toBe(
-      join(home, ".codeium", "windsurf", "memories", "global_rules.md"),
-    );
+    expect(ops[1].path).toBe(join(home, ".codeium", "windsurf", "memories", "global_rules.md"));
   });
 
   it("remove action omits entry/content", () => {

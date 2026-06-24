@@ -40,6 +40,7 @@ import { ReloadManager } from "./daemon/reload-manager.js";
 import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
+import { type PlannedClient, runInstall, runUninstall } from "./install/index.js";
 import { createApiApp } from "./server/api.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
@@ -793,6 +794,56 @@ program
   .action((options) => runStart(options));
 
 program.action(() => runStart({}));
+
+function reportPlan(planned: PlannedClient[], verb: string, dryRun: boolean): void {
+  if (planned.length === 0) {
+    console.log(
+      "No AI agents detected. Specify one with --agent <id> (claude-code, claude-desktop, cursor, codex, windsurf).",
+    );
+    return;
+  }
+  for (const client of planned) {
+    console.log(`\n${verb} → ${client.displayName}:`);
+    for (const op of client.ops) {
+      const where = "path" in op ? op.path : `cli: ${op.args.join(" ")}`;
+      console.log(`  - ${op.kind} ${op.action} ${where}`);
+    }
+  }
+  if (!dryRun) console.log("\nRestart / reopen your agent for changes to take effect.");
+}
+
+program
+  .command("install")
+  .description("Register Memoark (MCP config + memory directive) into your AI agents")
+  .option(
+    "--agent <ids...>",
+    "Target client(s): claude-code, claude-desktop, cursor, codex, windsurf (default: all detected)",
+  )
+  .option("--project", "Install into the current project instead of globally")
+  .option("--http", "Register the Streamable HTTP transport instead of stdio")
+  .option("--dry-run", "Preview changes without writing")
+  .action((options) => {
+    const scope = options.project ? "project" : "global";
+    const planned = runInstall({
+      agent: options.agent,
+      scope,
+      http: !!options.http,
+      dryRun: !!options.dryRun,
+    });
+    reportPlan(planned, options.dryRun ? "Would install" : "Installed", !!options.dryRun);
+  });
+
+program
+  .command("uninstall")
+  .description("Remove Memoark MCP config + memory directive from your AI agents")
+  .option("--agent <ids...>", "Target client(s) (default: all detected)")
+  .option("--project", "Operate on the current project instead of globally")
+  .option("--dry-run", "Preview changes without writing")
+  .action((options) => {
+    const scope = options.project ? "project" : "global";
+    const planned = runUninstall({ agent: options.agent, scope, dryRun: !!options.dryRun });
+    reportPlan(planned, options.dryRun ? "Would remove" : "Removed", !!options.dryRun);
+  });
 
 program
   .command("search <query>")
