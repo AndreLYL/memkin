@@ -397,6 +397,8 @@ memoark hooks uninstall             # remove
 
 > Read hooks default on (local, cheap); write-back is explicit `--write-back` (cost + privacy, opt-in). Other clients have no lifecycle hooks and rely on the instruction layer above for model-initiated recall.
 
+**Let the agent install itself**: for agents that can read a URL, just say "onboard me to Memoark following [`MEMOARK_FOR_AGENTS.md`](MEMOARK_FOR_AGENTS.md)" and it runs the commands above and self-checks. For **OpenClaw / Hermes**, use `memoark install --agent hermes` (writes `mcp_servers` into `config.yaml` + drops the `memoark` skill; run `/reload-mcp` in-session to apply); or scaffold the skill alone with `memoark skill scaffold --dir ~/.hermes/skills`.
+
 Memoark offers two MCP transports — pick by scenario:
 
 - **stdio (`--mcp`)** — local direct connect; the agent spawns `memoark` as a subprocess. Zero network setup; best for a single client on one machine.

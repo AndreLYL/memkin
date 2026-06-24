@@ -475,6 +475,8 @@ memoark hooks uninstall             # 移除
 
 > 读侧默认开（本地、便宜）；写回需显式 `--write-back`（成本 + 隐私，逐项 opt-in）。其它客户端没有生命周期 hook，靠上面的指令层让模型自主召回。
 
+**让 Agent 自己接入**：对能读取外链的 Agent，直接说「按 [`MEMOARK_FOR_AGENTS.md`](MEMOARK_FOR_AGENTS.md) 把我接入 Memoark」，它会自跑上面的命令完成接入并自检。**OpenClaw / Hermes** 用 `memoark install --agent hermes`（写 `config.yaml` 的 `mcp_servers` + 铺 `memoark` skill，会话里 `/reload-mcp` 生效）；也可 `memoark skill scaffold --dir ~/.hermes/skills` 单独铺 skill。
+
 Memoark 提供两种 MCP 接入方式，按场景选：
 
 - **stdio（`--mcp`）** —— 本地直连，Agent 把 `memoark` 作为子进程拉起，零网络配置，单机单客户端首选。
