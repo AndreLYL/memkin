@@ -370,6 +370,19 @@ memoark serve --mcp-http
 
 ### Connect Your Agent (MCP)
 
+**One command (recommended)**: `memoark install` writes the MCP config plus a tiny memory directive into your AI client (**global by default**, across all projects). Supports **Claude Code · Claude Desktop · Cursor · Codex · Windsurf**:
+
+```bash
+memoark install                      # detect installed clients and wire them up
+memoark install --agent claude-code  # target a single client
+memoark install --dry-run            # preview file changes, write nothing
+memoark uninstall                    # clean removal (idempotent)
+```
+
+Reopen the client and you're set — ask "what did X tell me last week?" or "where is this project at?" and the agent will **proactively query Memoark** per the injected directive (cheap-first: `search` keyword lookup at zero cost, escalating to `query`/`recall` only if thin) instead of guessing.
+
+> Claude Desktop has no rules file, so it relies on the MCP server's `instructions` field. You can also configure things manually below.
+
 Memoark offers two MCP transports — pick by scenario:
 
 - **stdio (`--mcp`)** — local direct connect; the agent spawns `memoark` as a subprocess. Zero network setup; best for a single client on one machine.
