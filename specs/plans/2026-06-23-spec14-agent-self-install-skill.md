@@ -4,7 +4,7 @@
 
 > **分支须知**：实现分支 **`claude/agent-auto-use-specs`**（堆叠在 Spec 12/13 上；复用 `src/install` 框架与 adapter 接口、指令真源）。
 
-> **系列说明**：四件套第三件。依赖 **Spec 12 (A)** 的 `src/install` 框架与 `ClientAdapter` 接口。把"自动被用"从「用户手动 `install`」推进到「**Agent 自己装**」，并补齐 **OpenClaw/Hermes** 这个非标准范式宿主。
+> **系列说明**：Auto-Use 系列（A/B/C）第三件、收尾件。依赖 **Spec 12 (A)** 的 `src/install` 框架与 `ClientAdapter` 接口。把"自动被用"从「用户手动 `install`」推进到「**Agent 自己装**」，并补齐 **OpenClaw/Hermes** 这个非标准范式宿主。（原计划的 Spec 15「Recipe 连接器体系」经评估不做。）
 
 **Goal:** 让任意 Agent 能**自己**把用户接上 Memoark，并提供 L3 完整能力说明：
 1. **`MEMOARK_FOR_AGENTS.md`** —— 给 Agent 读的自安装剧本（仿 GBrain `INSTALL_FOR_AGENTS.md`）。用户对任意 Agent 说「按这个链接把我接上 Memoark」，Agent 自跑 Spec 12/13 命令。
@@ -86,4 +86,4 @@
 ## 非目标
 - OpenClaw/Hermes 的硬 plugin lifecycle hook（「每条消息先过脑」用 skill 约定表达）→ 未来扩展。
 - 多 skill / RESOLVER 式 skillpack → 已决定只做单一 skill。
-- Recipe 数据源连接器 → **Spec 15 (D)**。
+- Recipe / 插件化数据源连接器 → **经评估决定不做**（Phase 6 新源走一方 `Collector`）。
