@@ -5,7 +5,6 @@ import { z } from "zod";
 // (a runtime require("../../package.json") is not resolvable inside $bunfs).
 import pkg from "../../package.json";
 import { type IngestDeps, ingestFeishuDoc } from "../collectors/feishu/docs/ingest.js";
-import { DIRECTIVE_L2 } from "../install/directive.js";
 import {
   type HandleKind,
   type HandleStrength,
@@ -14,6 +13,7 @@ import {
 import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
+import { DIRECTIVE_L2 } from "../install/directive.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
