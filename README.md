@@ -461,6 +461,20 @@ memoark uninstall                    # 干净移除（幂等）
 
 > Claude Desktop 没有规则文件，靠 MCP server 的 `instructions` 字段兜底。也可按下面的方式手动配置。
 
+**Claude Code 自动召回（可选 · hooks）**：在 Claude Code 上更进一步，让记忆「零感知」自动到手：
+
+```bash
+memoark hooks install               # SessionStart + UserPromptSubmit 读侧 hook（默认开）
+memoark hooks install --write-back  # 额外开启会话结束自动写回（opt-in）
+memoark hooks uninstall             # 移除
+```
+
+- **SessionStart**：开新会话自动注入「近期项目 / 决策 / 待办 / 关键人」摘要（常驻 core）。
+- **UserPromptSubmit**：每条提问前用**零成本 FTS** 试召回，命中才注入（限 3 条、≤3000 字符、追加在用户消息后以保 prompt 缓存）。
+- **SessionEnd**（`--write-back`，默认关）：会话结束**异步增量**抽取写回，记忆自生长。
+
+> 读侧默认开（本地、便宜）；写回需显式 `--write-back`（成本 + 隐私，逐项 opt-in）。其它客户端没有生命周期 hook，靠上面的指令层让模型自主召回。
+
 Memoark 提供两种 MCP 接入方式，按场景选：
 
 - **stdio（`--mcp`）** —— 本地直连，Agent 把 `memoark` 作为子进程拉起，零网络配置，单机单客户端首选。
