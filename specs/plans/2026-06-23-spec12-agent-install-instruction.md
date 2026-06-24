@@ -4,7 +4,8 @@
 
 > **分支须知**：plan 写在当前分支；实现分支建议 **`claude/spec12-agent-install`**，从 `docs/specs-and-research` 切出（与 Spec 7–11 同源，无堆叠依赖）。
 
-> **系列说明**：本 spec 是「让 Memoark 被 AI 自动使用」四件套的第一件（地基）。后续：Spec 13 (B) = Claude Code Hook 包；Spec 14 (C) = Agent 自安装 + skill（含 OpenClaw/Hermes）；Spec 15 (D) = Recipe 连接器体系。B/C 都建在 A 之上。
+> **系列说明**：本 spec 是「让 Memoark 被 AI 自动使用」三件套（A/B/C）的第一件（地基）。后续：Spec 13 (B) = Claude Code Hook 包；Spec 14 (C) = Agent 自安装 + skill（含 OpenClaw/Hermes）。B/C 都建在 A 之上。
+> （原 P3「Recipe 连接器体系」经评估**决定不做**：Memoark 已有 `Collector` 接口 + pipeline，且只 4 个一方源；插件化是「源多 + 外部贡献者」时才回本的抽象，属过早设计。Phase 6 新源直接写成一方 collector。）
 
 **Goal:** 一条命令 `memoark install` 让标准 MCP 客户端（Claude Code / Claude Desktop / Cursor / Codex / Windsurf）**全局**接入 Memoark，并写入一份**极简「记忆指令」**，使 Agent 在该用记忆时**可靠地主动去查**——直接满足两个核心用例：「这个项目推进到哪了」「X 上周跟我聊了啥」要落到 Memoark 检索，而非凭代码/空想作答。
 
@@ -162,5 +163,5 @@ More tools (graph traversal, person profile, daily report, troubleshoot) are dis
 ## 非目标（明确划走，避免范围膨胀）
 - 确定性 hook 自动召回 / 自动写回 → **Spec 13 (B)**。
 - OpenClaw/Hermes 自安装 + skill、`MEMOARK_FOR_AGENTS.md` → **Spec 14 (C)**。
-- Recipe 数据源连接器 → **Spec 15 (D)**。
+- Recipe / 插件化数据源连接器 → **经评估决定不做**（Phase 6 新源走一方 `Collector`；插件化留到真有外部贡献者需求再议）。
 - `recall_aggressiveness` 配置旋钮 → 已决定不做。
