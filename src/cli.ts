@@ -40,8 +40,12 @@ import { ReloadManager } from "./daemon/reload-manager.js";
 import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { VERSION } from "./embedded-assets.generated.js";
 import { createLLMProvider, createMockProvider } from "./extractors/providers/index.js";
+import { hooksInstall, hooksUninstall } from "./hooks/install.js";
+import type { HookInput } from "./hooks/output.js";
+import { runHookEvent } from "./hooks/run-event.js";
 import { type PlannedClient, runInstall, runUninstall } from "./install/index.js";
 import { createApiApp } from "./server/api.js";
+import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
 import { openBrowser } from "./server/open-browser.js";
@@ -843,6 +847,87 @@ program
     const scope = options.project ? "project" : "global";
     const planned = runUninstall({ agent: options.agent, scope, dryRun: !!options.dryRun });
     reportPlan(planned, options.dryRun ? "Would remove" : "Removed", !!options.dryRun);
+  });
+
+const hooksCmd = program
+  .command("hooks")
+  .description("Manage Claude Code hooks for automatic recall / write-back");
+
+hooksCmd
+  .command("install")
+  .description("Install SessionStart + UserPromptSubmit (read) hooks; write-back is opt-in")
+  .option("--write-back", "Also install the SessionEnd auto write-back hook (opt-in)")
+  .option("--project", "Write to ./.claude/settings.json instead of the global one")
+  .option("--dry-run", "Preview without writing")
+  .action((options) => {
+    const res = hooksInstall({
+      writeBack: !!options.writeBack,
+      project: !!options.project,
+      dryRun: !!options.dryRun,
+    });
+    console.log(
+      `${options.dryRun ? "Would install" : "Installed"} hooks [${res.events.join(", ")}] → ${res.path}`,
+    );
+    if (!options.writeBack) {
+      console.log("Tip: add --write-back to also auto-capture memory at session end (opt-in).");
+    }
+    if (!options.dryRun) console.log("Reopen Claude Code for the hooks to take effect.");
+  });
+
+hooksCmd
+  .command("uninstall")
+  .description("Remove all Memoark hooks from settings.json")
+  .option("--project", "Operate on ./.claude/settings.json instead of the global one")
+  .option("--dry-run", "Preview without writing")
+  .action((options) => {
+    const res = hooksUninstall({ project: !!options.project, dryRun: !!options.dryRun });
+    console.log(`${options.dryRun ? "Would remove" : "Removed"} Memoark hooks → ${res.path}`);
+  });
+
+async function readStdinJson(): Promise<HookInput> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as HookInput;
+  } catch {
+    return {};
+  }
+}
+
+program
+  .command("hook <event>")
+  .description("Internal: Claude Code hook entrypoint (session-start|user-prompt|session-end)")
+  .action(async (event: string) => {
+    try {
+      const input = await readStdinJson();
+      const config = loadConfig(undefined);
+      const port = config.server.http_port;
+      const out = await runHookEvent(event, input, {
+        port,
+        sessionContext: async () => {
+          const stores = await createStores(config);
+          try {
+            return await getSessionContext(stores);
+          } finally {
+            await stores.db.close();
+          }
+        },
+        ftsSearch: async (q, opts) => {
+          const stores = await createStores(config);
+          try {
+            return await stores.search.search(q, opts);
+          } finally {
+            await stores.db.close();
+          }
+        },
+      });
+      if (out && Object.keys(out).length > 0) process.stdout.write(JSON.stringify(out));
+    } catch {
+      // Never break the host session: emit nothing on any failure.
+    }
+    process.exit(0);
   });
 
 program

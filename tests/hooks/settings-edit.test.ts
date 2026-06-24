@@ -8,9 +8,7 @@ const specs: HookSpec[] = [
 
 function memoarkGroups(obj: Record<string, unknown>, event: string): unknown[] {
   const groups = (obj.hooks as Record<string, unknown>)[event] as unknown[];
-  return groups.filter((g) =>
-    JSON.stringify(g).includes("memoark hook"),
-  );
+  return groups.filter((g) => JSON.stringify(g).includes("memoark hook"));
 }
 
 describe("settings.json hooks edit", () => {
