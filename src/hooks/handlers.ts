@@ -32,3 +32,17 @@ export async function runUserPrompt(
   const context = renderInjection(hits);
   return context ? inject("UserPromptSubmit", context) : NO_INJECTION;
 }
+
+export interface SessionEndDeps {
+  /** Triggers opt-in debounced write-back; returns whether it fired. */
+  writeback: () => boolean;
+}
+
+/** SessionEnd: fire-and-forget write-back. Injects nothing; returns fast. */
+export async function runSessionEnd(
+  _input: HookInput,
+  deps: SessionEndDeps,
+): Promise<Record<string, never>> {
+  deps.writeback();
+  return NO_INJECTION;
+}
