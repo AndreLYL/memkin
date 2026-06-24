@@ -5,6 +5,7 @@ import { z } from "zod";
 // (a runtime require("../../package.json") is not resolvable inside $bunfs).
 import pkg from "../../package.json";
 import { type IngestDeps, ingestFeishuDoc } from "../collectors/feishu/docs/ingest.js";
+import { DIRECTIVE_L2 } from "../install/directive.js";
 import {
   type HandleKind,
   type HandleStrength,
@@ -1703,7 +1704,10 @@ export function createMcpServer(
   options: McpServerOptions = {},
   ingestDeps?: IngestDeps,
 ): McpServer {
-  const server = new McpServer({ name: "memoark", version: options.version ?? packageVersion });
+  const server = new McpServer(
+    { name: "memoark", version: options.version ?? packageVersion },
+    { instructions: DIRECTIVE_L2 },
+  );
   const tools = createMcpToolHandlers(stores, {
     exposeLegacyTools: options.exposeLegacyTools ?? false,
     readOnly: options.readOnly ?? false,
