@@ -383,6 +383,20 @@ Reopen the client and you're set — ask "what did X tell me last week?" or "whe
 
 > Claude Desktop has no rules file, so it relies on the MCP server's `instructions` field. You can also configure things manually below.
 
+**Automatic recall on Claude Code (optional · hooks)**: go further on Claude Code so memory arrives with zero effort:
+
+```bash
+memoark hooks install               # SessionStart + UserPromptSubmit read hooks (on by default)
+memoark hooks install --write-back  # also enable end-of-session auto write-back (opt-in)
+memoark hooks uninstall             # remove
+```
+
+- **SessionStart**: injects an "active projects / decisions / open tasks / key people" digest at the start of each session (the always-on core).
+- **UserPromptSubmit**: a **zero-cost FTS** probe before each prompt; injects only on a hit (≤3 items, ≤3000 chars, appended after the user message to preserve prompt cache).
+- **SessionEnd** (`--write-back`, off by default): asynchronous incremental extraction back into memory, so it compounds.
+
+> Read hooks default on (local, cheap); write-back is explicit `--write-back` (cost + privacy, opt-in). Other clients have no lifecycle hooks and rely on the instruction layer above for model-initiated recall.
+
 Memoark offers two MCP transports — pick by scenario:
 
 - **stdio (`--mcp`)** — local direct connect; the agent spawns `memoark` as a subprocess. Zero network setup; best for a single client on one machine.
