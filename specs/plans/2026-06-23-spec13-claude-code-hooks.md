@@ -19,9 +19,11 @@
 
 ### 实测 API / 现状（已核当前分支）
 - **Claude Code hooks**：写 `~/.claude/settings.json` 的 `hooks` 键；事件 `SessionStart`（matcher `startup`/`resume`/`clear`/`compact`）、`UserPromptSubmit`（无 matcher）、`SessionEnd`。每项 `{ type:"command", command:"memoark hook <event>" }`。**实现时核对 CC 当前 hook schema 与事件名/matcher**。
-- **注入方式**：SessionStart / UserPromptSubmit 的 stdout 会进上下文；规范用 `{ "hookSpecificOutput": { "hookEventName":"...", "additionalContext":"..." } }`。**追加在用户消息后以保 prompt 缓存**。
+- **注入方式（Task 1 锁定）**：SessionStart / UserPromptSubmit 的 hook **stdout 直接作为额外上下文注入**（这两个事件特有）；结构化形式用 `{ "hookSpecificOutput": { "hookEventName":"<事件名>", "additionalContext":"<文本>" } }`（依据 Claude Code Hooks 文档 code.claude.com/docs/en/hooks-guide）。**Task 1 先用 `claude` 当前版本文档 / `--help` 复核字段名再锁定**；若结构化被忽略则回退「纯文本 stdout」。注入文本**追加在用户消息之后以保 prompt 缓存**。
+  > 评审 S13-P1-1：格式改为「Task 1 调研锁定 + 纯 stdout 回退」，不再无依据断言单一格式。
 - **session context**：`getSessionContext(stores, days=7)`（`src/server/context.ts:13`）直接复用。
-- **快召回**：FTS 经 `memoark search --mode fts`（`src/cli.ts`）或 REST 搜索端点（**核对 Hono 路由路径**，默认 `serve` 端口 3927）。**优先 REST 的关键原因**：PGLite 单写者，`serve` 持库时另起进程直连可能撞 data-dir lock（见 `feat/data-dir-lock`）；打热服务的 REST 既快又避免锁冲突。
+- **快召回（已核 zero-cost）**：REST `GET /search?q=...`（`src/server/api.ts` ~L178）→ `SearchEngine.search()`（`src/store/search.ts` ~L232）是 **page 级 FTS-only**（`to_tsquery('simple',…)`，**不调 embedding、零成本**），正合 cheap-first。**切勿用** `POST /query` / `SearchEngine.query()`（FTS+向量 hybrid，会触发 embedding）。**`GET /search` 无 `mode` 参数——不要传 `mode=fts`**。默认 `serve` 端口 3927。**优先 REST 的关键原因**：PGLite 单写者，`serve` 持库时另起进程直连可能撞 data-dir lock（见 `feat/data-dir-lock`）；打热服务的 REST 既快又避免锁冲突。
+  > 评审 S13-P0-1：已确认 `/search` 即 FTS-only、zero-cost 成立；删除不存在的 `mode=fts`，并明确回退走 `SearchEngine.search()`（非 `query()`）。
 - **写回**：`memoark extract --source claude-code`（增量、已去重）已可用；hook 只负责「去抖 + 后台触发」。
 - **配置 upsert**：复用/泛化 Spec 12 的 JSON upsert（settings.json 与 mcp 配置同为 JSON，但要「按 command 含 `memoark hook` 精确识别」以免误删用户其它 hook）。
 - **测试**：`bunx vitest run <path> --pool=forks --poolOptions.forks.maxForks=2 --poolOptions.forks.minForks=2`。
@@ -45,7 +47,8 @@
 ---
 
 ## 注入预算（本 spec 锁定）
-- UserPromptSubmit：**top-3 命中**、**score ≥ 阈值**（默认 0.5，承接 GBrain「>0.5 即采纳」）、**注入 ≤ ~800 token**、超额截断；**无命中 → 输出空、零注入**。
+- UserPromptSubmit：**top-3 命中**、**score ≥ 阈值**（默认 0.5，承接 GBrain「>0.5 即采纳」）、**注入 ≤ 3000 字符**（按 `text.length` 截断，**不引 tokenizer 依赖**；≈ 750 token @ 4 chars/token 粗估）、超额截断；**无命中 → 输出空、零注入**。
+  > 评审 S13-P1-2：token 预算改为**字符预算**，规避运行时无原生 tokenizer 的计量难题。
 - 性能目标：UserPromptSubmit 端到端 **< 500ms**（热 REST 命中预期 < 100ms）；冷回退直连仅在无 serve 时。
 - SessionStart：`get_session_context(7d)` 原样注入（已紧凑）；无库静默跳过。
 
@@ -53,6 +56,7 @@
 
 ## Task 1: hook 输出契约 + SessionStart handler
 
+- [ ] **Step 0: 锁定 CC hook stdout 协议**（评审 S13-P1-1）：查 `claude` 当前版本 Hooks 文档 / `--help`，确认 SessionStart & UserPromptSubmit 的注入字段（预期 `hookSpecificOutput.additionalContext`），把锁定结论写回本 spec「注入方式」小节，作为后续实现依据；若结构化不被识别，约定回退纯文本 stdout。
 - [ ] **Step 1: 写失败测试** `tests/hooks/session-start.test.ts`（mock stores）：`runSessionStart(stdinJson, deps)` 返回的 JSON 含 `hookSpecificOutput.hookEventName==="SessionStart"` 且 `additionalContext` 含 `getSessionContext` 文本（活跃项目/待办等）；无库/空摘要 → 返回**空对象**（不注入）。
 - [ ] **Step 2-3: 跑失败 → 实现** `handlers.ts` 的 `runSessionStart`：解析 stdin（拿 cwd/session 信息备用）、调 `getSessionContext`、包成 hookSpecificOutput。`cli.ts` 加内部 `memoark hook session-start`（读 stdin→调 handler→打印 JSON）。
 - [ ] **Step 4-5: 跑通过 → Commit** `feat(hooks): SessionStart injects session context`
@@ -60,7 +64,7 @@
 ## Task 2: 快召回客户端 + UserPromptSubmit handler
 
 - [ ] **Step 1: 写失败测试** `tests/hooks/recall-client.test.ts`：serve 在跑（mock fetch 200）→ 走 REST；serve 不在（fetch 抛错/连接拒绝）→ 回退直连 store；返回统一打分结果。`tests/hooks/user-prompt.test.ts`：①prompt 命中（mock 高分结果）→ `additionalContext` 含引用片段、**条数 ≤3、长度受预算约束**；②无命中/低于阈值 → **返回空、零注入**；③超长结果被截断到预算内。
-- [ ] **Step 2-3: 跑失败 → 实现** `recall-client.ts`（优先 `GET serve/{search-route}?mode=fts&q=...`，超时/失败回退 `store.search`）；`inject.ts`（top-k + 阈值 + token 预算 + 追加语义渲染）；`handlers.ts` 的 `runUserPrompt`（从 stdin 取 `prompt`→召回→inject）。`cli.ts` 加 `memoark hook user-prompt`。
+- [ ] **Step 2-3: 跑失败 → 实现** `recall-client.ts`（优先 `GET http://localhost:<port>/search?q=...`，**FTS-only、无 `mode` 参数**；超时/失败回退直连 `SearchEngine.search()`，**不要用 `query()`**）；`inject.ts`（top-k + 阈值 + **字符预算** + 追加语义渲染）；`handlers.ts` 的 `runUserPrompt`（从 stdin 取 `prompt`→召回→inject）。`cli.ts` 加 `memoark hook user-prompt`。
 - [ ] **Step 4-5: 跑通过 → Commit** `feat(hooks): UserPromptSubmit zero-cost FTS auto-recall (gated)`
 
 ## Task 3: SessionEnd 写回（opt-in + 去抖）

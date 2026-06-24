@@ -18,6 +18,7 @@
 ### 实测 API / 现状（已核当前分支 + 调研）
 - **Spec 12 框架**：`ClientAdapter`（`detect`/`plan` + `InstallOp`）、`json-config`、`command.ts`、`directive.ts`、orchestrator —— 本 spec 直接复用与扩展。
 - **OpenClaw/Hermes 接入**（调研）：MCP 写 `config.yaml` 的 `mcp_servers:`（`~/.hermes/config.yaml`，自托管 `/opt/data/config.yaml`），CLI `hermes mcp`，`/reload-mcp` 生效；skill 丢 `~/.hermes/skills/` 或 config `external_dirs`。**实现时核对 Hermes 当前 config schema（mcp_servers vs tools 段）**。
+  > 评审 S14-P2-1：Memoark 现从 **`~/.openclaw/agents`** 采集 Hermes 会话（`src/setup/detect-sources.ts:70`、`src/collectors/agent/hermes.ts:71`），而配置/skill 目录据调研为 **`~/.hermes`**——两前缀可能并存或随版本迁移。故 `detect()` **兼容两者**；config/skill 精确根路径实现时实测锁定（`~/.hermes` 不存在则回落 `~/.openclaw`）。
 - **YAML**：项目已用 `yaml` 包解析 `memoark.yaml`，`yaml-config.ts` 复用之（保留注释优先用 `yaml` 的 Document API）。
 - **Claude Code skill 格式**：`SKILL.md` 需 frontmatter `name` + `description`；放 `.claude/skills/<name>/SKILL.md`。**核对当前 skill 规范**。
 - **测试**：`bunx vitest run <path> --pool=forks --poolOptions.forks.maxForks=2 --poolOptions.forks.minForks=2`。
@@ -30,7 +31,7 @@
 |------|--------|---------------|
 | `src/install/skill.ts` | Create | **单一真源** `memoark` SKILL.md 文本 + `scaffoldSkill(dir)` |
 | `src/install/yaml-config.ts` | Create | Hermes `config.yaml` `mcp_servers.memoark` upsert/remove（保注释/其它键）|
-| `src/install/clients/hermes.ts` | Create | hermes adapter（detect `~/.hermes`；plan：yaml-mcp op + skill managed-file op）|
+| `src/install/clients/hermes.ts` | Create | hermes adapter（detect `~/.hermes` **或** `~/.openclaw`；plan：yaml-mcp op + skill managed-file op）|
 | `src/install/index.ts` | Modify | 注册 hermes adapter；导出 `scaffoldSkill` |
 | `src/cli.ts` | Modify | `memoark skill scaffold [--dir]`；`install --agent hermes` 自然可用 |
 | `MEMOARK_FOR_AGENTS.md` | Create | 仓库根 · Agent 自安装剧本（frontmatter + steps + verify）|
@@ -59,7 +60,7 @@
 
 ## Task 2: Hermes YAML config + adapter + `--agent hermes`
 
-- [ ] **Step 1: 写失败测试** `tests/install/yaml-config.test.ts`：`upsertMcpServer(yaml, "memoark", entry)` → 新增 `mcp_servers.memoark`、保留其它表与注释；已存在则覆盖；`removeMcpServer` 删键保其余。`tests/install/hermes-adapter.test.ts`（注入 home）：`detect()` 按 `~/.hermes` 存在与否；`plan()` 产出 yaml-mcp op（`~/.hermes/config.yaml`）+ skill managed-file op（`~/.hermes/skills/memoark/SKILL.md`）。
+- [ ] **Step 1: 写失败测试** `tests/install/yaml-config.test.ts`：`upsertMcpServer(yaml, "memoark", entry)` → 新增 `mcp_servers.memoark`、保留其它表与注释；已存在则覆盖；`removeMcpServer` 删键保其余。`tests/install/hermes-adapter.test.ts`（注入 home）：`detect()` 按 `~/.hermes` **或** `~/.openclaw` 存在与否（兼容两布局）；`plan()` 产出 yaml-mcp op（实测命中的 `…/config.yaml`）+ skill managed-file op（`…/skills/memoark/SKILL.md`）。
 - [ ] **Step 2-3: 跑失败 → 实现** `yaml-config.ts`（`yaml` Document API 保注释）；`clients/hermes.ts`（接 `ClientAdapter`，复用 `command.ts`/`skill.ts`）；`index.ts` 注册。orchestrator 已能跑新 op 类型（`yaml-mcp` 复用 yaml-config；`managed-file` Spec 12 已有）。
   > 提示输出加「改完在 Hermes 会话里 `/reload-mcp` 生效」。
 - [ ] **Step 4-5: 跑通过 → Commit** `feat(install): hermes adapter (config.yaml mcp + skill)`
@@ -67,7 +68,7 @@
 ## Task 3: `MEMOARK_FOR_AGENTS.md`（Agent 自安装剧本）
 
 - [ ] **Step 1: 写失败测试** `tests/install/for-agents.test.ts`（轻量结构校验）：文件存在；含 frontmatter（`id`/`name`/`version`）；含「You are the installer」式指令；引用真实命令 `memoark install`、`memoark hooks install`、`memoark skill scaffold`、验证用 query；不含已废弃命令。
-- [ ] **Step 2-3: 跑失败 → 实现** 写 `MEMOARK_FOR_AGENTS.md`：frontmatter（id: memoark-install, requires: Node>=18, est: ~5min）+ 步骤：①确认 memoark 可用（`npx @andre.li/memoark --help`）②无配置则 `memoark start` 引导 ③识别"我在哪个客户端" → `memoark install --agent <id>`（默认全局）④若 Claude Code 追加 `memoark hooks install`（说明写回 opt-in）⑤可选 `memoark skill scaffold` ⑥验证：跑一条 `query` 看是否召回 ⑦healthcheck：`get_health`。强调本地优先、不外泄。
+- [ ] **Step 2-3: 跑失败 → 实现** 写 `MEMOARK_FOR_AGENTS.md`：frontmatter（id: memoark-install, requires: Node>=18, est: ~5min）+ 步骤：①确认 memoark 可用（`npx @andre.li/memoark --help`）②无配置则 `memoark start` 引导（**已核：`memoark start` 命令存在，`src/cli.ts:790`；评审 S14-P1-1 称其「不存在」有误，故保留**）③识别"我在哪个客户端" → `memoark install --agent <id>`（默认全局）④若 Claude Code 追加 `memoark hooks install`（说明写回 opt-in）⑤可选 `memoark skill scaffold` ⑥验证：跑一条 `query` 看是否召回 ⑦healthcheck：`get_health`。强调本地优先、不外泄。
 - [ ] **Step 4-5: 跑通过 → Commit** `docs(agents): add MEMOARK_FOR_AGENTS.md self-install playbook`
 
 ## Task 4: 文档

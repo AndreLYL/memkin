@@ -21,7 +21,8 @@
 
 ### 实测 API / 现状（已核当前分支）
 - **CLI**：命令用 commander 在 `src/cli.ts` 注册（`program.command(...)`）；`serve` 在 ~750 行，`runServe()` 在 ~642 行起。本 spec 新增 `install`/`uninstall` 顶层命令。
-- **MCP server**：`createMcpServer`（`src/server/mcp.ts:1706`）当前 `new McpServer({ name:"memoark", version })`——**未传 `instructions`**。SDK `McpServer(serverInfo, options?)` 的 `options.instructions?: string` 会被客户端注入上下文（**实现时核对 `@modelcontextprotocol/sdk` 的 `ServerOptions.instructions` 签名**）。
+- **MCP server**：`createMcpServer`（`src/server/mcp.ts`，**按函数名定位**——函数声明 ~L1701、内部 `new McpServer({ name:"memoark", version })` ~L1706）当前**未传 `instructions`**。SDK `McpServer(serverInfo, options?)` 的 `options.instructions?: string` 会被客户端注入上下文（**实现时核对 `@modelcontextprotocol/sdk` 的 `ServerOptions.instructions` 签名**）。
+  > 评审 S12-P1-1：评审稿给的「L114」有误（114 处无此函数）；以函数名定位、不写死行号，避免随代码漂移。
 - **客户端探测**：复用 `src/setup/detect-sources.ts` 的「查 home 下配置目录是否存在」模式。
 - **MCP 注册项形态**（stdio）：`{ command, args:["serve","--mcp"] }`；`command` 由「当前 memoark 调用方式」推断（全局安装→`memoark`；否则 `npx -y @andre.li/memoark`）。
 - **契约测试**：若 `tests/server/mcp-contract.test.ts` 断言 server info，需同步（本 spec 只加 `instructions`，不增删工具）。
@@ -97,7 +98,7 @@ More tools (graph traversal, person profile, daily report, troubleshoot) are dis
 ## Task 1: MCP server `instructions` 字段（L2，独立可先发）
 
 - [ ] **Step 1: 写失败测试** `tests/server/mcp-instructions.test.ts`：`createMcpServer(stores)` 构造的 server 的 server-info/options 暴露 `instructions`，且包含关键约束串（如 `"Brain-first"`、`"get_session_context"`、`"source of truth"`）。（按 SDK 实际可读取处断言；若只能经 initialize 响应，则起内存 server 读 `instructions`。）
-- [ ] **Step 2-3: 跑失败 → 实现** 新建 `src/install/directive.ts` 导出 `DIRECTIVE_L2`；`src/server/mcp.ts:1706` 改 `new McpServer({name,version}, { instructions: DIRECTIVE_L2 })`。核对 SDK `ServerOptions.instructions` 签名。
+- [ ] **Step 2-3: 跑失败 → 实现** 新建 `src/install/directive.ts` 导出 `DIRECTIVE_L2`；在 `src/server/mcp.ts` 的 `createMcpServer` 内（搜 `new McpServer(` 定位）改为 `new McpServer({name,version}, { instructions: DIRECTIVE_L2 })`。核对 SDK `ServerOptions.instructions` 签名。
 - [ ] **Step 4: 同步契约** 若 `tests/server/mcp-contract.test.ts` 断言 server info，更新；确认工具清单**未变**。
 - [ ] **Step 5: Commit** `feat(mcp): add server instructions (L2 memory directive)`
 
@@ -116,7 +117,7 @@ More tools (graph traversal, person profile, daily report, troubleshoot) are dis
 
 ## Task 4: command 解析
 
-- [ ] **Step 1: 写失败测试** `tests/install/command.test.ts`：模拟「memoark 在 PATH」→ `{command:"memoark", args:["serve","--mcp"]}`；模拟「不在 PATH / 经 npx」→ `{command:"npx", args:["-y","@andre.li/memoark","serve","--mcp"]}`；`--mcp-http` 选项时 args 改 `serve --mcp-http`（默认 stdio）。
+- [ ] **Step 1: 写失败测试** `tests/install/command.test.ts`：模拟「memoark 在 PATH」→ `{command:"memoark", args:["serve","--mcp"]}`；模拟「不在 PATH / 经 npx」→ `{command:"npx", args:["-y","@andre.li/memoark","serve","--mcp"]}`；`--mcp-http` 选项时 args 改 `serve --mcp-http`（默认 stdio）。**已核：`--mcp-http` flag 确实存在（`src/cli.ts` serve 命令 `.option("--mcp-http", …)`，约 L755），评审 S12-P2-1 的「需核实」已确认无误。**
 - [ ] **Step 2-3: 跑失败 → 实现** `command.ts`：探测全局可执行（`which memoark` / `process.execPath` 线索），回退 npx。
 - [ ] **Step 4-5: 跑通过 → Commit** `feat(install): resolve mcp launch command (binary/npx)`
 
@@ -132,9 +133,11 @@ More tools (graph traversal, person profile, daily report, troubleshoot) are dis
   }
   type InstallOp =
     | { path: string; kind: "json-mcp"|"toml-mcp"; action: "upsert"|"remove"; entry?: McpEntry }
-    | { path: string; kind: "marked-block"|"managed-file"; action: "upsert"|"remove"; content?: string };
+    | { path: string; kind: "marked-block"|"managed-file"; action: "upsert"|"remove"; content?: string }
+    | { kind: "cli"; action: "upsert"|"remove"; args: string[] };  // 无 path：走子进程，如 `claude mcp add/remove`
   ```
-  claude-code 优先 `claude mcp add`（探测到 `claude` CLI 时，plan 产出一个 `kind:"cli"` op；否则降级 `json-mcp` 写 `~/.claude.json`）。
+  claude-code 优先 `claude mcp add`（探测到 `claude` CLI 时，plan 产出一个 `kind:"cli"` op，`args` 形如 `["mcp","add","memoark","-s","user","--",<launch.command>,...launch.args]`；否则降级 `json-mcp` 写 `~/.claude.json`）。**orchestrator（Task 6）必须有 `kind:"cli"` 的执行分支**（子进程调用），否则该 op 无人处理。
+  > 评审 S12-P0-1：补齐了缺失的 `kind:"cli"` variant 与其执行分支约定。
 - [ ] **Step 4-5: 跑通过 → Commit** `feat(install): per-client adapters (cc/desktop/cursor/codex/windsurf)`
 
 ## Task 6: orchestrator + CLI（install / uninstall / dry-run / detect-all）
