@@ -15,7 +15,12 @@ export interface PlanCtx {
 
 // A single planned filesystem (or CLI) operation. The orchestrator dispatches by `kind`.
 export type InstallOp =
-  | { path: string; kind: "json-mcp" | "toml-mcp"; action: InstallAction; entry?: McpEntry }
+  | {
+      path: string;
+      kind: "json-mcp" | "toml-mcp" | "yaml-mcp";
+      action: InstallAction;
+      entry?: McpEntry;
+    }
   | { path: string; kind: "marked-block" | "managed-file"; action: InstallAction; content?: string }
   | { kind: "cli"; action: InstallAction; args: string[] };
 

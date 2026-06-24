@@ -13,6 +13,7 @@ import {
 import { removeBlock, upsertBlock } from "./marked-block.js";
 import { removeMcpServerToml, upsertMcpServerToml } from "./toml-config.js";
 import type { ClientAdapter, InstallAction, InstallOp, PlanCtx, Scope } from "./types.js";
+import { removeMcpServerYaml, upsertMcpServerYaml } from "./yaml-config.js";
 
 export interface InstallOptions {
   /** Explicit client ids; empty/undefined → install to all detected. */
@@ -63,6 +64,15 @@ function applyOp(op: InstallOp): void {
         op.action === "upsert" && op.entry
           ? upsertMcpServerToml(text, "memoark", op.entry)
           : removeMcpServerToml(text, "memoark");
+      writeFileSync(op.path, next);
+      break;
+    }
+    case "yaml-mcp": {
+      const text = readFileOr(op.path, "");
+      const next =
+        op.action === "upsert" && op.entry
+          ? upsertMcpServerYaml(text, "memoark", op.entry)
+          : removeMcpServerYaml(text, "memoark");
       writeFileSync(op.path, next);
       break;
     }
