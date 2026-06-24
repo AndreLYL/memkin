@@ -44,6 +44,7 @@ import { hooksInstall, hooksUninstall } from "./hooks/install.js";
 import type { HookInput } from "./hooks/output.js";
 import { runHookEvent } from "./hooks/run-event.js";
 import { type PlannedClient, runInstall, runUninstall } from "./install/index.js";
+import { scaffoldSkill } from "./install/skill.js";
 import { createApiApp } from "./server/api.js";
 import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -882,6 +883,18 @@ hooksCmd
   .action((options) => {
     const res = hooksUninstall({ project: !!options.project, dryRun: !!options.dryRun });
     console.log(`${options.dryRun ? "Would remove" : "Removed"} Memoark hooks → ${res.path}`);
+  });
+
+const skillCmd = program.command("skill").description("Manage the Memoark agent skill");
+
+skillCmd
+  .command("scaffold")
+  .description("Write the memoark skill (SKILL.md) into a skills directory")
+  .option("--dir <path>", "Target skills directory (default: ./.claude/skills)")
+  .action((options) => {
+    const dir = options.dir ?? join(process.cwd(), ".claude", "skills");
+    const path = scaffoldSkill(dir);
+    console.log(`Wrote ${path}`);
   });
 
 async function readStdinJson(): Promise<HookInput> {
