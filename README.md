@@ -448,6 +448,19 @@ memoark serve --mcp-http
 
 ### 接入你的 Agent（MCP）
 
+**一键接入（推荐）**：`memoark install` 会自动把 MCP 配置 + 一份极简「记忆指令」写进你的 AI 客户端（**默认全局**，对所有项目生效），支持 **Claude Code · Claude Desktop · Cursor · Codex · Windsurf**：
+
+```bash
+memoark install                      # 探测本机已装的客户端并接入
+memoark install --agent claude-code  # 指定单个客户端
+memoark install --dry-run            # 先预览会改哪些文件，不写盘
+memoark uninstall                    # 干净移除（幂等）
+```
+
+装完重开客户端即可——之后你问「X 上周跟我聊了啥」「这个项目推进到哪了」，Agent 会按注入的「记忆指令」**主动来 Memoark 检索**（cheap-first：先 `search` 零成本关键词，不够再 `query`/`recall`），而不是凭空作答。
+
+> Claude Desktop 没有规则文件，靠 MCP server 的 `instructions` 字段兜底。也可按下面的方式手动配置。
+
 Memoark 提供两种 MCP 接入方式，按场景选：
 
 - **stdio（`--mcp`）** —— 本地直连，Agent 把 `memoark` 作为子进程拉起，零网络配置，单机单客户端首选。
