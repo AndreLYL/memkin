@@ -226,6 +226,59 @@ export interface Config {
   search: SearchConfig;
 }
 
+/**
+ * Validates StoreConfig at runtime.
+ * @param s - The store config section.
+ * @param missingEnv - Names of env vars that were NOT resolved (still placeholders).
+ * @throws Error if the config is invalid.
+ */
+export function validateStoreConfig(s: StoreConfig, missingEnv: string[] = []): void {
+  const engine = s.engine ?? "pglite";
+
+  if (engine !== "pglite" && engine !== "postgres") {
+    throw new Error(
+      `Invalid store.engine "${engine}". Supported values: pglite, postgres.`,
+    );
+  }
+
+  if (engine === "postgres") {
+    if (!s.database_url) {
+      throw new Error(
+        "store.database_url is required when store.engine is postgres.",
+      );
+    }
+
+    // Check for unresolved env placeholder like ${DATABASE_URL}
+    const placeholderMatch = s.database_url.match(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/);
+    if (placeholderMatch) {
+      const varName = placeholderMatch[1];
+      if (missingEnv.includes(varName)) {
+        throw new Error(
+          `store.database_url contains 未解析的环境变量 (unresolved env var) \${${varName}}. ` +
+            `Set the ${varName} environment variable before starting.`,
+        );
+      }
+      // Placeholder is present but env var was resolved — treat as valid
+    } else {
+      // No placeholder — must be a literal postgres(ql):// URL
+      if (!/^postgres(ql)?:\/\//.test(s.database_url)) {
+        throw new Error(
+          `store.database_url must be a valid postgres(ql):// connection url. ` +
+            `Got: "${s.database_url}"`,
+        );
+      }
+    }
+
+    if (s.pool_size !== undefined) {
+      if (!Number.isInteger(s.pool_size) || s.pool_size < 1) {
+        throw new Error(
+          `store.pool_size must be an integer ≥ 1. Got: ${s.pool_size}`,
+        );
+      }
+    }
+  }
+}
+
 export interface ConfigContext {
   readonly configPath: string;
   readonly projectRoot: string;
@@ -442,6 +495,12 @@ export function loadConfig(filePath?: string): LoadedConfig {
 
   // Merge with defaults
   const merged = mergeConfig(DEFAULT_CONFIG as unknown as Record<string, unknown>, userConfig);
+
+  // Validate store config after env interpolation
+  validateStoreConfig(
+    (merged as unknown as Config).store ?? {},
+    interpolated.missing,
+  );
 
   return attachContext(merged as unknown as Config, {
     configPath,

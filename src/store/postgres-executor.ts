@@ -1,4 +1,5 @@
 import { Pool, type PoolClient } from "pg";
+import { maskDatabaseUrl } from "../config-center/secrets.js";
 import type { Config } from "../core/config.js";
 import { MEMOARK_LOCK_KEY, type SqlConn, type SqlExecutor } from "./sql-executor.js";
 
@@ -12,8 +13,13 @@ function connAdapter(c: PoolClient): SqlConn {
 }
 
 export class PostgresExecutor implements SqlExecutor {
-  private constructor(private readonly pool: Pool) {
-    pool.on("error", (e) => console.error("[memoark] pg pool error:", e.message));
+  private constructor(
+    private readonly pool: Pool,
+    private readonly maskedUrl: string = "",
+  ) {
+    pool.on("error", (e) =>
+      console.error("[memoark] pg pool error:", e.message, `(url: ${this.maskedUrl})`),
+    );
   }
 
   static async create(config: Config): Promise<PostgresExecutor> {
@@ -24,7 +30,9 @@ export class PostgresExecutor implements SqlExecutor {
       max: config.store?.pool_size ?? 10,
       connectionTimeoutMillis: 10_000,
     });
-    return new PostgresExecutor(pool);
+    // Capture masked URL for safe error logging (password never appears in logs)
+    const maskedUrl = maskDatabaseUrl(url);
+    return new PostgresExecutor(pool, maskedUrl);
   }
 
   async query<T = Record<string, unknown>>(sql: string, params?: unknown[]) {
