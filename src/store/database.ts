@@ -1,8 +1,9 @@
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
 import { SCHEMA_SQL } from "../embedded-assets.generated.js";
-import { acquireLock, type LockHandle } from "./data-dir-lock.js";
+import type { Config } from "../core/config.js";
+import { createEngine } from "./engine-factory.js";
 import { runMigrations } from "./migrations/index.js";
-import { buildPGliteOptions } from "./pglite-assets.js";
+import type { SqlConn, SqlExecutor } from "./sql-executor.js";
 
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
@@ -25,68 +26,79 @@ export interface DatabaseOptions {
 
 export class Database {
   private constructor(
-    private _pg: PGlite,
+    readonly executor: SqlExecutor,
     readonly embeddingDimensions: number,
-    private lock?: LockHandle,
   ) {}
 
+  /**
+   * Temporary compat accessor so existing consumers of `db.pg` continue to
+   * compile until T7 migrates the 13 store classes and direct callsites to
+   * accept SqlConn directly.
+   *
+   * Returns the executor cast as PGlite so existing PGlite-typed callsites
+   * compile unchanged. At runtime the value is a PgliteExecutor which
+   * implements query/exec/transaction — safe until T7 removes this getter.
+   *
+   * @deprecated Use db.executor directly. Removed in T7.
+   */
   get pg(): PGlite {
-    return this._pg;
+    return this.executor as unknown as PGlite;
   }
 
-  static async create(dataDir?: string, opts?: DatabaseOptions): Promise<Database> {
+  static async create(
+    dataDirOrConfig?: string | Config,
+    opts?: DatabaseOptions,
+  ): Promise<Database> {
+    const config: Config =
+      typeof dataDirOrConfig === "string" || dataDirOrConfig === undefined
+        ? ({ store: { engine: "pglite", data_dir: dataDirOrConfig } } as Config)
+        : dataDirOrConfig;
+
     const dims = opts?.embeddingDimensions ?? DEFAULT_EMBEDDING_DIMENSIONS;
 
-    let lock: LockHandle | undefined;
-    if (dataDir && !process.env.MEMOARK_NO_LOCK) {
-      lock = acquireLock(dataDir, opts?.lockLabel ?? "memoark");
-    }
-
+    let executor: SqlExecutor | undefined;
     try {
-      const pg = new PGlite(
-        await buildPGliteOptions(dataDir, {
-          assetsOverride: process.env.MEMOARK_PGLITE_ASSETS,
-        }),
-      );
-
-      await pg.exec(loadSchemaSql(dims));
-      await runMigrations(pg);
-      await Database.migrateEmbeddingDimensions(pg, dims);
-      return new Database(pg, dims, lock);
+      executor = await createEngine(config);
+      const e = executor;
+      await e.bootstrap(async (conn: SqlConn) => {
+        await conn.exec(loadSchemaSql(dims));
+        await runMigrations(conn);
+        await ensureEmbeddingConsistency(conn, dims);
+      });
+      return new Database(e, dims);
     } catch (err) {
-      lock?.release();
+      await executor?.close().catch(() => {});
       throw err;
     }
   }
 
-  private static async migrateEmbeddingDimensions(pg: PGlite, targetDims: number): Promise<void> {
-    const result = await pg.query<{ atttypmod: number }>(
-      `SELECT atttypmod FROM pg_attribute
-       WHERE attrelid = 'content_chunks'::regclass
-         AND attname = 'embedding'`,
-    );
-    if (result.rows.length === 0) return;
-
-    // pgvector stores dimensions as atttypmod (the raw value equals the dimension count)
-    const currentDims = result.rows[0].atttypmod;
-    if (currentDims === targetDims) return;
-
-    console.log(
-      `[memoark] Embedding dimensions changed: ${currentDims} → ${targetDims}. ` +
-        "Clearing existing embeddings for re-indexing.",
-    );
-
-    await pg.exec(`
-      DROP INDEX IF EXISTS idx_chunks_embedding;
-      ALTER TABLE content_chunks ALTER COLUMN embedding TYPE vector(${targetDims});
-      UPDATE content_chunks SET embedding = NULL, embedded_at = NULL;
-      CREATE INDEX idx_chunks_embedding ON content_chunks
-        USING hnsw (embedding vector_cosine_ops);
-    `);
-  }
-
   async close(): Promise<void> {
-    await this._pg.close();
-    this.lock?.release();
+    await this.executor.close();
   }
+}
+
+async function ensureEmbeddingConsistency(conn: SqlConn, targetDims: number): Promise<void> {
+  const result = await conn.query<{ atttypmod: number }>(
+    `SELECT atttypmod FROM pg_attribute
+     WHERE attrelid = 'content_chunks'::regclass
+       AND attname = 'embedding'`,
+  );
+  if (result.rows.length === 0) return;
+
+  // pgvector stores dimensions as atttypmod (the raw value equals the dimension count)
+  const currentDims = result.rows[0].atttypmod;
+  if (currentDims === targetDims) return;
+
+  console.log(
+    `[memoark] Embedding dimensions changed: ${currentDims} → ${targetDims}. ` +
+      "Clearing existing embeddings for re-indexing.",
+  );
+
+  await conn.exec(`
+    DROP INDEX IF EXISTS idx_chunks_embedding;
+    ALTER TABLE content_chunks ALTER COLUMN embedding TYPE vector(${targetDims});
+    UPDATE content_chunks SET embedding = NULL, embedded_at = NULL;
+    CREATE INDEX idx_chunks_embedding ON content_chunks
+      USING hnsw (embedding vector_cosine_ops);
+  `);
 }

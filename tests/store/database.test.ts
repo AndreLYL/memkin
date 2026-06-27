@@ -1,6 +1,19 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 
+describe("Database.create overload + executor", () => {
+  it("legacy undefined arg works (pglite in-memory)", async () => {
+    const db = await Database.create(undefined);
+    expect(db.executor).toBeDefined();
+    expect(typeof db.executor.query).toBe("function");
+    await db.close();
+  });
+  it("config arg selects engine", async () => {
+    const db = await Database.create({ store: { engine: "pglite" } } as any);
+    await db.close();
+  });
+});
+
 describe("Database", () => {
   let db: Database;
 
