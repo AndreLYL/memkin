@@ -4,6 +4,16 @@ import { vector } from "@electric-sql/pglite/vector";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Database, loadSchemaSql } from "../../src/store/database.js";
 import { runMigrations } from "../../src/store/migrations/index.js";
+import { PgliteExecutor } from "../../src/store/pglite-executor.js";
+import type { SqlConn } from "../../src/store/sql-executor.js";
+
+/** Minimal SqlConn wrapper around a raw PGlite for tests that pre-date PgliteExecutor. */
+function pgAsConn(pg: PGlite): SqlConn {
+  return {
+    query: <T = Record<string, unknown>>(sql: string, params?: unknown[]) => pg.query<T>(sql, params),
+    exec: (sql: string) => pg.exec(sql).then(() => undefined),
+  };
+}
 
 describe("migration runner", () => {
   let db: Database;
@@ -42,8 +52,8 @@ describe("migration runner", () => {
   });
 
   it("is idempotent: running migrations twice does not duplicate or error", async () => {
-    await runMigrations(db.pg);
-    await runMigrations(db.pg);
+    await runMigrations(pgAsConn(db.pg));
+    await runMigrations(pgAsConn(db.pg));
     const rows = await db.pg.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
@@ -91,7 +101,7 @@ describe("migration runner", () => {
         ["discoveries/old-pref", "discovery-preference", "Old preference", "legacy content"],
       );
 
-      await runMigrations(freshPg);
+      await runMigrations(pgAsConn(freshPg));
 
       const result = await freshPg.query<{ type: string; halflife_days: number | null }>(
         "SELECT type, halflife_days FROM pages WHERE slug = $1",
@@ -122,7 +132,7 @@ describe("migration runner", () => {
            ('person/alice', 'person', 'Alice', 'x')`,
       );
 
-      await runMigrations(freshPg);
+      await runMigrations(pgAsConn(freshPg));
 
       const rows = await freshPg.query<{ slug: string; halflife_days: number | null }>(
         "SELECT slug, halflife_days FROM pages ORDER BY slug",
@@ -171,7 +181,7 @@ describe("migration runner", () => {
         `INSERT INTO pages (slug, type, title, compiled_truth, halflife_days) VALUES ($1, $2, $3, $4, $5)`,
         ["decisions/old", "decision", "Old decision", "content", 90],
       );
-      await runMigrations(freshPg);
+      await runMigrations(pgAsConn(freshPg));
       const result = await freshPg.query<{ expires_at: string | null }>(
         "SELECT expires_at FROM pages WHERE slug = 'decisions/old'",
       );
@@ -179,5 +189,21 @@ describe("migration runner", () => {
     } finally {
       await freshPg.close();
     }
+  });
+});
+
+describe("runMigrations — SqlConn interface", () => {
+  it("accepts a SqlConn and is idempotent (re-run = no-op, no duplicate versions)", async () => {
+    const ex = await PgliteExecutor.create(undefined, {});
+    // Load schema first (migrations depend on base tables: pages, content_chunks, etc.)
+    const { loadSchemaSql: loadSchema } = await import("../../src/store/database.js");
+    await ex.exec(loadSchema());
+    await runMigrations(ex);
+    await runMigrations(ex); // second run must not throw or duplicate
+    const r = await ex.query<{ version: number; c: number }>(
+      "SELECT version, count(*)::int AS c FROM schema_migrations GROUP BY version HAVING count(*) > 1",
+    );
+    expect(r.rows).toEqual([]); // no duplicate versions
+    await ex.close();
   });
 });

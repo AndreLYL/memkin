@@ -1,4 +1,4 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { SqlConn } from "../sql-executor.js";
 
 export interface Migration {
   version: number;
@@ -117,20 +117,21 @@ export const MIGRATIONS: Migration[] = [
   { version: 6, name: "trgm_fts", sql: M006_TRGM_FTS },
 ];
 
-export async function runMigrations(pg: PGlite): Promise<void> {
-  await pg.exec(`
+export async function runMigrations(conn: SqlConn): Promise<void> {
+  await conn.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version    INTEGER PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
-  const applied = await pg.query<{ version: number }>("SELECT version FROM schema_migrations");
+  const applied = await conn.query<{ version: number }>("SELECT version FROM schema_migrations");
   const appliedVersions = new Set(applied.rows.map((r) => r.version));
 
-  for (const migration of MIGRATIONS) {
-    if (appliedVersions.has(migration.version)) continue;
-    await pg.exec(migration.sql);
-    await pg.query("INSERT INTO schema_migrations (version) VALUES ($1)", [migration.version]);
+  for (const m of MIGRATIONS) {
+    if (appliedVersions.has(m.version)) continue;
+    // Run the migration SQL and record the version atomically so a mid-migration
+    // crash cannot leave the DB with applied schema but no version record.
+    await conn.exec(`BEGIN; ${m.sql}; INSERT INTO schema_migrations (version) VALUES (${m.version}); COMMIT;`);
   }
 }
