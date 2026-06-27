@@ -286,7 +286,9 @@ describe("MCP server", () => {
 
   it("put_page is idempotent and skips rechunk when content is unchanged", async () => {
     const tools = createMcpToolHandlers(stores);
-    const rechunkSpy = vi.spyOn(stores.chunks, "rechunk");
+    // Spy on putPageWithChunks (the new atomic write path); rechunk is now
+    // called internally inside the transaction and no longer directly spied on.
+    const putPageWithChunksSpy = vi.spyOn(stores.pages, "putPageWithChunks");
     const content = "---\ntitle: Idempotent\ntype: note\n---\nStable content.";
 
     const first = await tools.put_page({ slug: "notes/idempotent", content });
@@ -312,7 +314,9 @@ describe("MCP server", () => {
     });
     expect(String(pageAfterSecond?.updated_at)).toBe(String(pageAfterFirst?.updated_at));
     expect(chunksAfterSecond).toHaveLength(chunksAfterFirst.length);
-    expect(rechunkSpy).toHaveBeenCalledTimes(1);
+    // putPageWithChunks must be called exactly once (for the first write);
+    // unchanged content triggers the early-return path in put_page.
+    expect(putPageWithChunksSpy).toHaveBeenCalledTimes(1);
   });
 
   it("write handlers return structured errors instead of false success", async () => {

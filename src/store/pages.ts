@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import type { SourceRef } from "../core/types.js";
+import { rechunkTx } from "./chunks.js";
 import { GraphStore } from "./graph.js";
-import type { SqlConn } from "./sql-executor.js";
+import type { SqlConn, SqlExecutor } from "./sql-executor.js";
 import { parseWikiLinks } from "./wikilink.js";
 
 export interface Page {
@@ -127,6 +128,103 @@ export class PageStore {
     }
 
     return page;
+  }
+
+  /**
+   * Atomically write a page and re-chunk its content in a single transaction.
+   * Prevents mixed state where page-from-A is paired with chunks-from-B under
+   * concurrent same-slug writes.
+   *
+   * The transaction:
+   * 1. INSERT pages(slug) ON CONFLICT DO NOTHING  — ensure row exists
+   * 2. SELECT id FROM pages WHERE slug=$1 FOR UPDATE  — lock the page row
+   * 3. putPageTx — upsert page columns
+   * 4. rechunkTx — upsert + delete stale chunks
+   *
+   * Wikilink wiring is best-effort and runs AFTER the transaction (never
+   * breaks the write; missing targets are skipped).
+   */
+  async putPageWithChunks(
+    ex: SqlExecutor,
+    slug: string,
+    content: string,
+    opts?: PutPageOptions,
+  ): Promise<Page> {
+    const parsed = parseMarkdownWithFrontmatter(content);
+    let page!: Page;
+
+    await ex.transaction(async (tx) => {
+      // Ensure the page row exists before locking it.
+      await tx.query(
+        "INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ($1, 'unknown', '', '', '{}') ON CONFLICT (slug) DO NOTHING",
+        [slug],
+      );
+      // Lock the row to prevent concurrent slug writes from mixing.
+      const locked = await tx.query<{ id: number }>(
+        "SELECT id FROM pages WHERE slug = $1 FOR UPDATE",
+        [slug],
+      );
+      if (locked.rows.length === 0) return; // shouldn't happen
+
+      page = await this.putPageTx(tx, slug, content, opts);
+      await rechunkTx(tx, page.id, parsed.compiled_truth);
+    });
+
+    // Wikilink wiring is best-effort, outside the transaction.
+    if (opts?.autoWikilink !== false) {
+      await this.wireWikiLinks(slug, parsed.compiled_truth);
+    }
+
+    return page;
+  }
+
+  /**
+   * Execute the putPage upsert SQL within the provided connection (or
+   * transaction). Does NOT wire wikilinks (caller's responsibility).
+   */
+  private async putPageTx(
+    conn: SqlConn,
+    slug: string,
+    content: string,
+    opts?: PutPageOptions,
+  ): Promise<Page> {
+    const { title, type, compiled_truth, frontmatter } = parseMarkdownWithFrontmatter(content);
+    const contentHash = createHash("sha256").update(content).digest("hex");
+    const halflifeDays = opts?.halflife_days ?? null;
+
+    let expiresAt: Date | null;
+    if (opts?.expires_at !== undefined) {
+      expiresAt = opts.expires_at;
+    } else if (halflifeDays !== null) {
+      expiresAt = new Date(Date.now() + halflifeDays * 86_400_000);
+    } else {
+      expiresAt = null;
+    }
+
+    const result = await conn.query<PageRow>(
+      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash, halflife_days, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz)
+       ON CONFLICT (slug) DO UPDATE SET
+         type = EXCLUDED.type,
+         title = EXCLUDED.title,
+         compiled_truth = EXCLUDED.compiled_truth,
+         frontmatter = EXCLUDED.frontmatter,
+         content_hash = EXCLUDED.content_hash,
+         halflife_days = EXCLUDED.halflife_days,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        slug,
+        type,
+        title,
+        compiled_truth,
+        JSON.stringify(frontmatter),
+        contentHash,
+        halflifeDays,
+        expiresAt,
+      ],
+    );
+    return this.rowToPage(result.rows[0]);
   }
 
   private async wireWikiLinks(fromSlug: string, compiledTruth: string): Promise<void> {

@@ -344,8 +344,7 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
         };
       }
 
-      const page = await stores.pages.putPage(slug, content);
-      await stores.chunks.rechunk(page.id, page.compiled_truth);
+      const page = await stores.pages.putPageWithChunks(stores.db.executor, slug, content);
       return {
         ok: true,
         slug,
