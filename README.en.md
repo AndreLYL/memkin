@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/web-ui-graph.jpeg" alt="Memoark knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
+  <img src="https://raw.githubusercontent.com/AndreLYL/memoark/main/docs/assets/web-ui-graph.jpeg" alt="Memoark knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
   <br>
   <em>Your work, as a living knowledge graph — people, decisions, tasks, and knowledge, connected.</em>
 </p>
