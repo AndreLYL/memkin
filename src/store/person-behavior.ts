@@ -9,7 +9,7 @@
  */
 
 import type { BehaviorContribution, PersonBehaviorRow } from "../profile/types.js";
-import type { SqlConn } from "./sql-executor.js";
+import type { SqlExecutor } from "./sql-executor.js";
 
 interface RawRow {
   person_slug: string;
@@ -55,20 +55,59 @@ function addHistograms(a: number[], b: number[]): number[] {
 }
 
 export class PersonBehaviorStore {
-  constructor(private pg: SqlConn) {}
+  constructor(private pg: SqlExecutor) {}
 
   /**
    * Additively merge a contribution into the row for `person_slug`.
    * On INSERT, window_start is set to NOW(); on UPDATE it is left unchanged.
+   *
+   * Concurrency-safe strategy:
+   * - All scalar counters use atomic SQL arithmetic in INSERT...ON CONFLICT DO UPDATE.
+   * - The histogram (needs read-merge-write) is handled inside a transaction:
+   *   1. INSERT ... ON CONFLICT DO NOTHING ensures the row exists.
+   *   2. SELECT ... FOR UPDATE locks the row.
+   *   3. Merge histogram in JS.
+   *   4. UPDATE with merged histogram and scalar deltas.
+   * This avoids the double-application issue by handling everything inside the tx.
    */
   async upsertContribution(c: BehaviorContribution): Promise<void> {
-    const existing = await this.get(c.person_slug);
-    if (!existing) {
-      await this.pg.query(
+    const normHist = normalizeHist(c.hour_histogram);
+    const zeroHist = new Array(24).fill(0);
+
+    await this.pg.transaction(async (tx) => {
+      // Ensure the row exists (zero histogram for new rows; scalars start at 0).
+      await tx.query(
         `INSERT INTO person_behavior
            (person_slug, msg_count, sum_msg_chars, initiated_count, reply_count,
             resp_latency_n, resp_latency_sum_s, hour_histogram, at_count, window_start, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
+         VALUES ($1, 0, 0, 0, 0, 0, 0, $2::jsonb, 0, NOW(), NOW())
+         ON CONFLICT (person_slug) DO NOTHING`,
+        [c.person_slug, JSON.stringify(zeroHist)],
+      );
+
+      // Lock the row.
+      const locked = await tx.query<RawRow>(
+        "SELECT * FROM person_behavior WHERE person_slug = $1 FOR UPDATE",
+        [c.person_slug],
+      );
+      if (locked.rows.length === 0) return; // shouldn't happen, but be defensive
+
+      const existing = toRow(locked.rows[0]);
+      const mergedHist = addHistograms(existing.hour_histogram, normHist);
+
+      // Apply scalar deltas + merged histogram atomically.
+      await tx.query(
+        `UPDATE person_behavior SET
+           msg_count          = msg_count          + $2,
+           sum_msg_chars      = sum_msg_chars      + $3,
+           initiated_count    = initiated_count    + $4,
+           reply_count        = reply_count        + $5,
+           resp_latency_n     = resp_latency_n     + $6,
+           resp_latency_sum_s = resp_latency_sum_s + $7,
+           hour_histogram     = $8::jsonb,
+           at_count           = at_count           + $9,
+           updated_at         = NOW()
+         WHERE person_slug = $1`,
         [
           c.person_slug,
           c.msg_count,
@@ -77,38 +116,11 @@ export class PersonBehaviorStore {
           c.reply_count,
           c.resp_latency_n,
           c.resp_latency_sum_s,
-          JSON.stringify(normalizeHist(c.hour_histogram)),
+          JSON.stringify(mergedHist),
           c.at_count,
         ],
       );
-      return;
-    }
-
-    const mergedHist = addHistograms(existing.hour_histogram, normalizeHist(c.hour_histogram));
-    await this.pg.query(
-      `UPDATE person_behavior SET
-         msg_count = msg_count + $2,
-         sum_msg_chars = sum_msg_chars + $3,
-         initiated_count = initiated_count + $4,
-         reply_count = reply_count + $5,
-         resp_latency_n = resp_latency_n + $6,
-         resp_latency_sum_s = resp_latency_sum_s + $7,
-         hour_histogram = $8,
-         at_count = at_count + $9,
-         updated_at = NOW()
-       WHERE person_slug = $1`,
-      [
-        c.person_slug,
-        c.msg_count,
-        c.sum_msg_chars,
-        c.initiated_count,
-        c.reply_count,
-        c.resp_latency_n,
-        c.resp_latency_sum_s,
-        JSON.stringify(mergedHist),
-        c.at_count,
-      ],
-    );
+    });
   }
 
   async get(personSlug: string): Promise<PersonBehaviorRow | null> {
