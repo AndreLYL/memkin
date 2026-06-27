@@ -274,7 +274,14 @@ export class PersonIdentityStore {
 
     // Spec 8: behavior counters are additive; use their own atomic transaction.
     // This runs outside the identity tx intentionally — behavior is eventually
-    // consistent and additive; a failure here does not corrupt identity data.
+    // consistent and additive.
+    // NOTE: behavior.merge() runs BEFORE the identity tx (it has its own atomic tx).
+    // Known relaxation: if the identity tx below rolls back AFTER this succeeds,
+    // behavior counters are misattributed to the target while the identity merge is
+    // reverted (source page persists with no behavior row, counters double-counted
+    // under target). Acceptable for rare explicit merges; for strict consistency,
+    // move behavior merge into the identity tx via a tx-scoped variant.
+    // Identity-table integrity itself is unaffected.
     if (this.extra?.behavior) {
       await this.extra.behavior.merge(fromSlug, intoSlug);
     }
