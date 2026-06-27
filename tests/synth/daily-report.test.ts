@@ -35,11 +35,11 @@ describe("daily_report intent", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    const pages = new PageStore(db.pg);
-    const chunks = new ChunkStore(db.pg);
-    const graph = new GraphStore(db.pg);
-    const timeline = new TimelineStore(db.pg);
-    const search = new SearchEngine(db.pg);
+    const pages = new PageStore(db.executor);
+    const chunks = new ChunkStore(db.executor);
+    const graph = new GraphStore(db.executor);
+    const timeline = new TimelineStore(db.executor);
+    const search = new SearchEngine(db.executor);
     stores = { db, pages, chunks, graph, timeline, search } as unknown as StoreContext;
 
     const p = await pages.putPage(

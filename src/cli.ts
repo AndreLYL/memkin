@@ -107,21 +107,24 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
 }
 
 async function createStores(config: LoadedConfig) {
-  const dataDir = expandDataDir(config.store.data_dir ?? "~/.memoark/data", config.__context.projectRoot);
+  const dataDir = expandDataDir(
+    config.store.data_dir ?? "~/.memoark/data",
+    config.__context.projectRoot,
+  );
   mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
   });
-  const pages = new PageStore(db.pg);
-  const chunks = new ChunkStore(db.pg);
-  const embedding = new EmbeddingService(db.pg, {
+  const pages = new PageStore(db.executor);
+  const chunks = new ChunkStore(db.executor);
+  const embedding = new EmbeddingService(db.executor, {
     provider: config.embedding.provider as "openai" | "ollama",
     model: config.embedding.model,
     dimensions: config.embedding.dimensions,
     apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
     baseUrl: config.embedding.base_url,
   });
-  const search = new SearchEngine(db.pg, {
+  const search = new SearchEngine(db.executor, {
     embedText: (q) => embedding.embedText(q),
     search: {
       pool_by_page: config.search.pool_by_page,
@@ -133,9 +136,9 @@ async function createStores(config: LoadedConfig) {
     pages,
     chunks,
     search,
-    graph: new GraphStore(db.pg),
-    tags: new TagStore(db.pg),
-    timeline: new TimelineStore(db.pg),
+    graph: new GraphStore(db.executor),
+    tags: new TagStore(db.executor),
+    timeline: new TimelineStore(db.executor),
     embedding,
   };
 }
@@ -146,15 +149,18 @@ async function createStores(config: LoadedConfig) {
  * alias/merge/rename never requires an LLM or embedding API key.
  */
 async function openIdentityStore(config: LoadedConfig) {
-  const dataDir = expandDataDir(config.store.data_dir ?? "~/.memoark/data", config.__context.projectRoot);
+  const dataDir = expandDataDir(
+    config.store.data_dir ?? "~/.memoark/data",
+    config.__context.projectRoot,
+  );
   mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
   });
   const identity = new PersonIdentityStore(
-    db.pg,
-    { pages: new PageStore(db.pg) },
-    { behavior: new PersonBehaviorStore(db.pg) },
+    db.executor,
+    { pages: new PageStore(db.executor) },
+    { behavior: new PersonBehaviorStore(db.executor) },
   );
   return { db, identity };
 }
@@ -1100,7 +1106,7 @@ program
             pages: stores.pages,
             graph: stores.graph,
             timeline: stores.timeline,
-            behavior: new PersonBehaviorStore(stores.db.pg),
+            behavior: new PersonBehaviorStore(stores.db.executor),
           },
         },
       );
@@ -1264,9 +1270,9 @@ docsCmd
       // detecting self-ownership, so doc/meeting action_items become task signals
       // the daily report can surface (Spec 9 §3.3).
       const identity = new PersonIdentityStore(
-        stores.db.pg,
+        stores.db.executor,
         { pages: stores.pages },
-        { behavior: new PersonBehaviorStore(stores.db.pg) },
+        { behavior: new PersonBehaviorStore(stores.db.executor) },
       );
 
       const stats = await runDocSource({

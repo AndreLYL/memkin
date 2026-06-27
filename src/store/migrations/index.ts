@@ -132,6 +132,8 @@ export async function runMigrations(conn: SqlConn): Promise<void> {
     if (appliedVersions.has(m.version)) continue;
     // Run the migration SQL and record the version atomically so a mid-migration
     // crash cannot leave the DB with applied schema but no version record.
-    await conn.exec(`BEGIN; ${m.sql}; INSERT INTO schema_migrations (version) VALUES (${m.version}); COMMIT;`);
+    await conn.exec(
+      `BEGIN; ${m.sql}; INSERT INTO schema_migrations (version) VALUES (${m.version}); COMMIT;`,
+    );
   }
 }

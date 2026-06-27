@@ -18,11 +18,11 @@ describe("synth person_strategy intent", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    const chunks = new ChunkStore(db.pg);
-    const graph = new GraphStore(db.pg);
-    const timeline = new TimelineStore(db.pg);
-    const search = new SearchEngine(db.pg);
+    pages = new PageStore(db.executor);
+    const chunks = new ChunkStore(db.executor);
+    const graph = new GraphStore(db.executor);
+    const timeline = new TimelineStore(db.executor);
+    const search = new SearchEngine(db.executor);
     stores = { db, pages, chunks, graph, timeline, search } as unknown as StoreContext;
 
     await pages.putPage("people/zhang-san", "---\ntitle: Zhang San\ntype: person\n---\nZhang San.");

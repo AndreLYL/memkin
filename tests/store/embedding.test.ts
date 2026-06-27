@@ -35,9 +35,9 @@ describe("EmbeddingService", () => {
 
   beforeEach(async () => {
     db = await Database.create(undefined, { embeddingDimensions: 768 });
-    pageStore = new PageStore(db.pg);
-    chunkStore = new ChunkStore(db.pg);
-    embedder = new EmbeddingService(db.pg, {
+    pageStore = new PageStore(db.executor);
+    chunkStore = new ChunkStore(db.executor);
+    embedder = new EmbeddingService(db.executor, {
       provider: "openai",
       model: "nomic-embed-text",
       dimensions: 768,

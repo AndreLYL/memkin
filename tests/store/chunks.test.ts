@@ -10,8 +10,8 @@ describe("ChunkStore", () => {
 
   beforeEach(async () => {
     db = await Database.create(undefined, { embeddingDimensions: 768 });
-    pages = new PageStore(db.pg);
-    chunks = new ChunkStore(db.pg);
+    pages = new PageStore(db.executor);
+    chunks = new ChunkStore(db.executor);
   });
 
   afterEach(async () => {
@@ -42,7 +42,7 @@ describe("ChunkStore", () => {
   it("rechunk preserves embedding when chunk_text unchanged", async () => {
     const page = await pages.putPage("test/stable", "---\ntitle: S\ntype: test\n---\nStable.");
     await chunks.rechunk(page.id, "Stable content.");
-    await db.pg.query(
+    await db.executor.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()
        WHERE page_id = $2`,
       [`[${Array(768).fill("0.1").join(",")}]`, page.id],
@@ -55,7 +55,7 @@ describe("ChunkStore", () => {
   it("rechunk clears embedding when chunk_text changes", async () => {
     const page = await pages.putPage("test/changed", "---\ntitle: C\ntype: test\n---\nOld.");
     await chunks.rechunk(page.id, "Old content.");
-    await db.pg.query(
+    await db.executor.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()
        WHERE page_id = $2`,
       [`[${Array(768).fill("0.1").join(",")}]`, page.id],
@@ -97,7 +97,7 @@ describe("ChunkStore", () => {
     await chunks.rechunk(page.id, "Hello world full text search.");
     // Migration 006 dropped search_vector column and tsvector triggers; chunked text
     // is now retrieved via trgm ILIKE on chunk_text.
-    const result = await db.pg.query<{ chunk_text: string }>(
+    const result = await db.executor.query<{ chunk_text: string }>(
       "SELECT chunk_text FROM content_chunks WHERE page_id = $1",
       [page.id],
     );

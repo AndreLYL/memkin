@@ -20,12 +20,12 @@ function makeResolver(map: Record<string, ResolutionOutcome>): ChatNameResolver 
 describe("ChatNameRefreshJob — idle initial state", () => {
   it("getStatus returns state=idle before any start", async () => {
     const db = await freshDb();
-    const job = new ChatNameRefreshJob(db.pg, makeResolver({}));
+    const job = new ChatNameRefreshJob(db.executor, makeResolver({}));
     const status = job.getStatus();
     expect(status.state).toBe("idle");
     expect(status.jobId).toBeNull();
     expect(status.total).toBe(0);
-    await db.pg.close();
+    await db.executor.close();
   });
 });
 
@@ -34,7 +34,7 @@ describe("ChatNameRefreshJob — channel collection", () => {
     const db = await freshDb();
     const insertPage = async (slug: string, channel: string, source = "source") => {
       const fm = JSON.stringify({ [source]: { platform: "feishu", channel } });
-      await db.pg.query(
+      await db.executor.query(
         `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter)
          VALUES ($1, 'task', 't', '', $2::jsonb)`,
         [slug, fm],
@@ -46,10 +46,10 @@ describe("ChatNameRefreshJob — channel collection", () => {
     await insertPage("p4", "mail/INBOX"); // should be excluded
     await insertPage("p5", "group/oc_c", "first_seen");
 
-    const job = new ChatNameRefreshJob(db.pg, makeResolver({}));
+    const job = new ChatNameRefreshJob(db.executor, makeResolver({}));
     const channels = await job.collectChannels();
     expect(channels.sort()).toEqual(["dm/oc_b", "group/oc_a", "group/oc_c"]);
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("excludes non-feishu pages", async () => {
@@ -58,14 +58,14 @@ describe("ChatNameRefreshJob — channel collection", () => {
     const fmClaude = JSON.stringify({
       source: { platform: "claude-code", channel: "group/oc_claude" },
     });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb), ('p2', 'task', 't', '', $2::jsonb)`,
       [fmFeishu, fmClaude],
     );
-    const job = new ChatNameRefreshJob(db.pg, makeResolver({}));
+    const job = new ChatNameRefreshJob(db.executor, makeResolver({}));
     const channels = await job.collectChannels();
     expect(channels).toEqual(["group/oc_feishu"]);
-    await db.pg.close();
+    await db.executor.close();
   });
 });
 
@@ -74,7 +74,7 @@ describe("ChatNameRefreshJob — start + run", () => {
     const db = await freshDb();
     const insertFeishuPage = async (slug: string, channel: string) => {
       const fm = JSON.stringify({ source: { platform: "feishu", channel } });
-      await db.pg.query(
+      await db.executor.query(
         `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ($1, 'task', 't', '', $2::jsonb)`,
         [slug, fm],
       );
@@ -88,7 +88,7 @@ describe("ChatNameRefreshJob — start + run", () => {
       "group/oc_b": { kind: "failed" },
       "group/oc_c": { kind: "transient_error", error: "network" },
     });
-    const job = new ChatNameRefreshJob(db.pg, resolver);
+    const job = new ChatNameRefreshJob(db.executor, resolver);
     const jobId = await job.start();
     expect(jobId).toBeTruthy();
     await job.waitUntilDone();
@@ -101,32 +101,32 @@ describe("ChatNameRefreshJob — start + run", () => {
     expect(s.errors[0]?.error).toBe("network");
     expect(s.lastRefreshedAt).toBeTruthy();
     expect(s.finishedAt).toBeTruthy();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("counts skipped outcomes (TTL cache hit)", async () => {
     const db = await freshDb();
     const fm = JSON.stringify({ source: { platform: "feishu", channel: "group/oc_cached" } });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb)`,
       [fm],
     );
     const resolver = makeResolver({
       "group/oc_cached": { kind: "skipped", name: "已缓存" },
     });
-    const job = new ChatNameRefreshJob(db.pg, resolver);
+    const job = new ChatNameRefreshJob(db.executor, resolver);
     await job.start();
     await job.waitUntilDone();
     const s = job.getStatus();
     expect(s.skipped).toBe(1);
     expect(s.resolved).toBe(0);
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("rejects concurrent start with throw, status still attachable", async () => {
     const db = await freshDb();
     const fm = JSON.stringify({ source: { platform: "feishu", channel: "group/oc_a" } });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb)`,
       [fm],
     );
@@ -142,7 +142,7 @@ describe("ChatNameRefreshJob — start + run", () => {
       resolve: vi.fn(),
     } as unknown as ChatNameResolver;
 
-    const job = new ChatNameRefreshJob(db.pg, slowResolver);
+    const job = new ChatNameRefreshJob(db.executor, slowResolver);
     const first = await job.start();
     expect(first).toBeTruthy();
     expect(job.getStatus().state).toBe("running");
@@ -154,7 +154,7 @@ describe("ChatNameRefreshJob — start + run", () => {
 
     resolveSlow();
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("caps errors at 50 to avoid runaway memory", async () => {
@@ -162,7 +162,7 @@ describe("ChatNameRefreshJob — start + run", () => {
     // Insert 60 distinct feishu channels
     for (let i = 0; i < 60; i++) {
       const fm = JSON.stringify({ source: { platform: "feishu", channel: `group/oc_${i}` } });
-      await db.pg.query(
+      await db.executor.query(
         `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ($1, 'task', 't', '', $2::jsonb)`,
         [`p${i}`, fm],
       );
@@ -172,19 +172,19 @@ describe("ChatNameRefreshJob — start + run", () => {
       refresh: vi.fn(async () => ({ kind: "transient_error" as const, error: "boom" })),
       resolve: vi.fn(),
     } as unknown as ChatNameResolver;
-    const job = new ChatNameRefreshJob(db.pg, resolver);
+    const job = new ChatNameRefreshJob(db.executor, resolver);
     await job.start();
     await job.waitUntilDone();
     const s = job.getStatus();
     expect(s.errors).toHaveLength(50);
     expect(resolver.refresh).toHaveBeenCalledTimes(60); // refresh called for all 60
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("transitions to error state when runLoop throws unexpectedly", async () => {
     const db = await freshDb();
     const fm = JSON.stringify({ source: { platform: "feishu", channel: "group/oc_a" } });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb)`,
       [fm],
     );
@@ -195,7 +195,7 @@ describe("ChatNameRefreshJob — start + run", () => {
       }),
       resolve: vi.fn(),
     } as unknown as ChatNameResolver;
-    const job = new ChatNameRefreshJob(db.pg, resolver);
+    const job = new ChatNameRefreshJob(db.executor, resolver);
     await job.start();
     await job.waitUntilDone();
     const s = job.getStatus();
@@ -204,6 +204,6 @@ describe("ChatNameRefreshJob — start + run", () => {
     expect(s.errors[0]?.channel).toBe("<job>");
     expect(s.errors[0]?.error).toContain("unexpected runtime error");
     expect(s.finishedAt).toBeTruthy();
-    await db.pg.close();
+    await db.executor.close();
   });
 });

@@ -15,10 +15,10 @@
  *   - Merging two existing person pages is always an explicit operation.
  */
 
-import type { PGlite } from "@electric-sql/pglite";
 import { stringify as stringifyYaml } from "yaml";
 import type { PageStore } from "../store/pages.js";
 import type { PersonBehaviorStore } from "../store/person-behavior.js";
+import type { SqlConn } from "../store/sql-executor.js";
 
 export type HandleKind = "feishu_open_id" | "email" | "name" | "nickname" | "slug";
 export type HandleStrength = "strong" | "weak";
@@ -72,7 +72,7 @@ export interface PersonIdentityExtraStores {
 
 export class PersonIdentityStore {
   constructor(
-    private db: PGlite,
+    private db: SqlConn,
     private stores?: PersonIdentityStores,
     private extra?: PersonIdentityExtraStores,
   ) {}

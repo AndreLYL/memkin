@@ -31,11 +31,11 @@ describe("synth/cache", () => {
     db = await Database.create();
     stores = {
       db,
-      pages: new PageStore(db.pg),
-      chunks: new ChunkStore(db.pg),
-      graph: new GraphStore(db.pg),
-      timeline: new TimelineStore(db.pg),
-      search: new SearchEngine(db.pg),
+      pages: new PageStore(db.executor),
+      chunks: new ChunkStore(db.executor),
+      graph: new GraphStore(db.executor),
+      timeline: new TimelineStore(db.executor),
+      search: new SearchEngine(db.executor),
     } as unknown as StoreContext;
   });
   afterEach(async () => {

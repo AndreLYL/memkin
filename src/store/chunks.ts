@@ -1,4 +1,4 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { SqlConn } from "./sql-executor.js";
 
 export interface Chunk {
   id: number;
@@ -31,7 +31,7 @@ function splitIntoChunks(text: string): string[] {
 }
 
 export class ChunkStore {
-  constructor(private pg: PGlite) {}
+  constructor(private pg: SqlConn) {}
 
   async rechunk(pageId: number, content: string): Promise<void> {
     const textChunks = splitIntoChunks(content);
@@ -71,14 +71,14 @@ export class ChunkStore {
   }
 
   async getChunks(pageSlug: string): Promise<Chunk[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<Chunk>(
       `SELECT cc.* FROM content_chunks cc
        JOIN pages p ON p.id = cc.page_id
        WHERE p.slug = $1
        ORDER BY cc.chunk_index`,
       [pageSlug],
     );
-    return result.rows as Chunk[];
+    return result.rows;
   }
 
   async getStaleChunks(limit?: number): Promise<Chunk[]> {
@@ -88,7 +88,7 @@ export class ChunkStore {
       sql += " LIMIT $1";
       params.push(limit);
     }
-    const result = await this.pg.query(sql, params);
-    return result.rows as Chunk[];
+    const result = await this.pg.query<Chunk>(sql, params);
+    return result.rows;
   }
 }

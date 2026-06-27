@@ -2,22 +2,22 @@
  * Tests for IdentityResolver
  */
 
-import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IdentityBackend } from "../../src/core/identity-resolver.js";
 import { IdentityResolver } from "../../src/core/identity-resolver.js";
 import * as personSlug from "../../src/core/person-slug.js";
 import type { ExtractionResult, SourceRef } from "../../src/core/types.js";
 import { Database } from "../../src/store/database.js";
+import type { SqlExecutor } from "../../src/store/sql-executor.js";
 
 describe("IdentityResolver", () => {
   let database: Database;
-  let db: PGlite;
+  let db: SqlExecutor;
   let resolver: IdentityResolver;
 
   beforeEach(async () => {
     database = await Database.create();
-    db = database.pg;
+    db = database.executor;
     resolver = new IdentityResolver(db);
   });
 
@@ -544,11 +544,11 @@ describe("IdentityResolver", () => {
 
 describe("IdentityResolver null-guard regressions (7fde24f fix)", () => {
   let database: Database;
-  let db: PGlite;
+  let db: SqlExecutor;
 
   beforeEach(async () => {
     database = await Database.create();
-    db = database.pg;
+    db = database.executor;
   });
 
   afterEach(async () => {

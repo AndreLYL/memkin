@@ -8,8 +8,8 @@
  * DM / group blocks.
  */
 
-import type { PGlite } from "@electric-sql/pglite";
 import type { BehaviorContribution, PersonBehaviorRow } from "../profile/types.js";
+import type { SqlConn } from "./sql-executor.js";
 
 interface RawRow {
   person_slug: string;
@@ -55,7 +55,7 @@ function addHistograms(a: number[], b: number[]): number[] {
 }
 
 export class PersonBehaviorStore {
-  constructor(private pg: PGlite) {}
+  constructor(private pg: SqlConn) {}
 
   /**
    * Additively merge a contribution into the row for `person_slug`.

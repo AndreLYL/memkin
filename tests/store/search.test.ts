@@ -12,9 +12,9 @@ describe("SearchEngine — FTS", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pageStore = new PageStore(db.pg);
-    chunkStore = new ChunkStore(db.pg);
-    search = new SearchEngine(db.pg);
+    pageStore = new PageStore(db.executor);
+    chunkStore = new ChunkStore(db.executor);
+    search = new SearchEngine(db.executor);
 
     const p1 = await pageStore.putPage(
       "entities/alice",

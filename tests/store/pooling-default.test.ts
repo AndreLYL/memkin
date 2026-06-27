@@ -37,8 +37,8 @@ describe("SearchEngine.query — best-chunk pooling default (Spec 10)", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pageStore = new PageStore(db.pg);
-    search = new SearchEngine(db.pg);
+    pageStore = new PageStore(db.executor);
+    search = new SearchEngine(db.executor);
 
     // Page A: many weak chunks. Each chunk mentions "needle" once amidst filler.
     // Many chunks => many low-rank FTS hits that SUM together.
@@ -54,7 +54,7 @@ describe("SearchEngine.query — best-chunk pooling default (Spec 10)", () => {
     // Force many chunks by inserting each line separately.
     for (let i = 0; i < 8; i++) {
       await insertChunk(
-        db.pg,
+        db.executor,
         a.id,
         i,
         `Section ${i}: filler context number ${i} with a single needle here.`,
@@ -66,7 +66,7 @@ describe("SearchEngine.query — best-chunk pooling default (Spec 10)", () => {
       "notes/strong-one",
       "---\ntitle: Strong One\ntype: note\n---\nneedle needle needle needle needle needle needle.",
     );
-    await insertChunk(db.pg, b.id, 0, "needle needle needle needle needle needle needle.");
+    await insertChunk(db.executor, b.id, 0, "needle needle needle needle needle needle needle.");
   });
 
   afterEach(async () => {

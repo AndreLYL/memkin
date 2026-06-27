@@ -10,7 +10,8 @@ import type { SqlConn } from "../../src/store/sql-executor.js";
 /** Minimal SqlConn wrapper around a raw PGlite for tests that pre-date PgliteExecutor. */
 function pgAsConn(pg: PGlite): SqlConn {
   return {
-    query: <T = Record<string, unknown>>(sql: string, params?: unknown[]) => pg.query<T>(sql, params),
+    query: <T = Record<string, unknown>>(sql: string, params?: unknown[]) =>
+      pg.query<T>(sql, params),
     exec: (sql: string) => pg.exec(sql).then(() => undefined),
   };
 }
@@ -27,14 +28,14 @@ describe("migration runner", () => {
   });
 
   it("creates schema_migrations table and records applied versions", async () => {
-    const rows = await db.pg.query<{ version: number }>(
+    const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
     expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("adds halflife_days column to pages", async () => {
-    const cols = await db.pg.query<{ column_name: string }>(
+    const cols = await db.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_name = 'pages' AND column_name = 'halflife_days'`,
     );
@@ -42,7 +43,7 @@ describe("migration runner", () => {
   });
 
   it("adds provenance/source_hash columns to links and timeline_entries", async () => {
-    const cols = await db.pg.query<{ table_name: string; column_name: string }>(
+    const cols = await db.executor.query<{ table_name: string; column_name: string }>(
       `SELECT table_name, column_name FROM information_schema.columns
        WHERE (table_name = 'links' AND column_name IN ('provenance', 'source_hash'))
           OR (table_name = 'timeline_entries' AND column_name = 'provenance')`,
@@ -52,16 +53,16 @@ describe("migration runner", () => {
   });
 
   it("is idempotent: running migrations twice does not duplicate or error", async () => {
-    await runMigrations(pgAsConn(db.pg));
-    await runMigrations(pgAsConn(db.pg));
-    const rows = await db.pg.query<{ version: number }>(
+    await runMigrations(pgAsConn(db.executor));
+    await runMigrations(pgAsConn(db.executor));
+    const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
     expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("migration 006 installs pg_trgm + trgm indexes and drops tsvector machinery", async () => {
-    const pg = db.pg;
+    const pg = db.executor;
     // tsvector columns dropped
     const cols = await pg.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
@@ -149,7 +150,7 @@ describe("migration runner", () => {
   });
 
   it("adds tier/expires_at/consolidated_into columns to pages", async () => {
-    const cols = await db.pg.query<{ column_name: string }>(
+    const cols = await db.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_name = 'pages'
          AND column_name IN ('tier', 'expires_at', 'consolidated_into')
@@ -163,7 +164,7 @@ describe("migration runner", () => {
   });
 
   it("adds tier/expires_at columns to timeline_entries", async () => {
-    const cols = await db.pg.query<{ column_name: string }>(
+    const cols = await db.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
        WHERE table_name = 'timeline_entries'
          AND column_name IN ('tier', 'expires_at')

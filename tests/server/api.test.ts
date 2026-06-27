@@ -31,15 +31,15 @@ describe("REST API", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    const pages = new PageStore(db.pg);
-    const chunks = new ChunkStore(db.pg);
-    const graph = new GraphStore(db.pg);
-    const tags = new TagStore(db.pg);
-    const timeline = new TimelineStore(db.pg);
-    const search = new SearchEngine(db.pg, {
+    const pages = new PageStore(db.executor);
+    const chunks = new ChunkStore(db.executor);
+    const graph = new GraphStore(db.executor);
+    const tags = new TagStore(db.executor);
+    const timeline = new TimelineStore(db.executor);
+    const search = new SearchEngine(db.executor, {
       embedText: vi.fn().mockResolvedValue(Array(768).fill(0.1)),
     });
-    const embedding = new EmbeddingService(db.pg, {
+    const embedding = new EmbeddingService(db.executor, {
       provider: "openai",
       model: "text-embedding-3-large",
       dimensions: 768,

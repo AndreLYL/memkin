@@ -1,6 +1,5 @@
-import type { PGlite } from "@electric-sql/pglite";
-import { SCHEMA_SQL } from "../embedded-assets.generated.js";
 import type { Config } from "../core/config.js";
+import { SCHEMA_SQL } from "../embedded-assets.generated.js";
 import { createEngine } from "./engine-factory.js";
 import { runMigrations } from "./migrations/index.js";
 import type { SqlConn, SqlExecutor } from "./sql-executor.js";
@@ -29,21 +28,6 @@ export class Database {
     readonly executor: SqlExecutor,
     readonly embeddingDimensions: number,
   ) {}
-
-  /**
-   * Temporary compat accessor so existing consumers of `db.pg` continue to
-   * compile until T7 migrates the 13 store classes and direct callsites to
-   * accept SqlConn directly.
-   *
-   * Returns the executor cast as PGlite so existing PGlite-typed callsites
-   * compile unchanged. At runtime the value is a PgliteExecutor which
-   * implements query/exec/transaction — safe until T7 removes this getter.
-   *
-   * @deprecated Use db.executor directly. Removed in T7.
-   */
-  get pg(): PGlite {
-    return this.executor as unknown as PGlite;
-  }
 
   static async create(
     dataDirOrConfig?: string | Config,

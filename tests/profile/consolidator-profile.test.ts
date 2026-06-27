@@ -30,11 +30,11 @@ describe("consolidator profile synthesis wiring (gated)", () => {
   });
 
   function makeConsolidator(profileConfig: ProfileConfig) {
-    const pages = new PageStore(db.pg);
-    const graph = new GraphStore(db.pg);
-    const tags = new TagStore(db.pg);
-    const timeline = new TimelineStore(db.pg);
-    const behavior = new PersonBehaviorStore(db.pg);
+    const pages = new PageStore(db.executor);
+    const graph = new GraphStore(db.executor);
+    const tags = new TagStore(db.executor);
+    const timeline = new TimelineStore(db.executor);
+    const behavior = new PersonBehaviorStore(db.executor);
     const llm = { chat: vi.fn().mockResolvedValue("[]") };
     const consolidator = new Consolidator({ pages, graph, tags, timeline }, llm, {
       profile: profileConfig,

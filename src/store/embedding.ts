@@ -1,5 +1,5 @@
-import type { PGlite } from "@electric-sql/pglite";
 import OpenAI from "openai";
+import type { SqlConn } from "./sql-executor.js";
 
 export interface EmbeddingConfig {
   provider: "openai" | "ollama";
@@ -17,7 +17,7 @@ export class EmbeddingService {
   private dimensions: number;
 
   constructor(
-    private pg: PGlite,
+    private pg: SqlConn,
     config: EmbeddingConfig,
   ) {
     this.model = config.model ?? "text-embedding-3-large";

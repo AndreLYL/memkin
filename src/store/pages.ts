@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import type { PGlite } from "@electric-sql/pglite";
 import { parse as parseYaml } from "yaml";
 import type { SourceRef } from "../core/types.js";
 import { GraphStore } from "./graph.js";
+import type { SqlConn } from "./sql-executor.js";
 import { parseWikiLinks } from "./wikilink.js";
 
 export interface Page {
@@ -71,7 +71,7 @@ function parseMarkdownWithFrontmatter(content: string): ParsedContent {
 export class PageStore {
   private graph: GraphStore;
 
-  constructor(private pg: PGlite) {
+  constructor(private pg: SqlConn) {
     this.graph = new GraphStore(pg);
   }
 

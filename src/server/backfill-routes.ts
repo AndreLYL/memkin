@@ -70,7 +70,7 @@ export function createBackfillRoutes(job: BackfillJob, stores: StoreContext): Ho
   });
 
   app.get("/api/backfill/coverage", async (c) => {
-    const result = await stores.db.pg.query(COVERAGE_SQL);
+    const result = await stores.db.executor.query(COVERAGE_SQL);
     const buckets = (result.rows as Array<{ week_start_ms: string; count: number }>).map((row) => ({
       week_start: Number(row.week_start_ms),
       count: row.count,
@@ -137,7 +137,7 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 
     const provider = createLLMProvider(llmConfig);
 
-    const identityResolver = new IdentityResolver(stores.db.pg);
+    const identityResolver = new IdentityResolver(stores.db.executor);
 
     const result = await runPipeline(pipelineConfig, {
       source: collector,

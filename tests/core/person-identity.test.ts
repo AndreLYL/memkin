@@ -49,11 +49,11 @@ describe("PersonIdentityStore", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    graph = new GraphStore(db.pg);
-    timeline = new TimelineStore(db.pg);
-    tags = new TagStore(db.pg);
-    identity = new PersonIdentityStore(db.pg, { pages });
+    pages = new PageStore(db.executor);
+    graph = new GraphStore(db.executor);
+    timeline = new TimelineStore(db.executor);
+    tags = new TagStore(db.executor);
+    identity = new PersonIdentityStore(db.executor, { pages });
   });
 
   afterEach(async () => {
@@ -124,13 +124,13 @@ describe("PersonIdentityStore", () => {
       await pages.putPage("person/li-yinglong", personPage("person/li-yinglong", "李应龙"));
       await identity.addAlias("person/li-yinglong", "nickname", "龙哥");
 
-      const resolver = new IdentityResolver(db.pg);
+      const resolver = new IdentityResolver(db.executor);
       const result = await resolver.canonicalizePersonSlug("龙哥", "person/long-ge");
       expect(result).toEqual({ slug: "person/li-yinglong", isAlias: true });
     });
 
     it("an UNLINKED nickname is never auto-merged — it stays its own person", async () => {
-      const resolver = new IdentityResolver(db.pg);
+      const resolver = new IdentityResolver(db.executor);
       const result = await resolver.canonicalizePersonSlug("王哥", "person/wang-ge");
       // No handle exists for 王哥 → falls back to deterministic pinyin slug,
       // does NOT collapse into anyone else.

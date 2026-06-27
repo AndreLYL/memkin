@@ -1,6 +1,6 @@
-import type { PGlite } from "@electric-sql/pglite";
 import { compactSourceRef } from "../core/source-ref.js";
 import type { SourceRef } from "../core/types.js";
+import type { SqlConn } from "./sql-executor.js";
 
 export interface LinkRow {
   from_slug: string;
@@ -80,7 +80,7 @@ function parseProvenance(value: SourceRef | string | null | undefined): SourceRe
 }
 
 export class GraphStore {
-  constructor(private pg: PGlite) {}
+  constructor(private pg: SqlConn) {}
 
   async addLink(
     fromSlug: string,
@@ -172,7 +172,7 @@ export class GraphStore {
   }
 
   async getLinksEnriched(slug: string): Promise<EnrichedLinkRow[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<EnrichedLinkRawRow>(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance,
               pt.title AS page_title, pt.type AS page_type, pt.frontmatter AS page_frontmatter
        FROM links l
@@ -181,7 +181,7 @@ export class GraphStore {
        WHERE pf.slug = $1`,
       [slug],
     );
-    return (result.rows as EnrichedLinkRawRow[]).map((r) => {
+    return result.rows.map((r) => {
       const frontmatter =
         typeof r.page_frontmatter === "string"
           ? JSON.parse(r.page_frontmatter)
@@ -204,7 +204,7 @@ export class GraphStore {
 
   async getLinksForSlugs(slugs: string[]): Promise<Map<string, LinkRow[]>> {
     if (slugs.length === 0) return new Map();
-    const result = await this.pg.query(
+    const result = await this.pg.query<LinkRow>(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id
@@ -213,7 +213,7 @@ export class GraphStore {
       [slugs],
     );
     const map = new Map<string, LinkRow[]>();
-    for (const row of result.rows as LinkRow[]) {
+    for (const row of result.rows) {
       const existing = map.get(row.from_slug) ?? [];
       existing.push(row);
       map.set(row.from_slug, existing);
@@ -222,7 +222,7 @@ export class GraphStore {
   }
 
   async getBacklinksEnriched(slug: string): Promise<EnrichedLinkRow[]> {
-    const result = await this.pg.query(
+    const result = await this.pg.query<EnrichedLinkRawRow>(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context, l.provenance,
               pf.title AS page_title, pf.type AS page_type, pf.frontmatter AS page_frontmatter
        FROM links l
@@ -231,7 +231,7 @@ export class GraphStore {
        WHERE pt.slug = $1`,
       [slug],
     );
-    return (result.rows as EnrichedLinkRawRow[]).map((r) => {
+    return result.rows.map((r) => {
       const frontmatter =
         typeof r.page_frontmatter === "string"
           ? JSON.parse(r.page_frontmatter)

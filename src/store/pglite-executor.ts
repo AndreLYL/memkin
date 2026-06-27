@@ -15,7 +15,9 @@ export class PgliteExecutor implements SqlExecutor {
     opts: { assetsOverride?: string; lockLabel?: string },
   ): Promise<PgliteExecutor> {
     // Build PGlite FIRST — if WASM/asset loading fails, no lock is leaked.
-    const pg = new PGlite(await buildPGliteOptions(dataDir, { assetsOverride: opts.assetsOverride }));
+    const pg = new PGlite(
+      await buildPGliteOptions(dataDir, { assetsOverride: opts.assetsOverride }),
+    );
     let lock: LockHandle | undefined;
     try {
       if (dataDir && !process.env.MEMOARK_NO_LOCK) {
@@ -48,8 +50,7 @@ export class PgliteExecutor implements SqlExecutor {
   async transaction<T>(fn: (tx: SqlConn) => Promise<T>): Promise<T> {
     return this.pg.transaction<T>(async (pgTx) => {
       const conn: SqlConn = {
-        query: <R = Record<string, unknown>>(s: string, p?: unknown[]) =>
-          pgTx.query<R>(s, p),
+        query: <R = Record<string, unknown>>(s: string, p?: unknown[]) => pgTx.query<R>(s, p),
         exec: async (s: string) => {
           await pgTx.exec(s);
         },

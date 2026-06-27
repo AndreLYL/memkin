@@ -30,12 +30,12 @@ describe("profile/profile-synth synthesizeProfiles", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    graph = new GraphStore(db.pg);
-    chunks = new ChunkStore(db.pg);
-    tags = new TagStore(db.pg);
-    timeline = new TimelineStore(db.pg);
-    behavior = new PersonBehaviorStore(db.pg);
+    pages = new PageStore(db.executor);
+    graph = new GraphStore(db.executor);
+    chunks = new ChunkStore(db.executor);
+    tags = new TagStore(db.executor);
+    timeline = new TimelineStore(db.executor);
+    behavior = new PersonBehaviorStore(db.executor);
   });
   afterEach(async () => {
     await db.close();

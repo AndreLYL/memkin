@@ -16,10 +16,10 @@ describe("SearchEngine — hybrid query", () => {
 
   beforeEach(async () => {
     db = await Database.create(undefined, { embeddingDimensions: 768 });
-    pageStore = new PageStore(db.pg);
-    chunkStore = new ChunkStore(db.pg);
-    graphStore = new GraphStore(db.pg);
-    search = new SearchEngine(db.pg, { embedText: mockEmbedText });
+    pageStore = new PageStore(db.executor);
+    chunkStore = new ChunkStore(db.executor);
+    graphStore = new GraphStore(db.executor);
+    search = new SearchEngine(db.executor, { embedText: mockEmbedText });
 
     const p1 = await pageStore.putPage(
       "entities/alice",
@@ -34,9 +34,10 @@ describe("SearchEngine — hybrid query", () => {
     await chunkStore.rechunk(p2.id, p2.compiled_truth);
 
     const vecStr = `[${Array(768).fill("0.5").join(",")}]`;
-    await db.pg.query(`UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()`, [
-      vecStr,
-    ]);
+    await db.executor.query(
+      `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW()`,
+      [vecStr],
+    );
   });
 
   afterEach(async () => {
@@ -71,7 +72,7 @@ describe("SearchEngine — hybrid query", () => {
     const longContent = Array.from({ length: 400 }, (_, i) => `content${i}`).join(" ");
     await chunkStore.rechunk(p.id, longContent);
     const vecStr = `[${Array(768).fill("0.5").join(",")}]`;
-    await db.pg.query(
+    await db.executor.query(
       `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW() WHERE page_id = $2`,
       [vecStr, p.id],
     );
@@ -92,7 +93,7 @@ describe("SearchEngine — hybrid query", () => {
   });
 
   it("query() recalls Chinese pages via trigram FTS leg (no embeddings)", async () => {
-    const chineseSearch = new SearchEngine(db.pg); // no embedText -> vector leg empty
+    const chineseSearch = new SearchEngine(db.executor); // no embedText -> vector leg empty
     const p = await pageStore.putPage(
       "knowledge/auth-mw",
       "---\ntitle: 认证中间件重构与上线回滚决策\ntype: knowledge\n---\n认证中间件重构与上线回滚决策",

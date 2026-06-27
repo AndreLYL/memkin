@@ -44,7 +44,7 @@ describe("playbook draft extraction", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
+    pages = new PageStore(db.executor);
   });
 
   afterEach(async () => {

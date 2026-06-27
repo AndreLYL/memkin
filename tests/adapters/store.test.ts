@@ -32,11 +32,11 @@ describe("StoreAdapter", () => {
 
   beforeEach(async () => {
     db = await Database.create(); // In-memory PGlite
-    pages = new PageStore(db.pg);
-    chunks = new ChunkStore(db.pg);
-    graph = new GraphStore(db.pg);
-    tags = new TagStore(db.pg);
-    timeline = new TimelineStore(db.pg);
+    pages = new PageStore(db.executor);
+    chunks = new ChunkStore(db.executor);
+    graph = new GraphStore(db.executor);
+    tags = new TagStore(db.executor);
+    timeline = new TimelineStore(db.executor);
 
     adapter = new StoreAdapter({
       pages,

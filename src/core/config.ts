@@ -129,9 +129,9 @@ export interface SourcesConfig {
  */
 export interface StoreConfig {
   engine?: "pglite" | "postgres"; // 默认 pglite
-  data_dir?: string;              // engine: pglite（改为可选）
-  database_url?: string;          // engine: postgres，支持 ${ENV}
-  pool_size?: number;             // 可选，默认 10
+  data_dir?: string; // engine: pglite（改为可选）
+  database_url?: string; // engine: postgres，支持 ${ENV}
+  pool_size?: number; // 可选，默认 10
 }
 
 /**

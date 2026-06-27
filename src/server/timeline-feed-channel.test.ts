@@ -21,7 +21,7 @@ async function setupAppWithChannelData() {
         timestamp: "2026-06-10T08:00:00Z",
       },
     });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter)
        VALUES ($1, 'task', 't', 'body', $2::jsonb)`,
       [slug, fm],
@@ -33,26 +33,28 @@ async function setupAppWithChannelData() {
   await insert("p4", "mail/INBOX");
 
   // identity_cache: one resolved, one failed (NULL marker)
-  await db.pg.query(
+  await db.executor.query(
     "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, $3)",
     ["feishu:chat", "group/oc_resolved", "产品讨论"],
   );
-  await db.pg.query(
+  await db.executor.query(
     "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, NULL)",
     ["feishu:chat", "group/oc_failed"],
   );
 
   // Build a real StoreContext with real stores. Embedding can be a stub.
-  const pages = new PageStore(db.pg);
-  const chunks = new ChunkStore(db.pg);
-  const graph = new GraphStore(db.pg);
-  const tags = new TagStore(db.pg);
-  const timeline = new TimelineStore(db.pg);
+  const pages = new PageStore(db.executor);
+  const chunks = new ChunkStore(db.executor);
+  const graph = new GraphStore(db.executor);
+  const tags = new TagStore(db.executor);
+  const timeline = new TimelineStore(db.executor);
   const embedding = {
     embedText: async () => new Float32Array(),
     embedStale: async () => ({ embedded: 0, failed: 0 }),
   } as unknown as EmbeddingService;
-  const search = new SearchEngine(db.pg, { embedText: (q: string) => embedding.embedText(q) });
+  const search = new SearchEngine(db.executor, {
+    embedText: (q: string) => embedding.embedText(q),
+  });
 
   const stores: StoreContext = {
     db,
@@ -94,7 +96,7 @@ describe("/api/timeline/feed — channel_name + channel_name_status", () => {
     expect(resolved).toBeDefined();
     expect(resolved?.channel_name).toBe("产品讨论");
     expect(resolved?.channel_name_status).toBe("resolved");
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns null display_name + status=failed when cache marker is NULL", async () => {
@@ -105,7 +107,7 @@ describe("/api/timeline/feed — channel_name + channel_name_status", () => {
     const failed = groups.find((g) => g.channel === "group/oc_failed");
     expect(failed?.channel_name).toBeNull();
     expect(failed?.channel_name_status).toBe("failed");
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns status=unresolved when no cache row exists", async () => {
@@ -116,7 +118,7 @@ describe("/api/timeline/feed — channel_name + channel_name_status", () => {
     const fresh = groups.find((g) => g.channel === "group/oc_neverseen");
     expect(fresh?.channel_name).toBeNull();
     expect(fresh?.channel_name_status).toBe("unresolved");
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns status=mail for mail/* channels regardless of cache", async () => {
@@ -126,6 +128,6 @@ describe("/api/timeline/feed — channel_name + channel_name_status", () => {
     const groups = body.days.flatMap((d) => d.groups);
     const mail = groups.find((g) => g.channel === "mail/INBOX");
     expect(mail?.channel_name_status).toBe("mail");
-    await db.pg.close();
+    await db.executor.close();
   });
 });

@@ -30,9 +30,9 @@ describe("person merge consolidates behavior + invalidates stale profile", () =>
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    behavior = new PersonBehaviorStore(db.pg);
-    identity = new PersonIdentityStore(db.pg, { pages }, { behavior });
+    pages = new PageStore(db.executor);
+    behavior = new PersonBehaviorStore(db.executor);
+    identity = new PersonIdentityStore(db.executor, { pages }, { behavior });
   });
   afterEach(async () => {
     await db.close();

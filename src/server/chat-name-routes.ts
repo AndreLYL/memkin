@@ -63,7 +63,7 @@ export function registerChatNameRoutes(app: Hono, stores: StoreContext): void {
       return c.json({ error: "channels exceeds limit: at most 100 per request" }, 400);
     }
     const channels = body.channels.filter((x: unknown): x is string => typeof x === "string");
-    const rows = await stores.db.pg.query<{
+    const rows = await stores.db.executor.query<{
       external_id: string;
       display_name: string | null;
       resolved_at: string;

@@ -11,8 +11,8 @@ describe("GraphStore", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    graph = new GraphStore(db.pg);
+    pages = new PageStore(db.executor);
+    graph = new GraphStore(db.executor);
     await pages.putPage("entities/alice", "---\ntitle: Alice\ntype: person\n---\nAlice.");
     await pages.putPage("entities/bob", "---\ntitle: Bob\ntype: person\n---\nBob.");
     await pages.putPage("projects/memoark", "---\ntitle: Memoark\ntype: project\n---\nMemoark.");
@@ -73,7 +73,7 @@ describe("GraphStore", () => {
       raw_hash: "latest-hash",
     });
 
-    const stored = await db.pg.query<{ source_hash: string }>(
+    const stored = await db.executor.query<{ source_hash: string }>(
       "SELECT source_hash FROM links WHERE link_type = $1",
       ["works_on"],
     );
@@ -176,8 +176,8 @@ describe("GraphStore.getLinksForSlugs", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    graph = new GraphStore(db.pg);
-    pages = new PageStore(db.pg);
+    graph = new GraphStore(db.executor);
+    pages = new PageStore(db.executor);
   });
 
   afterEach(async () => {
