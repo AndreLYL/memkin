@@ -3,6 +3,7 @@ import { SCHEMA_SQL } from "../embedded-assets.generated.js";
 import { createEngine } from "./engine-factory.js";
 import { runMigrations } from "./migrations/index.js";
 import type { SqlConn, SqlExecutor } from "./sql-executor.js";
+import { fingerprintString, readMeta, writeMeta } from "./store-meta.js";
 
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
@@ -47,7 +48,7 @@ export class Database {
       await e.bootstrap(async (conn: SqlConn) => {
         await conn.exec(loadSchemaSql(dims));
         await runMigrations(conn);
-        await ensureEmbeddingConsistency(conn, dims);
+        await ensureEmbeddingConsistency(conn, dims, config);
       });
       return new Database(e, dims);
     } catch (err) {
@@ -61,7 +62,12 @@ export class Database {
   }
 }
 
-async function ensureEmbeddingConsistency(conn: SqlConn, targetDims: number): Promise<void> {
+/**
+ * Migrate the embedding column dimensions if they changed.
+ * Clears all existing embeddings when the dimension count changes so they
+ * will be re-indexed with the new model.
+ */
+async function migrateEmbeddingDimensions(conn: SqlConn, targetDims: number): Promise<void> {
   const result = await conn.query<{ atttypmod: number }>(
     `SELECT atttypmod FROM pg_attribute
      WHERE attrelid = 'content_chunks'::regclass
@@ -85,4 +91,49 @@ async function ensureEmbeddingConsistency(conn: SqlConn, targetDims: number): Pr
     CREATE INDEX idx_chunks_embedding ON content_chunks
       USING hnsw (embedding vector_cosine_ops);
   `);
+}
+
+async function ensureEmbeddingConsistency(
+  conn: SqlConn,
+  targetDims: number,
+  config: Config,
+): Promise<void> {
+  const fp = {
+    provider: config.embedding?.provider ?? "openai",
+    model: config.embedding?.model ?? "text-embedding-3-large",
+    dimensions: targetDims,
+  };
+  const want = fingerprintString(fp);
+  const have = await readMeta(conn, "embedding_fingerprint");
+
+  if (have === null) {
+    // Fresh database — migrate dimensions if needed, then record fingerprint.
+    await migrateEmbeddingDimensions(conn, targetDims);
+    await writeMeta(conn, "embedding_fingerprint", want);
+    return;
+  }
+
+  if (have !== want) {
+    throw new Error(
+      `Embedding fingerprint mismatch: db="${have}" config="${want}". ` +
+        "不静默改写共享库。改回原 embedding 配置或跑显式 reindex。",
+    );
+  }
+
+  // Fingerprint matches — still run dimension migration guard (idempotent).
+  await migrateEmbeddingDimensions(conn, targetDims);
+}
+
+/**
+ * Exported for unit-testing the fingerprint logic without requiring a
+ * disk-backed PGLite instance (which would OOM in vitest fork workers).
+ *
+ * @internal — test use only.
+ */
+export async function ensureEmbeddingConsistencyForTest(
+  conn: SqlConn,
+  targetDims: number,
+  config: Config,
+): Promise<void> {
+  return ensureEmbeddingConsistency(conn, targetDims, config);
 }

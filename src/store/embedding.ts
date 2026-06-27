@@ -59,8 +59,8 @@ export class EmbeddingService {
           const vec = response.data[j].embedding;
           const vecStr = `[${vec.join(",")}]`;
           await this.pg.query(
-            `UPDATE content_chunks SET embedding = $1::vector, embedded_at = NOW() WHERE id = $2`,
-            [vecStr, batch[j].id],
+            `UPDATE content_chunks SET embedding = $1::vector, model = $2, embedded_at = NOW() WHERE id = $3`,
+            [vecStr, this.model, batch[j].id],
           );
           embedded++;
         }
