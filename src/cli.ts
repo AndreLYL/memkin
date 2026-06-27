@@ -462,6 +462,31 @@ program
           warnings.push(`Source ${collector.id}: ${health.message}`);
         }
       }
+
+      // Check Postgres engine
+      if ((config.store?.engine ?? "pglite") === "postgres") {
+        const dbUrl = config.store?.database_url;
+        if (!dbUrl) {
+          issues.push("Postgres: store.database_url is not set");
+        } else {
+          const { checkPostgres } = await import("./setup/doctor.js");
+          const { maskDatabaseUrl } = await import("./config-center/secrets.js");
+          const pg = await checkPostgres(dbUrl);
+          if (!pg.connected) {
+            issues.push(`Postgres: cannot connect to ${maskDatabaseUrl(dbUrl)}`);
+          } else {
+            ok.push(`Postgres: connected ✓ (${maskDatabaseUrl(dbUrl)})`);
+            if (pg.vectorReady) {
+              ok.push("Postgres: pgvector ready ✓");
+            } else {
+              issues.push(
+                "Postgres: pgvector extension is not available or cannot be created — " +
+                  "install pgvector and ensure the role has permission to CREATE EXTENSION",
+              );
+            }
+          }
+        }
+      }
     }
 
     // Report results
