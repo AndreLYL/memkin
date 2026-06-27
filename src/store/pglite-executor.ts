@@ -46,7 +46,7 @@ export class PgliteExecutor implements SqlExecutor {
   }
 
   async transaction<T>(fn: (tx: SqlConn) => Promise<T>): Promise<T> {
-    return this.pg.transaction(async (pgTx) => {
+    return this.pg.transaction<T>(async (pgTx) => {
       const conn: SqlConn = {
         query: <R = Record<string, unknown>>(s: string, p?: unknown[]) =>
           pgTx.query<R>(s, p),
@@ -55,7 +55,7 @@ export class PgliteExecutor implements SqlExecutor {
         },
       };
       return fn(conn);
-    }) as Promise<T>;
+    });
   }
 
   async bootstrap(fn: (conn: SqlConn) => Promise<void>): Promise<void> {
