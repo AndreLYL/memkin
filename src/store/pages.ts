@@ -246,31 +246,45 @@ export class PageStore {
     return result.rows.length > 0 ? this.rowToPage(result.rows[0]) : null;
   }
 
-  /** Merge a synth cache entry into frontmatter.synth[intent] WITHOUT bumping updated_at or re-chunking. Returns false if the page does not exist. */
+  /**
+   * Merge a synth cache entry into frontmatter.synth[intent] WITHOUT bumping
+   * updated_at or re-chunking. Returns false if the page does not exist.
+   *
+   * Atomic: uses jsonb_set on the server — eliminates the lost-update race
+   * between getPage → mutate JS → UPDATE.
+   */
   async setSynthCache(slug: string, intent: string, entry: unknown): Promise<boolean> {
-    const page = await this.getPage(slug);
-    if (!page) return false;
-    const fm = { ...(page.frontmatter as Record<string, unknown>) };
-    const synth = (fm.synth as Record<string, unknown> | undefined) ?? {};
-    synth[intent] = entry;
-    fm.synth = synth;
-    await this.pg.query("UPDATE pages SET frontmatter = $2 WHERE slug = $1", [
-      slug,
-      JSON.stringify(fm),
-    ]);
-    return true;
+    const result = await this.pg.query<{ id: number }>(
+      `UPDATE pages
+       SET frontmatter = jsonb_set(
+         COALESCE(frontmatter, '{}')::jsonb,
+         ARRAY['synth', $2],
+         $3::jsonb,
+         true
+       )
+       WHERE slug = $1
+       RETURNING id`,
+      [slug, intent, JSON.stringify(entry)],
+    );
+    return result.rows.length > 0;
   }
 
-  /** Merge top-level keys into a page's frontmatter WITHOUT bumping updated_at or re-chunking. Returns false if the page does not exist. */
+  /**
+   * Merge top-level keys into a page's frontmatter WITHOUT bumping updated_at
+   * or re-chunking. Returns false if the page does not exist.
+   *
+   * Atomic: uses the jsonb || merge operator on the server — eliminates the
+   * lost-update race between getPage → mutate JS → UPDATE.
+   */
   async patchFrontmatter(slug: string, patch: Record<string, unknown>): Promise<boolean> {
-    const page = await this.getPage(slug);
-    if (!page) return false;
-    const fm = { ...(page.frontmatter as Record<string, unknown>), ...patch };
-    await this.pg.query("UPDATE pages SET frontmatter = $2 WHERE slug = $1", [
-      slug,
-      JSON.stringify(fm),
-    ]);
-    return true;
+    const result = await this.pg.query<{ id: number }>(
+      `UPDATE pages
+       SET frontmatter = COALESCE(frontmatter, '{}')::jsonb || $2::jsonb
+       WHERE slug = $1
+       RETURNING id`,
+      [slug, JSON.stringify(patch)],
+    );
+    return result.rows.length > 0;
   }
 
   async deletePage(slug: string): Promise<void> {
