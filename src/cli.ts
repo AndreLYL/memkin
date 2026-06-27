@@ -107,7 +107,7 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
 }
 
 async function createStores(config: LoadedConfig) {
-  const dataDir = expandDataDir(config.store.data_dir, config.__context.projectRoot);
+  const dataDir = expandDataDir(config.store.data_dir ?? "~/.memoark/data", config.__context.projectRoot);
   mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,
@@ -146,7 +146,7 @@ async function createStores(config: LoadedConfig) {
  * alias/merge/rename never requires an LLM or embedding API key.
  */
 async function openIdentityStore(config: LoadedConfig) {
-  const dataDir = expandDataDir(config.store.data_dir, config.__context.projectRoot);
+  const dataDir = expandDataDir(config.store.data_dir ?? "~/.memoark/data", config.__context.projectRoot);
   mkdirSync(dataDir, { recursive: true });
   const db = await Database.create(dataDir, {
     embeddingDimensions: config.embedding.dimensions,

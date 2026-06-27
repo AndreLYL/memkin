@@ -128,7 +128,10 @@ export interface SourcesConfig {
  * Store configuration for data persistence
  */
 export interface StoreConfig {
-  data_dir: string;
+  engine?: "pglite" | "postgres"; // 默认 pglite
+  data_dir?: string;              // engine: pglite（改为可选）
+  database_url?: string;          // engine: postgres，支持 ${ENV}
+  pool_size?: number;             // 可选，默认 10
 }
 
 /**

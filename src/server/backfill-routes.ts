@@ -128,7 +128,7 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 
     const collector = createFeishuCollector(tempFeishuConfig as never);
 
-    const pipelineConfig = buildPipelineConfig(config, config.store.data_dir);
+    const pipelineConfig = buildPipelineConfig(config, config.store.data_dir ?? "~/.memoark/data");
 
     const llmConfig = { ...config.llm };
     if (!llmConfig.api_key) {
