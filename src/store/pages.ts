@@ -250,21 +250,22 @@ export class PageStore {
    * Merge a synth cache entry into frontmatter.synth[intent] WITHOUT bumping
    * updated_at or re-chunking. Returns false if the page does not exist.
    *
-   * Atomic: uses jsonb_set on the server — eliminates the lost-update race
-   * between getPage → mutate JS → UPDATE.
+   * Atomic: merges via jsonb || operator on the server — eliminates the
+   * lost-update race between getPage → mutate JS → UPDATE. Uses nested ||
+   * instead of jsonb_set with a 2-element path to work around a PGLite bug
+   * where jsonb_set ignores sub-path navigation (returns {} for depth > 1).
+   * Both PGLite and PG17 support the || operator correctly.
    */
   async setSynthCache(slug: string, intent: string, entry: unknown): Promise<boolean> {
     const result = await this.pg.query<{ id: number }>(
       `UPDATE pages
-       SET frontmatter = jsonb_set(
-         COALESCE(frontmatter, '{}')::jsonb,
-         ARRAY['synth', $2],
-         $3::jsonb,
-         true
-       )
+       SET frontmatter = COALESCE(frontmatter, '{}')::jsonb ||
+           jsonb_build_object($2::text,
+             COALESCE(frontmatter->'synth', '{}')::jsonb ||
+             jsonb_build_object($3::text, $4::jsonb))
        WHERE slug = $1
        RETURNING id`,
-      [slug, intent, JSON.stringify(entry)],
+      [slug, "synth", intent, JSON.stringify(entry)],
     );
     return result.rows.length > 0;
   }
