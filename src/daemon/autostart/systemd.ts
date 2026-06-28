@@ -32,7 +32,7 @@ After=network.target
 [Service]
 Type=simple
 ${execStart}
-${envLines ? envLines + "\n" : ""}Restart=on-failure
+${envLines ? `${envLines}\n` : ""}Restart=on-failure
 RestartSec=2
 
 [Install]

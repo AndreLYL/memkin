@@ -1593,7 +1593,7 @@ program
       } else if (action === "status") {
         const st = await statusAutostart({ platform: plat, home: h, runner: nodeRunner });
         console.log("Desired state:", st.desired ? JSON.stringify(st.desired, null, 2) : "(none)");
-        console.log("Launcher output:\n" + st.raw);
+        console.log(`Launcher output:\n${st.raw}`);
       } else {
         console.error(`Unknown autostart action "${action}". Use: enable | disable | status`);
         process.exit(1);
