@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import type { McpEntry } from "../../src/install/json-config.js";
+import { httpEntry } from "../../src/install/mcp-entry.js";
 import { removeMcpServerYaml, upsertMcpServerYaml } from "../../src/install/yaml-config.js";
 
 const entry: McpEntry = { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] };
@@ -19,6 +20,13 @@ describe("yaml-config mcp upsert/remove", () => {
     const parsed = parse(out);
     expect(parsed.mcp_servers.other).toEqual({ command: "x", args: [] });
     expect(parsed.mcp_servers.memoark).toBeDefined();
+  });
+
+  it("http entry sets a url node and no command (fixes command:undefined)", () => {
+    const out = upsertMcpServerYaml("", "memoark", httpEntry("http://127.0.0.1:3928/mcp"));
+    const parsed = parse(out);
+    expect(parsed.mcp_servers.memoark).toEqual({ url: "http://127.0.0.1:3928/mcp" });
+    expect(out).not.toContain("command");
   });
 
   it("removes memoark, keeps the rest", () => {
