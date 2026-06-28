@@ -1,5 +1,6 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveDaemonArgv } from "./argv.js";
+import { detectDaemonRuntime, resolveDaemonArgv } from "./argv.js";
 
 const tail = ["serve", "--mcp-http", "--no-open"];
 
@@ -27,5 +28,52 @@ describe("resolveDaemonArgv", () => {
     expect(() => resolveDaemonArgv({ kind: "unknown" } as never, tail)).toThrow(
       /build or install/i,
     );
+  });
+});
+
+describe("detectDaemonRuntime", () => {
+  const projectRoot = "/project";
+
+  it("compiled branch: Bun binary named memoark", () => {
+    const result = detectDaemonRuntime({
+      execPath: "/usr/local/bin/memoark",
+      hasBun: true,
+      existsSync: () => false,
+      projectRoot,
+    });
+    expect(result).toEqual({ kind: "compiled", binaryPath: "/usr/local/bin/memoark" });
+  });
+
+  it("node-dist branch: node exec with dist/cli.js present", () => {
+    const distCli = join(projectRoot, "dist", "cli.js");
+    const result = detectDaemonRuntime({
+      execPath: "/usr/local/bin/node",
+      hasBun: false,
+      existsSync: (p) => p === distCli,
+      projectRoot,
+    });
+    expect(result).toEqual({ kind: "node-dist", execPath: "/usr/local/bin/node", distCli });
+  });
+
+  it("bun-src branch: Bun exec (not memoark) with src/cli.ts present", () => {
+    const srcCli = join(projectRoot, "src", "cli.ts");
+    const result = detectDaemonRuntime({
+      execPath: "/usr/local/bin/bun",
+      hasBun: true,
+      existsSync: (p) => p === srcCli,
+      projectRoot,
+    });
+    expect(result).toEqual({ kind: "bun-src", bunPath: "/usr/local/bin/bun", srcCli });
+  });
+
+  it("fail-fast: no Bun, no dist, no src → throws", () => {
+    expect(() =>
+      detectDaemonRuntime({
+        execPath: "/usr/local/bin/node",
+        hasBun: false,
+        existsSync: () => false,
+        projectRoot,
+      }),
+    ).toThrow(/build or install/i);
   });
 });
