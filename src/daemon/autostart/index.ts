@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DaemonState } from "./daemon-state.js";
 import { readDaemonState, writeDaemonState } from "./daemon-state.js";
@@ -26,6 +26,8 @@ export interface EnableAutostartOptions {
   runner: CommandRunner;
   state: DaemonState;
   env: Record<string, string>;
+  /** Linux only: run `loginctl enable-linger` so the service survives logout. */
+  linger?: boolean;
 }
 
 export interface DisableAutostartOptions {
@@ -46,7 +48,7 @@ export interface AutostartStatus {
 }
 
 export async function enableAutostart(opts: EnableAutostartOptions): Promise<void> {
-  const { platform, home, runner, state, env } = opts;
+  const { platform, home, runner, state, env, linger } = opts;
 
   if (platform === "darwin") {
     const logsDir = join(home, ".memoark", "logs");
@@ -60,7 +62,8 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
 
     const laDir = join(home, "Library", "LaunchAgents");
     mkdirSync(laDir, { recursive: true });
-    writeFileSync(plistPath(home), plist, "utf8");
+    writeFileSync(plistPath(home), plist, { encoding: "utf8", mode: 0o600 });
+    chmodSync(plistPath(home), 0o600);
 
     const sd = stateDir(home);
     mkdirSync(sd, { recursive: true });
@@ -84,7 +87,8 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
 
     const unitDir = join(home, ".config", "systemd", "user");
     mkdirSync(unitDir, { recursive: true });
-    writeFileSync(systemdUnitPath(home), unit, "utf8");
+    writeFileSync(systemdUnitPath(home), unit, { encoding: "utf8", mode: 0o600 });
+    chmodSync(systemdUnitPath(home), 0o600);
 
     const sd = stateDir(home);
     mkdirSync(sd, { recursive: true });
@@ -111,6 +115,12 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
       throw new Error(
         `systemctl enable failed (exit ${enableResult.code}): ${enableResult.stderr || enableResult.stdout}`,
       );
+    }
+    // FIX 4: wire --linger so the service survives user logout
+    if (linger) {
+      const user = process.env.USER ?? process.env.LOGNAME ?? String(process.getuid?.() ?? "");
+      await runner.run(["loginctl", "enable-linger", user]);
+      // best-effort: if loginctl fails, we still succeed (linger is advisory)
     }
   } else {
     throw new Error(`Unsupported platform: ${platform}`);

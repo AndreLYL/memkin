@@ -757,6 +757,9 @@ async function runServe(options: {
           engine: config.store.engine ?? "pglite",
           version: VERSION,
           loadedConfigHash,
+          // FIX 5: wire port/bind so isReady() port/bind checks are load-bearing
+          port: runtime.port,
+          bind: runtime.bind,
           dbProbe: async () => {
             try {
               await stores.db.executor.query("SELECT 1");

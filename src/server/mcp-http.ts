@@ -8,6 +8,9 @@ export interface McpHttpHealth {
   engine?: string;
   version?: string;
   loadedConfigHash?: string;
+  /** FIX 5: port/bind echoed in /health so isReady() port/bind checks are load-bearing. */
+  port?: number;
+  bind?: string;
   dbProbe?: () => Promise<boolean>;
 }
 
@@ -115,6 +118,9 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
       engine: options.health?.engine,
       version: options.health?.version,
       loaded_config_hash: options.health?.loadedConfigHash,
+      // FIX 5: emit port/bind so isReady() port/bind checks are load-bearing
+      port: options.health?.port,
+      bind: options.health?.bind,
     };
     return c.json(body, dbOk ? 200 : 503);
   });

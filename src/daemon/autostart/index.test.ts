@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -26,9 +26,12 @@ describe("autostart darwin", () => {
   it("enable writes plist + daemon.json + calls launchctl", async () => {
     const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     await enableAutostart({ platform: "darwin", home, runner, state, env: {} });
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(true);
+    const plistPath = join(home, "Library/LaunchAgents/com.memoark.daemon.plist");
+    expect(existsSync(plistPath)).toBe(true);
     expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
     expect(runner.calls[0][0]).toBe("launchctl");
+    // FIX 1: plist must be mode 0600 (contains secret env values)
+    expect(statSync(plistPath).mode & 0o777).toBe(0o600);
   });
   it("enable rejects and cleans up plist + daemon.json when launcher returns non-zero", async () => {
     const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "load failed" }]);
@@ -67,8 +70,39 @@ describe("autostart linux", () => {
       { code: 0, stdout: "", stderr: "" },
     ]);
     await enableAutostart({ platform: "linux", home, runner, state, env: {} });
-    expect(existsSync(join(home, ".config/systemd/user/memoark.service"))).toBe(true);
+    const unitPath = join(home, ".config/systemd/user/memoark.service");
+    expect(existsSync(unitPath)).toBe(true);
     expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
     expect(runner.calls.some((c) => c[0] === "systemctl")).toBe(true);
+    // FIX 1: unit file must be mode 0600 (contains secret env values)
+    expect(statSync(unitPath).mode & 0o777).toBe(0o600);
+  });
+
+  // FIX 4: loginctl enable-linger
+  it("enable with linger=true calls loginctl enable-linger on linux", async () => {
+    const runner = makeFakeRunner([
+      { code: 0, stdout: "", stderr: "" }, // systemctl daemon-reload
+      { code: 0, stdout: "", stderr: "" }, // systemctl enable --now
+      { code: 0, stdout: "", stderr: "" }, // loginctl enable-linger
+    ]);
+    await enableAutostart({ platform: "linux", home, runner, state, env: {}, linger: true });
+    expect(runner.calls.some((c) => c[0] === "loginctl" && c.includes("enable-linger"))).toBe(true);
+  });
+
+  it("enable without linger does NOT call loginctl", async () => {
+    const runner = makeFakeRunner([
+      { code: 0, stdout: "", stderr: "" }, // systemctl daemon-reload
+      { code: 0, stdout: "", stderr: "" }, // systemctl enable --now
+    ]);
+    await enableAutostart({ platform: "linux", home, runner, state, env: {} });
+    expect(runner.calls.some((c) => c[0] === "loginctl")).toBe(false);
+  });
+
+  it("enable on darwin does NOT call loginctl even when linger is set", async () => {
+    const runner = makeFakeRunner([
+      { code: 0, stdout: "", stderr: "" }, // launchctl bootstrap
+    ]);
+    await enableAutostart({ platform: "darwin", home, runner, state, env: {}, linger: true });
+    expect(runner.calls.some((c) => c[0] === "loginctl")).toBe(false);
   });
 });

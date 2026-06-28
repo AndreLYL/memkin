@@ -10,7 +10,15 @@ function appWith(dbProbe: () => Promise<boolean>) {
     allowedOrigins: [],
     allowedHosts: [],
     readOnly: false,
-    health: { instanceId: "n1", pid: 4242, engine: "postgres", version: "9.9", dbProbe },
+    health: {
+      instanceId: "n1",
+      pid: 4242,
+      engine: "postgres",
+      version: "9.9",
+      port: 3928,
+      bind: "127.0.0.1",
+      dbProbe,
+    },
   });
 }
 
@@ -25,6 +33,9 @@ describe("/health", () => {
       engine: "postgres",
       read_only: false,
       db_ok: true,
+      // FIX 5: port/bind must be present in /health response
+      port: 3928,
+      bind: "127.0.0.1",
     });
   });
 

@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../core/config.js";
@@ -18,6 +18,7 @@ import { nodeRunner } from "../daemon/autostart/runner.js";
 import { ADAPTERS, detectInstalledAgents, planInstall, runInstall } from "../install/index.js";
 import { resolveMcpHttpRuntime } from "../server/mcp-http-runtime.js";
 import { pollHealth } from "./health-poll.js";
+import { recordOriginal } from "./install-state.js";
 import { acquireLifecycleLock } from "./lifecycle-lock.js";
 import { bringUpDaemon, planUp, wireAgents } from "./up.js";
 
@@ -142,7 +143,7 @@ export async function runUp(
         savedSnapshot = { serviceFileText, daemonJson: priorState };
         return savedSnapshot;
       },
-      enable: () => enableAutostart({ platform, home, runner, state, env }),
+      enable: () => enableAutostart({ platform, home, runner, state, env, linger: opts.linger }),
       pollReady: () =>
         pollHealth(
           () => fetchHealthImpl(url),
@@ -151,10 +152,14 @@ export async function runUp(
         ),
       disable: () => disableAutostart({ platform, home, runner }).then(() => undefined),
       restoreOld: async (saved: unknown) => {
-        // BEST-EFFORT restore: re-write saved service file + daemon.json then reactivate
+        // BEST-EFFORT restore: evict failed new service, re-write saved service file + daemon.json then reactivate
+        // FIX 2: bootout the failed new service before restoring old
+        await disableAutostart({ platform, home, runner }).catch(() => {});
         const snap = saved as Snapshot;
         if (snap.serviceFileText !== null) {
           writeFileSync(serviceFilePath, snap.serviceFileText, "utf8");
+          // FIX 1: ensure restored service file is also 0600
+          chmodSync(serviceFilePath, 0o600);
         }
         if (snap.daemonJson !== null) {
           writeDaemonState(stateDir, snap.daemonJson);
@@ -181,6 +186,8 @@ export async function runUp(
         // Capture before-image of agent's mcp config files via a dry-run plan
         const agentImages = captureBeforeImage(agent.id, home, platform, url);
         beforeImages.set(agent.id, agentImages);
+        // FIX 3: record Layer-1 backup (first-backup-wins) before mutating
+        recordBeforeInstall(agent.id, home, platform, url, agentImages);
         // Run install for this agent via HTTP transport
         runInstall({ agent: [agent.id], http: true, url, home, platform });
       },
@@ -209,8 +216,12 @@ export async function runUp(
       },
       restoreOldDaemon: async () => {
         if (savedSnapshot) {
+          // FIX 2: bootout the currently-loaded (failed new) service before restoring old
+          await disableAutostart({ platform, home, runner }).catch(() => {});
           if (savedSnapshot.serviceFileText !== null) {
             writeFileSync(serviceFilePath, savedSnapshot.serviceFileText, "utf8");
+            // FIX 1: ensure restored service file is also 0600
+            chmodSync(serviceFilePath, 0o600);
           }
           if (savedSnapshot.daemonJson !== null) {
             writeDaemonState(stateDir, savedSnapshot.daemonJson);
@@ -294,5 +305,48 @@ function captureBeforeImage(
     return images;
   } catch {
     return [];
+  }
+}
+
+/**
+ * FIX 3: Record Layer-1 backup (install-state.json) for all ops of an agent BEFORE mutating.
+ * managedHash is a hash of the memoark MCP entry content that will be written (used by
+ * restorableOriginal to detect post-install hand-edits).
+ */
+function recordBeforeInstall(
+  agentId: string,
+  home: string,
+  platform: NodeJS.Platform,
+  url: string,
+  beforeImages: Array<{ path: string; beforeText: string | null }>,
+): void {
+  try {
+    const planned = planInstall({ agent: [agentId], http: true, url, home, platform }, "upsert");
+    // Build a lookup of path → beforeText for quick access
+    const imageMap = new Map(beforeImages.map((img) => [img.path, img.beforeText]));
+    for (const client of planned) {
+      for (const op of client.ops) {
+        if (!("path" in op) || !op.path) continue; // skip cli ops
+        const opRef = {
+          client: agentId,
+          scope: "global" as const,
+          path: op.path,
+          op_kind: op.kind,
+        };
+        const beforeText = imageMap.get(op.path) ?? null;
+        const present = beforeText !== null;
+        // managedHash: hash of the entry that is about to be written
+        const entryContent =
+          "entry" in op && op.entry
+            ? JSON.stringify(op.entry)
+            : "content" in op && op.content
+              ? op.content
+              : op.path;
+        const managedHash = createHash("sha256").update(entryContent).digest("hex");
+        recordOriginal(home, opRef, { present, raw: beforeText }, managedHash);
+      }
+    }
+  } catch {
+    // best-effort — Layer-1 backup is non-fatal
   }
 }
