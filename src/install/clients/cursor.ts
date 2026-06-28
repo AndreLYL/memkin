@@ -11,6 +11,8 @@ const CURSOR_MDC = `---\nalwaysApply: true\n---\n\n${L1_BODY}\n`;
 export const cursor: ClientAdapter = {
   id: "cursor",
   displayName: "Cursor",
+  // TODO(SP4 T6b): verify HTTP support
+  supportsHttp: false,
   detect(home) {
     return existsSync(join(home, ".cursor"));
   },

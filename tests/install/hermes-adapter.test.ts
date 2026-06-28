@@ -31,6 +31,7 @@ function ctx(over: Partial<PlanCtx> = {}): PlanCtx {
     cwd,
     launch: base.launch,
     action: "upsert",
+    transport: "stdio",
     ...over,
   };
 }

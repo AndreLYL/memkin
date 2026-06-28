@@ -29,6 +29,7 @@ function ctx(over: Partial<PlanCtx> = {}): PlanCtx {
     cwd,
     launch: { command: "memoark", args: ["serve", "--mcp"] },
     action: "upsert",
+    transport: "stdio",
     ...over,
   };
 }

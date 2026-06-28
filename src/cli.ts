@@ -857,6 +857,11 @@ program
   )
   .option("--project", "Install into the current project instead of globally")
   .option("--http", "Register the Streamable HTTP transport instead of stdio")
+  .option(
+    "--url <url>",
+    "Explicit MCP server URL for HTTP transport (default: http://127.0.0.1:<port>/mcp)",
+  )
+  .option("--port <port>", "MCP server port for HTTP transport URL (default: 3928)", parseInt)
   .option("--dry-run", "Preview changes without writing")
   .action((options) => {
     const scope = options.project ? "project" : "global";
@@ -864,6 +869,8 @@ program
       agent: options.agent,
       scope,
       http: !!options.http,
+      url: options.url as string | undefined,
+      port: options.port as number | undefined,
       dryRun: !!options.dryRun,
     });
     reportPlan(planned, options.dryRun ? "Would install" : "Installed", !!options.dryRun);

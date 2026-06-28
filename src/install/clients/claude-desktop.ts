@@ -13,6 +13,8 @@ function configDir(home: string, platform: NodeJS.Platform): string {
 export const claudeDesktop: ClientAdapter = {
   id: "claude-desktop",
   displayName: "Claude Desktop",
+  // TODO(SP4 T6b): verify HTTP support
+  supportsHttp: false,
   detect(home, platform) {
     return existsSync(configDir(home, platform));
   },

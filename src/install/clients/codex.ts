@@ -8,6 +8,7 @@ import { type ClientAdapter, mcpEntry, type PlanCtx } from "../types.js";
 export const codex: ClientAdapter = {
   id: "codex",
   displayName: "Codex",
+  supportsHttp: true,
   detect(home) {
     return existsSync(join(home, ".codex"));
   },

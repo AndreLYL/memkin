@@ -6,6 +6,7 @@ import { type ClientAdapter, mcpEntry, type PlanCtx } from "../types.js";
 export const claudeCode: ClientAdapter = {
   id: "claude-code",
   displayName: "Claude Code",
+  supportsHttp: true,
   detect(home) {
     return existsSync(join(home, ".claude")) || existsSync(join(home, ".claude.json"));
   },
