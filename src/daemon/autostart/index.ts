@@ -4,7 +4,7 @@ import type { DaemonState } from "./daemon-state.js";
 import { readDaemonState, writeDaemonState } from "./daemon-state.js";
 import { launchdBootout, launchdLoad, launchdStatus, renderLaunchdPlist } from "./launchd.js";
 import type { CommandRunner } from "./runner.js";
-import { renderSystemdUnit, systemdDisable, systemdEnable, systemdStatus } from "./systemd.js";
+import { renderSystemdUnit, systemdDisable, systemdStatus } from "./systemd.js";
 
 const LABEL = "com.memoark.daemon";
 
@@ -67,7 +67,14 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
     writeDaemonState(sd, state);
 
     const uid = process.getuid?.() ?? 0;
-    await launchdLoad(runner, plistPath(home), uid);
+    const result = await launchdLoad(runner, plistPath(home), uid);
+    if (result.code !== 0) {
+      rmSync(plistPath(home), { force: true });
+      rmSync(join(sd, "daemon.json"), { force: true });
+      throw new Error(
+        `launchctl bootstrap failed (exit ${result.code}): ${result.stderr || result.stdout}`,
+      );
+    }
   } else if (platform === "linux") {
     const unit = renderSystemdUnit({
       description: "Memoark Daemon",
@@ -83,24 +90,62 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
     mkdirSync(sd, { recursive: true });
     writeDaemonState(sd, state);
 
-    await systemdEnable(runner);
+    const reloadResult = await runner.run(["systemctl", "--user", "daemon-reload"]);
+    if (reloadResult.code !== 0) {
+      rmSync(systemdUnitPath(home), { force: true });
+      rmSync(join(sd, "daemon.json"), { force: true });
+      throw new Error(
+        `systemctl daemon-reload failed (exit ${reloadResult.code}): ${reloadResult.stderr || reloadResult.stdout}`,
+      );
+    }
+    const enableResult = await runner.run([
+      "systemctl",
+      "--user",
+      "enable",
+      "--now",
+      "memoark.service",
+    ]);
+    if (enableResult.code !== 0) {
+      rmSync(systemdUnitPath(home), { force: true });
+      rmSync(join(sd, "daemon.json"), { force: true });
+      throw new Error(
+        `systemctl enable failed (exit ${enableResult.code}): ${enableResult.stderr || enableResult.stdout}`,
+      );
+    }
   } else {
     throw new Error(`Unsupported platform: ${platform}`);
   }
 }
 
-export async function disableAutostart(opts: DisableAutostartOptions): Promise<void> {
+export interface DisableAutostartResult {
+  launcherStderr?: string;
+  launcherCode?: number;
+}
+
+export async function disableAutostart(
+  opts: DisableAutostartOptions,
+): Promise<DisableAutostartResult> {
   const { platform, home, runner } = opts;
 
   if (platform === "darwin") {
     const uid = process.getuid?.() ?? 0;
-    await launchdBootout(runner, LABEL, uid);
+    const result = await launchdBootout(runner, LABEL, uid);
+    // Always remove files regardless of launcher exit code (best-effort cleanup)
     rmSync(plistPath(home), { force: true });
     rmSync(join(stateDir(home), "daemon.json"), { force: true });
+    if (result.code !== 0) {
+      return { launcherCode: result.code, launcherStderr: result.stderr || result.stdout };
+    }
+    return {};
   } else if (platform === "linux") {
-    await systemdDisable(runner);
+    const result = await systemdDisable(runner);
+    // Always remove files regardless of launcher exit code (best-effort cleanup)
     rmSync(systemdUnitPath(home), { force: true });
     rmSync(join(stateDir(home), "daemon.json"), { force: true });
+    if (result.code !== 0) {
+      return { launcherCode: result.code, launcherStderr: result.stderr || result.stdout };
+    }
+    return {};
   } else {
     throw new Error(`Unsupported platform: ${platform}`);
   }

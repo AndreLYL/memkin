@@ -36,6 +36,7 @@ import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js"
 import { runPipeline } from "./core/pipeline.js";
 import { buildPipelineConfig } from "./core/pipeline-factory.js";
 import { ensureStateDir, statePath } from "./core/state.js";
+import { rawYamlHash } from "./daemon/autostart/daemon-state.js";
 import { ReloadManager } from "./daemon/reload-manager.js";
 import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { VERSION } from "./embedded-assets.generated.js";
@@ -727,12 +728,34 @@ async function runServe(options: {
       });
       assertLoopbackOrThrow(runtime);
       const tokenEnv = config.mcp.http.auth_token_env;
+      const resolvedConfigPath = config.__context.configPath;
+      let loadedConfigHash: string | undefined;
+      try {
+        loadedConfigHash = rawYamlHash(resolvedConfigPath);
+      } catch {
+        // config file may not exist yet; leave hash undefined
+      }
       const app = createMcpHttpApp(storesWithDaemon, {
         allowedOrigins: runtime.allowedOrigins,
         allowedHosts: runtime.allowedHosts,
         authToken: tokenEnv ? process.env[tokenEnv] : undefined,
         exposeLegacyTools: config.mcp.expose_legacy_tools,
         readOnly: runtime.readOnly,
+        health: {
+          instanceId: runtime.instanceId,
+          pid: process.pid,
+          engine: config.store.engine ?? "pglite",
+          version: VERSION,
+          loadedConfigHash,
+          dbProbe: async () => {
+            try {
+              await stores.db.executor.query("SELECT 1");
+              return true;
+            } catch {
+              return false;
+            }
+          },
+        },
       });
       const server = await startServer(app, {
         hostname: runtime.bind,

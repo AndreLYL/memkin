@@ -41,10 +41,14 @@ export function rawYamlHash(filePath: string): string {
 }
 
 export function servingSubsetHash(subset: ServingSubset): string {
+  const normalized: ServingSubset = {
+    ...subset,
+    hosts: [...subset.hosts].sort(),
+  };
   const sorted = Object.fromEntries(
-    Object.keys(subset)
+    Object.keys(normalized)
       .sort()
-      .map((k) => [k, subset[k as keyof ServingSubset]]),
+      .map((k) => [k, normalized[k as keyof ServingSubset]]),
   );
   return createHash("sha256").update(JSON.stringify(sorted)).digest("hex");
 }

@@ -24,9 +24,10 @@ describe("resolveMcpHttpRuntime", () => {
     expect(r.allowedOrigins).toEqual(["http://127.0.0.1:4000", "http://localhost:4000"]);
     expect(r.instanceId).toBe("n1");
   });
-  it("explicit --mcp-allowed-host wins over regeneration", () => {
+  it("explicit --mcp-allowed-host wins for allowedHosts but origins still regenerated", () => {
     const r = resolveMcpHttpRuntime(cfg, { mcpPort: 4000, mcpAllowedHost: ["foo:4000"] });
     expect(r.allowedHosts).toEqual(["foo:4000"]);
+    expect(r.allowedOrigins).toEqual(["http://127.0.0.1:4000", "http://localhost:4000"]);
   });
   it("no flags → YAML values", () => {
     const r = resolveMcpHttpRuntime(cfg, {});

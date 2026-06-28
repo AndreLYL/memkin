@@ -30,14 +30,33 @@ describe("autostart darwin", () => {
     expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
     expect(runner.calls[0][0]).toBe("launchctl");
   });
+  it("enable rejects and cleans up plist + daemon.json when launcher returns non-zero", async () => {
+    const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "load failed" }]);
+    await expect(
+      enableAutostart({ platform: "darwin", home, runner, state, env: {} }),
+    ).rejects.toThrow(/load failed/);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+  });
   it("disable boots out + removes plist + daemon.json (idempotent if absent)", async () => {
     const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
     const r2 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
-    await disableAutostart({ platform: "darwin", home, runner: r2 });
+    const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
     expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
     expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
     expect(r2.calls.length).toBeGreaterThan(0);
+    expect(result).toEqual({});
+  });
+  it("disable still removes files when launcher returns non-zero and surfaces the error", async () => {
+    const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
+    const r2 = makeFakeRunner([{ code: 1, stdout: "", stderr: "bootout error" }]);
+    const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(result.launcherCode).toBe(1);
+    expect(result.launcherStderr).toContain("bootout error");
   });
 });
 

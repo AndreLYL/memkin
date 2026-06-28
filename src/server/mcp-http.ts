@@ -96,7 +96,14 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
   const app = new Hono();
 
   app.get("/health", async (c) => {
-    const dbOk = options.health?.dbProbe ? await options.health.dbProbe() : true;
+    let dbOk = true;
+    if (options.health?.dbProbe) {
+      try {
+        dbOk = await options.health.dbProbe();
+      } catch {
+        dbOk = false;
+      }
+    }
     const body = {
       status: dbOk ? "ok" : "degraded",
       transport: "streamable_http",

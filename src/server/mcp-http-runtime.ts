@@ -33,8 +33,8 @@ export function resolveMcpHttpRuntime(
   const bind = flags.mcpBind ?? cfg.bind_host;
   const port = flags.mcpPort ?? cfg.port;
   const readOnly = flags.mcpReadWrite ? false : cfg.read_only;
-  // When the port is overridden, regenerate host/origin allowlists for that port
-  // unless explicit --mcp-allowed-host values were provided.
+  // When the port is overridden, explicit --mcp-allowed-host wins for allowedHosts.
+  // allowedOrigins are ALWAYS regenerated for the resolved port (independent of explicit hosts).
   const allowedHosts =
     flags.mcpAllowedHost && flags.mcpAllowedHost.length > 0
       ? flags.mcpAllowedHost
@@ -42,7 +42,7 @@ export function resolveMcpHttpRuntime(
         ? [`127.0.0.1:${port}`, `localhost:${port}`]
         : cfg.allowed_hosts;
   const allowedOrigins =
-    flags.mcpPort !== undefined && !(flags.mcpAllowedHost && flags.mcpAllowedHost.length)
+    flags.mcpPort !== undefined
       ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`]
       : cfg.allowed_origins;
   return { bind, port, allowedOrigins, allowedHosts, readOnly, instanceId: flags.daemonInstanceId };

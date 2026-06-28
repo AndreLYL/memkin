@@ -60,4 +60,19 @@ describe("daemon-state", () => {
       servingSubsetHash({ bind: "127.0.0.1", port: 4000, readOnly: false, hosts: [] }),
     );
   });
+  it("servingSubsetHash is order-robust: reversed hosts produce same hash", () => {
+    const a = servingSubsetHash({
+      bind: "127.0.0.1",
+      port: 3928,
+      readOnly: false,
+      hosts: ["127.0.0.1:3928", "localhost:3928"],
+    });
+    const b = servingSubsetHash({
+      bind: "127.0.0.1",
+      port: 3928,
+      readOnly: false,
+      hosts: ["localhost:3928", "127.0.0.1:3928"],
+    });
+    expect(a).toBe(b);
+  });
 });
