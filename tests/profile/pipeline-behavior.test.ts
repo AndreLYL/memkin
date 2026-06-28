@@ -45,7 +45,7 @@ describe("profile pipeline accumulation (gated)", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    store = new PersonBehaviorStore(db.pg);
+    store = new PersonBehaviorStore(db.executor);
   });
   afterEach(async () => {
     await db.close();

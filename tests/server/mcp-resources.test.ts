@@ -13,17 +13,17 @@ import { TimelineStore } from "../../src/store/timeline.js";
 
 async function createStores() {
   const db = await Database.create();
-  const pages = new PageStore(db.pg);
-  const chunks = new ChunkStore(db.pg);
+  const pages = new PageStore(db.executor);
+  const chunks = new ChunkStore(db.executor);
   return {
     db,
     pages,
     chunks,
-    graph: new GraphStore(db.pg),
-    tags: new TagStore(db.pg),
-    timeline: new TimelineStore(db.pg),
-    search: new SearchEngine(db.pg),
-    embedding: new EmbeddingService(db.pg, { provider: "openai", apiKey: "test-key" }),
+    graph: new GraphStore(db.executor),
+    tags: new TagStore(db.executor),
+    timeline: new TimelineStore(db.executor),
+    search: new SearchEngine(db.executor),
+    embedding: new EmbeddingService(db.executor, { provider: "openai", apiKey: "test-key" }),
   };
 }
 

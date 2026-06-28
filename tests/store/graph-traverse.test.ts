@@ -20,8 +20,8 @@ describe("GraphStore playbook traversal", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    graph = new GraphStore(db.pg);
+    pages = new PageStore(db.executor);
+    graph = new GraphStore(db.executor);
 
     await pages.putPage("category/adas", "---\ntitle: 智驾\ntype: category\n---\n智能驾驶。");
     await pages.putPage(

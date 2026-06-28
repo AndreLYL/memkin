@@ -48,8 +48,8 @@ describe("putPage wikilink auto-wiring (Spec 10 Task 2)", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pageStore = new PageStore(db.pg);
-    graph = new GraphStore(db.pg);
+    pageStore = new PageStore(db.executor);
+    graph = new GraphStore(db.executor);
   });
 
   afterEach(async () => {

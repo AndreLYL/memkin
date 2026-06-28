@@ -71,11 +71,11 @@ describe("Pipeline Stage 2.5: Person Canonicalization (runPipeline wiring)", () 
     tempDir = await mkdtemp(join(tmpdir(), "pipeline-canon-"));
     db = await Database.create();
     stores = {
-      pages: new PageStore(db.pg),
-      chunks: new ChunkStore(db.pg),
-      graph: new GraphStore(db.pg),
-      tags: new TagStore(db.pg),
-      timeline: new TimelineStore(db.pg),
+      pages: new PageStore(db.executor),
+      chunks: new ChunkStore(db.executor),
+      graph: new GraphStore(db.executor),
+      tags: new TagStore(db.executor),
+      timeline: new TimelineStore(db.executor),
     };
   });
 
@@ -164,7 +164,7 @@ describe("Pipeline Stage 2.5: Person Canonicalization (runPipeline wiring)", () 
       format: "json",
       adapter: "store",
       stores,
-      identityResolver: new IdentityResolver(db.pg),
+      identityResolver: new IdentityResolver(db.executor),
       dryRun: false,
     });
 

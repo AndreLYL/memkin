@@ -156,7 +156,7 @@ async function retrieveByTime(
   }
   params.push(limit);
 
-  const result = await stores.db.pg.query<TimePageRow>(
+  const result = await stores.db.executor.query<TimePageRow>(
     `SELECT slug, title, type, compiled_truth,
        COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text) AS signal_time,
        COALESCE(frontmatter->'source', frontmatter->'first_seen') AS source,

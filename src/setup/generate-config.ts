@@ -36,6 +36,26 @@ const DEFAULT_FEISHU: NonNullable<Config["sources"]["feishu"]> = {
   },
 };
 
+const DATABASE_URL_PLACEHOLDER = "$" + "{DATABASE_URL}";
+
+function buildStore(store?: Partial<Config["store"]>): Config["store"] {
+  const engine = store?.engine ?? "pglite";
+
+  if (engine === "postgres") {
+    return {
+      engine: "postgres",
+      database_url: store?.database_url ?? DATABASE_URL_PLACEHOLDER,
+      ...(store?.pool_size !== undefined ? { pool_size: store.pool_size } : {}),
+    };
+  }
+
+  // pglite (default)
+  return {
+    engine: "pglite",
+    data_dir: store?.data_dir ?? "~/.memoark/data",
+  };
+}
+
 function buildSources(sources?: PartialSourcesConfig): Config["sources"] {
   const feishu = sources?.feishu;
 
@@ -92,9 +112,7 @@ export function buildConfigObject(config: PartialConfig): Config {
     },
     adapters: {},
     sources: buildSources(config.sources),
-    store: {
-      data_dir: config.store?.data_dir ?? "~/.memoark/data",
-    },
+    store: buildStore(config.store),
     embedding: {
       provider: embeddingProvider,
       model: embeddingModel,

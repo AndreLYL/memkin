@@ -135,9 +135,9 @@ export async function buildServeRuntime(
       // so it is wired unconditionally. resolveSender maps a sender open id to its
       // canonical person slug via the identity handle table, falling back to a
       // deterministic slug when unknown.
-      const behaviorIdentity = new PersonIdentityStore(stores.db.pg, { pages: stores.pages });
+      const behaviorIdentity = new PersonIdentityStore(stores.db.executor, { pages: stores.pages });
       const behaviorDeps: AccumulateDeps = {
-        store: new PersonBehaviorStore(stores.db.pg),
+        store: new PersonBehaviorStore(stores.db.executor),
         config: config.profile,
         resolveSender: async (contact) =>
           (await behaviorIdentity.resolveHandle("feishu_open_id", contact)) ?? `people/${contact}`,
@@ -250,8 +250,8 @@ export async function buildServeRuntime(
       config.sources.feishu.sources?.dm?.self_open_id,
     );
     const backend = new LarkCliIdentityBackend(chatNameRefreshLarkClient, selfOpenId ?? undefined);
-    const resolver = new ChatNameResolver(stores.db.pg, backend);
-    chatNameRefreshJob = new ChatNameRefreshJob(stores.db.pg, resolver);
+    const resolver = new ChatNameResolver(stores.db.executor, backend);
+    chatNameRefreshJob = new ChatNameRefreshJob(stores.db.executor, resolver);
   }
 
   // ── dispose ───────────────────────────────────────────────────────────────────

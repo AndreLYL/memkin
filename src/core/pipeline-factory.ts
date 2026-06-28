@@ -1,6 +1,6 @@
-import type { PGlite } from "@electric-sql/pglite";
 import { createLLMProvider } from "../extractors/providers/index.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
+import type { SqlExecutor } from "../store/sql-executor.js";
 import type { Config, LoadedConfig } from "./config.js";
 import { IdentityResolver } from "./identity-resolver.js";
 import type { PipelineConfig } from "./pipeline.js";
@@ -37,7 +37,7 @@ export function buildPipelineConfig(
 
 export async function createPipelineRuntime(
   config: Config,
-  pg: PGlite,
+  pg: SqlExecutor,
   output_dir: string,
 ): Promise<PipelineRuntime> {
   const llmConfig = { ...config.llm };

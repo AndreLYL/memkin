@@ -10,8 +10,8 @@ describe("TagStore", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    tags = new TagStore(db.pg);
+    pages = new PageStore(db.executor);
+    tags = new TagStore(db.executor);
   });
   afterEach(async () => {
     await db.close();
@@ -60,7 +60,7 @@ describe("TagStore", () => {
     await pages.putPage("test/cascade", "---\ntitle: C\ntype: test\n---\nBody.");
     await tags.addTag("test/cascade", "temp");
     await pages.deletePage("test/cascade");
-    const count = await db.pg.query("SELECT COUNT(*) AS c FROM tags");
+    const count = await db.executor.query("SELECT COUNT(*) AS c FROM tags");
     expect(Number(count.rows[0].c)).toBe(0);
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isEnvPlaceholder,
+  maskDatabaseUrl,
   maskSecret,
   maskSecretsInText,
 } from "../../src/config-center/secrets.js";
@@ -40,5 +41,41 @@ describe("config-center secrets", () => {
     expect(masked).not.toContain("feishu-secret-value");
     expect(masked).toContain("api_key:");
     expect(masked).toContain("app_secret:");
+  });
+
+  it("masks database_url password in YAML-like text", () => {
+    const text = ["store:", "  database_url: postgres://user:secret@host:5432/db"].join("\n");
+
+    const masked = maskSecretsInText(text);
+
+    expect(masked).not.toContain("secret@");
+    expect(masked).toContain("database_url:");
+    expect(masked).toContain("****@");
+  });
+
+  it("leaves ${ENV} placeholder untouched in YAML text", () => {
+    const text = "  database_url: ${DATABASE_URL}";
+    const masked = maskSecretsInText(text);
+    expect(masked).toContain("${DATABASE_URL}");
+  });
+});
+
+describe("maskDatabaseUrl", () => {
+  it("masks password segment of inline DSN, leaves ${ENV} untouched", () => {
+    expect(maskDatabaseUrl("postgres://user:secret@host:5432/db")).toBe(
+      "postgres://user:****@host:5432/db",
+    );
+    expect(maskDatabaseUrl("${DATABASE_URL}")).toBe("${DATABASE_URL}");
+    expect(maskDatabaseUrl("postgres://host:5432/db")).toBe("postgres://host:5432/db");
+  });
+
+  it("handles postgresql:// scheme", () => {
+    expect(maskDatabaseUrl("postgresql://admin:pass@localhost/mydb")).toBe(
+      "postgresql://admin:****@localhost/mydb",
+    );
+  });
+
+  it("returns unchanged value for unparseable strings", () => {
+    expect(maskDatabaseUrl("not-a-url")).toBe("not-a-url");
   });
 });

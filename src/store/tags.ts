@@ -1,4 +1,4 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { SqlConn } from "./sql-executor.js";
 
 interface TagRow {
   tag: string;
@@ -9,7 +9,7 @@ interface InsertRow {
 }
 
 export class TagStore {
-  constructor(private pg: PGlite) {}
+  constructor(private pg: SqlConn) {}
 
   async addTag(slug: string, tag: string): Promise<void> {
     const result = await this.pg.query<InsertRow>(

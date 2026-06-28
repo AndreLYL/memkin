@@ -8,7 +8,7 @@ describe("PageStore", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    store = new PageStore(db.pg);
+    store = new PageStore(db.executor);
   });
 
   afterEach(async () => {
@@ -164,7 +164,7 @@ describe("PageStore", () => {
 
     expect(page.halflife_days).toBe(90);
 
-    const row = await db.pg.query<{ halflife_days: number | null }>(
+    const row = await db.executor.query<{ halflife_days: number | null }>(
       "SELECT halflife_days FROM pages WHERE slug = $1",
       ["decisions/test-decision"],
     );
@@ -222,9 +222,10 @@ describe("PageStore", () => {
       await store.putPage("decisions/old", "---\ntitle: Old\ntype: decision\n---\nOld.", {
         halflife_days: 90,
       });
-      await db.pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [
-        "decisions/old",
-      ]);
+      await db.executor.query(
+        "UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1",
+        ["decisions/old"],
+      );
 
       await store.putPage("decisions/fresh", "---\ntitle: Fresh\ntype: decision\n---\nFresh.", {
         halflife_days: 90,
@@ -257,7 +258,7 @@ describe("PageStore", () => {
     it("listPagesByTier returns pages filtered by tier", async () => {
       await store.putPage("a", "---\ntitle: A\ntype: decision\n---\nA.", { halflife_days: 90 });
       await store.putPage("b", "---\ntitle: B\ntype: preference\n---\nB.", { halflife_days: 90 });
-      await db.pg.query("UPDATE pages SET tier = 'warm' WHERE slug = 'b'");
+      await db.executor.query("UPDATE pages SET tier = 'warm' WHERE slug = 'b'");
 
       const hot = await store.listPagesByTier("hot");
       const warm = await store.listPagesByTier("warm");

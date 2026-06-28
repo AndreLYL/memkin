@@ -19,11 +19,11 @@ describe("synth/scope retrieve", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    chunks = new ChunkStore(db.pg);
-    graph = new GraphStore(db.pg);
-    timeline = new TimelineStore(db.pg);
-    search = new SearchEngine(db.pg);
+    pages = new PageStore(db.executor);
+    chunks = new ChunkStore(db.executor);
+    graph = new GraphStore(db.executor);
+    timeline = new TimelineStore(db.executor);
+    search = new SearchEngine(db.executor);
     stores = { db, pages, chunks, graph, timeline, search } as unknown as StoreContext;
   });
 

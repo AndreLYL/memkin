@@ -5,6 +5,7 @@ import { buildConfigObject, generateConfigYaml } from "../../src/setup/generate-
 const OPENAI_API_KEY_PLACEHOLDER = "$" + "{OPENAI_API_KEY}";
 const FEISHU_APP_ID_PLACEHOLDER = "$" + "{FEISHU_APP_ID}";
 const FEISHU_APP_SECRET_PLACEHOLDER = "$" + "{FEISHU_APP_SECRET}";
+const DATABASE_URL_PLACEHOLDER = "$" + "{DATABASE_URL}";
 
 describe("generate setup config", () => {
   it("generates YAML with the expected top-level sections", () => {
@@ -64,5 +65,38 @@ describe("generate setup config", () => {
 
     expect(parsed.llm.provider).toBe("anthropic");
     expect(parsed.sources.codex.enabled).toBe(true);
+  });
+
+  it("defaults to pglite with data_dir when no store config given", () => {
+    const config = buildConfigObject({});
+    expect(config.store.engine).toBe("pglite");
+    expect(config.store.data_dir).toBe("~/.memoark/data");
+    expect(config.store.database_url).toBeUndefined();
+  });
+
+  it("emits postgres engine with ${DATABASE_URL} placeholder by default", () => {
+    const config = buildConfigObject({ store: { engine: "postgres" } });
+    expect(config.store.engine).toBe("postgres");
+    expect(config.store.database_url).toBe(DATABASE_URL_PLACEHOLDER);
+    expect(config.store.data_dir).toBeUndefined();
+  });
+
+  it("preserves explicit database_url and pool_size", () => {
+    const config = buildConfigObject({
+      store: {
+        engine: "postgres",
+        database_url: DATABASE_URL_PLACEHOLDER,
+        pool_size: 20,
+      },
+    });
+    expect(config.store.database_url).toBe(DATABASE_URL_PLACEHOLDER);
+    expect(config.store.pool_size).toBe(20);
+  });
+
+  it("generates parseable YAML with postgres store fields", () => {
+    const yaml = generateConfigYaml({ store: { engine: "postgres" } });
+    const parsed = parse(yaml);
+    expect(parsed.store.engine).toBe("postgres");
+    expect(parsed.store.database_url).toBe(DATABASE_URL_PLACEHOLDER);
   });
 });

@@ -24,15 +24,15 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pageStore = new PageStore(db.pg);
-    search = new SearchEngine(db.pg);
+    pageStore = new PageStore(db.executor);
+    search = new SearchEngine(db.executor);
 
     // Page B: one strong chunk (lots of matching terms → highest trgm similarity → rank 0).
     const b = await pageStore.putPage(
       "pages/strong-b",
       "---\ntitle: Strong B\ntype: note\n---\nplaceholder",
     );
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO content_chunks (page_id, chunk_index, chunk_text, chunk_source, token_count)
        VALUES ($1, 0, $2, 'compiled_truth', 10)`,
       [b.id, "poolword poolword poolword poolword poolword strong evidence"],
@@ -44,7 +44,7 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
       "---\ntitle: Weak A\ntype: note\n---\nplaceholder",
     );
     for (let i = 0; i < 3; i++) {
-      await db.pg.query(
+      await db.executor.query(
         `INSERT INTO content_chunks (page_id, chunk_index, chunk_text, chunk_source, token_count)
          VALUES ($1, $2, $3, 'compiled_truth', 20)`,
         [a.id, i, `poolword appears once in weak chunk number ${i} with filler text ${i}`],
@@ -52,7 +52,7 @@ describe("SearchEngine — poolByPage (best-chunk-per-page)", () => {
     }
 
     // Neutralize freshness skew: pin both pages to the same updated_at.
-    await db.pg.query(
+    await db.executor.query(
       `UPDATE pages SET updated_at = '2026-06-01T00:00:00.000Z' WHERE slug = ANY($1::text[])`,
       [["pages/strong-b", "pages/weak-a"]],
     );

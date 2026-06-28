@@ -16,13 +16,13 @@ async function createStores() {
   const db = await Database.create();
   return {
     db,
-    pages: new PageStore(db.pg),
-    chunks: new ChunkStore(db.pg),
-    graph: new GraphStore(db.pg),
-    tags: new TagStore(db.pg),
-    timeline: new TimelineStore(db.pg),
-    search: new SearchEngine(db.pg),
-    embedding: new EmbeddingService(db.pg, { provider: "openai", apiKey: "test-key" }),
+    pages: new PageStore(db.executor),
+    chunks: new ChunkStore(db.executor),
+    graph: new GraphStore(db.executor),
+    tags: new TagStore(db.executor),
+    timeline: new TimelineStore(db.executor),
+    search: new SearchEngine(db.executor),
+    embedding: new EmbeddingService(db.executor, { provider: "openai", apiKey: "test-key" }),
   };
 }
 

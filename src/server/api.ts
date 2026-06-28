@@ -65,10 +65,10 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
   const dataRoutes = new Hono();
 
   dataRoutes.get("/health", async (c) => {
-    const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");
-    const chunks = await stores.db.pg.query("SELECT COUNT(*) AS c FROM content_chunks");
+    const pages = await stores.db.executor.query("SELECT COUNT(*) AS c FROM pages");
+    const chunks = await stores.db.executor.query("SELECT COUNT(*) AS c FROM content_chunks");
 
-    const sourcesResult = await stores.db.pg.query(`
+    const sourcesResult = await stores.db.executor.query(`
       SELECT
         COALESCE(frontmatter->>'platform', 'unknown') AS platform,
         COUNT(*)::int AS signals_total,
@@ -212,13 +212,13 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
   });
 
   dataRoutes.get("/stats", async (c) => {
-    const pagesResult = await stores.db.pg.query(
+    const pagesResult = await stores.db.executor.query(
       "SELECT type, COUNT(*)::int AS count FROM pages GROUP BY type",
     );
-    const chunksResult = await stores.db.pg.query(
+    const chunksResult = await stores.db.executor.query(
       "SELECT COUNT(*)::int AS total, COUNT(embedded_at)::int AS embedded FROM content_chunks",
     );
-    const linksResult = await stores.db.pg.query("SELECT COUNT(*)::int AS c FROM links");
+    const linksResult = await stores.db.executor.query("SELECT COUNT(*)::int AS c FROM links");
 
     const pages_by_type: Record<string, number> = {};
     let totalPages = 0;
@@ -240,7 +240,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
   });
 
   dataRoutes.get("/links/all", async (c) => {
-    const result = await stores.db.pg.query(
+    const result = await stores.db.executor.query(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.context
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id
@@ -377,7 +377,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
   ORDER BY ps.signal_time DESC
 `;
 
-    const result = await stores.db.pg.query(sql, params);
+    const result = await stores.db.executor.query(sql, params);
     const rows = result.rows as Array<{
       slug: string;
       type: string;
@@ -551,7 +551,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
     const signals: Array<{ type: string; slug?: string; summary: string; source: unknown }> = [];
 
     // Query pages with source in frontmatter
-    const pagesResult = await stores.db.pg.query(
+    const pagesResult = await stores.db.executor.query(
       `SELECT slug, frontmatter FROM pages
        WHERE frontmatter->'source' IS NOT NULL
        ${channel ? "AND frontmatter->'source'->>'channel' = $1" : ""}
@@ -576,7 +576,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
     }
 
     // Query timeline entries with provenance
-    const timelineResult = await stores.db.pg.query(
+    const timelineResult = await stores.db.executor.query(
       `SELECT te.summary, te.date, te.provenance, p.slug
        FROM timeline_entries te
        JOIN pages p ON p.id = te.page_id
@@ -599,7 +599,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
     }
 
     // Query links with provenance
-    const linksResult = await stores.db.pg.query(
+    const linksResult = await stores.db.executor.query(
       `SELECT pf.slug AS from_slug, pt.slug AS to_slug, l.link_type, l.provenance
        FROM links l
        JOIN pages pf ON pf.id = l.from_page_id

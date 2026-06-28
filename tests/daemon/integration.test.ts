@@ -61,7 +61,7 @@ describe("Scheduler integration", () => {
     const { tmpdir } = await import("node:os");
     tmpDir = mkdtempSync(join(tmpdir(), "sched-integ-"));
     db = await Database.create();
-    pageStore = new PageStore(db.pg);
+    pageStore = new PageStore(db.executor);
   });
 
   afterEach(async () => {

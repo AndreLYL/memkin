@@ -10,8 +10,8 @@ describe("PersonIdentityStore — entities/me + self identity", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    identity = new PersonIdentityStore(db.pg, { pages });
+    pages = new PageStore(db.executor);
+    identity = new PersonIdentityStore(db.executor, { pages });
   });
 
   afterEach(async () => {

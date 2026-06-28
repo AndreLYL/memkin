@@ -1,5 +1,5 @@
-import type { PGlite } from "@electric-sql/pglite";
 import type { IdentityBackend } from "../../core/identity-resolver.js";
+import type { SqlConn } from "../../store/sql-executor.js";
 
 const PLATFORM = "feishu:chat";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -17,7 +17,7 @@ export type ResolutionOutcome =
 
 export class ChatNameResolver {
   constructor(
-    private readonly pg: PGlite,
+    private readonly pg: SqlConn,
     private readonly backend: IdentityBackend,
   ) {}
 

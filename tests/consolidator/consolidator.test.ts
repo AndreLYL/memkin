@@ -40,10 +40,10 @@ describe("Consolidator", () => {
   beforeEach(async () => {
     db = await Database.create();
     stores = {
-      pages: new PageStore(db.pg),
-      graph: new GraphStore(db.pg),
-      tags: new TagStore(db.pg),
-      timeline: new TimelineStore(db.pg),
+      pages: new PageStore(db.executor),
+      graph: new GraphStore(db.executor),
+      tags: new TagStore(db.executor),
+      timeline: new TimelineStore(db.executor),
     };
   });
 
@@ -66,7 +66,7 @@ describe("Consolidator", () => {
 
   describe("consolidateHot", () => {
     it("moves expired hot pages for never-compress types to warm without merging", async () => {
-      await makeExpiredHotPage(stores.pages, db.pg, "decisions/d1", "decision");
+      await makeExpiredHotPage(stores.pages, db.executor, "decisions/d1", "decision");
 
       const consolidator = new Consolidator(stores);
       const moved = await consolidator.consolidateHot();
@@ -84,7 +84,7 @@ describe("Consolidator", () => {
       );
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/pref1",
         "preference",
         "entities/alice",
@@ -92,7 +92,7 @@ describe("Consolidator", () => {
       );
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/pref2",
         "preference",
         "entities/alice",
@@ -127,9 +127,10 @@ describe("Consolidator", () => {
         "---\ntitle: User-edited pref\ntype: preference\nuser_edited: true\n---\nHand-written content.",
         { halflife_days: 90 },
       );
-      await db.pg.query("UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1", [
-        "preferences/user-edited",
-      ]);
+      await db.executor.query(
+        "UPDATE pages SET expires_at = NOW() - INTERVAL '1 day' WHERE slug = $1",
+        ["preferences/user-edited"],
+      );
 
       const consolidator = new Consolidator(stores);
       await consolidator.consolidateHot();
@@ -147,7 +148,7 @@ describe("Consolidator", () => {
       await stores.pages.putPage("entities/bob", "---\ntitle: Bob\ntype: person\n---\nBob entity.");
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/p1",
         "preference",
         "entities/bob",
@@ -155,7 +156,7 @@ describe("Consolidator", () => {
       );
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/p2",
         "preference",
         "entities/bob",
@@ -181,7 +182,7 @@ describe("Consolidator", () => {
       // First batch: create two expired hot pages → produces one warm aggregate
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/carol-p1",
         "preference",
         "entities/carol",
@@ -189,7 +190,7 @@ describe("Consolidator", () => {
       );
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/carol-p2",
         "preference",
         "entities/carol",
@@ -205,7 +206,7 @@ describe("Consolidator", () => {
       // Second batch: a new hot preference arrives for the same entity
       await makeExpiredHotPage(
         stores.pages,
-        db.pg,
+        db.executor,
         "preferences/carol-p3",
         "preference",
         "entities/carol",
@@ -244,7 +245,7 @@ describe("Consolidator", () => {
         "---\ntitle: Consolidated preference (entities/alice)\ntype: preference\nconsolidated: true\n---\nAlice likes morning standups.",
         { halflife_days: null },
       );
-      await db.pg.query(
+      await db.executor.query(
         `UPDATE pages SET
            tier = 'warm',
            created_at = NOW() - INTERVAL '400 days',
@@ -282,7 +283,7 @@ describe("Consolidator", () => {
         "---\ntitle: Consolidated preference\ntype: preference\nconsolidated: true\n---\nBob likes evening calls.",
         { halflife_days: null },
       );
-      await db.pg.query("UPDATE pages SET tier = 'warm' WHERE slug = $1", [
+      await db.executor.query("UPDATE pages SET tier = 'warm' WHERE slug = $1", [
         "warm/entities-bob/preference-consolidated",
       ]);
       await stores.graph.addLink(

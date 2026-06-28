@@ -18,7 +18,7 @@ function makeResolver(): ChatNameResolver {
 
 async function makeAppWithJob() {
   const db = await Database.create(undefined, { embeddingDimensions: 768 });
-  const job = new ChatNameRefreshJob(db.pg, makeResolver());
+  const job = new ChatNameRefreshJob(db.executor, makeResolver());
   const stores = { db, chatNameRefreshJob: job } as unknown as StoreContext;
   const app = new Hono();
   registerChatNameRoutes(app, stores);
@@ -41,7 +41,7 @@ describe("POST /api/feishu/refresh-chat-names", () => {
     const body = (await res.json()) as { jobId: string };
     expect(body.jobId).toMatch(/^[0-9a-f-]+$/);
     await job.waitUntilDone(); // drain background work
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns 503 when feishu source is not configured", async () => {
@@ -50,7 +50,7 @@ describe("POST /api/feishu/refresh-chat-names", () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/not enabled/i);
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns 409 when another refresh is already running", async () => {
@@ -68,11 +68,11 @@ describe("POST /api/feishu/refresh-chat-names", () => {
     } as unknown as ChatNameResolver;
     // Need at least one feishu page so the channel collection finds something
     const fm = JSON.stringify({ source: { platform: "feishu", channel: "group/oc_a" } });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb)`,
       [fm],
     );
-    const job = new ChatNameRefreshJob(db.pg, slowResolver);
+    const job = new ChatNameRefreshJob(db.executor, slowResolver);
     const stores = { db, chatNameRefreshJob: job } as unknown as StoreContext;
     const app = new Hono();
     registerChatNameRoutes(app, stores);
@@ -86,7 +86,7 @@ describe("POST /api/feishu/refresh-chat-names", () => {
 
     resolveSlow();
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 });
 
@@ -105,7 +105,7 @@ describe("GET /api/feishu/refresh-chat-names/status", () => {
     expect(body.jobId).toBeNull();
     expect(body.total).toBe(0);
     expect(body.errors).toEqual([]);
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns idle status before any job starts", async () => {
@@ -115,14 +115,14 @@ describe("GET /api/feishu/refresh-chat-names/status", () => {
     const body = (await res.json()) as { state: string; jobId: string | null };
     expect(body.state).toBe("idle");
     expect(body.jobId).toBeNull();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns running then done status after a job runs to completion", async () => {
     const { app, db, job } = await makeAppWithJob();
     // Seed at least one feishu page so the job has work to do
     const fm = JSON.stringify({ source: { platform: "feishu", channel: "group/oc_x" } });
-    await db.pg.query(
+    await db.executor.query(
       `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter) VALUES ('p1', 'task', 't', '', $1::jsonb)`,
       [fm],
     );
@@ -133,7 +133,7 @@ describe("GET /api/feishu/refresh-chat-names/status", () => {
     expect(body.state).toBe("done");
     expect(body.total).toBe(1);
     expect(body.resolved).toBe(1);
-    await db.pg.close();
+    await db.executor.close();
   });
 });
 
@@ -142,11 +142,11 @@ describe("POST /api/feishu/channel-names", () => {
     const { app, db, job } = await makeAppWithJob();
 
     // Seed cache: one resolved, one failed (NULL marker)
-    await db.pg.query(
+    await db.executor.query(
       "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, $3)",
       ["feishu:chat", "group/oc_known", "已知群"],
     );
-    await db.pg.query(
+    await db.executor.query(
       "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, NULL)",
       ["feishu:chat", "group/oc_failed"],
     );
@@ -170,7 +170,7 @@ describe("POST /api/feishu/channel-names", () => {
     expect(body.results["mail/INBOX"]).toEqual({ display_name: null, status: "mail" });
 
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("rejects requests over 100 channels with 400", async () => {
@@ -185,7 +185,7 @@ describe("POST /api/feishu/channel-names", () => {
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/at most 100/);
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("accepts exactly 100 channels (boundary)", async () => {
@@ -200,7 +200,7 @@ describe("POST /api/feishu/channel-names", () => {
     const body = (await res.json()) as { results: Record<string, unknown> };
     expect(Object.keys(body.results)).toHaveLength(100);
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns 400 when channels field is not an array", async () => {
@@ -214,7 +214,7 @@ describe("POST /api/feishu/channel-names", () => {
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/must be an array/);
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("returns 400 when body is malformed JSON", async () => {
@@ -226,13 +226,13 @@ describe("POST /api/feishu/channel-names", () => {
     });
     expect(res.status).toBe(400);
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 
   it("filters non-string entries from channels array", async () => {
     const { app, db, job } = await makeAppWithJob();
     // Seed one valid cache row
-    await db.pg.query(
+    await db.executor.query(
       "INSERT INTO identity_cache (platform, external_id, display_name) VALUES ($1, $2, $3)",
       ["feishu:chat", "group/oc_real", "真实群"],
     );
@@ -248,6 +248,6 @@ describe("POST /api/feishu/channel-names", () => {
     expect(body.results["group/oc_fake"]?.status).toBe("unresolved");
     expect(body.results["42"]).toBeUndefined();
     await job.waitUntilDone();
-    await db.pg.close();
+    await db.executor.close();
   });
 });

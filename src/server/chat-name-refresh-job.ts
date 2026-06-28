@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { PGlite } from "@electric-sql/pglite";
 import type { ChatNameResolver } from "../collectors/feishu/chat-name-resolver.js";
+import type { SqlConn } from "../store/sql-executor.js";
 
 export interface RefreshError {
   channel: string;
@@ -42,7 +42,7 @@ export class ChatNameRefreshJob {
   private donePromise: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly pg: PGlite,
+    private readonly pg: SqlConn,
     private readonly resolver: ChatNameResolver,
   ) {}
 

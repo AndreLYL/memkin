@@ -24,7 +24,7 @@ describe("store/person-behavior", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    store = new PersonBehaviorStore(db.pg);
+    store = new PersonBehaviorStore(db.executor);
   });
 
   afterEach(async () => {
@@ -32,7 +32,7 @@ describe("store/person-behavior", () => {
   });
 
   it("creates the person_behavior table via migration", async () => {
-    const r = await db.pg.query<{ count: number }>(
+    const r = await db.executor.query<{ count: number }>(
       "SELECT COUNT(*)::int AS count FROM person_behavior",
     );
     expect(r.rows[0].count).toBe(0);

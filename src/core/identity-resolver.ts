@@ -1,4 +1,4 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { SqlExecutor } from "../store/sql-executor.js";
 import { PersonIdentityStore } from "./person-identity.js";
 import { toPersonCanonicalSlug } from "./person-slug.js";
 import type { ExtractionResult, RawMessage } from "./types.js";
@@ -21,7 +21,7 @@ export class IdentityResolver {
   private readonly identity: PersonIdentityStore;
 
   constructor(
-    private db: PGlite,
+    private db: SqlExecutor,
     private backend?: IdentityBackend,
   ) {
     this.identity = new PersonIdentityStore(db);

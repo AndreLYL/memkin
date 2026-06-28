@@ -9,7 +9,7 @@ describe("AlertWriter", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pageStore = new PageStore(db.pg);
+    pageStore = new PageStore(db.executor);
   });
 
   afterEach(async () => {

@@ -1,6 +1,6 @@
-import type { PGlite } from "@electric-sql/pglite";
 import { compactSourceRef } from "../core/source-ref.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
+import type { SqlConn } from "./sql-executor.js";
 
 export interface TimelineEntry {
   id: number;
@@ -150,7 +150,7 @@ function addFeedFilters(
 }
 
 export class TimelineStore {
-  constructor(private pg: PGlite) {}
+  constructor(private pg: SqlConn) {}
 
   async addEntry(
     pageSlug: string,

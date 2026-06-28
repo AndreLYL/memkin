@@ -246,9 +246,9 @@ function decodeSlug(value: unknown): string {
 
 export function createMcpToolHandlers(stores: StoreContext, options: McpServerOptions = {}) {
   const identity = new PersonIdentityStore(
-    stores.db.pg,
+    stores.db.executor,
     { pages: stores.pages },
-    { behavior: new PersonBehaviorStore(stores.db.pg) },
+    { behavior: new PersonBehaviorStore(stores.db.executor) },
   );
   return {
     query: async (args: MemoryFilter & { query: string }) => {
@@ -344,8 +344,7 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
         };
       }
 
-      const page = await stores.pages.putPage(slug, content);
-      await stores.chunks.rechunk(page.id, page.compiled_truth);
+      const page = await stores.pages.putPageWithChunks(stores.db.executor, slug, content);
       return {
         ok: true,
         slug,
@@ -510,8 +509,8 @@ export function createMcpToolHandlers(stores: StoreContext, options: McpServerOp
       );
     },
     get_health: async () => {
-      const pages = await stores.db.pg.query("SELECT COUNT(*) AS c FROM pages");
-      const chunks = await stores.db.pg.query("SELECT COUNT(*) AS c FROM content_chunks");
+      const pages = await stores.db.executor.query("SELECT COUNT(*) AS c FROM pages");
+      const chunks = await stores.db.executor.query("SELECT COUNT(*) AS c FROM content_chunks");
       return {
         status: "ok",
         pages: Number((pages.rows[0] as Record<string, unknown>).c),

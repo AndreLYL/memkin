@@ -11,8 +11,8 @@ describe("TimelineStore", () => {
 
   beforeEach(async () => {
     db = await Database.create();
-    pages = new PageStore(db.pg);
-    timeline = new TimelineStore(db.pg);
+    pages = new PageStore(db.executor);
+    timeline = new TimelineStore(db.executor);
   });
   afterEach(async () => {
     await db.close();
@@ -122,7 +122,7 @@ describe("TimelineStore", () => {
     await pages.putPage("test/del", "---\ntitle: D\ntype: test\n---\nBody.");
     await timeline.addEntry("test/del", { date: "2026-05-25", summary: "Event" });
     await pages.deletePage("test/del");
-    const count = await db.pg.query("SELECT COUNT(*) AS c FROM timeline_entries");
+    const count = await db.executor.query("SELECT COUNT(*) AS c FROM timeline_entries");
     expect(Number(count.rows[0].c)).toBe(0);
   });
 

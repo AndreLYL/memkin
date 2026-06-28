@@ -15,10 +15,10 @@
  *   - Merging two existing person pages is always an explicit operation.
  */
 
-import type { PGlite } from "@electric-sql/pglite";
 import { stringify as stringifyYaml } from "yaml";
 import type { PageStore } from "../store/pages.js";
 import type { PersonBehaviorStore } from "../store/person-behavior.js";
+import type { SqlConn, SqlExecutor } from "../store/sql-executor.js";
 
 export type HandleKind = "feishu_open_id" | "email" | "name" | "nickname" | "slug";
 export type HandleStrength = "strong" | "weak";
@@ -72,7 +72,7 @@ export interface PersonIdentityExtraStores {
 
 export class PersonIdentityStore {
   constructor(
-    private db: PGlite,
+    private db: SqlExecutor,
     private stores?: PersonIdentityStores,
     private extra?: PersonIdentityExtraStores,
   ) {}
@@ -254,99 +254,136 @@ export class PersonIdentityStore {
    * entries, and tags; folds the body and aliases into the target; records the
    * old slug + handles as aliases of the target; deletes the old page.
    *
+   * All direct SQL is executed inside a single transaction. Page rows are
+   * locked in sorted slug order to prevent deadlocks between concurrent
+   * reverse merges. If the source page no longer exists inside the transaction
+   * (already merged by a concurrent caller), the method returns as a no-op.
+   *
    * Note: the old page's embeddings (chunks) are dropped with it — run
    * `memoark embed` afterwards to re-embed the folded content.
    */
   async merge(fromSlug: string, intoSlug: string): Promise<void> {
     if (fromSlug === intoSlug) throw new Error("cannot merge a person into itself");
+
+    // Validate existence BEFORE the transaction (nicer error messages).
     const pages = this.requirePages();
-    const from = await pages.getPage(fromSlug);
-    const into = await pages.getPage(intoSlug);
-    if (!from) throw new Error(`person page '${fromSlug}' not found`);
-    if (!into) throw new Error(`person page '${intoSlug}' not found`);
+    const fromPre = await pages.getPage(fromSlug);
+    const intoPre = await pages.getPage(intoSlug);
+    if (!fromPre) throw new Error(`person page '${fromSlug}' not found`);
+    if (!intoPre) throw new Error(`person page '${intoSlug}' not found`);
 
-    const fromId = from.id;
-    const intoId = into.id;
-
-    // Re-point outgoing links, skipping rows that would violate the
-    // UNIQUE(from_page_id, to_page_id, link_type) constraint, then drop dups.
-    await this.db.query(
-      `UPDATE links SET from_page_id = $1
-       WHERE from_page_id = $2
-         AND NOT EXISTS (
-           SELECT 1 FROM links l2
-           WHERE l2.from_page_id = $1 AND l2.to_page_id = links.to_page_id
-             AND l2.link_type = links.link_type
-         )`,
-      [intoId, fromId],
-    );
-    await this.db.query("DELETE FROM links WHERE from_page_id = $1", [fromId]);
-    // Re-point incoming links.
-    await this.db.query(
-      `UPDATE links SET to_page_id = $1
-       WHERE to_page_id = $2
-         AND NOT EXISTS (
-           SELECT 1 FROM links l2
-           WHERE l2.to_page_id = $1 AND l2.from_page_id = links.from_page_id
-             AND l2.link_type = links.link_type
-         )`,
-      [intoId, fromId],
-    );
-    await this.db.query("DELETE FROM links WHERE to_page_id = $1", [fromId]);
-    // Drop any self-link created by the merge.
-    await this.db.query("DELETE FROM links WHERE from_page_id = $1 AND to_page_id = $1", [intoId]);
-
-    // Re-point timeline entries (UNIQUE(page_id, date, summary)).
-    await this.db.query(
-      `UPDATE timeline_entries SET page_id = $1
-       WHERE page_id = $2
-         AND NOT EXISTS (
-           SELECT 1 FROM timeline_entries t2
-           WHERE t2.page_id = $1 AND t2.date = timeline_entries.date
-             AND t2.summary = timeline_entries.summary
-         )`,
-      [intoId, fromId],
-    );
-    await this.db.query("DELETE FROM timeline_entries WHERE page_id = $1", [fromId]);
-
-    // Re-point tags (UNIQUE(page_id, tag)).
-    await this.db.query(
-      `UPDATE tags SET page_id = $1
-       WHERE page_id = $2
-         AND NOT EXISTS (SELECT 1 FROM tags t2 WHERE t2.page_id = $1 AND t2.tag = tags.tag)`,
-      [intoId, fromId],
-    );
-    await this.db.query("DELETE FROM tags WHERE page_id = $1", [fromId]);
-
-    // Fold body + aliases into the target.
-    const aliasValues = new Set<string>([
-      ...this.frontmatterAliases(into),
-      ...this.frontmatterAliases(from),
-      fromSlug,
-    ]);
-    const foldedBody =
-      from.compiled_truth.trim().length > 0
-        ? `${into.compiled_truth.trimEnd()}\n\n## Merged from ${fromSlug}\n\n${from.compiled_truth.trim()}`
-        : into.compiled_truth;
-    // Spec 8: the merged-into person's cached communication profile is now stale
-    // (it was computed before the behavior counters were folded in) — drop it so
-    // the next nightly synthesis recomputes from the combined evidence.
-    const { profile: _staleProfile, ...intoFm } = into.frontmatter;
-    await this.writePage({ ...into, frontmatter: intoFm }, foldedBody, [...aliasValues]);
-
-    // Spec 8: fold the behavior-layer counters (additive) into the target.
+    // Spec 8: behavior counters are additive; use their own atomic transaction.
+    // This runs outside the identity tx intentionally — behavior is eventually
+    // consistent and additive.
+    // NOTE: behavior.merge() runs BEFORE the identity tx (it has its own atomic tx).
+    // Known relaxation: if the identity tx below rolls back AFTER this succeeds,
+    // behavior counters are misattributed to the target while the identity merge is
+    // reverted (source page persists with no behavior row, counters double-counted
+    // under target). Acceptable for rare explicit merges; for strict consistency,
+    // move behavior merge into the identity tx via a tx-scoped variant.
+    // Identity-table integrity itself is unaffected.
     if (this.extra?.behavior) {
       await this.extra.behavior.merge(fromSlug, intoSlug);
     }
 
-    // Re-point handle + identity-cache mappings, then drop the old page.
-    await this.db.query("UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
-      intoSlug,
+    // Compute merged content before entering the tx (reads only, no side effects).
+    const aliasValues = new Set<string>([
+      ...this.frontmatterAliases(intoPre),
+      ...this.frontmatterAliases(fromPre),
       fromSlug,
     ]);
-    await this.insertHandle("slug", fromSlug, intoSlug, "strong", false);
-    await this.repointIdentityCache(fromSlug, intoSlug);
-    await pages.deletePage(fromSlug);
+    const foldedBody =
+      fromPre.compiled_truth.trim().length > 0
+        ? `${intoPre.compiled_truth.trimEnd()}\n\n## Merged from ${fromSlug}\n\n${fromPre.compiled_truth.trim()}`
+        : intoPre.compiled_truth;
+    // Spec 8: drop stale cached communication profile so next synthesis recomputes.
+    const { profile: _staleProfile, ...intoFm } = intoPre.frontmatter;
+    const mergedPage = { ...intoPre, frontmatter: intoFm };
+
+    await this.db.transaction(async (tx) => {
+      // Lock page rows in FIXED sorted slug order to prevent deadlock between
+      // concurrent A→B and B→A merges.
+      const [firstSlug, secondSlug] = [fromSlug, intoSlug].sort();
+      await tx.query("SELECT id FROM pages WHERE slug = $1 FOR UPDATE", [firstSlug]);
+      await tx.query("SELECT id FROM pages WHERE slug = $1 FOR UPDATE", [secondSlug]);
+
+      // Idempotency: if the source page was already merged, return as no-op.
+      const fromCheck = await tx.query<{ id: number }>("SELECT id FROM pages WHERE slug = $1", [
+        fromSlug,
+      ]);
+      if (fromCheck.rows.length === 0) return;
+
+      const fromId = fromCheck.rows[0].id;
+      const intoCheck = await tx.query<{ id: number }>("SELECT id FROM pages WHERE slug = $1", [
+        intoSlug,
+      ]);
+      if (intoCheck.rows.length === 0) return;
+      const intoId = intoCheck.rows[0].id;
+
+      // Re-point outgoing links, skipping rows that would violate the
+      // UNIQUE(from_page_id, to_page_id, link_type) constraint, then drop dups.
+      await tx.query(
+        `UPDATE links SET from_page_id = $1
+         WHERE from_page_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM links l2
+             WHERE l2.from_page_id = $1 AND l2.to_page_id = links.to_page_id
+               AND l2.link_type = links.link_type
+           )`,
+        [intoId, fromId],
+      );
+      await tx.query("DELETE FROM links WHERE from_page_id = $1", [fromId]);
+      // Re-point incoming links.
+      await tx.query(
+        `UPDATE links SET to_page_id = $1
+         WHERE to_page_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM links l2
+             WHERE l2.to_page_id = $1 AND l2.from_page_id = links.from_page_id
+               AND l2.link_type = links.link_type
+           )`,
+        [intoId, fromId],
+      );
+      await tx.query("DELETE FROM links WHERE to_page_id = $1", [fromId]);
+      // Drop any self-link created by the merge.
+      await tx.query("DELETE FROM links WHERE from_page_id = $1 AND to_page_id = $1", [intoId]);
+
+      // Re-point timeline entries (UNIQUE(page_id, date, summary)).
+      await tx.query(
+        `UPDATE timeline_entries SET page_id = $1
+         WHERE page_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM timeline_entries t2
+             WHERE t2.page_id = $1 AND t2.date = timeline_entries.date
+               AND t2.summary = timeline_entries.summary
+           )`,
+        [intoId, fromId],
+      );
+      await tx.query("DELETE FROM timeline_entries WHERE page_id = $1", [fromId]);
+
+      // Re-point tags (UNIQUE(page_id, tag)).
+      await tx.query(
+        `UPDATE tags SET page_id = $1
+         WHERE page_id = $2
+           AND NOT EXISTS (SELECT 1 FROM tags t2 WHERE t2.page_id = $1 AND t2.tag = tags.tag)`,
+        [intoId, fromId],
+      );
+      await tx.query("DELETE FROM tags WHERE page_id = $1", [fromId]);
+
+      // Fold body + aliases into the target page.
+      await this.writePageTx(tx, mergedPage, foldedBody, [...aliasValues]);
+
+      // Re-point handle + identity-cache mappings.
+      await tx.query("UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
+        intoSlug,
+        fromSlug,
+      ]);
+      await this.insertHandleTx(tx, "slug", fromSlug, intoSlug, "strong", false);
+      await this.repointIdentityCacheTx(tx, fromSlug, intoSlug);
+
+      // Delete the source page (chunks cascade via FK ON DELETE CASCADE).
+      await tx.query("DELETE FROM pages WHERE slug = $1", [fromSlug]);
+    });
   }
 
   // ── internals ──────────────────────────────────────────────────────────
@@ -398,6 +435,53 @@ export class PersonIdentityStore {
     );
   }
 
+  /** tx-scoped variant of repointIdentityCache for use inside merge transaction. */
+  private async repointIdentityCacheTx(
+    tx: SqlConn,
+    oldSlug: string,
+    newSlug: string,
+  ): Promise<void> {
+    await tx.query(
+      "UPDATE identity_cache SET display_name = $1 WHERE platform = 'canonical' AND display_name = $2",
+      [newSlug, oldSlug],
+    );
+    await tx.query(
+      `INSERT INTO identity_cache (platform, external_id, display_name, slug_hint)
+       VALUES ('canonical', $1, $2, $1)
+       ON CONFLICT (platform, external_id) DO UPDATE SET display_name = EXCLUDED.display_name`,
+      [oldSlug, newSlug],
+    );
+  }
+
+  /** tx-scoped variant of insertHandle for use inside merge transaction. */
+  private async insertHandleTx(
+    tx: SqlConn,
+    kind: HandleKind,
+    value: string,
+    canonicalSlug: string,
+    strength: HandleStrength,
+    ignoreConflict: boolean,
+  ): Promise<void> {
+    const v = canonicalizeHandleValue(kind, value);
+    if (ignoreConflict) {
+      await tx.query(
+        `INSERT INTO person_handles (kind, value, canonical_slug, strength)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (kind, value) DO NOTHING`,
+        [kind, v, canonicalSlug, strength],
+      );
+    } else {
+      await tx.query(
+        `INSERT INTO person_handles (kind, value, canonical_slug, strength)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (kind, value) DO UPDATE SET
+           canonical_slug = EXCLUDED.canonical_slug,
+           strength = EXCLUDED.strength`,
+        [kind, v, canonicalSlug, strength],
+      );
+    }
+  }
+
   private frontmatterAliases(page: { frontmatter: Record<string, unknown> }): string[] {
     const a = page.frontmatter.aliases;
     return Array.isArray(a) ? a.map(String) : [];
@@ -426,5 +510,43 @@ export class PersonIdentityStore {
     if (aliases.length > 0) fm.aliases = aliases;
     const content = `---\n${stringifyYaml(fm)}---\n${body}`;
     await pages.putPage(page.slug, content);
+  }
+
+  /**
+   * tx-scoped page write for use inside the merge transaction.
+   * Executes the putPage SQL directly against the tx connection so the update
+   * participates in the outer transaction (avoids using a pool connection from
+   * PageStore which would be outside the tx boundary).
+   */
+  private async writePageTx(
+    tx: SqlConn,
+    page: { slug: string; title: string; type: string; frontmatter: Record<string, unknown> },
+    body: string,
+    aliases: string[],
+  ): Promise<void> {
+    const { createHash } = await import("node:crypto");
+    const { stringify: stringifyYamlFn } = await import("yaml");
+    const { aliases: _drop, ...rest } = page.frontmatter;
+    const fm: Record<string, unknown> = {
+      title: page.title,
+      type: page.type,
+      ...rest,
+    };
+    if (aliases.length > 0) fm.aliases = aliases;
+    const content = `---\n${stringifyYamlFn(fm)}---\n${body}`;
+    const contentHash = createHash("sha256").update(content).digest("hex");
+
+    await tx.query(
+      `INSERT INTO pages (slug, type, title, compiled_truth, frontmatter, content_hash)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+       ON CONFLICT (slug) DO UPDATE SET
+         type = EXCLUDED.type,
+         title = EXCLUDED.title,
+         compiled_truth = EXCLUDED.compiled_truth,
+         frontmatter = EXCLUDED.frontmatter,
+         content_hash = EXCLUDED.content_hash,
+         updated_at = NOW()`,
+      [page.slug, page.type, page.title, body, JSON.stringify(fm), contentHash],
+    );
   }
 }

@@ -19,7 +19,7 @@ function makeJob(overrides: Partial<BackfillStatus> = {}): BackfillJob {
 function makeStores() {
   return {
     db: {
-      pg: {
+      executor: {
         query: vi.fn().mockResolvedValue({ rows: [] }),
       },
     },
@@ -116,7 +116,7 @@ describe("backfill routes", () => {
     it("returns buckets array from DB query", async () => {
       const stores = {
         db: {
-          pg: {
+          executor: {
             query: vi.fn().mockResolvedValue({
               rows: [
                 { week_start_ms: "1000000000000", count: 3 },

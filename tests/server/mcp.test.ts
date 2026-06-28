@@ -20,15 +20,15 @@ describe("MCP server", () => {
     db = await Database.create();
     stores = {
       db,
-      pages: new PageStore(db.pg),
-      chunks: new ChunkStore(db.pg),
-      graph: new GraphStore(db.pg),
-      tags: new TagStore(db.pg),
-      timeline: new TimelineStore(db.pg),
-      search: new SearchEngine(db.pg, {
+      pages: new PageStore(db.executor),
+      chunks: new ChunkStore(db.executor),
+      graph: new GraphStore(db.executor),
+      tags: new TagStore(db.executor),
+      timeline: new TimelineStore(db.executor),
+      search: new SearchEngine(db.executor, {
         embedText: vi.fn().mockResolvedValue(Array(768).fill(0.1)),
       }),
-      embedding: new EmbeddingService(db.pg, { provider: "openai", apiKey: "test-key" }),
+      embedding: new EmbeddingService(db.executor, { provider: "openai", apiKey: "test-key" }),
     };
   });
   afterEach(async () => {
@@ -226,7 +226,9 @@ describe("MCP server", () => {
       });
 
       // Force cold-page to cold tier
-      await stores.db.pg.query("UPDATE pages SET tier = 'cold' WHERE slug = 'knowledge/cold-page'");
+      await stores.db.executor.query(
+        "UPDATE pages SET tier = 'cold' WHERE slug = 'knowledge/cold-page'",
+      );
 
       const results = await tools.query({ query: "PGLite WASM SQLite" });
       const hotIdx = (results as Array<{ slug: string }>).findIndex(
@@ -284,7 +286,9 @@ describe("MCP server", () => {
 
   it("put_page is idempotent and skips rechunk when content is unchanged", async () => {
     const tools = createMcpToolHandlers(stores);
-    const rechunkSpy = vi.spyOn(stores.chunks, "rechunk");
+    // Spy on putPageWithChunks (the new atomic write path); rechunk is now
+    // called internally inside the transaction and no longer directly spied on.
+    const putPageWithChunksSpy = vi.spyOn(stores.pages, "putPageWithChunks");
     const content = "---\ntitle: Idempotent\ntype: note\n---\nStable content.";
 
     const first = await tools.put_page({ slug: "notes/idempotent", content });
@@ -310,7 +314,9 @@ describe("MCP server", () => {
     });
     expect(String(pageAfterSecond?.updated_at)).toBe(String(pageAfterFirst?.updated_at));
     expect(chunksAfterSecond).toHaveLength(chunksAfterFirst.length);
-    expect(rechunkSpy).toHaveBeenCalledTimes(1);
+    // putPageWithChunks must be called exactly once (for the first write);
+    // unchanged content triggers the early-return path in put_page.
+    expect(putPageWithChunksSpy).toHaveBeenCalledTimes(1);
   });
 
   it("write handlers return structured errors instead of false success", async () => {
@@ -434,13 +440,13 @@ describe("MCP synthesis tools", () => {
     db = await Database.create();
     stores = {
       db,
-      pages: new PageStore(db.pg),
-      chunks: new ChunkStore(db.pg),
-      graph: new GraphStore(db.pg),
-      tags: new TagStore(db.pg),
-      timeline: new TimelineStore(db.pg),
-      search: new SearchEngine(db.pg),
-      embedding: new EmbeddingService(db.pg, { provider: "openai", apiKey: "test-key" }),
+      pages: new PageStore(db.executor),
+      chunks: new ChunkStore(db.executor),
+      graph: new GraphStore(db.executor),
+      tags: new TagStore(db.executor),
+      timeline: new TimelineStore(db.executor),
+      search: new SearchEngine(db.executor),
+      embedding: new EmbeddingService(db.executor, { provider: "openai", apiKey: "test-key" }),
     };
   });
   afterEach(async () => {

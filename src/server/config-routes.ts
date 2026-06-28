@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { Hono } from "hono";
 import { parse } from "yaml";
 import { LarkCliHttpClient } from "../collectors/feishu/lark-cli-client.js";
-import { maskSecret } from "../config-center/secrets.js";
+import { maskDatabaseUrl, maskSecret } from "../config-center/secrets.js";
 import { validateDraft } from "../config-center/validation.js";
 import { testEmbeddingConnection, testLLMConnection } from "../setup/connection-tests.js";
 import { generateConfigYaml } from "../setup/generate-config.js";
@@ -29,6 +29,9 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
     if (parsed.sources?.feishu?.app_secret) {
       parsed.sources.feishu.app_secret = maskSecret(parsed.sources.feishu.app_secret);
     }
+    if (parsed.store?.database_url) {
+      parsed.store.database_url = maskDatabaseUrl(parsed.store.database_url);
+    }
     return c.json(parsed);
   });
 
@@ -41,7 +44,8 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
     if (
       isMasked(body.llm?.api_key) ||
       isMasked(body.embedding?.api_key) ||
-      isMasked(body.sources?.feishu?.app_secret)
+      isMasked(body.sources?.feishu?.app_secret) ||
+      isMasked(body.store?.database_url)
     ) {
       let existing: PartialConfig = {};
       if (existsSync(opts.configPath)) {
@@ -56,6 +60,9 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
       if (isMasked(body.sources?.feishu?.app_secret) && body.sources?.feishu) {
         body.sources.feishu.app_secret =
           existing.sources?.feishu?.app_secret ?? body.sources.feishu.app_secret;
+      }
+      if (isMasked(body.store?.database_url) && body.store) {
+        body.store.database_url = existing.store?.database_url ?? body.store.database_url;
       }
     }
 

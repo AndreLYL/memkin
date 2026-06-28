@@ -33,14 +33,14 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
   beforeEach(async () => {
     db = await Database.create();
 
-    pageStore = new PageStore(db.pg);
-    identityResolver = new IdentityResolver(db.pg);
+    pageStore = new PageStore(db.executor);
+    identityResolver = new IdentityResolver(db.executor);
     storeAdapter = new StoreAdapter({
       pages: pageStore,
-      chunks: new ChunkStore(db.pg),
-      graph: new GraphStore(db.pg),
-      tags: new TagStore(db.pg),
-      timeline: new TimelineStore(db.pg),
+      chunks: new ChunkStore(db.executor),
+      graph: new GraphStore(db.executor),
+      tags: new TagStore(db.executor),
+      timeline: new TimelineStore(db.executor),
     });
   });
 

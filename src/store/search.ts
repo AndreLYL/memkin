@@ -1,7 +1,7 @@
-import type { PGlite } from "@electric-sql/pglite";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { rewriteQuery } from "./query-rewrite.js";
+import type { SqlConn } from "./sql-executor.js";
 import { buildSnippet, buildTrgmConditions, splitTerms } from "./trgm-search.js";
 
 export interface SearchResult {
@@ -195,7 +195,7 @@ export class SearchEngine {
   private llm?: LLMProvider;
 
   constructor(
-    private pg: PGlite,
+    private pg: SqlConn,
     opts?: SearchEngineOpts,
   ) {
     this.embedText = opts?.embedText;

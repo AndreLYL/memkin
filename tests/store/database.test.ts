@@ -1,6 +1,19 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 
+describe("Database.create overload + executor", () => {
+  it("legacy undefined arg works (pglite in-memory)", async () => {
+    const db = await Database.create(undefined);
+    expect(db.executor).toBeDefined();
+    expect(typeof db.executor.query).toBe("function");
+    await db.close();
+  });
+  it("config arg selects engine", async () => {
+    const db = await Database.create({ store: { engine: "pglite" } } as any);
+    await db.close();
+  });
+});
+
 describe("Database", () => {
   let db: Database;
 
@@ -11,7 +24,7 @@ describe("Database", () => {
   it("creates in-memory database with all tables", async () => {
     db = await Database.create();
 
-    const tables = await db.pg.query<{ tablename: string }>(`
+    const tables = await db.executor.query<{ tablename: string }>(`
       SELECT tablename FROM pg_tables
       WHERE schemaname = 'public'
       ORDER BY tablename
@@ -26,7 +39,9 @@ describe("Database", () => {
 
   it("has pgvector extension loaded", async () => {
     db = await Database.create();
-    const ext = await db.pg.query("SELECT extname FROM pg_extension WHERE extname = 'vector'");
+    const ext = await db.executor.query(
+      "SELECT extname FROM pg_extension WHERE extname = 'vector'",
+    );
     expect(ext.rows).toHaveLength(1);
   });
 
@@ -35,12 +50,12 @@ describe("Database", () => {
 
     // Migration 006 dropped the tsvector search_vector column and its triggers;
     // full-text search now uses pg_trgm GIN indexes via ILIKE.
-    const ext = await db.pg.query<{ extname: string }>(
+    const ext = await db.executor.query<{ extname: string }>(
       "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'",
     );
     expect(ext.rows).toHaveLength(1);
 
-    const idx = await db.pg.query<{ indexname: string }>(
+    const idx = await db.executor.query<{ indexname: string }>(
       `SELECT indexname FROM pg_indexes
        WHERE tablename = 'pages'
          AND indexname IN ('idx_pages_title_trgm', 'idx_pages_compiled_truth_trgm')
