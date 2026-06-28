@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 import { makeIsolatedPgUrl } from "../test-helpers/pg-harness.js";
 
@@ -15,7 +15,9 @@ d("concurrent bootstrap (advisory lock)", () => {
     );
     expect(dup.rows).toEqual([]); // no version applied twice
     // sanity: schema_migrations has the expected migrations (>0)
-    const total = await a.executor.query<{ c: number }>("SELECT count(*)::int c FROM schema_migrations");
+    const total = await a.executor.query<{ c: number }>(
+      "SELECT count(*)::int c FROM schema_migrations",
+    );
     expect(total.rows[0].c).toBeGreaterThan(0);
     await a.close();
     await b.close();

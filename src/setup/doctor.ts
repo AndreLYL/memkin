@@ -21,17 +21,13 @@ export async function checkPostgres(url: string): Promise<PgCheck> {
     await pool.query("SELECT 1");
 
     // Already installed?
-    const inst = await pool.query(
-      "SELECT 1 FROM pg_extension WHERE extname = 'vector'",
-    );
+    const inst = await pool.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'");
     if (inst.rows.length > 0) {
       return { connected: true, vectorReady: true, canCreate: true };
     }
 
     // Available in the cluster?
-    const avail = await pool.query(
-      "SELECT 1 FROM pg_available_extensions WHERE name = 'vector'",
-    );
+    const avail = await pool.query("SELECT 1 FROM pg_available_extensions WHERE name = 'vector'");
     if (avail.rows.length === 0) {
       return { connected: true, vectorReady: false, canCreate: false };
     }

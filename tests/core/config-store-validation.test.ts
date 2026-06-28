@@ -8,7 +8,9 @@ describe("validateStoreConfig", () => {
 
   it("unresolved ${ENV} throws", () => {
     expect(() =>
-      validateStoreConfig({ engine: "postgres", database_url: "${DATABASE_URL}" }, ["DATABASE_URL"]),
+      validateStoreConfig({ engine: "postgres", database_url: "${DATABASE_URL}" }, [
+        "DATABASE_URL",
+      ]),
     ).toThrow(/未解析|unresolved|DATABASE_URL/i);
   });
 
@@ -39,9 +41,9 @@ describe("validateStoreConfig", () => {
   });
 
   it("bad url throws", () => {
-    expect(() =>
-      validateStoreConfig({ engine: "postgres", database_url: "not-a-url" }),
-    ).toThrow(/url/i);
+    expect(() => validateStoreConfig({ engine: "postgres", database_url: "not-a-url" })).toThrow(
+      /url/i,
+    );
   });
 
   it("pglite/empty passes", () => {
@@ -51,7 +53,11 @@ describe("validateStoreConfig", () => {
 
   it("postgres with valid url and pool_size passes", () => {
     expect(() =>
-      validateStoreConfig({ engine: "postgres", database_url: "postgres://user:pw@host/db", pool_size: 5 }),
+      validateStoreConfig({
+        engine: "postgres",
+        database_url: "postgres://user:pw@host/db",
+        pool_size: 5,
+      }),
     ).not.toThrow();
   });
 });

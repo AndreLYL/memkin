@@ -308,17 +308,15 @@ export class PersonIdentityStore {
       await tx.query("SELECT id FROM pages WHERE slug = $1 FOR UPDATE", [secondSlug]);
 
       // Idempotency: if the source page was already merged, return as no-op.
-      const fromCheck = await tx.query<{ id: number }>(
-        "SELECT id FROM pages WHERE slug = $1",
-        [fromSlug],
-      );
+      const fromCheck = await tx.query<{ id: number }>("SELECT id FROM pages WHERE slug = $1", [
+        fromSlug,
+      ]);
       if (fromCheck.rows.length === 0) return;
 
       const fromId = fromCheck.rows[0].id;
-      const intoCheck = await tx.query<{ id: number }>(
-        "SELECT id FROM pages WHERE slug = $1",
-        [intoSlug],
-      );
+      const intoCheck = await tx.query<{ id: number }>("SELECT id FROM pages WHERE slug = $1", [
+        intoSlug,
+      ]);
       if (intoCheck.rows.length === 0) return;
       const intoId = intoCheck.rows[0].id;
 
@@ -376,10 +374,10 @@ export class PersonIdentityStore {
       await this.writePageTx(tx, mergedPage, foldedBody, [...aliasValues]);
 
       // Re-point handle + identity-cache mappings.
-      await tx.query(
-        "UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2",
-        [intoSlug, fromSlug],
-      );
+      await tx.query("UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
+        intoSlug,
+        fromSlug,
+      ]);
       await this.insertHandleTx(tx, "slug", fromSlug, intoSlug, "strong", false);
       await this.repointIdentityCacheTx(tx, fromSlug, intoSlug);
 
@@ -548,14 +546,7 @@ export class PersonIdentityStore {
          frontmatter = EXCLUDED.frontmatter,
          content_hash = EXCLUDED.content_hash,
          updated_at = NOW()`,
-      [
-        page.slug,
-        page.type,
-        page.title,
-        body,
-        JSON.stringify(fm),
-        contentHash,
-      ],
+      [page.slug, page.type, page.title, body, JSON.stringify(fm), contentHash],
     );
   }
 }

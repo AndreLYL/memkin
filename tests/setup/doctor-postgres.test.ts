@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { checkPostgres } from "../../src/setup/doctor.js";
 
 const BASE = process.env.MEMOARK_TEST_PG_URL;

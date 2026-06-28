@@ -42,9 +42,7 @@ export async function rechunkTx(conn: SqlConn, pageId: number, content: string):
   const params: (number | string)[] = [];
   for (let i = 0; i < textChunks.length; i++) {
     const base = i * 4;
-    placeholders.push(
-      `($${base + 1}, $${base + 2}, $${base + 3}, 'compiled_truth', $${base + 4})`,
-    );
+    placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, 'compiled_truth', $${base + 4})`);
     params.push(pageId, i, textChunks[i], textChunks[i].split(/\s+/).length);
   }
 

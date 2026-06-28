@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 import { PageStore } from "../../src/store/pages.js";
 import { makeIsolatedPgUrl } from "../test-helpers/pg-harness.js";
@@ -7,7 +7,19 @@ const BASE = process.env.MEMOARK_TEST_PG_URL;
 type Case = { name: string; makeConfig: () => Promise<any> };
 const cases: Case[] = [
   { name: "pglite", makeConfig: async () => ({ store: { engine: "pglite" } }) },
-  ...(BASE ? [{ name: "postgres", makeConfig: async () => ({ store: { engine: "postgres", database_url: await makeIsolatedPgUrl(BASE, "memoark_parity") } }) }] : []),
+  ...(BASE
+    ? [
+        {
+          name: "postgres",
+          makeConfig: async () => ({
+            store: {
+              engine: "postgres",
+              database_url: await makeIsolatedPgUrl(BASE, "memoark_parity"),
+            },
+          }),
+        },
+      ]
+    : []),
 ];
 
 describe.each(cases)("PageStore + memoark_meta parity on $name", ({ makeConfig }) => {

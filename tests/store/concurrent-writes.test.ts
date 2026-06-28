@@ -184,7 +184,9 @@ pg("concurrent upsertContribution (Postgres)", () => {
     }
 
     // 10 concurrent contributions with msg_count 1..10
-    const writes = Array.from({ length: 10 }, (_, i) => behavior.upsertContribution(contrib(i + 1)));
+    const writes = Array.from({ length: 10 }, (_, i) =>
+      behavior.upsertContribution(contrib(i + 1)),
+    );
     await expect(Promise.all(writes)).resolves.not.toThrow();
 
     const row = await behavior.get(slug);

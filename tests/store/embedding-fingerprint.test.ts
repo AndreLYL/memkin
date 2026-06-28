@@ -11,14 +11,9 @@
  *      connection with a different config — this is the exact code path that
  *      Database.create would take on a real reopen.
  */
-import { describe, it, expect } from "vitest";
-import { Database } from "../../src/store/database.js";
-import {
-  fingerprintString,
-  writeMeta,
-  readMeta,
-} from "../../src/store/store-meta.js";
-import { ensureEmbeddingConsistencyForTest } from "../../src/store/database.js";
+import { describe, expect, it } from "vitest";
+import { Database, ensureEmbeddingConsistencyForTest } from "../../src/store/database.js";
+import { fingerprintString, readMeta, writeMeta } from "../../src/store/store-meta.js";
 
 describe("embedding fingerprint — unit (in-memory)", () => {
   it("fingerprintString produces expected format", () => {

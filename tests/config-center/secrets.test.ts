@@ -44,10 +44,7 @@ describe("config-center secrets", () => {
   });
 
   it("masks database_url password in YAML-like text", () => {
-    const text = [
-      "store:",
-      "  database_url: postgres://user:secret@host:5432/db",
-    ].join("\n");
+    const text = ["store:", "  database_url: postgres://user:secret@host:5432/db"].join("\n");
 
     const masked = maskSecretsInText(text);
 

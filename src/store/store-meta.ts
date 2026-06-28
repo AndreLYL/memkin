@@ -7,10 +7,9 @@ export interface EmbeddingFingerprint {
 }
 
 export async function readMeta(conn: SqlConn, key: string): Promise<string | null> {
-  const r = await conn.query<{ value: string }>(
-    "SELECT value FROM memoark_meta WHERE key = $1",
-    [key],
-  );
+  const r = await conn.query<{ value: string }>("SELECT value FROM memoark_meta WHERE key = $1", [
+    key,
+  ]);
   return r.rows[0]?.value ?? null;
 }
 

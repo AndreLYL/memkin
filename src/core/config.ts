@@ -236,16 +236,12 @@ export function validateStoreConfig(s: StoreConfig, missingEnv: string[] = []): 
   const engine = s.engine ?? "pglite";
 
   if (engine !== "pglite" && engine !== "postgres") {
-    throw new Error(
-      `Invalid store.engine "${engine}". Supported values: pglite, postgres.`,
-    );
+    throw new Error(`Invalid store.engine "${engine}". Supported values: pglite, postgres.`);
   }
 
   if (engine === "postgres") {
     if (!s.database_url) {
-      throw new Error(
-        "store.database_url is required when store.engine is postgres.",
-      );
+      throw new Error("store.database_url is required when store.engine is postgres.");
     }
 
     // Check for unresolved env placeholder like ${DATABASE_URL}
@@ -271,9 +267,7 @@ export function validateStoreConfig(s: StoreConfig, missingEnv: string[] = []): 
 
     if (s.pool_size !== undefined) {
       if (!Number.isInteger(s.pool_size) || s.pool_size < 1) {
-        throw new Error(
-          `store.pool_size must be an integer ≥ 1. Got: ${s.pool_size}`,
-        );
+        throw new Error(`store.pool_size must be an integer ≥ 1. Got: ${s.pool_size}`);
       }
     }
   }
@@ -497,10 +491,7 @@ export function loadConfig(filePath?: string): LoadedConfig {
   const merged = mergeConfig(DEFAULT_CONFIG as unknown as Record<string, unknown>, userConfig);
 
   // Validate store config after env interpolation
-  validateStoreConfig(
-    (merged as unknown as Config).store ?? {},
-    interpolated.missing,
-  );
+  validateStoreConfig((merged as unknown as Config).store ?? {}, interpolated.missing);
 
   return attachContext(merged as unknown as Config, {
     configPath,
