@@ -89,7 +89,7 @@ describe("MCP Streamable HTTP security", () => {
     });
 
     const health = await app.request("/health");
-    expect(await health.json()).toEqual({
+    expect(await health.json()).toMatchObject({
       status: "ok",
       transport: "streamable_http",
       auth_required: true,
