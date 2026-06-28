@@ -49,6 +49,7 @@ import { createApiApp } from "./server/api.js";
 import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
+import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { ChunkStore } from "./store/chunks.js";
@@ -619,6 +620,11 @@ async function runServe(options: {
   pgliteAssets?: string;
   webDist?: string;
   port?: string;
+  mcpBind?: string;
+  mcpPort?: number;
+  mcpReadWrite?: boolean;
+  mcpAllowedHost?: string[];
+  daemonInstanceId?: string;
 }): Promise<void> {
   {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
@@ -712,17 +718,25 @@ async function runServe(options: {
       config.mcp.http.enabled ||
       config.server.mcp_transport === "streamable_http"
     ) {
+      const runtime = resolveMcpHttpRuntime(config.mcp.http, {
+        mcpBind: options.mcpBind,
+        mcpPort: options.mcpPort,
+        mcpReadWrite: options.mcpReadWrite,
+        mcpAllowedHost: options.mcpAllowedHost,
+        daemonInstanceId: options.daemonInstanceId,
+      });
+      assertLoopbackOrThrow(runtime);
       const tokenEnv = config.mcp.http.auth_token_env;
       const app = createMcpHttpApp(storesWithDaemon, {
-        allowedOrigins: config.mcp.http.allowed_origins,
-        allowedHosts: config.mcp.http.allowed_hosts,
+        allowedOrigins: runtime.allowedOrigins,
+        allowedHosts: runtime.allowedHosts,
         authToken: tokenEnv ? process.env[tokenEnv] : undefined,
         exposeLegacyTools: config.mcp.expose_legacy_tools,
-        readOnly: config.mcp.http.read_only,
+        readOnly: runtime.readOnly,
       });
       const server = await startServer(app, {
-        hostname: config.mcp.http.bind_host,
-        port: config.mcp.http.port,
+        hostname: runtime.bind,
+        port: runtime.port,
       });
       console.log(
         `Memoark MCP Streamable HTTP listening on http://${server.hostname}:${server.port}/mcp`,
@@ -803,6 +817,20 @@ program
     "--port <n>",
     "Override the HTTP port; 0 binds an OS-assigned free port (used by the Tauri shell)",
   )
+  .option("--mcp-bind <host>", "")
+  .option("--mcp-port <port>", "", (v: string) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n)) throw new Error(`--mcp-port: invalid number "${v}"`);
+    return n;
+  })
+  .option("--mcp-read-write", "")
+  .option(
+    "--mcp-allowed-host <host>",
+    "",
+    (v: string, acc: string[]) => acc.concat(v),
+    [] as string[],
+  )
+  .option("--daemon-instance-id <id>", "")
   .action((options) => {
     if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
     if (options.webDist) process.env.MEMOARK_WEB_DIST = options.webDist;
@@ -861,7 +889,11 @@ program
     "--url <url>",
     "Explicit MCP server URL for HTTP transport (default: http://127.0.0.1:<port>/mcp)",
   )
-  .option("--port <port>", "MCP server port for HTTP transport URL (default: 3928)", parseInt)
+  .option("--port <port>", "MCP server port for HTTP transport URL (default: 3928)", (v) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n)) throw new Error(`--port: invalid number "${v}"`);
+    return n;
+  })
   .option("--dry-run", "Preview changes without writing")
   .action((options) => {
     const scope = options.project ? "project" : "global";
