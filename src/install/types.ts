@@ -34,5 +34,5 @@ export interface ClientAdapter {
 }
 
 export function mcpEntry(ctx: PlanCtx): McpEntry {
-  return { command: ctx.launch.command, args: ctx.launch.args };
+  return { kind: "stdio", command: ctx.launch.command, args: ctx.launch.args };
 }

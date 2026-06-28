@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { McpEntry } from "../../src/install/json-config.js";
 import { removeMcpServerToml, upsertMcpServerToml } from "../../src/install/toml-config.js";
 
-const entry: McpEntry = { command: "memoark", args: ["serve", "--mcp"] };
+const entry: McpEntry = { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] };
 
 describe("toml-config mcp upsert/remove", () => {
   it("inserts the table into empty content", () => {

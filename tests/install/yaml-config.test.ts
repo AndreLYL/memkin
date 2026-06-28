@@ -3,7 +3,7 @@ import { parse } from "yaml";
 import type { McpEntry } from "../../src/install/json-config.js";
 import { removeMcpServerYaml, upsertMcpServerYaml } from "../../src/install/yaml-config.js";
 
-const entry: McpEntry = { command: "memoark", args: ["serve", "--mcp"] };
+const entry: McpEntry = { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] };
 
 describe("yaml-config mcp upsert/remove", () => {
   it("inserts mcp_servers.memoark into empty content", () => {

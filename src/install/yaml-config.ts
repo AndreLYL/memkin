@@ -10,7 +10,9 @@ function load(text: string): Document {
 
 export function upsertMcpServerYaml(text: string, name: string, entry: McpEntry): string {
   const doc = load(text);
-  doc.setIn(["mcp_servers", name], { command: entry.command, args: [...entry.args] });
+  const value =
+    entry.kind === "stdio" ? { command: entry.command, args: [...entry.args] } : { url: entry.url };
+  doc.setIn(["mcp_servers", name], value);
   return doc.toString();
 }
 

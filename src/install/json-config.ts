@@ -2,10 +2,9 @@
 // Cursor ~/.cursor/mcp.json, Windsurf). Operates on parsed objects; the
 // orchestrator handles file IO. Other keys/servers are preserved.
 
-export interface McpEntry {
-  command: string;
-  args: string[];
-}
+import type { McpEntry } from "./mcp-entry.js";
+
+export type { McpEntry };
 
 type Json = Record<string, unknown>;
 

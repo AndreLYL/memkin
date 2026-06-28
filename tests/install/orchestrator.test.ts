@@ -28,7 +28,11 @@ describe("install orchestrator", () => {
   it("installs cursor: mcp.json gets memoark, rules .mdc written", () => {
     runInstall({ agent: ["cursor"], home, cwd, ...base });
     const mcp = JSON.parse(read(join(home, ".cursor", "mcp.json")));
-    expect(mcp.mcpServers.memoark).toEqual({ command: "memoark", args: ["serve", "--mcp"] });
+    expect(mcp.mcpServers.memoark).toEqual({
+      kind: "stdio",
+      command: "memoark",
+      args: ["serve", "--mcp"],
+    });
     const mdc = read(join(home, ".cursor", "rules", "memoark.mdc"));
     expect(mdc).toContain("alwaysApply: true");
     expect(mdc).toContain("Memoark");

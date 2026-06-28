@@ -45,7 +45,7 @@ describe("client adapters", () => {
         path: join(home, ".claude.json"),
         kind: "json-mcp",
         action: "upsert",
-        entry: { command: "memoark", args: ["serve", "--mcp"] },
+        entry: { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] },
       },
       {
         path: join(home, ".claude", "CLAUDE.md"),

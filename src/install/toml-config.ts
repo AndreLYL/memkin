@@ -5,8 +5,11 @@
 import type { McpEntry } from "./json-config.js";
 
 function renderTable(header: string, entry: McpEntry): string {
-  const args = entry.args.map((a) => JSON.stringify(a)).join(", ");
-  return `[${header}]\ncommand = ${JSON.stringify(entry.command)}\nargs = [${args}]`;
+  if (entry.kind === "stdio") {
+    const args = entry.args.map((a) => JSON.stringify(a)).join(", ");
+    return `[${header}]\ncommand = ${JSON.stringify(entry.command)}\nargs = [${args}]`;
+  }
+  return `[${header}]\nurl = ${JSON.stringify(entry.url)}`;
 }
 
 // Returns [startLine, endLineExclusive] of the `[header]` table, or null.
