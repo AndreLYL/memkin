@@ -1,5 +1,6 @@
 import type { LaunchCmd } from "./command.js";
 import type { McpEntry } from "./json-config.js";
+import { httpEntry, stdioEntry } from "./mcp-entry.js";
 
 export type Scope = "global" | "project";
 export type InstallAction = "upsert" | "remove";
@@ -11,6 +12,8 @@ export interface PlanCtx {
   cwd: string;
   launch: LaunchCmd;
   action: InstallAction;
+  transport: "stdio" | "http";
+  url?: string;
 }
 
 // A single planned filesystem (or CLI) operation. The orchestrator dispatches by `kind`.
@@ -27,6 +30,7 @@ export type InstallOp =
 export interface ClientAdapter {
   id: string;
   displayName: string;
+  supportsHttp: boolean;
   /** Is this client installed on the machine? */
   detect(home: string, platform: NodeJS.Platform): boolean;
   /** Planned ops for the requested action; never touches disk. */
@@ -34,5 +38,9 @@ export interface ClientAdapter {
 }
 
 export function mcpEntry(ctx: PlanCtx): McpEntry {
-  return { command: ctx.launch.command, args: ctx.launch.args };
+  if (ctx.transport === "http") {
+    if (!ctx.url) throw new Error("http transport requires url");
+    return httpEntry(ctx.url);
+  }
+  return stdioEntry(ctx.launch.command, ctx.launch.args);
 }

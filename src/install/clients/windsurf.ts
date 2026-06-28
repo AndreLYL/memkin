@@ -6,6 +6,8 @@ import { type ClientAdapter, mcpEntry, type PlanCtx } from "../types.js";
 export const windsurf: ClientAdapter = {
   id: "windsurf",
   displayName: "Windsurf",
+  // TODO(SP4 T6b): verify HTTP support
+  supportsHttp: false,
   detect(home) {
     return existsSync(join(home, ".codeium", "windsurf"));
   },

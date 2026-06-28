@@ -13,6 +13,8 @@ function hermesRoot(home: string): string {
 export const hermes: ClientAdapter = {
   id: "hermes",
   displayName: "OpenClaw / Hermes",
+  // TODO(SP4 T6b): verify HTTP support
+  supportsHttp: false,
   detect(home) {
     return existsSync(join(home, ".hermes")) || existsSync(join(home, ".openclaw"));
   },

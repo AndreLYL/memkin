@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { McpEntry } from "../../src/install/json-config.js";
+import { httpEntry } from "../../src/install/mcp-entry.js";
 import { removeMcpServerToml, upsertMcpServerToml } from "../../src/install/toml-config.js";
 
-const entry: McpEntry = { command: "memoark", args: ["serve", "--mcp"] };
+const entry: McpEntry = { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] };
 
 describe("toml-config mcp upsert/remove", () => {
   it("inserts the table into empty content", () => {
@@ -29,6 +30,13 @@ describe("toml-config mcp upsert/remove", () => {
     expect(out).toContain("k = 1");
     // only one memoark table
     expect(out.split("[mcp_servers.memoark]").length - 1).toBe(1);
+  });
+
+  it("http entry renders url = ... and no command", () => {
+    const out = upsertMcpServerToml("", "memoark", httpEntry("http://127.0.0.1:3928/mcp"));
+    expect(out).toContain("[mcp_servers.memoark]");
+    expect(out).toContain('url = "http://127.0.0.1:3928/mcp"');
+    expect(out).not.toContain("command =");
   });
 
   it("removes the memoark table, keeps the rest", () => {

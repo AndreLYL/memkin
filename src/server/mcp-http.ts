@@ -2,6 +2,18 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { Hono } from "hono";
 import { createMcpServer, type StoreContext } from "./mcp.js";
 
+export interface McpHttpHealth {
+  instanceId?: string;
+  pid?: number;
+  engine?: string;
+  version?: string;
+  loadedConfigHash?: string;
+  /** FIX 5: port/bind echoed in /health so isReady() port/bind checks are load-bearing. */
+  port?: number;
+  bind?: string;
+  dbProbe?: () => Promise<boolean>;
+}
+
 export interface McpHttpOptions {
   allowedOrigins: string[];
   allowedHosts: string[];
@@ -9,6 +21,7 @@ export interface McpHttpOptions {
   exposeLegacyTools?: boolean;
   readOnly?: boolean;
   enableJsonResponse?: boolean;
+  health?: McpHttpHealth;
 }
 
 export interface McpHttpSecurityError {
@@ -85,14 +98,32 @@ export function authorizeMcpHttpRequest(
 export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions): Hono {
   const app = new Hono();
 
-  app.get("/health", (c) =>
-    c.json({
-      status: "ok",
+  app.get("/health", async (c) => {
+    let dbOk = true;
+    if (options.health?.dbProbe) {
+      try {
+        dbOk = await options.health.dbProbe();
+      } catch {
+        dbOk = false;
+      }
+    }
+    const body = {
+      status: dbOk ? "ok" : "degraded",
       transport: "streamable_http",
       auth_required: Boolean(options.authToken),
       read_only: options.readOnly ?? false,
-    }),
-  );
+      db_ok: dbOk,
+      instance_id: options.health?.instanceId,
+      pid: options.health?.pid,
+      engine: options.health?.engine,
+      version: options.health?.version,
+      loaded_config_hash: options.health?.loadedConfigHash,
+      // FIX 5: emit port/bind so isReady() port/bind checks are load-bearing
+      port: options.health?.port,
+      bind: options.health?.bind,
+    };
+    return c.json(body, dbOk ? 200 : 503);
+  });
 
   app.all("/mcp", async (c) => {
     const authorization = authorizeMcpHttpRequest(c.req.raw, options);

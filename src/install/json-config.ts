@@ -2,10 +2,9 @@
 // Cursor ~/.cursor/mcp.json, Windsurf). Operates on parsed objects; the
 // orchestrator handles file IO. Other keys/servers are preserved.
 
-export interface McpEntry {
-  command: string;
-  args: string[];
-}
+import type { McpEntry } from "./mcp-entry.js";
+
+export type { McpEntry };
 
 type Json = Record<string, unknown>;
 
@@ -28,9 +27,15 @@ function servers(obj: Json): Json {
   return mcp && typeof mcp === "object" && !Array.isArray(mcp) ? { ...(mcp as Json) } : {};
 }
 
+function toJsonValue(entry: McpEntry): Record<string, unknown> {
+  return entry.kind === "http"
+    ? { type: "http", url: entry.url }
+    : { command: entry.command, args: entry.args };
+}
+
 export function upsertMcpServer(obj: Json, name: string, entry: McpEntry): Json {
   const next = servers(obj);
-  next[name] = entry;
+  next[name] = toJsonValue(entry);
   return { ...obj, mcpServers: next };
 }
 

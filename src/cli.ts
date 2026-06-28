@@ -36,6 +36,13 @@ import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js"
 import { runPipeline } from "./core/pipeline.js";
 import { buildPipelineConfig } from "./core/pipeline-factory.js";
 import { ensureStateDir, statePath } from "./core/state.js";
+import {
+  rawYamlHash,
+  readDaemonState,
+  servingSubsetHash,
+} from "./daemon/autostart/daemon-state.js";
+import { disableAutostart, statusAutostart } from "./daemon/autostart/index.js";
+import { nodeRunner } from "./daemon/autostart/runner.js";
 import { ReloadManager } from "./daemon/reload-manager.js";
 import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { VERSION } from "./embedded-assets.generated.js";
@@ -45,10 +52,15 @@ import type { HookInput } from "./hooks/output.js";
 import { runHookEvent } from "./hooks/run-event.js";
 import { type PlannedClient, runInstall, runUninstall } from "./install/index.js";
 import { scaffoldSkill } from "./install/skill.js";
+import { down } from "./lifecycle/down.js";
+import { acquireLifecycleLock } from "./lifecycle/lifecycle-lock.js";
+import { runUp } from "./lifecycle/run-up.js";
+import { computeStatus } from "./lifecycle/status.js";
 import { createApiApp } from "./server/api.js";
 import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
 import { createMcpHttpApp } from "./server/mcp-http.js";
+import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { ChunkStore } from "./store/chunks.js";
@@ -619,6 +631,11 @@ async function runServe(options: {
   pgliteAssets?: string;
   webDist?: string;
   port?: string;
+  mcpBind?: string;
+  mcpPort?: number;
+  mcpReadWrite?: boolean;
+  mcpAllowedHost?: string[];
+  daemonInstanceId?: string;
 }): Promise<void> {
   {
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
@@ -712,17 +729,50 @@ async function runServe(options: {
       config.mcp.http.enabled ||
       config.server.mcp_transport === "streamable_http"
     ) {
+      const runtime = resolveMcpHttpRuntime(config.mcp.http, {
+        mcpBind: options.mcpBind,
+        mcpPort: options.mcpPort,
+        mcpReadWrite: options.mcpReadWrite,
+        mcpAllowedHost: options.mcpAllowedHost,
+        daemonInstanceId: options.daemonInstanceId,
+      });
+      assertLoopbackOrThrow(runtime);
       const tokenEnv = config.mcp.http.auth_token_env;
+      const resolvedConfigPath = config.__context.configPath;
+      let loadedConfigHash: string | undefined;
+      try {
+        loadedConfigHash = rawYamlHash(resolvedConfigPath);
+      } catch {
+        // config file may not exist yet; leave hash undefined
+      }
       const app = createMcpHttpApp(storesWithDaemon, {
-        allowedOrigins: config.mcp.http.allowed_origins,
-        allowedHosts: config.mcp.http.allowed_hosts,
+        allowedOrigins: runtime.allowedOrigins,
+        allowedHosts: runtime.allowedHosts,
         authToken: tokenEnv ? process.env[tokenEnv] : undefined,
         exposeLegacyTools: config.mcp.expose_legacy_tools,
-        readOnly: config.mcp.http.read_only,
+        readOnly: runtime.readOnly,
+        health: {
+          instanceId: runtime.instanceId,
+          pid: process.pid,
+          engine: config.store.engine ?? "pglite",
+          version: VERSION,
+          loadedConfigHash,
+          // FIX 5: wire port/bind so isReady() port/bind checks are load-bearing
+          port: runtime.port,
+          bind: runtime.bind,
+          dbProbe: async () => {
+            try {
+              await stores.db.executor.query("SELECT 1");
+              return true;
+            } catch {
+              return false;
+            }
+          },
+        },
       });
       const server = await startServer(app, {
-        hostname: config.mcp.http.bind_host,
-        port: config.mcp.http.port,
+        hostname: runtime.bind,
+        port: runtime.port,
       });
       console.log(
         `Memoark MCP Streamable HTTP listening on http://${server.hostname}:${server.port}/mcp`,
@@ -803,6 +853,20 @@ program
     "--port <n>",
     "Override the HTTP port; 0 binds an OS-assigned free port (used by the Tauri shell)",
   )
+  .option("--mcp-bind <host>", "")
+  .option("--mcp-port <port>", "", (v: string) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n)) throw new Error(`--mcp-port: invalid number "${v}"`);
+    return n;
+  })
+  .option("--mcp-read-write", "")
+  .option(
+    "--mcp-allowed-host <host>",
+    "",
+    (v: string, acc: string[]) => acc.concat(v),
+    [] as string[],
+  )
+  .option("--daemon-instance-id <id>", "")
   .action((options) => {
     if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
     if (options.webDist) process.env.MEMOARK_WEB_DIST = options.webDist;
@@ -857,6 +921,15 @@ program
   )
   .option("--project", "Install into the current project instead of globally")
   .option("--http", "Register the Streamable HTTP transport instead of stdio")
+  .option(
+    "--url <url>",
+    "Explicit MCP server URL for HTTP transport (default: http://127.0.0.1:<port>/mcp)",
+  )
+  .option("--port <port>", "MCP server port for HTTP transport URL (default: 3928)", (v) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n)) throw new Error(`--port: invalid number "${v}"`);
+    return n;
+  })
   .option("--dry-run", "Preview changes without writing")
   .action((options) => {
     const scope = options.project ? "project" : "global";
@@ -864,6 +937,8 @@ program
       agent: options.agent,
       scope,
       http: !!options.http,
+      url: options.url as string | undefined,
+      port: options.port as number | undefined,
       dryRun: !!options.dryRun,
     });
     reportPlan(planned, options.dryRun ? "Would install" : "Installed", !!options.dryRun);
@@ -1420,6 +1495,171 @@ docsCmd
       console.error("docs retry failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
+  });
+
+// ---------------------------------------------------------------------------
+// SP4 — always-on daemon commands
+// ---------------------------------------------------------------------------
+
+program
+  .command("up")
+  .description("Start the always-on Memoark daemon and wire detected AI agents")
+  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("--port <n>", "Override MCP HTTP port", (v) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n)) throw new Error(`--port: invalid number "${v}"`);
+    return n;
+  })
+  .option("--linger", "Enable systemd --linger so the service survives logout (Linux only)")
+  .action(async (options) => {
+    try {
+      const result = await runUp({
+        config: options.config as string | undefined,
+        port: options.port as number | undefined,
+        linger: !!options.linger,
+      });
+      console.log(`✓ Memoark daemon running`);
+      console.log(`  URL:    ${result.url}`);
+      console.log(`  Port:   ${result.port}`);
+      console.log(`  Engine: ${result.engine}`);
+      if (result.wiredAgents.length > 0) {
+        console.log(`  Wired:  ${result.wiredAgents.join(", ")}`);
+      }
+      if (result.skippedAgents.length > 0) {
+        for (const s of result.skippedAgents) {
+          console.log(`  Skipped: ${s.id} — ${s.reason}`);
+        }
+      }
+      for (const w of result.warnings) {
+        console.log(`  ⚠ ${w}`);
+      }
+    } catch (err) {
+      console.error("memoark up failed:", err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("down")
+  .description("Stop the always-on daemon and remove its autostart entry")
+  .action(async () => {
+    try {
+      const result = await down({
+        home: homedir(),
+        platform: process.platform,
+        acquireLock: acquireLifecycleLock,
+        disable: () =>
+          disableAutostart({
+            platform: process.platform,
+            home: homedir(),
+            runner: nodeRunner,
+          }).then(() => undefined),
+      });
+      console.log(result.stopped ? `✓ ${result.note}` : `✗ ${result.note}`);
+    } catch (err) {
+      console.error("memoark down failed:", err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  });
+
+program
+  .command("autostart <action>")
+  .description("Manage daemon autostart entry (action: enable | disable | status)")
+  .option("-c, --config <path>", "Path to config file (required for enable)")
+  .option("--port <n>", "Override MCP HTTP port (for enable)", (v) => {
+    const n = Number.parseInt(v, 10);
+    if (Number.isNaN(n)) throw new Error(`--port: invalid number "${v}"`);
+    return n;
+  })
+  .action(async (action: string, options) => {
+    const h = homedir();
+    const plat = process.platform;
+    try {
+      if (action === "enable") {
+        // Delegate fully to runUp which handles all the state-building
+        await runUp({
+          config: options.config as string | undefined,
+          port: options.port as number | undefined,
+        });
+        console.log("✓ Autostart enabled.");
+      } else if (action === "disable") {
+        const res = await disableAutostart({ platform: plat, home: h, runner: nodeRunner });
+        if (res.launcherCode && res.launcherCode !== 0) {
+          console.warn(
+            `Launcher returned non-zero (${res.launcherCode}): ${res.launcherStderr ?? ""}`,
+          );
+        }
+        console.log("✓ Autostart disabled.");
+      } else if (action === "status") {
+        const st = await statusAutostart({ platform: plat, home: h, runner: nodeRunner });
+        console.log("Desired state:", st.desired ? JSON.stringify(st.desired, null, 2) : "(none)");
+        console.log(`Launcher output:\n${st.raw}`);
+      } else {
+        console.error(`Unknown autostart action "${action}". Use: enable | disable | status`);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(
+        `memoark autostart ${action} failed:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("status")
+  .description("Show the current state of the always-on daemon")
+  .action(async () => {
+    const h = homedir();
+    const stateDir = join(h, ".memoark");
+    const stored = readDaemonState(stateDir);
+
+    let health: { status: number; body: Record<string, unknown> } | null = null;
+    if (stored?.url) {
+      try {
+        const healthUrl = stored.url.replace(/\/mcp$/, "/health");
+        const r = await fetch(healthUrl);
+        health = {
+          status: r.status,
+          body: (await r.json().catch(() => ({}))) as Record<string, unknown>,
+        };
+      } catch {
+        health = null;
+      }
+    }
+
+    let currentRawHash: string | null = null;
+    let currentServingHash: string | null = null;
+    if (stored?.config_path) {
+      try {
+        currentRawHash = rawYamlHash(stored.config_path);
+        const cfg = loadConfig(stored.config_path);
+        const rt = resolveMcpHttpRuntime(cfg.mcp.http, {});
+        currentServingHash = servingSubsetHash({
+          bind: rt.bind,
+          port: rt.port,
+          readOnly: rt.readOnly,
+          hosts: rt.allowedHosts,
+        });
+      } catch {
+        // config unreadable
+      }
+    }
+
+    const report = computeStatus({ stored, currentRawHash, currentServingHash, health });
+
+    console.log(`Status: ${report.running ? "running ✓" : "stopped ✗"}`);
+    if (report.url) console.log(`URL:    ${report.url}`);
+    if (report.pid) console.log(`PID:    ${report.pid}`);
+    if (report.engine) console.log(`Engine: ${report.engine}`);
+    if (report.configPath) console.log(`Config: ${report.configPath}`);
+    if (report.drift.configChanged)
+      console.log("⚠ Config changed since last up — run `memoark up` to apply.");
+    if (report.drift.needsReup)
+      console.log("⚠ Serving subset changed — run `memoark up` to re-register agents.");
+    if (report.drift.restartedOntoEditedConfig)
+      console.log("⚠ Daemon restarted onto edited config.");
   });
 
 program.parse(process.argv);

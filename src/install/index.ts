@@ -20,6 +20,8 @@ export interface InstallOptions {
   agent?: string[];
   scope?: Scope; // default "global"
   http?: boolean; // register --mcp-http transport
+  url?: string; // explicit MCP server URL (for http transport)
+  port?: number; // MCP server port when url not provided; default 3928
   dryRun?: boolean;
   // Injectable for tests:
   home?: string;
@@ -115,6 +117,9 @@ function planFor(
   opts: InstallOptions,
   action: InstallAction,
 ): PlannedClient {
+  const port = opts.port ?? 3928;
+  const url = opts.url ?? `http://127.0.0.1:${port}/mcp`;
+  const transport: "stdio" | "http" = opts.http && adapter.supportsHttp ? "http" : "stdio";
   const ctx: PlanCtx = {
     home: opts.home ?? homedir(),
     platform: opts.platform ?? process.platform,
@@ -122,6 +127,8 @@ function planFor(
     cwd: opts.cwd ?? process.cwd(),
     launch: opts.launch ?? resolveLaunchCmd({ http: opts.http }),
     action,
+    transport,
+    url,
   };
   return { id: adapter.id, displayName: adapter.displayName, ops: adapter.plan(ctx) };
 }

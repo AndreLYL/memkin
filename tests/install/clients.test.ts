@@ -29,6 +29,7 @@ function ctx(over: Partial<PlanCtx> = {}): PlanCtx {
     cwd,
     launch: { command: "memoark", args: ["serve", "--mcp"] },
     action: "upsert",
+    transport: "stdio",
     ...over,
   };
 }
@@ -45,7 +46,7 @@ describe("client adapters", () => {
         path: join(home, ".claude.json"),
         kind: "json-mcp",
         action: "upsert",
-        entry: { command: "memoark", args: ["serve", "--mcp"] },
+        entry: { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] },
       },
       {
         path: join(home, ".claude", "CLAUDE.md"),
