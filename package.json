@@ -1,7 +1,7 @@
 {
   "name": "@andre.li/memoark",
-  "version": "0.3.1",
-  "description": "Local-first personal memory extraction and storage",
+  "version": "0.3.2",
+  "description": "Local-first personal memory system — extracts signals from Feishu/Lark chats and AI-agent sessions into a private knowledge graph, served to any agent via MCP",
   "type": "module",
   "bin": {
     "memoark": "./bin/memoark.mjs"
@@ -33,6 +33,8 @@
     "build": "node scripts/gen-embedded-assets.mjs && tsc && node scripts/post-build.mjs",
     "compile": "node scripts/gen-embedded-assets.mjs && bun build --compile src/cli.ts --outfile dist-bin/memoark",
     "typecheck": "tsc --noEmit",
+    "prepack": "mv README.md README.zh-CN.md && cp README.en.md README.md",
+    "postpack": "mv README.zh-CN.md README.md",
     "prepublishOnly": "npm run build",
     "lint": "biome check src/ tests/",
     "lint:fix": "biome check --fix src/ tests/",
@@ -68,15 +70,23 @@
     "vitest": "^1.0.4"
   },
   "keywords": [
+    "mcp",
+    "agent-memory",
+    "local-first",
     "knowledge-graph",
-    "signal-extraction",
+    "feishu",
+    "lark",
     "claude-code",
     "codex",
     "ai-agent",
+    "self-hosted",
+    "personal-knowledge-management",
+    "signal-extraction",
     "conversation-mining",
+    "pglite",
     "cli"
   ],
-  "author": "AndreLYL",
+  "author": "AndreLYL (https://github.com/AndreLYL)",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

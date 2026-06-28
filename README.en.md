@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/web-ui-graph.jpeg" alt="Memoark knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
+  <img src="https://raw.githubusercontent.com/AndreLYL/memoark/main/docs/assets/web-ui-graph.jpeg" alt="Memoark knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
   <br>
   <em>Your work, as a living knowledge graph — people, decisions, tasks, and knowledge, connected.</em>
 </p>
@@ -432,7 +432,7 @@ bun run dev        # dashboard, timeline, knowledge graph, search
 Memoark is **5 vertical data-flow layers + 3 cross-cutting concerns**. Data flows top-down: sources are collected, extracted into signals, stored as local memory, then read/written through the bottom interfaces. **Person identity**, **consolidation**, and **scheduling** cut across the stack.
 
 <p align="center">
-  <img src="docs/assets/architecture.png" alt="Memoark architecture — 5 vertical layers + 3 cross-cutting concerns" width="920">
+  <img src="https://raw.githubusercontent.com/AndreLYL/memoark/main/docs/assets/architecture.png" alt="Memoark architecture — 5 vertical layers + 3 cross-cutting concerns" width="920">
 </p>
 
 <details>
