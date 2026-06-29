@@ -1,9 +1,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../core/config.js";
-import { provisionManaged } from "./managed-engine.js";
+import { provisionManaged, provisionManagedForeground } from "./managed-engine.js";
 
 let home: string;
 beforeEach(() => { home = mkdtempSync(join(tmpdir(), "mk-")); });
@@ -53,5 +53,60 @@ describe("provisionManaged", () => {
     };
     await provisionManaged(cfg, deps);
     expect(order).toEqual(["ensure", "ensureUp"]);
+  });
+});
+
+describe("provisionManagedForeground", () => {
+  it("calls dbCreate with synthesized pgConfig and correct embeddingDimensions, then closes", async () => {
+    const cfg = {
+      embedding: { dimensions: 768, provider: "openai", model: "m" },
+      store: { engine: "managed", pool_size: 3 },
+    } as unknown as Config;
+
+    // Fake db returned by dbCreate spy
+    const fakeDb = { close: vi.fn().mockResolvedValue(undefined) };
+    const dbCreate = vi.fn().mockResolvedValue(fakeDb);
+
+    const deps = {
+      home,
+      provider: { ensure: async () => fakeRuntime },
+      makeSupervisor: () => ({ ensureUp: async () => {} }),
+      dbCreate,
+    };
+
+    await provisionManagedForeground(cfg, deps);
+
+    // dbCreate must have been called once
+    expect(dbCreate).toHaveBeenCalledTimes(1);
+
+    // First arg is the synthesized pgConfig (engine=postgres, correct URL)
+    const calledConfig = dbCreate.mock.calls[0][0] as Config;
+    expect(calledConfig.store.engine).toBe("postgres");
+    expect(calledConfig.store.database_url).toContain("port=54329");
+
+    // Second arg must carry embeddingDimensions from config.embedding.dimensions
+    expect(dbCreate.mock.calls[0][1]).toEqual({ embeddingDimensions: 768 });
+
+    // db.close must have been called
+    expect(fakeDb.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses embedding.dimensions from config (P0-1 dimension rule)", async () => {
+    const cfg = {
+      embedding: { dimensions: 1024, provider: "openai", model: "m" },
+      store: { engine: "managed" },
+    } as unknown as Config;
+
+    const fakeDb = { close: vi.fn().mockResolvedValue(undefined) };
+    const dbCreate = vi.fn().mockResolvedValue(fakeDb);
+
+    await provisionManagedForeground(cfg, {
+      home,
+      provider: { ensure: async () => fakeRuntime },
+      makeSupervisor: () => ({ ensureUp: async () => {} }),
+      dbCreate,
+    });
+
+    expect(dbCreate.mock.calls[0][1]).toEqual({ embeddingDimensions: 1024 });
   });
 });

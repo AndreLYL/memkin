@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { LoadedConfig } from "../core/config.js";
 import { loadConfig } from "../core/config.js";
 import type { DaemonRuntime } from "../daemon/autostart/argv.js";
 import { detectDaemonRuntime, resolveDaemonArgv } from "../daemon/autostart/argv.js";
@@ -17,6 +18,12 @@ import type { CommandRunner } from "../daemon/autostart/runner.js";
 import { nodeRunner } from "../daemon/autostart/runner.js";
 import { ADAPTERS, detectInstalledAgents, planInstall, runInstall } from "../install/index.js";
 import { resolveMcpHttpRuntime } from "../server/mcp-http-runtime.js";
+import {
+  provisionManagedForeground as realProvisionManagedForeground,
+} from "../store/managed/managed-engine.js";
+import { managedPaths } from "../store/managed/pg-paths.js";
+import { createPgRuntimeProvider } from "../store/managed/pg-runtime-provider.js";
+import { createPgSupervisor } from "../store/managed/pg-supervisor.js";
 import { pollHealth } from "./health-poll.js";
 import { recordOriginal } from "./install-state.js";
 import { acquireLifecycleLock } from "./lifecycle-lock.js";
@@ -35,6 +42,12 @@ export interface RunUpInjected {
   platform?: NodeJS.Platform;
   /** Override daemon runtime detection — useful in tests where no binary/dist exists. */
   daemonRuntime?: DaemonRuntime;
+  /**
+   * Override the managed-Postgres foreground provision step. Injected in tests to
+   * avoid spinning up a real Postgres cluster. In production this is omitted and the
+   * real provisionManagedForeground is called with live provider/supervisor deps.
+   */
+  provisionManagedForeground?: (config: LoadedConfig) => Promise<void>;
 }
 
 export interface RunUpResult {
@@ -63,6 +76,29 @@ export async function runUp(
     const configPath = config.__context.configPath;
     const missingEnvVars = config.__context.missingEnvVars;
     const engine = config.store.engine ?? "pglite";
+
+    // Step 2a: foreground managed-Postgres provision (P0-3/P0-4)
+    // Must run BEFORE bringUpDaemon/enableAutostart so the daemon's ensureUp is a fast warm-path.
+    if (engine === "managed") {
+      const provisionFn =
+        injected.provisionManagedForeground ??
+        ((cfg: LoadedConfig) =>
+          realProvisionManagedForeground(cfg, {
+            home,
+            provider: createPgRuntimeProvider({
+              home,
+              pgMajor: "17",
+              runtimeDir: cfg.store?.managed?.runtime_dir,
+            }),
+            makeSupervisor: (rt, h) =>
+              createPgSupervisor({
+                runtime: rt,
+                paths: managedPaths(h, rt.pgMajor),
+                runner,
+              }),
+          }));
+      await provisionFn(config);
+    }
 
     // Step 3: detected agents mapped to {id, supportsHttp}
     const detectedIds = detectInstalledAgents(home, platform);

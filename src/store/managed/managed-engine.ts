@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import type { Config } from "../../core/config.js";
+import { Database } from "../database.js";
 import { withManagedLock } from "./managed-lock.js";
 import { managedConnUrl, managedPaths } from "./pg-paths.js";
 import type { PgRuntimeProvider, RuntimePaths } from "./pg-runtime-provider.js";
@@ -39,4 +40,28 @@ export async function provisionManaged(config: Config, deps: ProvisionDeps): Pro
     };
     return { supervisor, pgConfig };
   });
+}
+
+export interface ForegroundProvisionDeps extends ProvisionDeps {
+  /** Override Database.create — used in tests to avoid a real Postgres connection. */
+  dbCreate?: typeof Database.create;
+}
+
+/**
+ * Full foreground provision: provision the managed Postgres cluster, then run a
+ * complete Database.create (schema + migrations) and close. This ensures all
+ * heavy work (download, initdb, start, bootstrapRoles, finalizeHba, schema,
+ * migrations) is complete BEFORE the daemon autostart is enabled, keeping the
+ * daemon's own ensureUp on a fast warm-path.
+ */
+export async function provisionManagedForeground(
+  config: Config,
+  deps: ForegroundProvisionDeps,
+): Promise<void> {
+  const { pgConfig } = await provisionManaged(config, deps);
+  const dbCreate = deps.dbCreate ?? Database.create.bind(Database);
+  const db = await dbCreate(pgConfig, {
+    embeddingDimensions: config.embedding?.dimensions,
+  });
+  await db.close();
 }
