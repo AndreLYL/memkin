@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveDb, createStores } from "./cli-stores.js";
+import { resolveDb, createStores, defaultManagedDeps } from "./cli-stores.js";
 import type { LoadedConfig } from "./core/config.js";
 import type { ManagedSupervisor } from "./store/managed/managed-engine.js";
+import type { RuntimePaths } from "./store/managed/pg-runtime-provider.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -190,5 +191,39 @@ describe("createStores — integration with resolveDb", () => {
     const stores = await createStores(config, { dbCreate });
 
     expect(stores.supervisor).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultManagedDeps — stub is gone, real supervisor is wired (Phase 3 WARNING-1)
+// ---------------------------------------------------------------------------
+
+describe("defaultManagedDeps — makeSupervisor returns real supervisor", () => {
+  it("does NOT throw and returns an object with ensureUp/status/restartIfDown/dispose", () => {
+    const config = makeConfig("managed");
+    const deps = defaultManagedDeps(config);
+
+    // Minimal RuntimePaths that satisfies the type without touching the FS
+    const fakeRuntime: RuntimePaths = {
+      pgMajor: "17",
+      root: "/tmp/fake-pg",
+      bin: "/tmp/fake-pg/bin",
+      postgres: "/tmp/fake-pg/bin/postgres",
+      pgCtl: "/tmp/fake-pg/bin/pg_ctl",
+      initdb: "/tmp/fake-pg/bin/initdb",
+      createdb: "/tmp/fake-pg/bin/createdb",
+      pgIsReady: "/tmp/fake-pg/bin/pg_isready",
+      libDir: "/tmp/fake-pg/lib/postgresql",
+      extensionDir: "/tmp/fake-pg/share/postgresql/extension",
+    };
+
+    // Must not throw — this was the failing assertion before the fix
+    const supervisor = deps.makeSupervisor(fakeRuntime, "/tmp/fake-home");
+
+    // Must expose all methods required by ManagedSupervisor
+    expect(typeof supervisor.ensureUp).toBe("function");
+    expect(typeof supervisor.status).toBe("function");
+    expect(typeof supervisor.restartIfDown).toBe("function");
+    expect(typeof supervisor.dispose).toBe("function");
   });
 });

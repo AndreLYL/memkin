@@ -15,6 +15,9 @@ import { TimelineStore } from "./store/timeline.js";
 import type { ManagedSupervisor } from "./store/managed/managed-engine.js";
 import { provisionManaged } from "./store/managed/managed-engine.js";
 import { createPgRuntimeProvider } from "./store/managed/pg-runtime-provider.js";
+import { createPgSupervisor } from "./store/managed/pg-supervisor.js";
+import { managedPaths } from "./store/managed/pg-paths.js";
+import { nodeRunner } from "./daemon/autostart/runner.js";
 
 // Re-export the type so callers can import from one place.
 export type { ManagedSupervisor };
@@ -92,18 +95,22 @@ export async function resolveDb(
 
 /**
  * Default ProvisionDeps for the managed engine path.
- * `makeSupervisor` is intentionally unimplemented until Phase 2.
+ * Wires the real createPgSupervisor (Phase 3 WARNING-1).
  */
-function defaultManagedDeps(config: Config) {
+export function defaultManagedDeps(config: Config) {
+  const home = homedir();
   return {
     provider: createPgRuntimeProvider({
-      home: homedir(),
+      home,
       pgMajor: "17",
       runtimeDir: config.store?.managed?.runtime_dir,
     }),
-    makeSupervisor: (_rt: unknown, _home: string): ManagedSupervisor => {
-      throw new Error("managed supervisor not yet wired (Phase 2)");
-    },
+    makeSupervisor: (rt: import("./store/managed/pg-runtime-provider.js").RuntimePaths, h: string) =>
+      createPgSupervisor({
+        runtime: rt,
+        paths: managedPaths(h, rt.pgMajor),
+        runner: nodeRunner,
+      }),
   };
 }
 
