@@ -525,6 +525,38 @@ describe("supervisor restartIfDown()", () => {
     expect(runner.calls[1]).toContain("start");
     expect(runner.calls[2][0]).toBe("/rt/bin/pg_isready");
   });
+
+  it("clears a stale postmaster.pid and recovers (crash-recovery path)", async () => {
+    // This is the critical crash-recovery scenario the recovery loop depends on.
+    // After a crash: status → stopped, postmaster.pid exists with a dead pid,
+    // first pg_ctl start fails (lock file exists), stale pid is removed, retry succeeds.
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+
+    // Write a postmaster.pid with a dead pid
+    const deadPid = 999999999;
+    const pidFile = join(paths.pgdata, "postmaster.pid");
+    writeFileSync(pidFile, `${deadPid}\n`, "utf8");
+
+    const runner = makeFakeRunner([
+      { code: 3, stdout: "", stderr: "" },                   // status → stopped
+      { code: 1, stdout: "", stderr: "lock file exists" },   // first pg_ctl start fails
+      { code: 0, stdout: "", stderr: "" },                   // retry pg_ctl start succeeds
+      { code: 0, stdout: "", stderr: "" },                   // pg_isready → ready
+    ]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    const restarted = await sup.restartIfDown({ pollIntervalMs: 1, timeoutMs: 5000 });
+
+    expect(restarted).toBe(true);
+    // status + 2x pg_ctl start + pg_isready
+    expect(runner.calls).toHaveLength(4);
+    expect(runner.calls[1]).toContain("start"); // first attempt
+    expect(runner.calls[2]).toContain("start"); // retry after stale-pid removal
+    expect(runner.calls[3][0]).toBe("/rt/bin/pg_isready");
+    // The stale pid file must have been removed
+    expect(existsSync(pidFile)).toBe(false);
+  });
 });
 
 describe("supervisor startWithStaleRecovery()", () => {
@@ -564,6 +596,31 @@ describe("supervisor startWithStaleRecovery()", () => {
     const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
 
     await expect(sup.startWithStaleRecovery()).rejects.toThrow(/pg_ctl.*start|start failed/i);
+  });
+
+  it("NEVER removes postmaster.pid when the pid belongs to a live process", async () => {
+    // CATASTROPHIC-CASE GUARD: removing a live postmaster's pid file would corrupt
+    // the running cluster. This test proves the ESRCH-only removal guarantee.
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+
+    // Write a postmaster.pid with the CURRENT process's PID (definitely alive)
+    const livePid = process.pid;
+    const pidFile = join(paths.pgdata, "postmaster.pid");
+    writeFileSync(pidFile, `${livePid}\n`, "utf8");
+
+    const runner = makeFakeRunner([
+      { code: 1, stdout: "", stderr: "lock file exists" }, // start fails (live pid present)
+    ]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    // Must throw — cannot safely start when a live process holds the pid file
+    await expect(sup.startWithStaleRecovery()).rejects.toThrow();
+
+    // CRITICAL: the pid file must still exist (was NOT deleted)
+    expect(existsSync(pidFile)).toBe(true);
+    // And it must still contain the original live pid
+    expect(readFileSync(pidFile, "utf8").trim()).toBe(String(livePid));
   });
 });
 

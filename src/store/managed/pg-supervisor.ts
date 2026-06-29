@@ -173,6 +173,9 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       // Re-writing the temp HBA would loosen security back to bootstrap-user-trust.
       // Bootstrapped ⇔ managed-state file exists.
       if (readManagedState(paths) === null) {
+        // The temp HBA (bootstrap-user trust) is only ever active before finalizeHba.
+        // Its containment relies on listen_addresses='' (no TCP) + the 0700 private socket dir —
+        // do NOT weaken either without revisiting this bootstrap-window exposure.
         writeTempHba();
       }
     },
@@ -389,7 +392,7 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
     async restartIfDown(waitReadyOpts?: WaitReadyOptions): Promise<boolean> {
       const currentStatus = await this.status();
       if (currentStatus === "running") return false;
-      await this.start();
+      await this.startWithStaleRecovery();
       await this.waitReady(waitReadyOpts);
       return true;
     },
