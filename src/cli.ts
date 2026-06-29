@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,15 +63,8 @@ import { createMcpHttpApp } from "./server/mcp-http.js";
 import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
-import { ChunkStore } from "./store/chunks.js";
-import { Database } from "./store/database.js";
-import { EmbeddingService } from "./store/embedding.js";
-import { GraphStore } from "./store/graph.js";
-import { PageStore } from "./store/pages.js";
+import { createStores, openIdentityStore } from "./cli-stores.js";
 import { PersonBehaviorStore } from "./store/person-behavior.js";
-import { SearchEngine } from "./store/search.js";
-import { TagStore } from "./store/tags.js";
-import { TimelineStore } from "./store/timeline.js";
 
 function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
   if (!path) return undefined;
@@ -100,10 +93,6 @@ function bootstrapCollectors(sources: SourcesConfig, projectRoot: string): void 
   }
 }
 
-function expandDataDir(dir: string, projectRoot: string): string {
-  return resolveProjectPath(dir, projectRoot) ?? dir;
-}
-
 // Try to extract feishu.lark_bin from an existing config so the setup UI's
 // "Feishu — Test Connection" button doesn't fall through to the hardcoded
 // ~/.local/bin/lark path. Silent on missing file or parse errors (the wizard
@@ -118,64 +107,6 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
   }
 }
 
-async function createStores(config: LoadedConfig) {
-  const dataDir = expandDataDir(
-    config.store.data_dir ?? "~/.memoark/data",
-    config.__context.projectRoot,
-  );
-  mkdirSync(dataDir, { recursive: true });
-  const db = await Database.create(dataDir, {
-    embeddingDimensions: config.embedding.dimensions,
-  });
-  const pages = new PageStore(db.executor);
-  const chunks = new ChunkStore(db.executor);
-  const embedding = new EmbeddingService(db.executor, {
-    provider: config.embedding.provider as "openai" | "ollama",
-    model: config.embedding.model,
-    dimensions: config.embedding.dimensions,
-    apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
-    baseUrl: config.embedding.base_url,
-  });
-  const search = new SearchEngine(db.executor, {
-    embedText: (q) => embedding.embedText(q),
-    search: {
-      pool_by_page: config.search.pool_by_page,
-      llm_rewrite: config.search.llm_rewrite,
-    },
-  });
-  return {
-    db,
-    pages,
-    chunks,
-    search,
-    graph: new GraphStore(db.executor),
-    tags: new TagStore(db.executor),
-    timeline: new TimelineStore(db.executor),
-    embedding,
-  };
-}
-
-/**
- * Lightweight store for identity operations: opens only the Database + a
- * PersonIdentityStore. Deliberately avoids EmbeddingService so that person
- * alias/merge/rename never requires an LLM or embedding API key.
- */
-async function openIdentityStore(config: LoadedConfig) {
-  const dataDir = expandDataDir(
-    config.store.data_dir ?? "~/.memoark/data",
-    config.__context.projectRoot,
-  );
-  mkdirSync(dataDir, { recursive: true });
-  const db = await Database.create(dataDir, {
-    embeddingDimensions: config.embedding.dimensions,
-  });
-  const identity = new PersonIdentityStore(
-    db.executor,
-    { pages: new PageStore(db.executor) },
-    { behavior: new PersonBehaviorStore(db.executor) },
-  );
-  return { db, identity };
-}
 
 const program = new Command();
 
