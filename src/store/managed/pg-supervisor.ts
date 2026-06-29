@@ -19,10 +19,20 @@ export interface PgSupervisorDeps {
   bootstrapUser?: string; // default: process.env.USER ?? userInfo().username
 }
 
+export interface WaitReadyOptions {
+  /** How often to poll pg_isready (default: 250 ms) */
+  pollIntervalMs?: number;
+  /** Total timeout before throwing (default: 15 000 ms) */
+  timeoutMs?: number;
+}
+
 export interface PgSupervisor {
   ensureCluster(): Promise<void>;
-  // start / waitReady / bootstrapRoles / finalizeHba / ensureUp /
-  // status / restartIfDown / stop / dispose — added in later tasks
+  start(): Promise<void>;
+  waitReady(opts?: WaitReadyOptions): Promise<void>;
+  bootstrapRoles(): Promise<void>;
+  finalizeHba(): Promise<void>;
+  // ensureUp / status / restartIfDown / stop / dispose — added in later tasks
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
@@ -91,6 +101,32 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
     writeFileSync(hbaPath, content, "utf8");
   }
 
+  /**
+   * Build a psql argv array for running a single SQL command.
+   * All connections go through the UNIX socket (host = socketDir).
+   */
+  function psqlArgs(
+    db: string,
+    sql: string,
+    opts: { tuplesOnly?: boolean } = {},
+  ): string[] {
+    const psql = join(runtime.bin, "psql");
+    const argv = [
+      psql,
+      "-h", paths.socketDir,
+      "-p", String(paths.fixedPort),
+      "-U", bootstrapUser,
+      "-d", db,
+      "-v", "ON_ERROR_STOP=1",
+    ];
+    if (opts.tuplesOnly) {
+      argv.push("-tAc", sql);
+    } else {
+      argv.push("-c", sql);
+    }
+    return argv;
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -129,6 +165,120 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
 
       // Write the temporary pg_hba.conf (idempotent overwrite)
       writeTempHba();
+    },
+
+    async start(): Promise<void> {
+      const logPath = join(paths.pgdata, "postmaster.log");
+      const result = await runner.run([
+        runtime.pgCtl,
+        "start",
+        "-D", paths.pgdata,
+        "-l", logPath,
+        "-w",
+        "-o", `-p ${paths.fixedPort}`,
+      ]);
+      if (result.code !== 0) {
+        throw new Error(
+          `pg_ctl start failed (exit ${result.code}), log=${logPath}: ${result.stderr}`,
+        );
+      }
+    },
+
+    async waitReady(opts: WaitReadyOptions = {}): Promise<void> {
+      const pollIntervalMs = opts.pollIntervalMs ?? 250;
+      const timeoutMs = opts.timeoutMs ?? 15_000;
+      const deadline = Date.now() + timeoutMs;
+
+      while (Date.now() < deadline) {
+        const result = await runner.run([
+          runtime.pgIsReady,
+          "-h", paths.socketDir,
+          "-p", String(paths.fixedPort),
+        ]);
+        if (result.code === 0) return;
+        await new Promise<void>((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
+
+      throw new Error(
+        `pg_isready timeout after ${timeoutMs}ms: Postgres did not become ready (socketDir=${paths.socketDir}, port=${paths.fixedPort})`,
+      );
+    },
+
+    async bootstrapRoles(): Promise<void> {
+      // (a) Create memoark role — idempotent via DO block
+      const roleResult = await runner.run(
+        psqlArgs(
+          "postgres",
+          `DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='memoark') THEN CREATE ROLE memoark LOGIN; END IF; END $$;`,
+        ),
+      );
+      if (roleResult.code !== 0) {
+        throw new Error(
+          `psql CREATE ROLE failed (exit ${roleResult.code}): ${roleResult.stderr}`,
+        );
+      }
+
+      // (b) Check if the memoark database already exists
+      const dbCheckResult = await runner.run(
+        psqlArgs(
+          "postgres",
+          `SELECT 1 FROM pg_database WHERE datname='memoark'`,
+          { tuplesOnly: true },
+        ),
+      );
+      if (dbCheckResult.code !== 0) {
+        throw new Error(
+          `psql db-existence check failed (exit ${dbCheckResult.code}): ${dbCheckResult.stderr}`,
+        );
+      }
+
+      // Only create the database if it does not exist yet
+      if (dbCheckResult.stdout.trim() === "") {
+        const createDbResult = await runner.run(
+          psqlArgs("postgres", `CREATE DATABASE memoark OWNER memoark`),
+        );
+        if (createDbResult.code !== 0) {
+          throw new Error(
+            `psql CREATE DATABASE failed (exit ${createDbResult.code}): ${createDbResult.stderr}`,
+          );
+        }
+      }
+
+      // (c) Create extensions in the memoark database
+      const extResult = await runner.run(
+        psqlArgs(
+          "memoark",
+          `CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;`,
+        ),
+      );
+      if (extResult.code !== 0) {
+        throw new Error(
+          `psql CREATE EXTENSION failed (exit ${extResult.code}): ${extResult.stderr}`,
+        );
+      }
+    },
+
+    async finalizeHba(): Promise<void> {
+      const hbaPath = join(paths.pgdata, "pg_hba.conf");
+      const finalHba = [
+        "# memoark final HBA — managed",
+        "local   memoark   memoark   trust",
+        "local   all       all       reject",
+        "host    all       all       all     reject",
+        "",
+      ].join("\n");
+      writeFileSync(hbaPath, finalHba, "utf8");
+
+      const result = await runner.run([
+        runtime.pgCtl,
+        "reload",
+        "-D", paths.pgdata,
+      ]);
+      if (result.code !== 0) {
+        throw new Error(
+          `pg_ctl reload failed (exit ${result.code}): ${result.stderr}`,
+        );
+      }
     },
   };
 }
