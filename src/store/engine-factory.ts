@@ -13,7 +13,11 @@ export async function createEngine(config: Config): Promise<SqlExecutor> {
       const { PostgresExecutor } = await import("./postgres-executor.js");
       return PostgresExecutor.create(config);
     }
+    case "managed":
+      throw new Error(
+        'engine "managed" must be resolved via resolveDb/provisionManaged before reaching the engine factory',
+      );
     default:
-      throw new Error(`Unknown store engine: "${engine}". Supported: pglite, postgres.`);
+      throw new Error(`Unknown store engine: "${engine}". Supported: pglite, postgres, managed.`);
   }
 }

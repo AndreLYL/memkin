@@ -37,4 +37,21 @@ describe("managed-lock", () => {
     await expect(withManagedLock(home, async () => { throw new Error("boom"); })).rejects.toThrow("boom");
     expect(await withManagedLock(home, async () => "recovered")).toBe("recovered");
   });
+
+  it("waits on a live same-pid lock instead of stealing it", async () => {
+    const events: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    // hold the lock with a long-running callback
+    const holder = withManagedLock(home, async () => { events.push("held"); await held; events.push("released"); });
+    // give the holder time to acquire
+    await delay(20);
+    const waiter = withManagedLock(home, async () => { events.push("waiter-ran"); });
+    // waiter must not run yet — lock is held by a live owner (same process, same pid)
+    await delay(20);
+    expect(events).toEqual(["held"]); // waiter still blocked, lock not stolen
+    release();
+    await Promise.all([holder, waiter]);
+    expect(events).toEqual(["held", "released", "waiter-ran"]);
+  });
 });

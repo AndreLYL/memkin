@@ -66,43 +66,10 @@ describe("validateStoreConfig", () => {
     expect(() => validateStoreConfig({ engine: "managed" })).not.toThrow();
   });
 
-  it("accepts store.managed { port, runtime_dir }", () => {
-    expect(() =>
-      validateStoreConfig({
-        engine: "managed",
-        managed: { port: 5432, runtime_dir: "/var/run/memoark" },
-      }),
-    ).not.toThrow();
-  });
-
-  it("accepts store.managed with port only", () => {
-    expect(() =>
-      validateStoreConfig({ engine: "managed", managed: { port: 5433 } }),
-    ).not.toThrow();
-  });
-
   it("accepts store.managed with runtime_dir only", () => {
     expect(() =>
       validateStoreConfig({ engine: "managed", managed: { runtime_dir: "/tmp/pg" } }),
     ).not.toThrow();
-  });
-
-  it("rejects store.managed.port below 1", () => {
-    expect(() =>
-      validateStoreConfig({ engine: "managed", managed: { port: 0 } }),
-    ).toThrow(/port/i);
-  });
-
-  it("rejects store.managed.port above 65535", () => {
-    expect(() =>
-      validateStoreConfig({ engine: "managed", managed: { port: 65536 } }),
-    ).toThrow(/port/i);
-  });
-
-  it("rejects store.managed.port non-integer", () => {
-    expect(() =>
-      validateStoreConfig({ engine: "managed", managed: { port: 5432.5 } }),
-    ).toThrow(/port/i);
   });
 
   it("rejects store.managed.runtime_dir empty string", () => {

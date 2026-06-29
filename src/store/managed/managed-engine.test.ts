@@ -39,6 +39,8 @@ describe("provisionManaged", () => {
     expect(pgConfig.store.pool_size).toBe(7);
     // original config not mutated
     expect(cfg.store.engine).toBe("managed");
+    // pglite data_dir must not bleed into postgres config
+    expect(pgConfig.store.data_dir).toBeUndefined();
   });
 
   it("runs ensure + ensureUp inside the managed lock (serialized)", async () => {

@@ -129,8 +129,8 @@ export interface SourcesConfig {
  * The database_url is derived at runtime; no explicit URL is needed.
  */
 export interface ManagedStoreConfig {
-  port?: number; // TCP port for the managed postgres, 1..65535
-  runtime_dir?: string; // directory for socket / PID files
+  // override for the Postgres runtime root (binaries + extensions); same as MEMOARK_PG_RUNTIME_DIR
+  runtime_dir?: string;
 }
 
 /**
@@ -286,13 +286,6 @@ export function validateStoreConfig(s: StoreConfig, missingEnv: string[] = []): 
 
   if (engine === "managed" && s.managed !== undefined) {
     const m = s.managed;
-    if (m.port !== undefined) {
-      if (!Number.isInteger(m.port) || m.port < 1 || m.port > 65535) {
-        throw new Error(
-          `store.managed.port must be an integer in 1..65535. Got: ${m.port}`,
-        );
-      }
-    }
     if (m.runtime_dir !== undefined) {
       if (typeof m.runtime_dir !== "string" || m.runtime_dir.trim() === "") {
         throw new Error(
