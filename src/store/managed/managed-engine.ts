@@ -7,7 +7,12 @@ import type { PgRuntimeProvider, RuntimePaths } from "./pg-runtime-provider.js";
 
 export interface ManagedSupervisor {
   ensureUp(): Promise<void>;
-  // more methods (status/stop/dispose/restartIfDown) land in Phase 2; keep this minimal interface here
+  /** Returns the current Postgres process state. */
+  status(): Promise<"running" | "stopped">;
+  /** Restarts Postgres if it is down; returns true if a restart was performed. */
+  restartIfDown(): Promise<boolean>;
+  /** Stops internal monitoring resources (does NOT stop the cluster). */
+  dispose(): void;
 }
 
 export interface ProvisionDeps {

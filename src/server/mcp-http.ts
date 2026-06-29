@@ -12,6 +12,8 @@ export interface McpHttpHealth {
   port?: number;
   bind?: string;
   dbProbe?: () => Promise<boolean>;
+  /** Optional probe for managed-Postgres health. If provided: false → 503 (treated same as dbProbe false). */
+  pgProbe?: () => Promise<boolean>;
 }
 
 export interface McpHttpOptions {
@@ -107,8 +109,21 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
         dbOk = false;
       }
     }
-    const body = {
-      status: dbOk ? "ok" : "degraded",
+
+    let pgOk: boolean | undefined;
+    if (options.health?.pgProbe) {
+      try {
+        pgOk = await options.health.pgProbe();
+      } catch {
+        pgOk = false;
+      }
+    }
+
+    // isReady: both db and pg (if present) must be ok
+    const isReady = dbOk && (pgOk === undefined || pgOk);
+
+    const body: Record<string, unknown> = {
+      status: isReady ? "ok" : "degraded",
       transport: "streamable_http",
       auth_required: Boolean(options.authToken),
       read_only: options.readOnly ?? false,
@@ -122,7 +137,11 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
       port: options.health?.port,
       bind: options.health?.bind,
     };
-    return c.json(body, dbOk ? 200 : 503);
+    // Only include pg_ok when a pgProbe was configured
+    if (pgOk !== undefined) {
+      body.pg_ok = pgOk;
+    }
+    return c.json(body, isReady ? 200 : 503);
   });
 
   app.all("/mcp", async (c) => {

@@ -11,13 +11,22 @@ afterEach(() => rmSync(home, { recursive: true, force: true }));
 
 const fakeRuntime = { pgMajor: "17", root: "/rt", bin: "/rt/bin", postgres: "/rt/bin/postgres", pgCtl: "/rt/bin/pg_ctl", initdb: "/rt/bin/initdb", createdb: "/rt/bin/createdb", pgIsReady: "/rt/bin/pg_isready", libDir: "/rt/lib", extensionDir: "/rt/ext" };
 
+/** Minimal stub that satisfies the full ManagedSupervisor interface. */
+function stubSupervisor(overrides: Partial<{ ensureUp: () => Promise<void> }> = {}) {
+  return {
+    ensureUp: overrides.ensureUp ?? async function() {},
+    status: async () => "running" as const,
+    restartIfDown: async () => false,
+    dispose: () => {},
+  };
+}
+
 function makeDeps(spy: { ensured: boolean }) {
   return {
     home,
     provider: { ensure: async () => fakeRuntime },
-    makeSupervisor: (_rt: unknown, _home: string) => ({
-      ensureUp: async () => { spy.ensured = true; },
-    }),
+    makeSupervisor: (_rt: unknown, _home: string) =>
+      stubSupervisor({ ensureUp: async () => { spy.ensured = true; } }),
   };
 }
 
@@ -49,7 +58,7 @@ describe("provisionManaged", () => {
     const deps = {
       home,
       provider: { ensure: async () => { order.push("ensure"); return fakeRuntime; } },
-      makeSupervisor: () => ({ ensureUp: async () => { order.push("ensureUp"); } }),
+      makeSupervisor: () => stubSupervisor({ ensureUp: async () => { order.push("ensureUp"); } }),
     };
     await provisionManaged(cfg, deps);
     expect(order).toEqual(["ensure", "ensureUp"]);
@@ -70,7 +79,7 @@ describe("provisionManagedForeground", () => {
     const deps = {
       home,
       provider: { ensure: async () => fakeRuntime },
-      makeSupervisor: () => ({ ensureUp: async () => {} }),
+      makeSupervisor: () => stubSupervisor(),
       dbCreate,
     };
 
@@ -103,7 +112,7 @@ describe("provisionManagedForeground", () => {
     await provisionManagedForeground(cfg, {
       home,
       provider: { ensure: async () => fakeRuntime },
-      makeSupervisor: () => ({ ensureUp: async () => {} }),
+      makeSupervisor: () => stubSupervisor(),
       dbCreate,
     });
 

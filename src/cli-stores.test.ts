@@ -116,7 +116,12 @@ describe("resolveDb — engine branching", () => {
 
   it("managed: calls provision, threads supervisor, passes pgConfig to dbCreate", async () => {
     const config = makeConfig("managed");
-    const sentinel = { ensureUp: vi.fn() } satisfies ManagedSupervisor;
+    const sentinel = {
+      ensureUp: vi.fn(),
+      status: vi.fn().mockResolvedValue("running"),
+      restartIfDown: vi.fn().mockResolvedValue(false),
+      dispose: vi.fn(),
+    } satisfies ManagedSupervisor;
     const pgConfig = makeConfig("postgres");
     const provision = vi.fn().mockResolvedValue({ supervisor: sentinel, pgConfig });
     const stub = makeDbStub();
@@ -153,7 +158,12 @@ describe("resolveDb — engine branching", () => {
 describe("createStores — integration with resolveDb", () => {
   it("returns all expected store keys including supervisor for managed", async () => {
     const config = makeConfig("managed");
-    const sentinel = { ensureUp: vi.fn() } satisfies ManagedSupervisor;
+    const sentinel = {
+      ensureUp: vi.fn(),
+      status: vi.fn().mockResolvedValue("running"),
+      restartIfDown: vi.fn().mockResolvedValue(false),
+      dispose: vi.fn(),
+    } satisfies ManagedSupervisor;
     const pgConfig = makeConfig("postgres");
     const provision = vi.fn().mockResolvedValue({ supervisor: sentinel, pgConfig });
     const stub = makeDbStub();

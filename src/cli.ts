@@ -65,6 +65,7 @@ import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { createStores, openIdentityStore } from "./cli-stores.js";
+import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
 import { PersonBehaviorStore } from "./store/person-behavior.js";
 
 function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
@@ -591,6 +592,12 @@ async function runServe(options: {
     }
     const stores = await createStores(config);
 
+    // P1-1: recovery loop is a PROCESS-LEVEL resource — started from stores.supervisor,
+    // never placed inside the ServeRuntimeHolder/runtime (which is disposed on every reload).
+    const recovery = stores.supervisor
+      ? startRecoveryLoop(stores.supervisor, { intervalMs: 3000 })
+      : undefined;
+
     const initialRuntime = await buildServeRuntime(config, stores, stateDir);
     const holder = new ServeRuntimeHolder(initialRuntime);
     if (config.scheduler?.enabled) await holder.current.scheduler?.start();
@@ -615,6 +622,10 @@ async function runServe(options: {
     const shutdown = async () => {
       if (shuttingDown) return; // 防重入:连按 Ctrl-C 不会二次 db.close()
       shuttingDown = true;
+      // P1-1: stop recovery loop first, then dispose supervisor monitor (NOT the cluster),
+      // then dispose the runtime, then close the DB connection.
+      recovery?.stop();
+      stores.supervisor?.dispose(); // stops monitor only — does NOT stop the cluster
       await holder.current.dispose();
       try {
         await stores.db.close(); // 触发锁 release
@@ -700,6 +711,9 @@ async function runServe(options: {
               return false;
             }
           },
+          pgProbe: stores.supervisor
+            ? async () => (await stores.supervisor!.status()) === "running"
+            : undefined,
         },
       });
       const server = await startServer(app, {
