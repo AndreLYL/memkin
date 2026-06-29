@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeFakeRunner } from "../../daemon/autostart/runner.js";
-import { managedPaths } from "./pg-paths.js";
+import { managedPaths, readManagedState, writeManagedState } from "./pg-paths.js";
 import { createPgSupervisor } from "./pg-supervisor.js";
 import type { RuntimePaths } from "./pg-runtime-provider.js";
 
@@ -300,5 +300,312 @@ describe("supervisor finalizeHba()", () => {
     const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
 
     await expect(sup.finalizeHba()).rejects.toThrow(/reload failed|pg_ctl/i);
+  });
+});
+
+// ─── Task 9: ensureUp / status / restartIfDown / stop / dispose ───────────────
+
+/**
+ * Helper: queue results for a full ensureUp first-run sequence.
+ * Order: initdb, pg_ctl status (stopped=3), pg_ctl start, pg_isready,
+ *        psql CREATE ROLE, psql db-check (empty), psql CREATE DATABASE,
+ *        psql CREATE EXTENSION, pg_ctl reload (finalizeHba).
+ */
+function firstRunResults() {
+  return [
+    { code: 0, stdout: "", stderr: "" }, // initdb
+    { code: 3, stdout: "", stderr: "" }, // pg_ctl status → stopped
+    { code: 0, stdout: "", stderr: "" }, // pg_ctl start
+    { code: 0, stdout: "", stderr: "" }, // pg_isready → ready
+    { code: 0, stdout: "", stderr: "" }, // psql CREATE ROLE
+    { code: 0, stdout: "", stderr: "" }, // psql db existence check → empty (absent)
+    { code: 0, stdout: "", stderr: "" }, // psql CREATE DATABASE
+    { code: 0, stdout: "", stderr: "" }, // psql CREATE EXTENSION
+    { code: 0, stdout: "", stderr: "" }, // pg_ctl reload (finalizeHba)
+  ];
+}
+
+describe("supervisor ensureUp() — first run (no state, empty pgdata)", () => {
+  it("runs full provisioning sequence and writes state + final HBA", async () => {
+    const paths = managedPaths(home, "17");
+    // pgdata does NOT have PG_VERSION (empty dir)
+    const runner = makeFakeRunner(firstRunResults());
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
+
+    // Simulate what real initdb would do: create PG_VERSION.
+    // We intercept after the initdb call by pre-writing it; but the fake runner
+    // doesn't create files. We pre-create PG_VERSION AFTER the ensureCluster
+    // call would have run initdb. Because ensureUp calls ensureCluster first,
+    // and ensureCluster calls mkdirSync, we can write PG_VERSION synchronously
+    // before ensureUp starts by noting that: in the test, the fake runner succeeds
+    // immediately, but ensureCluster checks for PG_VERSION BEFORE running initdb.
+    // So: pgdata must NOT have PG_VERSION at start (initdb runs), but the file
+    // must exist afterward for subsequent logic to not break.
+    // The real ensureCluster does mkdirSync(paths.pgdata) after the fake initdb
+    // succeeds, which creates the dir. We need PG_VERSION to exist for any code
+    // that might check it. ensureCluster only checks once at entry, so we're fine.
+    // BUT: start() and status() do not check PG_VERSION — only ensureCluster does.
+    // So we only need pgdata dir to exist for conf/hba writes.
+    // The fake runner returns code 0 for initdb; ensureCluster then calls
+    // mkdirSync(paths.pgdata). After that, conf and HBA are written.
+    // We do NOT need PG_VERSION to exist for the rest of ensureUp.
+
+    await sup.ensureUp();
+
+    // State file must exist (bootstrapped marker)
+    const state = readManagedState(paths);
+    expect(state).not.toBeNull();
+    expect(state!.pgdata).toBe(paths.pgdata);
+    expect(state!.fixedPort).toBe(paths.fixedPort);
+    expect(state!.socketDir).toBe(paths.socketDir);
+
+    // Final HBA must be in place (not the temp bootstrap HBA)
+    const hba = readFileSync(join(paths.pgdata, "pg_hba.conf"), "utf8");
+    expect(hba).toContain("local   memoark   memoark   trust");
+    expect(hba).not.toContain("local all tester trust");
+
+    // All 9 commands must have been called
+    expect(runner.calls).toHaveLength(9);
+    // First call: initdb
+    expect(runner.calls[0][0]).toBe("/rt/bin/initdb");
+    // Second call: pg_ctl status
+    expect(runner.calls[1]).toContain("status");
+    // Third call: pg_ctl start
+    expect(runner.calls[2]).toContain("start");
+    // Fourth call: pg_isready
+    expect(runner.calls[3][0]).toBe("/rt/bin/pg_isready");
+    // Last call: pg_ctl reload (finalizeHba)
+    expect(runner.calls[8]).toContain("reload");
+  });
+});
+
+describe("supervisor ensureUp() — warm path (already bootstrapped, running)", () => {
+  it("only checks status and does NOT re-provision", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+
+    // Write a sentinel final HBA (must NOT be overwritten)
+    const sentinelHba = "# SENTINEL FINAL HBA — must not be overwritten\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
+    writeFileSync(join(paths.pgdata, "pg_hba.conf"), sentinelHba, "utf8");
+
+    // Pre-write managed state (marks as bootstrapped)
+    writeManagedState(paths, {
+      pgdata: paths.pgdata,
+      fixedPort: paths.fixedPort,
+      socketDir: paths.socketDir,
+      runtimeRoot: "/rt",
+      pgVersion: "17",
+      pgCtlPath: "/rt/bin/pg_ctl",
+      logPath: join(paths.pgdata, "postmaster.log"),
+    });
+
+    // status → running (exit 0)
+    const runner = makeFakeRunner([
+      { code: 0, stdout: "", stderr: "" }, // pg_ctl status → running
+    ]);
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
+
+    await sup.ensureUp();
+
+    // Only one command: pg_ctl status
+    expect(runner.calls).toHaveLength(1);
+    expect(runner.calls[0]).toContain("status");
+
+    // HBA must still be the sentinel (not rewritten)
+    const hba = readFileSync(join(paths.pgdata, "pg_hba.conf"), "utf8");
+    expect(hba).toBe(sentinelHba);
+  });
+});
+
+describe("supervisor HBA security guard", () => {
+  it("ensureCluster does NOT overwrite pg_hba.conf when cluster is bootstrapped", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+
+    // Write final HBA sentinel
+    const finalHba = "# FINAL HBA\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
+    writeFileSync(join(paths.pgdata, "pg_hba.conf"), finalHba, "utf8");
+
+    // Write state (bootstrapped marker)
+    writeManagedState(paths, {
+      pgdata: paths.pgdata,
+      fixedPort: paths.fixedPort,
+      socketDir: paths.socketDir,
+      runtimeRoot: "/rt",
+      pgVersion: "17",
+      pgCtlPath: "/rt/bin/pg_ctl",
+      logPath: join(paths.pgdata, "postmaster.log"),
+    });
+
+    const runner = makeFakeRunner([]);
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
+
+    await sup.ensureCluster();
+
+    // pg_hba.conf must still be the final HBA (not the temp one)
+    const hba = readFileSync(join(paths.pgdata, "pg_hba.conf"), "utf8");
+    expect(hba).toBe(finalHba);
+    expect(hba).not.toContain("local all tester trust");
+  });
+});
+
+describe("supervisor status()", () => {
+  it("returns 'running' when pg_ctl status exits 0", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+    const runner = makeFakeRunner([{ code: 0, stdout: "pg_ctl: server is running", stderr: "" }]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    const result = await sup.status();
+
+    expect(result).toBe("running");
+    expect(runner.calls).toHaveLength(1);
+    expect(runner.calls[0]).toContain("status");
+    expect(runner.calls[0]).toContain("-D");
+    expect(runner.calls[0]).toContain(paths.pgdata);
+  });
+
+  it("returns 'stopped' when pg_ctl status exits 3", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+    const runner = makeFakeRunner([{ code: 3, stdout: "pg_ctl: no server running", stderr: "" }]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    const result = await sup.status();
+
+    expect(result).toBe("stopped");
+  });
+});
+
+describe("supervisor restartIfDown()", () => {
+  it("returns false and does NOT start when already running", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+    const runner = makeFakeRunner([
+      { code: 0, stdout: "", stderr: "" }, // status → running
+    ]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    const restarted = await sup.restartIfDown();
+
+    expect(restarted).toBe(false);
+    expect(runner.calls).toHaveLength(1); // only status check
+  });
+
+  it("returns true and starts when stopped", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+    const runner = makeFakeRunner([
+      { code: 3, stdout: "", stderr: "" }, // status → stopped
+      { code: 0, stdout: "", stderr: "" }, // pg_ctl start
+      { code: 0, stdout: "", stderr: "" }, // pg_isready → ready
+    ]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    const restarted = await sup.restartIfDown({ pollIntervalMs: 1, timeoutMs: 5000 });
+
+    expect(restarted).toBe(true);
+    // status + start + waitReady
+    expect(runner.calls).toHaveLength(3);
+    expect(runner.calls[1]).toContain("start");
+    expect(runner.calls[2][0]).toBe("/rt/bin/pg_isready");
+  });
+});
+
+describe("supervisor startWithStaleRecovery()", () => {
+  it("removes stale postmaster.pid and retries start when first start fails with dead pid", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+
+    // Write a postmaster.pid with a dead pid (PID 1 is init on Linux; using
+    // a very high fake PID that surely does not exist)
+    const deadPid = 999999999;
+    writeFileSync(join(paths.pgdata, "postmaster.pid"), `${deadPid}\n`, "utf8");
+
+    const runner = makeFakeRunner([
+      { code: 1, stdout: "", stderr: "lock file exists" }, // first start fails
+      { code: 0, stdout: "", stderr: "" },                 // retry start succeeds
+    ]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    await sup.startWithStaleRecovery();
+
+    // Two start calls must have been made
+    expect(runner.calls).toHaveLength(2);
+    expect(runner.calls[0]).toContain("start");
+    expect(runner.calls[1]).toContain("start");
+
+    // postmaster.pid must have been removed
+    expect(existsSync(join(paths.pgdata, "postmaster.pid"))).toBe(false);
+  });
+
+  it("throws when start fails and no postmaster.pid exists", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+
+    const runner = makeFakeRunner([
+      { code: 1, stdout: "", stderr: "start failed: unknown reason" },
+    ]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    await expect(sup.startWithStaleRecovery()).rejects.toThrow(/pg_ctl.*start|start failed/i);
+  });
+});
+
+describe("supervisor stop()", () => {
+  it("calls pg_ctl stop -m fast", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+    const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    await sup.stop();
+
+    expect(runner.calls).toHaveLength(1);
+    const argv = runner.calls[0];
+    expect(argv[0]).toBe("/rt/bin/pg_ctl");
+    expect(argv).toContain("stop");
+    expect(argv).toContain("-D");
+    expect(argv).toContain(paths.pgdata);
+    expect(argv).toContain("-m");
+    expect(argv).toContain("fast");
+  });
+
+  it("tolerates already-stopped (non-zero exit) without throwing", async () => {
+    const paths = managedPaths(home, "17");
+    seedPgdata(paths.pgdata);
+    const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "pg_ctl: no server running" }]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    // Must not throw
+    await expect(sup.stop()).resolves.toBeUndefined();
+  });
+});
+
+describe("supervisor dispose()", () => {
+  it("is a no-op and does not stop the cluster", () => {
+    const paths = managedPaths(home, "17");
+    // No runner queued — if dispose calls anything it would throw
+    const runner = makeFakeRunner([]);
+    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+
+    // Should not throw, no async, no runner calls
+    expect(() => sup.dispose()).not.toThrow();
+    expect(runner.calls).toHaveLength(0);
   });
 });

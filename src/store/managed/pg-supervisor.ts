@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { type CommandRunner, nodeRunner } from "../../daemon/autostart/runner.js";
-import type { ManagedPaths } from "./pg-paths.js";
+import { type ManagedPaths, readManagedState, writeManagedState } from "./pg-paths.js";
 import type { RuntimePaths } from "./pg-runtime-provider.js";
 
 // ─── Managed block delimiters ────────────────────────────────────────────────
@@ -29,10 +29,15 @@ export interface WaitReadyOptions {
 export interface PgSupervisor {
   ensureCluster(): Promise<void>;
   start(): Promise<void>;
+  startWithStaleRecovery(): Promise<void>;
   waitReady(opts?: WaitReadyOptions): Promise<void>;
   bootstrapRoles(): Promise<void>;
   finalizeHba(): Promise<void>;
-  // ensureUp / status / restartIfDown / stop / dispose — added in later tasks
+  ensureUp(): Promise<void>;
+  status(): Promise<"running" | "stopped">;
+  restartIfDown(waitReadyOpts?: WaitReadyOptions): Promise<boolean>;
+  stop(): Promise<void>;
+  dispose(): void;
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
@@ -163,8 +168,13 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       // Write / replace the managed postgresql.conf block (idempotent)
       writeManagedConf();
 
-      // Write the temporary pg_hba.conf (idempotent overwrite)
-      writeTempHba();
+      // Write the temporary pg_hba.conf ONLY when not yet bootstrapped.
+      // After bootstrap, the HBA has been finalized to the restrictive version.
+      // Re-writing the temp HBA would loosen security back to bootstrap-user-trust.
+      // Bootstrapped ⇔ managed-state file exists.
+      if (readManagedState(paths) === null) {
+        writeTempHba();
+      }
     },
 
     async start(): Promise<void> {
@@ -279,6 +289,126 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
           `pg_ctl reload failed (exit ${result.code}): ${result.stderr}`,
         );
       }
+    },
+
+    async status(): Promise<"running" | "stopped"> {
+      const result = await runner.run([
+        runtime.pgCtl,
+        "status",
+        "-D", paths.pgdata,
+      ]);
+      return result.code === 0 ? "running" : "stopped";
+    },
+
+    async startWithStaleRecovery(): Promise<void> {
+      const logPath = join(paths.pgdata, "postmaster.log");
+      const startArgv = [
+        runtime.pgCtl,
+        "start",
+        "-D", paths.pgdata,
+        "-l", logPath,
+        "-w",
+        "-o", `-p ${paths.fixedPort}`,
+      ];
+
+      const first = await runner.run(startArgv);
+      if (first.code === 0) return;
+
+      // Start failed — check for stale postmaster.pid
+      const pidFile = join(paths.pgdata, "postmaster.pid");
+      if (!existsSync(pidFile)) {
+        throw new Error(
+          `pg_ctl start failed (exit ${first.code}), log=${logPath}: ${first.stderr}`,
+        );
+      }
+
+      // Read PID from first line
+      const pidLine = readFileSync(pidFile, "utf8").split("\n")[0].trim();
+      const pid = Number(pidLine);
+
+      // Check if process is actually alive
+      let alive = true;
+      if (!Number.isNaN(pid) && pid > 0) {
+        try {
+          process.kill(pid, 0);
+        } catch (err: unknown) {
+          if ((err as NodeJS.ErrnoException).code === "ESRCH") {
+            alive = false;
+          } else {
+            // EPERM means process exists but we can't signal it — treat as alive
+            alive = true;
+          }
+        }
+      }
+
+      if (!alive) {
+        // Remove stale pid file and retry
+        rmSync(pidFile, { force: true });
+        const retry = await runner.run(startArgv);
+        if (retry.code !== 0) {
+          throw new Error(
+            `pg_ctl start failed after stale pid removal (exit ${retry.code}), log=${logPath}: ${retry.stderr}`,
+          );
+        }
+        return;
+      }
+
+      // Process is still alive — original error stands
+      throw new Error(
+        `pg_ctl start failed (exit ${first.code}), log=${logPath}: ${first.stderr}`,
+      );
+    },
+
+    async ensureUp(): Promise<void> {
+      const bootstrapped = readManagedState(paths) !== null;
+
+      // Initialise cluster if needed; refresh conf; write temp HBA only if !bootstrapped
+      await this.ensureCluster();
+
+      const currentStatus = await this.status();
+      if (currentStatus !== "running") {
+        await this.startWithStaleRecovery();
+        await this.waitReady();
+      }
+
+      if (!bootstrapped) {
+        await this.bootstrapRoles();
+        await this.finalizeHba();
+        writeManagedState(paths, {
+          pgdata: paths.pgdata,
+          fixedPort: paths.fixedPort,
+          socketDir: paths.socketDir,
+          runtimeRoot: runtime.root,
+          pgVersion: runtime.pgMajor,
+          pgCtlPath: runtime.pgCtl,
+          logPath: join(paths.pgdata, "postmaster.log"),
+        });
+      }
+    },
+
+    async restartIfDown(waitReadyOpts?: WaitReadyOptions): Promise<boolean> {
+      const currentStatus = await this.status();
+      if (currentStatus === "running") return false;
+      await this.start();
+      await this.waitReady(waitReadyOpts);
+      return true;
+    },
+
+    async stop(): Promise<void> {
+      // Tolerate "not running" — pg_ctl stop returns non-zero when already stopped.
+      await runner.run([
+        runtime.pgCtl,
+        "stop",
+        "-D", paths.pgdata,
+        "-m", "fast",
+      ]);
+    },
+
+    dispose(): void {
+      // No internal timer or monitor to clean up yet (recovery loop is a separate
+      // module added in a later task). Per spec §4d, dispose MUST NOT stop the
+      // cluster — it only stops internal monitoring resources owned by this object.
+      // This is intentionally a no-op.
     },
   };
 }
