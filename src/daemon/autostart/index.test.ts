@@ -49,7 +49,7 @@ describe("autostart darwin", () => {
     expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
     expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
     expect(r2.calls.length).toBeGreaterThan(0);
-    expect(result).toEqual({});
+    expect(result.outcome).toBe("success");
   });
   it("disable still removes files when launcher returns non-zero and surfaces the error", async () => {
     const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
@@ -60,6 +60,70 @@ describe("autostart darwin", () => {
     expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
     expect(result.launcherCode).toBe(1);
     expect(result.launcherStderr).toContain("bootout error");
+  });
+});
+
+describe("disableAutostart outcome classification (darwin)", () => {
+  it("bootout code 0 → outcome:success, files removed", async () => {
+    const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
+    const r2 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
+    expect(result.outcome).toBe("success");
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+  });
+
+  it("bootout code non-zero + stderr 'No such process' → outcome:notLoaded, files removed", async () => {
+    const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
+    const r2 = makeFakeRunner([{ code: 3, stdout: "", stderr: "No such process" }]);
+    const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
+    expect(result.outcome).toBe("notLoaded");
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+  });
+
+  it("bootout code 1 + other stderr → outcome:bootoutFailed, files removed (default keepState:false)", async () => {
+    const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
+    const r2 = makeFakeRunner([{ code: 1, stdout: "", stderr: "permission denied" }]);
+    const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
+    expect(result.outcome).toBe("bootoutFailed");
+    // default: keepStateOnBootoutFailure=false → files removed as before
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+  });
+
+  it("bootoutFailed + keepStateOnBootoutFailure:true → files NOT removed", async () => {
+    const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
+    const r2 = makeFakeRunner([{ code: 1, stdout: "", stderr: "permission denied" }]);
+    const result = await disableAutostart({
+      platform: "darwin",
+      home,
+      runner: r2,
+      keepStateOnBootoutFailure: true,
+    });
+    expect(result.outcome).toBe("bootoutFailed");
+    // keepStateOnBootoutFailure=true: files must be preserved
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(true);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
+  });
+
+  it("notLoaded + keepStateOnBootoutFailure:true → files still removed (not a failed bootout)", async () => {
+    const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
+    const r2 = makeFakeRunner([{ code: 3, stdout: "", stderr: "could not find specified service" }]);
+    const result = await disableAutostart({
+      platform: "darwin",
+      home,
+      runner: r2,
+      keepStateOnBootoutFailure: true,
+    });
+    expect(result.outcome).toBe("notLoaded");
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
   });
 });
 

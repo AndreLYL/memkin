@@ -34,6 +34,14 @@ export function managedPaths(home: string, pgMajor: string): ManagedPaths {
   };
 }
 
+/**
+ * Returns the path to managed-pg.json without requiring a pgMajor version.
+ * The state file path is version-independent (~/.memoark/managed-pg.json).
+ */
+export function managedStatePath(home: string): string {
+  return join(home, ".memoark", "managed-pg.json");
+}
+
 // socketDir as host; node-postgres needs the port to find .s.PGSQL.<port> (P0-2)
 export function managedConnUrl(p: ManagedPaths): string {
   const host = encodeURIComponent(p.socketDir);

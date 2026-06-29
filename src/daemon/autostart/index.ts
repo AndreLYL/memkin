@@ -34,6 +34,12 @@ export interface DisableAutostartOptions {
   platform: string;
   home: string;
   runner: CommandRunner;
+  /**
+   * When true, do NOT remove plist/daemon.json if outcome is "bootoutFailed".
+   * This preserves daemon state for a still-alive daemon.
+   * Default: false (existing behavior — always remove files).
+   */
+  keepStateOnBootoutFailure?: boolean;
 }
 
 export interface StatusAutostartOptions {
@@ -128,34 +134,61 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
 }
 
 export interface DisableAutostartResult {
+  outcome: "notLoaded" | "bootoutFailed" | "success";
   launcherStderr?: string;
   launcherCode?: number;
+}
+
+/** Regex for "no such process / not loaded" patterns from launchctl/systemctl. */
+const NOT_LOADED_RE = /no such process|could not find|not.*loaded/i;
+
+function classifyBootoutResult(
+  code: number,
+  stderr: string,
+): "notLoaded" | "bootoutFailed" | "success" {
+  if (code === 0) return "success";
+  if (NOT_LOADED_RE.test(stderr)) return "notLoaded";
+  return "bootoutFailed";
 }
 
 export async function disableAutostart(
   opts: DisableAutostartOptions,
 ): Promise<DisableAutostartResult> {
-  const { platform, home, runner } = opts;
+  const { platform, home, runner, keepStateOnBootoutFailure = false } = opts;
 
   if (platform === "darwin") {
     const uid = process.getuid?.() ?? 0;
     const result = await launchdBootout(runner, LABEL, uid);
-    // Always remove files regardless of launcher exit code (best-effort cleanup)
-    rmSync(plistPath(home), { force: true });
-    rmSync(join(stateDir(home), "daemon.json"), { force: true });
-    if (result.code !== 0) {
-      return { launcherCode: result.code, launcherStderr: result.stderr || result.stdout };
+    const stderr = result.stderr || result.stdout;
+    const outcome = classifyBootoutResult(result.code, stderr);
+
+    // Remove files unless keepStateOnBootoutFailure is true AND the outcome is bootoutFailed
+    const preserve = keepStateOnBootoutFailure && outcome === "bootoutFailed";
+    if (!preserve) {
+      rmSync(plistPath(home), { force: true });
+      rmSync(join(stateDir(home), "daemon.json"), { force: true });
     }
-    return {};
+
+    if (result.code !== 0) {
+      return { outcome, launcherCode: result.code, launcherStderr: stderr };
+    }
+    return { outcome };
   } else if (platform === "linux") {
     const result = await systemdDisable(runner);
-    // Always remove files regardless of launcher exit code (best-effort cleanup)
-    rmSync(systemdUnitPath(home), { force: true });
-    rmSync(join(stateDir(home), "daemon.json"), { force: true });
-    if (result.code !== 0) {
-      return { launcherCode: result.code, launcherStderr: result.stderr || result.stdout };
+    const stderr = result.stderr || result.stdout;
+    // For Linux: treat not-loaded patterns as notLoaded; else bootoutFailed on non-zero
+    const outcome = classifyBootoutResult(result.code, stderr);
+
+    const preserve = keepStateOnBootoutFailure && outcome === "bootoutFailed";
+    if (!preserve) {
+      rmSync(systemdUnitPath(home), { force: true });
+      rmSync(join(stateDir(home), "daemon.json"), { force: true });
     }
-    return {};
+
+    if (result.code !== 0) {
+      return { outcome, launcherCode: result.code, launcherStderr: stderr };
+    }
+    return { outcome };
   } else {
     throw new Error(`Unsupported platform: ${platform}`);
   }

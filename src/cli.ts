@@ -54,6 +54,7 @@ import { type PlannedClient, runInstall, runUninstall } from "./install/index.js
 import { scaffoldSkill } from "./install/skill.js";
 import { down } from "./lifecycle/down.js";
 import { acquireLifecycleLock } from "./lifecycle/lifecycle-lock.js";
+import { stopManagedFromState } from "./store/managed/stop-from-state.js";
 import { runUp } from "./lifecycle/run-up.js";
 import { computeStatus } from "./lifecycle/status.js";
 import { createApiApp } from "./server/api.js";
@@ -1474,17 +1475,31 @@ program
   .command("down")
   .description("Stop the always-on daemon and remove its autostart entry")
   .action(async () => {
+    const h = homedir();
+    const plat = process.platform;
     try {
+      // Best-effort config load to detect engine; safe to fail (down works without a config)
+      let engine: string | undefined;
+      try {
+        const cfg = loadConfig();
+        engine = cfg.store.engine;
+      } catch {
+        // no config or parse error — treat engine as unknown (non-managed)
+      }
+
       const result = await down({
-        home: homedir(),
-        platform: process.platform,
+        home: h,
+        platform: plat,
         acquireLock: acquireLifecycleLock,
         disable: () =>
           disableAutostart({
-            platform: process.platform,
-            home: homedir(),
+            platform: plat,
+            home: h,
             runner: nodeRunner,
-          }).then(() => undefined),
+            keepStateOnBootoutFailure: true,
+          }),
+        engine,
+        stopManagedPg: () => stopManagedFromState(h, nodeRunner).then(() => undefined),
       });
       console.log(result.stopped ? `✓ ${result.note}` : `✗ ${result.note}`);
     } catch (err) {
