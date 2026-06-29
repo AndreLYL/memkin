@@ -607,6 +607,10 @@ async function runServe(options: {
       // only read once at construction for the initial signature; ReloadManager tracks lastConfig internally afterward
       currentConfig: () => config,
       buildRuntime: (next) => buildServeRuntime(next, stores, stateDir),
+      onRestartRequired: () =>
+        console.warn(
+          "[reload] store/engine change saved — restart the daemon (`memoark up` or restart serve) to apply; the running process still uses the previous database.",
+        ),
     });
 
     const storesWithDaemon = {

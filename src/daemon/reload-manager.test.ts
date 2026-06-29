@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ReloadManager, runtimeSignature } from "./reload-manager.js";
+import { describe, expect, it, vi } from "vitest";
+import { ReloadManager, runtimeSignature, storeSignature } from "./reload-manager.js";
 import { type ServeRuntime, ServeRuntimeHolder } from "./serve-runtime.js";
 
 const cfg = (over: Record<string, unknown> = {}) =>
@@ -236,5 +236,91 @@ describe("runtimeSignature", () => {
       }),
     );
     expect(a).not.toBe(b);
+  });
+});
+
+describe("storeSignature", () => {
+  it("is stable for equal store configs", () => {
+    const a = storeSignature(cfg({ store: { engine: "pglite", data_dir: "~/.memoark/data" } }));
+    const b = storeSignature(cfg({ store: { engine: "pglite", data_dir: "~/.memoark/data" } }));
+    expect(a).toBe(b);
+  });
+
+  it("differs when engine changes (pglite → managed)", () => {
+    const a = storeSignature(cfg({ store: { engine: "pglite" } }));
+    const b = storeSignature(cfg({ store: { engine: "managed" } }));
+    expect(a).not.toBe(b);
+  });
+
+  it("differs when database_url changes", () => {
+    const a = storeSignature(cfg({ store: { engine: "postgres", database_url: "postgres://a" } }));
+    const b = storeSignature(cfg({ store: { engine: "postgres", database_url: "postgres://b" } }));
+    expect(a).not.toBe(b);
+  });
+
+  it("differs when managed sub-config changes", () => {
+    const a = storeSignature(cfg({ store: { engine: "managed", managed: { runtime_dir: "/a" } } }));
+    const b = storeSignature(cfg({ store: { engine: "managed", managed: { runtime_dir: "/b" } } }));
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("ReloadManager store restart-required", () => {
+  const baseConfig = {
+    ...baseSigConfig,
+    store: { engine: "pglite", data_dir: "~/.memoark/data" },
+  } as never;
+
+  const managedConfig = {
+    ...baseSigConfig,
+    store: { engine: "managed" },
+  } as never;
+
+  it("calls onRestartRequired once when store.engine changes pglite→managed", async () => {
+    const holder = new ServeRuntimeHolder(makeRuntime(() => {}, "init"));
+    const onRestartRequired = vi.fn();
+    const mgr = new ReloadManager({
+      holder,
+      currentConfig: () => baseConfig,
+      buildRuntime: async () => makeRuntime(() => {}, "rebuilt"),
+      onRestartRequired,
+    });
+    await mgr.run(managedConfig);
+    expect(onRestartRequired).toHaveBeenCalledOnce();
+    expect(onRestartRequired).toHaveBeenCalledWith({ changed: "store" });
+  });
+
+  it("does NOT re-fire onRestartRequired when applying the same store change again", async () => {
+    const holder = new ServeRuntimeHolder(makeRuntime(() => {}, "init"));
+    const onRestartRequired = vi.fn();
+    const mgr = new ReloadManager({
+      holder,
+      currentConfig: () => baseConfig,
+      buildRuntime: async () => makeRuntime(() => {}, "rebuilt"),
+      onRestartRequired,
+    });
+    // First apply: store changed → fires once
+    await mgr.run(managedConfig);
+    expect(onRestartRequired).toHaveBeenCalledTimes(1);
+    // Second apply with identical store config → does NOT re-fire
+    await mgr.run(managedConfig);
+    expect(onRestartRequired).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT call onRestartRequired when only non-store fields change (e.g. embedding)", async () => {
+    const holder = new ServeRuntimeHolder(makeRuntime(() => {}, "init"));
+    const onRestartRequired = vi.fn();
+    const embeddingChangedConfig = {
+      ...baseConfig,
+      embedding: { provider: "openai", model: "text-embedding-3-large", api_key: "sk-b" },
+    } as never;
+    const mgr = new ReloadManager({
+      holder,
+      currentConfig: () => baseConfig,
+      buildRuntime: async () => makeRuntime(() => {}, "rebuilt"),
+      onRestartRequired,
+    });
+    await mgr.run(embeddingChangedConfig);
+    expect(onRestartRequired).not.toHaveBeenCalled();
   });
 });

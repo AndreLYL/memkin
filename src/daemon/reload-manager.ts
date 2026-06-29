@@ -19,12 +19,33 @@ export function runtimeSignature(config: Config): string {
   return JSON.stringify(subset);
 }
 
+/**
+ * Stable signature over the store-relevant config subset.
+ * A change here cannot be hot-applied — the store is instantiated once at
+ * serve start and cannot be swapped at runtime. The process must restart.
+ */
+export function storeSignature(config: Config): string {
+  const subset = {
+    engine: config.store?.engine ?? "pglite",
+    data_dir: config.store?.data_dir ?? null,
+    database_url: config.store?.database_url ?? null,
+    managed: config.store?.managed ?? null,
+  };
+  return JSON.stringify(subset);
+}
+
 export interface ReloadDeps {
   holder: ServeRuntimeHolder;
   /** Returns the config currently in effect (pre-reload), for signature comparison. */
   currentConfig: () => LoadedConfig;
   /** Build a brand-new runtime from a new config (= buildServeRuntime bound to stores/stateDir). */
   buildRuntime: (config: LoadedConfig) => Promise<ServeRuntime>;
+  /**
+   * Called when a store-section change is detected on reload.
+   * The store cannot be hot-swapped — the running process continues using the
+   * old database until restarted. Fired exactly once per distinct store change.
+   */
+  onRestartRequired?: (info: { changed: "store" }) => void;
 }
 
 export class ReloadManager {
@@ -56,6 +77,15 @@ export class ReloadManager {
   }
 
   private async apply(config: LoadedConfig): Promise<void> {
+    // Detect store changes first. The store cannot be hot-swapped, so we flag
+    // restart-required and skip any attempt to apply the store change. Non-store
+    // parts of the config (Tier-1/Tier-2) still proceed normally below.
+    const prevStoreSig = storeSignature(this.lastConfig);
+    const nextStoreSig = storeSignature(config);
+    if (prevStoreSig !== nextStoreSig) {
+      this.deps.onRestartRequired?.({ changed: "store" });
+    }
+
     const prevSig = runtimeSignature(this.lastConfig);
     const nextSig = runtimeSignature(config);
     if (prevSig === nextSig) {
