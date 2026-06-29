@@ -56,7 +56,8 @@ import { down } from "./lifecycle/down.js";
 import { acquireLifecycleLock } from "./lifecycle/lifecycle-lock.js";
 import { stopManagedFromState } from "./store/managed/stop-from-state.js";
 import { runUp } from "./lifecycle/run-up.js";
-import { computeStatus } from "./lifecycle/status.js";
+import { computeStatus, formatManagedStatus } from "./lifecycle/status.js";
+import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { createApiApp } from "./server/api.js";
 import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -429,6 +430,24 @@ program
                   "install pgvector and ensure the role has permission to CREATE EXTENSION",
               );
             }
+          }
+        }
+      }
+
+      // Check managed Postgres engine
+      if (config.store?.engine === "managed") {
+        const { checkManagedPostgres } = await import("./setup/doctor.js");
+        const checks = await checkManagedPostgres({
+          home: homedir(),
+          managedConfig: config.store.managed,
+        });
+        for (const check of checks) {
+          if (check.severity === "ok") {
+            ok.push(check.message);
+          } else if (check.severity === "warn") {
+            warnings.push(check.message);
+          } else {
+            issues.push(check.message);
           }
         }
       }
@@ -1624,6 +1643,29 @@ program
       console.log("⚠ Serving subset changed — run `memoark up` to re-register agents.");
     if (report.drift.restartedOntoEditedConfig)
       console.log("⚠ Daemon restarted onto edited config.");
+
+    // Show managed Postgres state when engine is managed
+    const managedState = readManagedState(managedPaths(h, "17"));
+    if (managedState) {
+      // Lightweight pg_ctl status probe — run if pg_ctl is available
+      let clusterRunning: boolean | null = null;
+      try {
+        const { spawnSync } = await import("node:child_process");
+        const result = spawnSync(managedState.pgCtlPath, ["status", "-D", managedState.pgdata], {
+          encoding: "utf8",
+          timeout: 3000,
+        });
+        // pg_ctl status exits 0 if running, non-zero if stopped/no data dir
+        clusterRunning = result.status === 0;
+      } catch {
+        clusterRunning = null;
+      }
+      const managedLines = formatManagedStatus(managedState, clusterRunning);
+      console.log("");
+      for (const line of managedLines) {
+        console.log(`${line.label}: ${line.value}`);
+      }
+    }
   });
 
 program.parse(process.argv);

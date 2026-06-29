@@ -1,4 +1,5 @@
 import type { DaemonState } from "../daemon/autostart/daemon-state.js";
+import type { ManagedState } from "../store/managed/pg-paths.js";
 
 export interface HealthLite {
   status: number;
@@ -52,4 +53,39 @@ export function computeStatus(deps: ComputeStatusDeps): StatusReport {
     configPath: stored?.config_path,
     drift: { configChanged, needsReup, restartedOntoEditedConfig },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Managed Postgres status formatter (secret-free)
+// ---------------------------------------------------------------------------
+
+export interface ManagedStatusLine {
+  label: string;
+  value: string;
+}
+
+/**
+ * Formats managed Postgres state into secret-free display lines.
+ * `clusterRunning` is true when `pg_ctl status -D <pgdata>` indicates the
+ * postmaster is running (callers probe this; pass null when skipping the check).
+ */
+export function formatManagedStatus(
+  state: ManagedState,
+  clusterRunning: boolean | null,
+): ManagedStatusLine[] {
+  const lines: ManagedStatusLine[] = [
+    { label: "Managed Postgres pgdata", value: state.pgdata },
+    { label: "Managed Postgres port", value: String(state.fixedPort) },
+    { label: "Managed Postgres socketDir", value: state.socketDir },
+    { label: "Managed Postgres version", value: state.pgVersion },
+  ];
+
+  if (clusterRunning === true) {
+    lines.push({ label: "Managed Postgres process", value: "running ✓" });
+  } else if (clusterRunning === false) {
+    lines.push({ label: "Managed Postgres process", value: "stopped ✗" });
+  }
+  // null → skip (caller chose not to probe)
+
+  return lines;
 }
