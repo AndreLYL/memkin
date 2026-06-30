@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
@@ -28,6 +29,9 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 }
 
 export function Sidebar() {
+  const [isDark, setIsDark] = useState(
+    () => document.documentElement.dataset.theme === "dark",
+  );
   const { data: stats } = useQuery({ queryKey: ["stats"], queryFn: api.stats });
   const { data: health } = useQuery({
     queryKey: ["health"],
@@ -101,11 +105,28 @@ export function Sidebar() {
 
       <div className="flex-1" />
 
-      <div className="px-2 pb-4">
-        <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-fg-subtle hover:text-fg-muted cursor-pointer rounded-md hover:bg-bg-overlay transition-colors">
+      <div className="px-2 pb-4 space-y-0.5">
+        <button
+          type="button"
+          onClick={() => {
+            const next =
+              document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+            document.documentElement.dataset.theme = next;
+            localStorage.setItem("memoark-theme", next);
+            setIsDark(next === "dark");
+          }}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-fg-subtle hover:text-fg-default rounded-md hover:bg-bg-overlay transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          <span>{isDark ? "☀" : "☾"}</span>
+          <span>{isDark ? "Light mode" : "Dark mode"}</span>
+        </button>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-fg-subtle hover:text-fg-default rounded-md hover:bg-bg-overlay transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
           <span>⚙</span>
           <span>Settings</span>
-        </div>
+        </button>
       </div>
     </nav>
   );
