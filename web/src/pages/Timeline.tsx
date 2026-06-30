@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "../api/client";
 import { SignalCard } from "../components/shared/SignalCard";
 import { FilterBar } from "../components/shared/FilterBar";
@@ -112,7 +113,7 @@ export function TimelinePage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-xl font-semibold text-fg-default mb-4">Timeline</h1>
+      <h1 className="text-xl font-semibold font-serif text-fg-default mb-4">Timeline</h1>
 
       <div className="flex items-center gap-3 flex-wrap">
         <FilterBar
@@ -160,7 +161,7 @@ export function TimelinePage() {
           filteredDays.map((day) => (
             <div key={day.date}>
               <h2 className="text-sm font-medium text-fg-default mb-3 flex items-center gap-2">
-                <span className="text-fg-subtle">📅</span>
+                <Calendar size={14} strokeWidth={1.75} className="text-fg-subtle" />
                 {new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
                   weekday: "long", year: "numeric", month: "long", day: "numeric",
                 })}
@@ -169,13 +170,15 @@ export function TimelinePage() {
                 {day.groups.map((group) => {
                   const isExpanded = expandedGroups.has(`${day.date}:${group.key}`);
                   return (
-                    <div key={group.key} className="border border-border-default rounded-lg overflow-hidden">
+                    <div key={group.key} className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] overflow-hidden">
                       <button
                         onClick={() => toggleGroup(day.date, group.key)}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-bg-surface hover:bg-bg-overlay transition-colors text-left"
+                        className="w-full flex items-center justify-between px-3 py-2 bg-bg-surface hover:bg-bg-overlay transition-colors text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-fg-subtle">{isExpanded ? "▾" : "▸"}</span>
+                          {isExpanded
+                            ? <ChevronDown size={14} strokeWidth={1.75} className="text-fg-subtle shrink-0" />
+                            : <ChevronRight size={14} strokeWidth={1.75} className="text-fg-subtle shrink-0" />}
                           {(() => {
                             const display = channelDisplay(group.channel, group.channel_name, group.channel_name_status);
                             const colorClass =
@@ -223,7 +226,7 @@ export function TimelinePage() {
           <div className="text-center pt-4">
             <button
               onClick={() => setCursor(data.next_cursor!)}
-              className="px-4 py-2 bg-bg-surface border border-border-default rounded-lg text-sm text-fg-muted hover:text-fg-default hover:border-border-muted transition-colors"
+              className="px-4 py-2 bg-bg-surface border border-border-default rounded-lg text-sm text-fg-muted hover:text-fg-default hover:border-border-muted transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               Load more
             </button>
