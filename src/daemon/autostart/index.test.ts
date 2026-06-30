@@ -114,7 +114,9 @@ describe("disableAutostart outcome classification (darwin)", () => {
   it("notLoaded + keepStateOnBootoutFailure:true → files still removed (not a failed bootout)", async () => {
     const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
-    const r2 = makeFakeRunner([{ code: 3, stdout: "", stderr: "could not find specified service" }]);
+    const r2 = makeFakeRunner([
+      { code: 3, stdout: "", stderr: "could not find specified service" },
+    ]);
     const result = await disableAutostart({
       platform: "darwin",
       home,

@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { resolveConfigPath } from "../core/config.js";
+import { resolveDefaultEngineForNewInstall } from "../store/managed/new-install.js";
 import { runEmbeddingAssessment } from "./assess-hardware.js";
 import {
   checkOllamaModel,
@@ -16,7 +17,6 @@ import { type DetectedApiKeys, detectApiKeys } from "./detect-api-keys.js";
 import { detectCurrentRuntime } from "./detect-runtime.js";
 import { type DetectedSource, detectSources } from "./detect-sources.js";
 import { generateConfigYaml } from "./generate-config.js";
-import { resolveDefaultEngineForNewInstall } from "../store/managed/new-install.js";
 import { createPrompt, type Prompt } from "./terminal.js";
 import { type PartialConfig, validateConfig } from "./validate-config.js";
 
@@ -588,7 +588,12 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
     // Only compute the managed-engine opt on a genuine new install.
     // On --force overwrite, the user has an existing install; we must not silently change their engine.
     const newInstallEngineOpt = isNewInstall
-      ? { newInstallEngine: resolveDefaultEngineForNewInstall({ platform: process.platform, home: homedir() }) }
+      ? {
+          newInstallEngine: resolveDefaultEngineForNewInstall({
+            platform: process.platform,
+            home: homedir(),
+          }),
+        }
       : undefined;
 
     if (options.auto) {

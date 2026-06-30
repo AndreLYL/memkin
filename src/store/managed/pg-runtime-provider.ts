@@ -1,7 +1,15 @@
-import { accessSync, constants } from "node:fs";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, writeFileSync } from "node:fs";
-import { realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { managedPaths } from "./pg-paths.js";
 
@@ -14,8 +22,8 @@ export interface RuntimePaths {
   initdb: string;
   createdb: string;
   pgIsReady: string;
-  libDir: string;        // <root>/lib/postgresql
-  extensionDir: string;  // <root>/share/postgresql/extension
+  libDir: string; // <root>/lib/postgresql
+  extensionDir: string; // <root>/share/postgresql/extension
 }
 
 export interface PgRuntimeProvider {
@@ -105,12 +113,12 @@ function validateRuntime(root: string, pgMajor: string): RuntimePaths {
     const p = join(paths.bin, bin);
     if (!existsSync(p)) {
       throw new Error(
-        `managed Postgres runtime validation failed: missing binary '${bin}' in ${paths.bin} (runtime root: ${root})`
+        `managed Postgres runtime validation failed: missing binary '${bin}' in ${paths.bin} (runtime root: ${root})`,
       );
     }
     if (!isExecutable(p)) {
       throw new Error(
-        `managed Postgres runtime validation failed: '${bin}' is not executable in ${paths.bin} (runtime root: ${root})`
+        `managed Postgres runtime validation failed: '${bin}' is not executable in ${paths.bin} (runtime root: ${root})`,
       );
     }
   }
@@ -119,7 +127,7 @@ function validateRuntime(root: string, pgMajor: string): RuntimePaths {
   const hasVectorLib = VECTOR_LIBS.some((lib) => existsSync(join(paths.libDir, lib)));
   if (!hasVectorLib) {
     throw new Error(
-      `managed Postgres runtime validation failed: missing pgvector shared library (vector.dylib or vector.so) in ${paths.libDir} (runtime root: ${root})`
+      `managed Postgres runtime validation failed: missing pgvector shared library (vector.dylib or vector.so) in ${paths.libDir} (runtime root: ${root})`,
     );
   }
 
@@ -128,7 +136,7 @@ function validateRuntime(root: string, pgMajor: string): RuntimePaths {
     const p = join(paths.extensionDir, ext);
     if (!existsSync(p)) {
       throw new Error(
-        `managed Postgres runtime validation failed: missing extension '${ext}' in ${paths.extensionDir} (runtime root: ${root})`
+        `managed Postgres runtime validation failed: missing extension '${ext}' in ${paths.extensionDir} (runtime root: ${root})`,
       );
     }
   }
@@ -155,12 +163,12 @@ function assertNoPathTraversal(root: string, dir: string): void {
         } catch {
           // Dangling symlink — reject
           throw new Error(
-            `path-traversal guard: dangling symlink at ${entryPath} in extracted runtime`
+            `path-traversal guard: dangling symlink at ${entryPath} in extracted runtime`,
           );
         }
         if (!resolved.startsWith(realRoot + "/") && resolved !== realRoot) {
           throw new Error(
-            `path-traversal guard: symlink ${entryPath} points outside extraction dir (resolved to ${resolved})`
+            `path-traversal guard: symlink ${entryPath} points outside extraction dir (resolved to ${resolved})`,
           );
         }
         // Don't recurse into symlinks — they've been validated above
@@ -179,7 +187,9 @@ function assertNoPathTraversal(root: string, dir: string): void {
 async function defaultFetchTarball(url: string): Promise<Buffer> {
   const resp = await fetch(url);
   if (!resp.ok) {
-    throw new Error(`failed to fetch runtime tarball from ${url}: ${resp.status} ${resp.statusText}`);
+    throw new Error(
+      `failed to fetch runtime tarball from ${url}: ${resp.status} ${resp.statusText}`,
+    );
   }
   const ab = await resp.arrayBuffer();
   return Buffer.from(ab);
@@ -245,7 +255,7 @@ export function createPgRuntimeProvider(
 
       const paths = managedPaths(home, pgMajor);
       throw new Error(
-        `managed Postgres runtime not provisioned at ${paths.runtimeRoot} — run \`memoark up\``
+        `managed Postgres runtime not provisioned at ${paths.runtimeRoot} — run \`memoark up\``,
       );
     },
 
@@ -273,7 +283,7 @@ export function createPgRuntimeProvider(
         assetKey = "x64";
       } else {
         throw new Error(
-          `unsupported arch for managed Postgres: ${arch} (mac arm64/x64 only in SP2)`
+          `unsupported arch for managed Postgres: ${arch} (mac arm64/x64 only in SP2)`,
         );
       }
 
@@ -282,7 +292,7 @@ export function createPgRuntimeProvider(
       // 2. Guard against unpinned manifest shas before hitting the network
       if (asset.sha256.startsWith("TODO_PIN_")) {
         throw new Error(
-          `managed Postgres runtime checksum not pinned — build/publish the runtime first (manifest.assets.${assetKey}.sha256 is still a placeholder)`
+          `managed Postgres runtime checksum not pinned — build/publish the runtime first (manifest.assets.${assetKey}.sha256 is still a placeholder)`,
         );
       }
 
@@ -294,7 +304,7 @@ export function createPgRuntimeProvider(
       const actual = createHash("sha256").update(buf).digest("hex");
       if (actual !== asset.sha256) {
         throw new Error(
-          `managed Postgres runtime checksum mismatch for ${asset.file}:\n  expected: ${asset.sha256}\n  actual:   ${actual}\n(re-run with a fresh download or update the manifest)`
+          `managed Postgres runtime checksum mismatch for ${asset.file}:\n  expected: ${asset.sha256}\n  actual:   ${actual}\n(re-run with a fresh download or update the manifest)`,
         );
       }
 

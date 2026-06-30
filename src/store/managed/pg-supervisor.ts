@@ -45,8 +45,7 @@ export interface PgSupervisor {
 export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
   const { runtime, paths } = deps;
   const runner: CommandRunner = deps.runner ?? nodeRunner;
-  const bootstrapUser: string =
-    deps.bootstrapUser ?? process.env.USER ?? userInfo().username;
+  const bootstrapUser: string = deps.bootstrapUser ?? process.env.USER ?? userInfo().username;
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
@@ -110,19 +109,20 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
    * Build a psql argv array for running a single SQL command.
    * All connections go through the UNIX socket (host = socketDir).
    */
-  function psqlArgs(
-    db: string,
-    sql: string,
-    opts: { tuplesOnly?: boolean } = {},
-  ): string[] {
+  function psqlArgs(db: string, sql: string, opts: { tuplesOnly?: boolean } = {}): string[] {
     const psql = join(runtime.bin, "psql");
     const argv = [
       psql,
-      "-h", paths.socketDir,
-      "-p", String(paths.fixedPort),
-      "-U", bootstrapUser,
-      "-d", db,
-      "-v", "ON_ERROR_STOP=1",
+      "-h",
+      paths.socketDir,
+      "-p",
+      String(paths.fixedPort),
+      "-U",
+      bootstrapUser,
+      "-d",
+      db,
+      "-v",
+      "ON_ERROR_STOP=1",
     ];
     if (opts.tuplesOnly) {
       argv.push("-tAc", sql);
@@ -185,10 +185,13 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       const result = await runner.run([
         runtime.pgCtl,
         "start",
-        "-D", paths.pgdata,
-        "-l", logPath,
+        "-D",
+        paths.pgdata,
+        "-l",
+        logPath,
         "-w",
-        "-o", `-p ${paths.fixedPort}`,
+        "-o",
+        `-p ${paths.fixedPort}`,
       ]);
       if (result.code !== 0) {
         throw new Error(
@@ -205,8 +208,10 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       while (Date.now() < deadline) {
         const result = await runner.run([
           runtime.pgIsReady,
-          "-h", paths.socketDir,
-          "-p", String(paths.fixedPort),
+          "-h",
+          paths.socketDir,
+          "-p",
+          String(paths.fixedPort),
         ]);
         if (result.code === 0) return;
         await new Promise<void>((resolve) => setTimeout(resolve, pollIntervalMs));
@@ -226,18 +231,14 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
         ),
       );
       if (roleResult.code !== 0) {
-        throw new Error(
-          `psql CREATE ROLE failed (exit ${roleResult.code}): ${roleResult.stderr}`,
-        );
+        throw new Error(`psql CREATE ROLE failed (exit ${roleResult.code}): ${roleResult.stderr}`);
       }
 
       // (b) Check if the memoark database already exists
       const dbCheckResult = await runner.run(
-        psqlArgs(
-          "postgres",
-          `SELECT 1 FROM pg_database WHERE datname='memoark'`,
-          { tuplesOnly: true },
-        ),
+        psqlArgs("postgres", `SELECT 1 FROM pg_database WHERE datname='memoark'`, {
+          tuplesOnly: true,
+        }),
       );
       if (dbCheckResult.code !== 0) {
         throw new Error(
@@ -282,24 +283,14 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       ].join("\n");
       writeFileSync(hbaPath, finalHba, "utf8");
 
-      const result = await runner.run([
-        runtime.pgCtl,
-        "reload",
-        "-D", paths.pgdata,
-      ]);
+      const result = await runner.run([runtime.pgCtl, "reload", "-D", paths.pgdata]);
       if (result.code !== 0) {
-        throw new Error(
-          `pg_ctl reload failed (exit ${result.code}): ${result.stderr}`,
-        );
+        throw new Error(`pg_ctl reload failed (exit ${result.code}): ${result.stderr}`);
       }
     },
 
     async status(): Promise<"running" | "stopped"> {
-      const result = await runner.run([
-        runtime.pgCtl,
-        "status",
-        "-D", paths.pgdata,
-      ]);
+      const result = await runner.run([runtime.pgCtl, "status", "-D", paths.pgdata]);
       return result.code === 0 ? "running" : "stopped";
     },
 
@@ -308,10 +299,13 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       const startArgv = [
         runtime.pgCtl,
         "start",
-        "-D", paths.pgdata,
-        "-l", logPath,
+        "-D",
+        paths.pgdata,
+        "-l",
+        logPath,
         "-w",
-        "-o", `-p ${paths.fixedPort}`,
+        "-o",
+        `-p ${paths.fixedPort}`,
       ];
 
       const first = await runner.run(startArgv);
@@ -357,9 +351,7 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
       }
 
       // Process is still alive — original error stands
-      throw new Error(
-        `pg_ctl start failed (exit ${first.code}), log=${logPath}: ${first.stderr}`,
-      );
+      throw new Error(`pg_ctl start failed (exit ${first.code}), log=${logPath}: ${first.stderr}`);
     },
 
     async ensureUp(): Promise<void> {
@@ -399,12 +391,7 @@ export function createPgSupervisor(deps: PgSupervisorDeps): PgSupervisor {
 
     async stop(): Promise<void> {
       // Tolerate "not running" — pg_ctl stop returns non-zero when already stopped.
-      await runner.run([
-        runtime.pgCtl,
-        "stop",
-        "-D", paths.pgdata,
-        "-m", "fast",
-      ]);
+      await runner.run([runtime.pgCtl, "stop", "-D", paths.pgdata, "-m", "fast"]);
     },
 
     dispose(): void {

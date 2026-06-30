@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -42,7 +42,14 @@ describe("stopManagedFromState", () => {
     const result = await stopManagedFromState(home, runner);
     expect(result).toBe(true);
     expect(runner.calls).toHaveLength(1);
-    expect(runner.calls[0]).toEqual(["/rt/bin/pg_ctl", "stop", "-D", "/custom/pgdata", "-m", "fast"]);
+    expect(runner.calls[0]).toEqual([
+      "/rt/bin/pg_ctl",
+      "stop",
+      "-D",
+      "/custom/pgdata",
+      "-m",
+      "fast",
+    ]);
   });
 
   it("pg_ctl stop returns non-zero (already stopped) → still returns true, no throw", async () => {

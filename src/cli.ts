@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { planStartup, shouldOpenBrowserOnServe } from "./cli-helpers.js";
+import { createStores, openIdentityStore } from "./cli-stores.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
 import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
@@ -54,10 +55,8 @@ import { type PlannedClient, runInstall, runUninstall } from "./install/index.js
 import { scaffoldSkill } from "./install/skill.js";
 import { down } from "./lifecycle/down.js";
 import { acquireLifecycleLock } from "./lifecycle/lifecycle-lock.js";
-import { stopManagedFromState } from "./store/managed/stop-from-state.js";
 import { runUp } from "./lifecycle/run-up.js";
 import { computeStatus, formatManagedStatus } from "./lifecycle/status.js";
-import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { createApiApp } from "./server/api.js";
 import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -65,8 +64,9 @@ import { createMcpHttpApp } from "./server/mcp-http.js";
 import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
-import { createStores, openIdentityStore } from "./cli-stores.js";
+import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
+import { stopManagedFromState } from "./store/managed/stop-from-state.js";
 import { PersonBehaviorStore } from "./store/person-behavior.js";
 
 function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
@@ -109,7 +109,6 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
     return undefined;
   }
 }
-
 
 const program = new Command();
 

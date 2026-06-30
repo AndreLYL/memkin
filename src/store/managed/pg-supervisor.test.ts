@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeFakeRunner } from "../../daemon/autostart/runner.js";
 import { managedPaths, readManagedState, writeManagedState } from "./pg-paths.js";
-import { createPgSupervisor } from "./pg-supervisor.js";
 import type { RuntimePaths } from "./pg-runtime-provider.js";
+import { createPgSupervisor } from "./pg-supervisor.js";
 
 // Helper: set up a pgdata directory with a PG_VERSION so ensureCluster skips initdb
 function seedPgdata(pgdata: string): void {
@@ -36,13 +36,25 @@ describe("supervisor ensureCluster", () => {
   it("runs initdb on an empty pgdata and writes socket-only conf + temp HBA", async () => {
     const paths = managedPaths(home, "17");
     const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]); // initdb ok
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.ensureCluster();
 
     // initdb invoked with -D pgdata, -U tester, --auth=trust
     expect(runner.calls[0]).toEqual(
-      expect.arrayContaining([`/rt/bin/initdb`, "-D", paths.pgdata, "-U", "tester", "--auth=trust"]),
+      expect.arrayContaining([
+        `/rt/bin/initdb`,
+        "-D",
+        paths.pgdata,
+        "-U",
+        "tester",
+        "--auth=trust",
+      ]),
     );
 
     // socket dir created 0700
@@ -66,7 +78,12 @@ describe("supervisor ensureCluster", () => {
     writeFileSync(join(paths.pgdata, "PG_VERSION"), "17\n", "utf8");
 
     const runner = makeFakeRunner([]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.ensureCluster();
 
@@ -76,7 +93,12 @@ describe("supervisor ensureCluster", () => {
   it("throws actionable error when initdb fails", async () => {
     const paths = managedPaths(home, "17");
     const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "initdb: boom" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await expect(sup.ensureCluster()).rejects.toThrow(/initdb.*boom|boom/i);
   });
@@ -92,7 +114,12 @@ describe("supervisor ensureCluster", () => {
     writeFileSync(join(paths.pgdata, "postgresql.conf"), oldConf, "utf8");
 
     const runner = makeFakeRunner([]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
     await sup.ensureCluster();
 
     const conf = readFileSync(join(paths.pgdata, "postgresql.conf"), "utf8");
@@ -113,7 +140,12 @@ describe("supervisor start()", () => {
     const runner = makeFakeRunner([
       { code: 0, stdout: "", stderr: "" }, // pg_ctl start
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.start();
 
@@ -138,7 +170,12 @@ describe("supervisor start()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "pg_ctl: failed to start" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await expect(sup.start()).rejects.toThrow(/pg_ctl.*start|failed to start/i);
   });
@@ -153,7 +190,12 @@ describe("supervisor waitReady()", () => {
       { code: 1, stdout: "", stderr: "" },
       { code: 0, stdout: "", stderr: "" },
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.waitReady({ pollIntervalMs: 1, timeoutMs: 5000 });
 
@@ -172,10 +214,19 @@ describe("supervisor waitReady()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     // Always returns 1 (not ready)
-    const runner = makeFakeRunner(Array.from({ length: 50 }, () => ({ code: 1, stdout: "", stderr: "" })));
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const runner = makeFakeRunner(
+      Array.from({ length: 50 }, () => ({ code: 1, stdout: "", stderr: "" })),
+    );
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
-    await expect(sup.waitReady({ pollIntervalMs: 1, timeoutMs: 20 })).rejects.toThrow(/timeout|pg_isready/i);
+    await expect(sup.waitReady({ pollIntervalMs: 1, timeoutMs: 20 })).rejects.toThrow(
+      /timeout|pg_isready/i,
+    );
   });
 });
 
@@ -189,7 +240,12 @@ describe("supervisor bootstrapRoles()", () => {
       { code: 0, stdout: "", stderr: "" }, // CREATE DATABASE
       { code: 0, stdout: "", stderr: "" }, // CREATE EXTENSION
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.bootstrapRoles();
 
@@ -241,7 +297,12 @@ describe("supervisor bootstrapRoles()", () => {
       { code: 0, stdout: "1\n", stderr: "" }, // db existence check → db exists
       { code: 0, stdout: "", stderr: "" }, // CREATE EXTENSION
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.bootstrapRoles();
 
@@ -257,7 +318,12 @@ describe("supervisor bootstrapRoles()", () => {
     const runner = makeFakeRunner([
       { code: 1, stdout: "", stderr: "psql: FATAL role creation failed" },
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await expect(sup.bootstrapRoles()).rejects.toThrow(/psql|role creation failed/i);
   });
@@ -273,7 +339,12 @@ describe("supervisor finalizeHba()", () => {
     const runner = makeFakeRunner([
       { code: 0, stdout: "", stderr: "" }, // pg_ctl reload
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.finalizeHba();
 
@@ -297,7 +368,12 @@ describe("supervisor finalizeHba()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "pg_ctl: reload failed" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await expect(sup.finalizeHba()).rejects.toThrow(/reload failed|pg_ctl/i);
   });
@@ -390,7 +466,8 @@ describe("supervisor ensureUp() — warm path (already bootstrapped, running)", 
     seedPgdata(paths.pgdata);
 
     // Write a sentinel final HBA (must NOT be overwritten)
-    const sentinelHba = "# SENTINEL FINAL HBA — must not be overwritten\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
+    const sentinelHba =
+      "# SENTINEL FINAL HBA — must not be overwritten\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
     writeFileSync(join(paths.pgdata, "pg_hba.conf"), sentinelHba, "utf8");
 
     // Pre-write managed state (marks as bootstrapped)
@@ -433,7 +510,8 @@ describe("supervisor HBA security guard", () => {
     seedPgdata(paths.pgdata);
 
     // Write final HBA sentinel
-    const finalHba = "# FINAL HBA\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
+    const finalHba =
+      "# FINAL HBA\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
     writeFileSync(join(paths.pgdata, "pg_hba.conf"), finalHba, "utf8");
 
     // Write state (bootstrapped marker)
@@ -469,7 +547,12 @@ describe("supervisor status()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     const runner = makeFakeRunner([{ code: 0, stdout: "pg_ctl: server is running", stderr: "" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     const result = await sup.status();
 
@@ -484,7 +567,12 @@ describe("supervisor status()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     const runner = makeFakeRunner([{ code: 3, stdout: "pg_ctl: no server running", stderr: "" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     const result = await sup.status();
 
@@ -499,7 +587,12 @@ describe("supervisor restartIfDown()", () => {
     const runner = makeFakeRunner([
       { code: 0, stdout: "", stderr: "" }, // status → running
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     const restarted = await sup.restartIfDown();
 
@@ -515,7 +608,12 @@ describe("supervisor restartIfDown()", () => {
       { code: 0, stdout: "", stderr: "" }, // pg_ctl start
       { code: 0, stdout: "", stderr: "" }, // pg_isready → ready
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     const restarted = await sup.restartIfDown({ pollIntervalMs: 1, timeoutMs: 5000 });
 
@@ -539,12 +637,17 @@ describe("supervisor restartIfDown()", () => {
     writeFileSync(pidFile, `${deadPid}\n`, "utf8");
 
     const runner = makeFakeRunner([
-      { code: 3, stdout: "", stderr: "" },                   // status → stopped
-      { code: 1, stdout: "", stderr: "lock file exists" },   // first pg_ctl start fails
-      { code: 0, stdout: "", stderr: "" },                   // retry pg_ctl start succeeds
-      { code: 0, stdout: "", stderr: "" },                   // pg_isready → ready
+      { code: 3, stdout: "", stderr: "" }, // status → stopped
+      { code: 1, stdout: "", stderr: "lock file exists" }, // first pg_ctl start fails
+      { code: 0, stdout: "", stderr: "" }, // retry pg_ctl start succeeds
+      { code: 0, stdout: "", stderr: "" }, // pg_isready → ready
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     const restarted = await sup.restartIfDown({ pollIntervalMs: 1, timeoutMs: 5000 });
 
@@ -571,9 +674,14 @@ describe("supervisor startWithStaleRecovery()", () => {
 
     const runner = makeFakeRunner([
       { code: 1, stdout: "", stderr: "lock file exists" }, // first start fails
-      { code: 0, stdout: "", stderr: "" },                 // retry start succeeds
+      { code: 0, stdout: "", stderr: "" }, // retry start succeeds
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.startWithStaleRecovery();
 
@@ -593,7 +701,12 @@ describe("supervisor startWithStaleRecovery()", () => {
     const runner = makeFakeRunner([
       { code: 1, stdout: "", stderr: "start failed: unknown reason" },
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await expect(sup.startWithStaleRecovery()).rejects.toThrow(/pg_ctl.*start|start failed/i);
   });
@@ -612,7 +725,12 @@ describe("supervisor startWithStaleRecovery()", () => {
     const runner = makeFakeRunner([
       { code: 1, stdout: "", stderr: "lock file exists" }, // start fails (live pid present)
     ]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     // Must throw — cannot safely start when a live process holds the pid file
     await expect(sup.startWithStaleRecovery()).rejects.toThrow();
@@ -629,7 +747,12 @@ describe("supervisor stop()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     await sup.stop();
 
@@ -647,7 +770,12 @@ describe("supervisor stop()", () => {
     const paths = managedPaths(home, "17");
     seedPgdata(paths.pgdata);
     const runner = makeFakeRunner([{ code: 1, stdout: "", stderr: "pg_ctl: no server running" }]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     // Must not throw
     await expect(sup.stop()).resolves.toBeUndefined();
@@ -659,7 +787,12 @@ describe("supervisor dispose()", () => {
     const paths = managedPaths(home, "17");
     // No runner queued — if dispose calls anything it would throw
     const runner = makeFakeRunner([]);
-    const sup = createPgSupervisor({ runtime: fakeRuntime(), paths, runner, bootstrapUser: "tester" });
+    const sup = createPgSupervisor({
+      runtime: fakeRuntime(),
+      paths,
+      runner,
+      bootstrapUser: "tester",
+    });
 
     // Should not throw, no async, no runner calls
     expect(() => sup.dispose()).not.toThrow();

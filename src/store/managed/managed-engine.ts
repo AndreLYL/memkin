@@ -26,7 +26,10 @@ export interface ProvisionResult {
   pgConfig: Config;
 }
 
-export async function provisionManaged(config: Config, deps: ProvisionDeps): Promise<ProvisionResult> {
+export async function provisionManaged(
+  config: Config,
+  deps: ProvisionDeps,
+): Promise<ProvisionResult> {
   const home = deps.home ?? homedir();
   return withManagedLock(home, async () => {
     const rt = await deps.provider.ensure();

@@ -18,9 +18,7 @@ import type { CommandRunner } from "../daemon/autostart/runner.js";
 import { nodeRunner } from "../daemon/autostart/runner.js";
 import { ADAPTERS, detectInstalledAgents, planInstall, runInstall } from "../install/index.js";
 import { resolveMcpHttpRuntime } from "../server/mcp-http-runtime.js";
-import {
-  provisionManagedForeground as realProvisionManagedForeground,
-} from "../store/managed/managed-engine.js";
+import { provisionManagedForeground as realProvisionManagedForeground } from "../store/managed/managed-engine.js";
 import { managedPaths } from "../store/managed/pg-paths.js";
 import { createPgRuntimeProvider } from "../store/managed/pg-runtime-provider.js";
 import { createPgSupervisor } from "../store/managed/pg-supervisor.js";

@@ -52,7 +52,9 @@ function buildStore(store?: Partial<Config["store"]>): Config["store"] {
   if (engine === "managed") {
     return {
       engine: "managed",
-      ...(store?.managed?.runtime_dir ? { managed: { runtime_dir: store.managed.runtime_dir } } : {}),
+      ...(store?.managed?.runtime_dir
+        ? { managed: { runtime_dir: store.managed.runtime_dir } }
+        : {}),
     };
   }
 

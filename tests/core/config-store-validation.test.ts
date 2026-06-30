@@ -73,9 +73,9 @@ describe("validateStoreConfig", () => {
   });
 
   it("rejects store.managed.runtime_dir empty string", () => {
-    expect(() =>
-      validateStoreConfig({ engine: "managed", managed: { runtime_dir: "" } }),
-    ).toThrow(/runtime_dir/i);
+    expect(() => validateStoreConfig({ engine: "managed", managed: { runtime_dir: "" } })).toThrow(
+      /runtime_dir/i,
+    );
   });
 
   it("rejects unknown engine and message lists managed as supported", () => {

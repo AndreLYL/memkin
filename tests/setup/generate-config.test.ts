@@ -109,9 +109,13 @@ describe("generate setup config", () => {
   });
 
   it("buildConfigObject managed with runtime_dir round-trips through buildStore", () => {
-    const config = buildConfigObject({ store: { engine: "managed", managed: { runtime_dir: "/opt/pg" } } });
+    const config = buildConfigObject({
+      store: { engine: "managed", managed: { runtime_dir: "/opt/pg" } },
+    });
     expect(config.store.engine).toBe("managed");
-    expect((config.store as { managed?: { runtime_dir?: string } }).managed?.runtime_dir).toBe("/opt/pg");
+    expect((config.store as { managed?: { runtime_dir?: string } }).managed?.runtime_dir).toBe(
+      "/opt/pg",
+    );
     expect(config.store.data_dir).toBeUndefined();
     expect(config.store.database_url).toBeUndefined();
   });
@@ -131,7 +135,10 @@ describe("generate setup config", () => {
   });
 
   it("explicit store.engine=pglite is respected even when newInstallEngine=managed", () => {
-    const config = buildConfigObject({ store: { engine: "pglite" } }, { newInstallEngine: "managed" });
+    const config = buildConfigObject(
+      { store: { engine: "pglite" } },
+      { newInstallEngine: "managed" },
+    );
     expect(config.store.engine).toBe("pglite");
     expect(config.store.data_dir).toBe("~/.memoark/data");
   });

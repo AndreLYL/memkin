@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { startRecoveryLoop } from "./recovery-loop.js";
 import type { RecoveryLoopOptions, RecoveryTarget } from "./recovery-loop.js";
+import { startRecoveryLoop } from "./recovery-loop.js";
 
 /**
  * All tests use vi.useFakeTimers() to drive the self-rescheduling setTimeout loop
@@ -18,9 +18,7 @@ afterEach(() => {
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
-function makeTarget(
-  impl: () => Promise<boolean>,
-): RecoveryTarget & { calls: number } {
+function makeTarget(impl: () => Promise<boolean>): RecoveryTarget & { calls: number } {
   const t = {
     calls: 0,
     restartIfDown: async () => {

@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Pool } from "pg";
-import { createPgRuntimeProvider } from "../store/managed/pg-runtime-provider.js";
-import { managedPaths, readManagedState } from "../store/managed/pg-paths.js";
 import type { ManagedStoreConfig } from "../core/config.js";
+import { managedPaths, readManagedState } from "../store/managed/pg-paths.js";
+import { createPgRuntimeProvider } from "../store/managed/pg-runtime-provider.js";
 
 export interface PgCheck {
   connected: boolean;
@@ -94,9 +94,7 @@ export interface CheckManagedDeps {
  *
  * Pure-ish: all side-effects are injectable via `deps`.
  */
-export async function checkManagedPostgres(
-  deps: CheckManagedDeps,
-): Promise<ManagedDoctorCheck[]> {
+export async function checkManagedPostgres(deps: CheckManagedDeps): Promise<ManagedDoctorCheck[]> {
   const { home, managedConfig, fileExists = existsSync } = deps;
   const PG_MAJOR = "17";
   const results: ManagedDoctorCheck[] = [];
@@ -148,14 +146,13 @@ export async function checkManagedPostgres(
     results.push({
       name: "managed-state",
       severity: "ok",
-      message:
-        `Managed state present — pgVersion=${state.pgVersion}, port=${state.fixedPort}, socketDir=${state.socketDir}`,
+      message: `Managed state present — pgVersion=${state.pgVersion}, port=${state.fixedPort}, socketDir=${state.socketDir}`,
     });
   } else {
     results.push({
       name: "managed-state",
       severity: "warn",
-      message: "Managed state not present — not provisioned, run \`memoark up\`",
+      message: "Managed state not present — not provisioned, run `memoark up`",
     });
   }
 

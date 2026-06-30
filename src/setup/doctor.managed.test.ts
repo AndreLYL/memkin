@@ -1,10 +1,4 @@
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -25,16 +19,8 @@ function makeValidRuntime(base: string): string {
     chmodSync(p, 0o755);
   }
   writeFileSync(join(rt, "lib", "postgresql", "vector.dylib"), "", "utf8");
-  writeFileSync(
-    join(rt, "share", "postgresql", "extension", "pg_trgm.control"),
-    "",
-    "utf8",
-  );
-  writeFileSync(
-    join(rt, "share", "postgresql", "extension", "vector.control"),
-    "",
-    "utf8",
-  );
+  writeFileSync(join(rt, "share", "postgresql", "extension", "pg_trgm.control"), "", "utf8");
+  writeFileSync(join(rt, "share", "postgresql", "extension", "vector.control"), "", "utf8");
   return rt;
 }
 

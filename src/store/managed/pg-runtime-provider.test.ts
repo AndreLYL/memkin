@@ -1,12 +1,5 @@
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
 import { createHash } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,7 +41,9 @@ function populateValidRuntime(dir: string): void {
   writeFileSync(join(dir, "share", "postgresql", "extension", "vector.control"), "", "utf8");
 }
 
-beforeEach(() => { root = mkdtempSync(join(tmpdir(), "mk-")); });
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "mk-"));
+});
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
   delete process.env.MEMOARK_PG_RUNTIME_DIR;
@@ -139,9 +134,7 @@ describe("PgRuntimeProvider download path", () => {
 
     // fetch was called exactly once with the correct URL
     expect(fetchTarball).toHaveBeenCalledTimes(1);
-    expect(fetchTarball).toHaveBeenCalledWith(
-      `${manifest.baseUrl}/${manifest.assets.arm64.file}`,
-    );
+    expect(fetchTarball).toHaveBeenCalledWith(`${manifest.baseUrl}/${manifest.assets.arm64.file}`);
 
     // extract was called once
     expect(extract).toHaveBeenCalledTimes(1);
@@ -232,10 +225,7 @@ describe("PgRuntimeProvider verify()", () => {
     process.env.MEMOARK_PG_RUNTIME_DIR = rt;
 
     const fetchTarball = vi.fn();
-    const provider = createPgRuntimeProvider(
-      { home: root, pgMajor: "17" },
-      { fetchTarball },
-    );
+    const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" }, { fetchTarball });
 
     const paths = await provider.verify();
     expect(paths.root).toBe(rt);
@@ -245,10 +235,7 @@ describe("PgRuntimeProvider verify()", () => {
 
   it("verify() throws 'not provisioned' when runtime is absent — no download attempted", async () => {
     const fetchTarball = vi.fn();
-    const provider = createPgRuntimeProvider(
-      { home: root, pgMajor: "17" },
-      { fetchTarball },
-    );
+    const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" }, { fetchTarball });
 
     await expect(provider.verify()).rejects.toThrow(/not provisioned|memoark up/i);
     expect(fetchTarball).not.toHaveBeenCalled();
@@ -260,10 +247,7 @@ describe("PgRuntimeProvider verify()", () => {
     populateValidRuntime(runtimeRoot);
 
     const fetchTarball = vi.fn();
-    const provider = createPgRuntimeProvider(
-      { home: root, pgMajor: "17" },
-      { fetchTarball },
-    );
+    const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" }, { fetchTarball });
 
     const paths = await provider.verify();
     expect(paths.root).toBe(runtimeRoot);

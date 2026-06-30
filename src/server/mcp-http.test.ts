@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createMcpHttpApp } from "./mcp-http.js";
 import type { StoreContext } from "./mcp.js";
+import { createMcpHttpApp } from "./mcp-http.js";
 
 // Minimal stub — /health does not touch stores
 const stubStores = {} as unknown as StoreContext;

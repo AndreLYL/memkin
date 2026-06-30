@@ -6,15 +6,28 @@ import type { Config } from "../../core/config.js";
 import { provisionManaged, provisionManagedForeground } from "./managed-engine.js";
 
 let home: string;
-beforeEach(() => { home = mkdtempSync(join(tmpdir(), "mk-")); });
+beforeEach(() => {
+  home = mkdtempSync(join(tmpdir(), "mk-"));
+});
 afterEach(() => rmSync(home, { recursive: true, force: true }));
 
-const fakeRuntime = { pgMajor: "17", root: "/rt", bin: "/rt/bin", postgres: "/rt/bin/postgres", pgCtl: "/rt/bin/pg_ctl", initdb: "/rt/bin/initdb", createdb: "/rt/bin/createdb", pgIsReady: "/rt/bin/pg_isready", libDir: "/rt/lib", extensionDir: "/rt/ext" };
+const fakeRuntime = {
+  pgMajor: "17",
+  root: "/rt",
+  bin: "/rt/bin",
+  postgres: "/rt/bin/postgres",
+  pgCtl: "/rt/bin/pg_ctl",
+  initdb: "/rt/bin/initdb",
+  createdb: "/rt/bin/createdb",
+  pgIsReady: "/rt/bin/pg_isready",
+  libDir: "/rt/lib",
+  extensionDir: "/rt/ext",
+};
 
 /** Minimal stub that satisfies the full ManagedSupervisor interface. */
 function stubSupervisor(overrides: Partial<{ ensureUp: () => Promise<void> }> = {}) {
   return {
-    ensureUp: overrides.ensureUp ?? async function() {},
+    ensureUp: overrides.ensureUp ?? (async () => {}),
     status: async () => "running" as const,
     restartIfDown: async () => false,
     dispose: () => {},
@@ -26,7 +39,11 @@ function makeDeps(spy: { ensured: boolean }) {
     home,
     provider: { ensure: async () => fakeRuntime },
     makeSupervisor: (_rt: unknown, _home: string) =>
-      stubSupervisor({ ensureUp: async () => { spy.ensured = true; } }),
+      stubSupervisor({
+        ensureUp: async () => {
+          spy.ensured = true;
+        },
+      }),
   };
 }
 
@@ -53,12 +70,25 @@ describe("provisionManaged", () => {
   });
 
   it("runs ensure + ensureUp inside the managed lock (serialized)", async () => {
-    const cfg = { embedding: { dimensions: 768 }, store: { engine: "managed" } } as unknown as Config;
+    const cfg = {
+      embedding: { dimensions: 768 },
+      store: { engine: "managed" },
+    } as unknown as Config;
     const order: string[] = [];
     const deps = {
       home,
-      provider: { ensure: async () => { order.push("ensure"); return fakeRuntime; } },
-      makeSupervisor: () => stubSupervisor({ ensureUp: async () => { order.push("ensureUp"); } }),
+      provider: {
+        ensure: async () => {
+          order.push("ensure");
+          return fakeRuntime;
+        },
+      },
+      makeSupervisor: () =>
+        stubSupervisor({
+          ensureUp: async () => {
+            order.push("ensureUp");
+          },
+        }),
     };
     await provisionManaged(cfg, deps);
     expect(order).toEqual(["ensure", "ensureUp"]);

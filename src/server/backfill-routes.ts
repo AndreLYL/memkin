@@ -1,5 +1,5 @@
-import { homedir } from "os";
-import { join } from "path";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Hono } from "hono";
 import { createFeishuCollector } from "../collectors/feishu/index.js";
 import { loadConfig } from "../core/config.js";

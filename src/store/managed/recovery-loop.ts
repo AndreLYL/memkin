@@ -56,7 +56,7 @@ export function startRecoveryLoop(
   function currentDelay(): number {
     if (consecutiveFailures === 0) return intervalMs;
     // 2^(consecutiveFailures-1) * intervalMs, capped
-    const backoff = intervalMs * Math.pow(2, consecutiveFailures - 1);
+    const backoff = intervalMs * 2 ** (consecutiveFailures - 1);
     return Math.min(backoff, maxIntervalMs);
   }
 
@@ -81,10 +81,7 @@ export function startRecoveryLoop(
       consecutiveFailures++;
       opts.onError?.(err, consecutiveFailures);
 
-      if (
-        consecutiveFailures === maxConsecutiveFailures &&
-        !fatalFired
-      ) {
+      if (consecutiveFailures === maxConsecutiveFailures && !fatalFired) {
         fatalFired = true;
         opts.onFatal?.(consecutiveFailures);
       }

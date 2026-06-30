@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveDb, createStores, defaultManagedDeps } from "./cli-stores.js";
+import { createStores, defaultManagedDeps, resolveDb } from "./cli-stores.js";
 import type { LoadedConfig } from "./core/config.js";
 import type { ManagedSupervisor } from "./store/managed/managed-engine.js";
 import type { RuntimePaths } from "./store/managed/pg-runtime-provider.js";
@@ -16,14 +16,18 @@ function makeExecutorStub() {
       get(_t, prop) {
         if (prop === "query") return async () => ({ rows: [] });
         if (prop === "exec") return async () => {};
-        if (prop === "transaction") return async (fn: (c: unknown) => Promise<unknown>) => fn({
-          query: async () => ({ rows: [] }),
-          exec: async () => {},
-        });
-        if (prop === "bootstrap") return async (fn: (c: unknown) => Promise<void>) => fn({
-          query: async () => ({ rows: [] }),
-          exec: async () => {},
-        });
+        if (prop === "transaction")
+          return async (fn: (c: unknown) => Promise<unknown>) =>
+            fn({
+              query: async () => ({ rows: [] }),
+              exec: async () => {},
+            });
+        if (prop === "bootstrap")
+          return async (fn: (c: unknown) => Promise<void>) =>
+            fn({
+              query: async () => ({ rows: [] }),
+              exec: async () => {},
+            });
         if (prop === "close") return async () => {};
         return undefined;
       },

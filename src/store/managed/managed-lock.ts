@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const LOCK_TIMEOUT_MS = 10_000;
@@ -14,7 +14,7 @@ function isProcessAlive(pid: number): boolean {
     return true;
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
-    if (e.code === "EPERM") return true;  // process exists, no permission to signal
+    if (e.code === "EPERM") return true; // process exists, no permission to signal
     if (e.code === "ESRCH") return false; // no such process
     return false;
   }

@@ -1,23 +1,23 @@
 import { mkdirSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
 import { homedir } from "node:os";
+import { isAbsolute, resolve } from "node:path";
 import type { Config, LoadedConfig } from "./core/config.js";
-import { Database } from "./store/database.js";
+import { PersonIdentityStore } from "./core/person-identity.js";
+import { nodeRunner } from "./daemon/autostart/runner.js";
 import { ChunkStore } from "./store/chunks.js";
+import { Database } from "./store/database.js";
 import { EmbeddingService } from "./store/embedding.js";
 import { GraphStore } from "./store/graph.js";
+import type { ManagedSupervisor } from "./store/managed/managed-engine.js";
+import { provisionManaged } from "./store/managed/managed-engine.js";
+import { managedPaths } from "./store/managed/pg-paths.js";
+import { createPgRuntimeProvider } from "./store/managed/pg-runtime-provider.js";
+import { createPgSupervisor } from "./store/managed/pg-supervisor.js";
 import { PageStore } from "./store/pages.js";
 import { PersonBehaviorStore } from "./store/person-behavior.js";
-import { PersonIdentityStore } from "./core/person-identity.js";
 import { SearchEngine } from "./store/search.js";
 import { TagStore } from "./store/tags.js";
 import { TimelineStore } from "./store/timeline.js";
-import type { ManagedSupervisor } from "./store/managed/managed-engine.js";
-import { provisionManaged } from "./store/managed/managed-engine.js";
-import { createPgRuntimeProvider } from "./store/managed/pg-runtime-provider.js";
-import { createPgSupervisor } from "./store/managed/pg-supervisor.js";
-import { managedPaths } from "./store/managed/pg-paths.js";
-import { nodeRunner } from "./daemon/autostart/runner.js";
 
 // Re-export the type so callers can import from one place.
 export type { ManagedSupervisor };
@@ -105,7 +105,10 @@ export function defaultManagedDeps(config: Config) {
       pgMajor: "17",
       runtimeDir: config.store?.managed?.runtime_dir,
     }),
-    makeSupervisor: (rt: import("./store/managed/pg-runtime-provider.js").RuntimePaths, h: string) =>
+    makeSupervisor: (
+      rt: import("./store/managed/pg-runtime-provider.js").RuntimePaths,
+      h: string,
+    ) =>
       createPgSupervisor({
         runtime: rt,
         paths: managedPaths(h, rt.pgMajor),
@@ -121,10 +124,7 @@ async function defaultProvision(
   config: Config,
   deps: unknown,
 ): Promise<{ supervisor: ManagedSupervisor; pgConfig: Config }> {
-  return provisionManaged(
-    config,
-    deps as Parameters<typeof provisionManaged>[1],
-  );
+  return provisionManaged(config, deps as Parameters<typeof provisionManaged>[1]);
 }
 
 // ---------------------------------------------------------------------------
