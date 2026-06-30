@@ -7,11 +7,3 @@ export function usePages(opts?: { type?: string; limit?: number; sort?: string; 
     queryFn: () => api.pages(opts),
   });
 }
-
-export function usePageBySlug(slug: string) {
-  return useQuery({
-    queryKey: ["page", slug],
-    queryFn: () => api.pageBySlug(slug),
-    enabled: !!slug,
-  });
-}
