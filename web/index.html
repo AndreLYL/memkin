@@ -4,8 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Memoark</title>
+    <script>
+      // Set theme before paint to avoid dark-mode flash. Newsreader is
+      // self-hosted via @font-face in theme.css — do NOT add a font <link> here.
+      document.documentElement.dataset.theme =
+        localStorage.getItem("memoark-theme") ?? "light";
+    </script>
   </head>
-  <body class="bg-[#06060f] text-gray-200 min-h-screen">
+  <body class="min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
