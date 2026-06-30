@@ -49,7 +49,7 @@ export function Dashboard() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-semibold text-fg-default">Dashboard</h1>
+        <h1 className="text-xl font-semibold font-serif text-fg-default">Dashboard</h1>
         <button
           onClick={() => syncMutation.mutate()}
           disabled={syncMutation.isPending}
@@ -108,7 +108,7 @@ export function Dashboard() {
             <h2 className="text-xs uppercase tracking-widest text-fg-subtle">Top Entities</h2>
             <Link to="/entities" className="text-xs text-accent hover:underline">View all →</Link>
           </div>
-          <div className="bg-bg-surface border border-border-default rounded-xl p-4 space-y-3">
+          <div className="bg-bg-surface rounded-xl p-4 space-y-3 shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
             {topEntities?.map((page) => (
               <Link
                 key={page.slug}

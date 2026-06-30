@@ -52,14 +52,14 @@ export function GroupSelection({ config, onUpdate, onNext, onBack }: StepProps) 
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold text-fg-default">Select Group Chats</h2>
+      <h2 className="font-serif text-xl font-bold text-fg-default">Select Group Chats</h2>
       <p className="text-sm text-fg-muted">Choose which group chats to extract messages from.</p>
 
       {!groups && !manualMode && (
         <button
           onClick={fetchGroups}
           disabled={loading}
-          className="self-start rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="self-start rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {loading ? "Fetching..." : "Fetch My Group List"}
         </button>
@@ -103,14 +103,14 @@ export function GroupSelection({ config, onUpdate, onNext, onBack }: StepProps) 
       )}
 
       {!manualMode && (
-        <button onClick={() => setManualMode(true)} className="self-start text-xs text-blue-600 underline">
+        <button type="button" onClick={() => setManualMode(true)} className="self-start text-xs text-accent underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
           Enter Group IDs manually instead
         </button>
       )}
 
       <div className="flex justify-between pt-2">
         {onBack && <button onClick={onBack} className="rounded border border-border-default px-4 py-2 text-sm text-fg-default hover:bg-bg-subtle">← Back</button>}
-        <button onClick={onNext} className="ml-auto rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Next →</button>
+        <button onClick={onNext} className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">Next →</button>
       </div>
     </div>
   );

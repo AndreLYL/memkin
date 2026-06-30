@@ -23,7 +23,7 @@ export function SecretInput({ id, label, value, onChange, placeholder, required 
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 rounded border border-border-default bg-bg-default px-3 py-1.5 text-sm text-fg-default focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 rounded border border-border-default bg-bg-default px-3 py-1.5 text-sm text-fg-default focus:outline-none focus:ring-2 focus:ring-accent"
         />
         <button
           type="button"

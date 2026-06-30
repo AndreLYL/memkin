@@ -74,7 +74,7 @@ export function AutoFetchSection({ config, onSave }: Props) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="shrink-0 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="shrink-0 rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {saving ? "Saving…" : "Save"}
         </button>

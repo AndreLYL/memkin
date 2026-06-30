@@ -168,9 +168,10 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
       <div className="flex items-center justify-between">
         <h3 className="text-base font-semibold text-fg-default">数据来源</h3>
         <button
+          type="button"
           onClick={save}
           disabled={saving}
-          className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {saving ? "保存中…" : "保存"}
         </button>
@@ -181,10 +182,11 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
         <p className="text-sm font-medium text-fg-default">抓取范围模式</p>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => handleModeChange("autonomous")}
             className={`flex-1 rounded border px-4 py-3 text-left text-sm transition-colors ${
               mode === "autonomous"
-                ? "border-blue-500 bg-blue-50 text-blue-700"
+                ? "border-accent bg-bg-overlay text-accent"
                 : "border-border-default bg-bg-default text-fg-default hover:bg-bg-subtle"
             }`}
           >
@@ -194,10 +196,11 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
             </p>
           </button>
           <button
+            type="button"
             onClick={() => handleModeChange("curated")}
             className={`flex-1 rounded border px-4 py-3 text-left text-sm transition-colors ${
               mode === "curated"
-                ? "border-blue-500 bg-blue-50 text-blue-700"
+                ? "border-accent bg-bg-overlay text-accent"
                 : "border-border-default bg-bg-default text-fg-default hover:bg-bg-subtle"
             }`}
           >
@@ -262,9 +265,10 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
 
               {!groups && !manualMode && (
                 <button
+                  type="button"
                   onClick={fetchGroups}
                   disabled={groupsLoading}
-                  className="self-start rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="self-start rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   {groupsLoading ? "获取中…" : "获取群列表"}
                 </button>
@@ -321,8 +325,9 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
 
               {!manualMode && (
                 <button
+                  type="button"
                   onClick={() => setManualMode(true)}
-                  className="self-start text-xs text-blue-600 underline"
+                  className="self-start text-xs text-accent underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   手动输入群 ID
                 </button>

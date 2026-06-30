@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { Shell } from "./components/layout/shell";
 import { Dashboard } from "./pages/dashboard";
 import { EntityDetail } from "./pages/EntityDetail";
-import { PageDetail } from "./pages/page-detail";
+import { LegacyPageRedirect } from "./components/page/LegacyPageRedirect";
 import { PageList } from "./pages/page-list";
 import { GraphPage } from "./pages/graph";
 import { SearchPage } from "./pages/search";
@@ -22,9 +22,9 @@ export const router = createBrowserRouter([
       { path: "fetch", element: <FetchPage /> },
       { path: "graph", element: <GraphPage /> },
       { path: "entity/*", element: <EntityDetail /> },
-      { path: "entities", element: <Navigate to="/pages" replace /> },
-      { path: "pages", element: <PageList /> },
-      { path: "pages/*", element: <PageDetail /> },
+      { path: "entities", element: <PageList /> },
+      { path: "pages", element: <Navigate to="/entities" replace /> },
+      { path: "pages/*", element: <LegacyPageRedirect /> },
       { path: "search", element: <SearchPage /> },
     ],
   },

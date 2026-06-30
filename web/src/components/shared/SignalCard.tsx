@@ -24,7 +24,7 @@ export function SignalCard({ slug, type, title, snippet, date, platform }: Signa
   return (
     <Link
       to={`/entity/${encodeURIComponent(slug)}`}
-      className="block p-3 rounded-lg border border-border-default hover:border-border-muted bg-bg-surface hover:bg-bg-overlay transition-colors"
+      className="block p-3 rounded-xl bg-bg-surface hover:bg-bg-overlay shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] hover:-translate-y-0.5 transition"
     >
       <div className="flex items-center gap-2 mb-1">
         <EntityBadge type={type} clickable={false} />

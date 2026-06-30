@@ -1,30 +1,109 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Tailwind v4 data-attribute dark mode: make `dark:` utilities follow our
+   <html data-theme="dark"> toggle instead of the OS prefers-color-scheme.
+   https://tailwindcss.com/docs/dark-mode#using-a-data-attribute */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Display serif (Claude-style warm serif), self-hosted — woff2 committed under src/fonts. */
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../fonts/newsreader.woff2") format("woff2");
+}
+
+/* ============================================================
+   Memoark — warm-light redesign theme
+   Terracotta accent · Notion density · Apple whitespace
+   ============================================================ */
 
 @theme {
-  /* Background layers */
-  --color-bg-canvas: #0d1117;
-  --color-bg-surface: #161b22;
-  --color-bg-overlay: #1c2128;
-  --color-bg-inset: #010409;
+  /* ---- Background layers (warm light) ---- */
+  --color-bg-canvas: #faf8f5;   /* app background      */
+  --color-bg-surface: #ffffff;  /* cards / panels      */
+  --color-bg-overlay: #f5f2ec;  /* hover / raised      */
+  --color-bg-inset: #efebe3;    /* wells / sidebar bg  */
+  --color-bg-subtle: #efebe3;   /* subtle well / progress track (= inset tone) */
+  --color-bg-default: #ffffff;  /* form input surface */
 
-  /* Borders */
-  --color-border-default: #21262d;
-  --color-border-muted: #30363d;
+  /* ---- Borders ---- */
+  --color-border-default: #ece7df;
+  --color-border-muted: #e0d9cd;
 
-  /* Foreground */
-  --color-fg-default: #f0f6fc;
-  --color-fg-muted: #8b949e;
-  --color-fg-subtle: #484f58;
+  /* ---- Foreground ---- */
+  --color-fg-default: #2a2521;
+  --color-fg-muted: #6f675d;
+  --color-fg-subtle: #a59b8e;
 
-  /* Entity type accent colors */
-  --color-person: #58a6ff;
-  --color-project: #a371f7;
-  --color-decision: #3fb950;
-  --color-knowledge: #d29922;
-  --color-task: #f778ba;
-  --color-session: #79c0ff;
+  /* ---- Entity type accents (desaturated) ---- */
+  --color-person: #4f7cac;
+  --color-project: #8a6fa8;
+  --color-decision: #5e8c61;
+  --color-knowledge: #bf8c3e;
+  --color-task: #b5677e;
+  --color-session: #5e8aa6;
 
-  /* Interactive */
-  --color-accent: #58a6ff;
-  --color-accent-muted: #1f6feb;
+  /* ---- Interactive / brand ---- */
+  --color-accent: #c2613d;        /* terracotta            */
+  --color-accent-muted: #b35734;  /* hover / pressed accent */
+
+  /* ---- Radii ---- */
+  --radius-sm: 9px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+
+  /* ---- Type ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+}
+
+/* Base resets — body bg + font, replaces the stray #06060f in index.html */
+@layer base {
+  html, body {
+    background-color: var(--color-bg-canvas);
+    color: var(--color-fg-default);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+}
+
+/* ============================================================
+   Dark theme (warm). Activate by setting data-theme="dark" on
+   <html> (persist the user's choice in a Settings switch).
+   These override the @theme-generated --color-* vars, so every
+   `bg-bg-canvas / text-fg-default / …` utility flips automatically.
+   ============================================================ */
+:root[data-theme="dark"] {
+  --color-bg-canvas: #1a1714;
+  --color-bg-surface: #221e1a;
+  --color-bg-overlay: #1f1b17;
+  --color-bg-inset: #14110e;
+  --color-bg-subtle: #14110e;
+  --color-bg-default: #221e1a;
+
+  --color-border-default: #322d27;
+  --color-border-muted: #423b33;
+
+  --color-fg-default: #f1ece4;
+  --color-fg-muted: #a89e92;
+  --color-fg-subtle: #6f655b;
+
+  --color-person: #6fa0d3;
+  --color-project: #ad93cb;
+  --color-decision: #7cb481;
+  --color-knowledge: #d8ab5e;
+  --color-task: #d2879c;
+  --color-session: #7cacc7;
+
+  --color-accent: #d4754f;
+  --color-accent-muted: #e08862;
+
+  color-scheme: dark;
 }

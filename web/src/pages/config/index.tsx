@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { ConfigDiagnostic, DaemonStatus, WizardConfig } from "../../api/config";
 import { configApi } from "../../api/config";
 import { AutoFetchSection } from "../fetch/sections/AutoFetchSection";
@@ -45,13 +46,17 @@ function DaemonBanner({ status }: { status: DaemonStatus | undefined }) {
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-lg border border-border-default bg-bg-default">
+    <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left"
+        className="flex w-full items-center justify-between px-5 py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="font-semibold text-fg-default">{title}</span>
-        <span className="text-fg-muted">{open ? "▲" : "▼"}</span>
+        <span className="font-serif font-semibold text-fg-default">{title}</span>
+        {open
+          ? <ChevronUp size={16} strokeWidth={1.75} className="text-fg-muted" />
+          : <ChevronDown size={16} strokeWidth={1.75} className="text-fg-muted" />
+        }
       </button>
       {open && <div className="border-t border-border-default px-5 py-4">{children}</div>}
     </div>
@@ -96,7 +101,7 @@ export function ConfigPage() {
   return (
     <div className="min-h-screen bg-bg-canvas px-4 py-10">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-fg-default mb-6">Configuration</h1>
+        <h1 className="font-serif text-2xl font-bold text-fg-default mb-6">Configuration</h1>
 
         <DaemonBanner status={daemonStatus} />
 

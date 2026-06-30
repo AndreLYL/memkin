@@ -19,7 +19,7 @@ export function PathInput({ id, label, value, onChange, defaultHint, optional }:
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={defaultHint}
-        className="rounded border border-border-default bg-bg-default px-3 py-1.5 text-sm text-fg-default placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="rounded border border-border-default bg-bg-default px-3 py-1.5 text-sm text-fg-default placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent"
       />
       {defaultHint && !value && (
         <p className="text-xs text-fg-muted">Default: {defaultHint}</p>

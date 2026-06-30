@@ -20,7 +20,7 @@ export function EmbeddingConfig({ config, onUpdate, onNext, onBack }: StepProps)
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold text-fg-default">Embedding Configuration</h2>
+      <h2 className="font-serif text-xl font-bold text-fg-default">Embedding Configuration</h2>
 
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium text-fg-default">Provider</label>
@@ -67,7 +67,7 @@ export function EmbeddingConfig({ config, onUpdate, onNext, onBack }: StepProps)
 
       <div className="flex justify-between pt-2">
         {onBack && <button onClick={onBack} className="rounded border border-border-default px-4 py-2 text-sm text-fg-default hover:bg-bg-subtle">← Back</button>}
-        <button onClick={onNext} className="ml-auto rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Next →</button>
+        <button onClick={onNext} className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">Next →</button>
       </div>
     </div>
   );

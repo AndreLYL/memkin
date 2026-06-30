@@ -51,7 +51,7 @@ export function ChannelRefreshSection() {
   const progressDone = (status?.resolved ?? 0) + (status?.failed ?? 0) + (status?.skipped ?? 0);
 
   return (
-    <div className="rounded-lg border border-border-default bg-bg-default p-4">
+    <div className="rounded-xl bg-bg-surface p-4 shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
       <h3 className="font-semibold text-fg-default">群名 / 私聊名解析</h3>
       <div className="mt-2 text-sm text-fg-muted">上次刷新：{lastRefreshLabel}</div>
       {status && status.state === "running" && (
@@ -59,7 +59,7 @@ export function ChannelRefreshSection() {
           <div>正在解析 {status.currentChannel ?? "..."}</div>
           <div className="mt-1 h-2 w-full rounded bg-bg-subtle">
             <div
-              className="h-full rounded bg-blue-600 transition-all"
+              className="h-full rounded bg-accent transition-all"
               style={{
                 width: `${status.total > 0 ? (progressDone / status.total) * 100 : 0}%`,
               }}
@@ -93,7 +93,7 @@ export function ChannelRefreshSection() {
         type="button"
         onClick={handleRefresh}
         disabled={status?.state === "running"}
-        className="mt-3 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        className="mt-3 rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       >
         {status?.state === "running"
           ? "刷新中…"

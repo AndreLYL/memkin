@@ -1,10 +1,18 @@
 import { useParams, useNavigate, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "../api/client";
 import { SignalCard } from "../components/shared/SignalCard";
 import { EmptyState } from "../components/shared/EmptyState";
 import { EntityBadge } from "../components/shared/EntityBadge";
 import { useState } from "react";
+import { useTags } from "../hooks/use-tags";
+import { useLinks, useBacklinks } from "../hooks/use-links";
+import { useTimeline } from "../hooks/use-timeline";
+import { parseFrontmatter, stripFrontmatter } from "../lib/frontmatter";
+import { LinksSection } from "../components/shared/links-section";
+import { ChunksSection } from "../components/shared/chunks-section";
 
 const TYPE_LABELS: Record<string, string> = {
   person: "Person",
@@ -24,7 +32,10 @@ const TYPE_LABELS: Record<string, string> = {
 
 type Section =
   | "overview"
+  | "content"
   | "timeline"
+  | "links"
+  | "chunks"
   | "graph"
   | "decisions"
   | "tasks"
@@ -33,13 +44,13 @@ type Section =
 function getSections(type: string): Section[] {
   switch (type) {
     case "project":
-      return ["overview", "tasks", "timeline", "graph", "decisions", "knowledge"];
+      return ["overview", "content", "tasks", "timeline", "links", "graph", "decisions", "knowledge", "chunks"];
     case "tool":
-      return ["overview", "knowledge", "timeline", "graph", "decisions", "tasks"];
+      return ["overview", "content", "knowledge", "timeline", "links", "graph", "decisions", "tasks", "chunks"];
     case "concept":
-      return ["overview", "decisions", "knowledge", "timeline", "graph", "tasks"];
+      return ["overview", "content", "decisions", "knowledge", "timeline", "links", "graph", "tasks", "chunks"];
     default:
-      return ["overview", "timeline", "graph", "decisions", "tasks", "knowledge"];
+      return ["overview", "content", "timeline", "links", "graph", "decisions", "tasks", "knowledge", "chunks"];
   }
 }
 
@@ -65,6 +76,16 @@ export function EntityDetail() {
     enabled: slug.length > 0 && activeSection === "graph",
   });
 
+  const { data: tags } = useTags(slug);
+  const { data: outLinks } = useLinks(slug);
+  const { data: backLinks } = useBacklinks(slug);
+  const { data: timelineFull } = useTimeline(slug);
+  const { data: chunks } = useQuery({
+    queryKey: ["chunks", slug],
+    queryFn: () => api.chunks(slug),
+    enabled: slug.length > 0 && activeSection === "chunks",
+  });
+
   if (isLoading)
     return (
       <div className="text-fg-muted text-center py-16">Loading...</div>
@@ -83,7 +104,7 @@ export function EntityDetail() {
   const sections = getSections(type);
   const links = (entity as any).links ?? [];
   const backlinks = (entity as any).backlinks ?? [];
-  const timelineEntries = (entity as any).timeline ?? [];
+  const timelineEntries: any[] = (entity as any).timeline ?? [];
   const mentionCount = backlinks.length;
 
   const relatedByType = (targetType: string) =>
@@ -114,19 +135,26 @@ export function EntityDetail() {
     ...backlinksByType("knowledge"),
   ];
 
+  const sortedTimeline = [...((timelineFull ?? timelineEntries) as any[])].sort(
+    (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
+
+  const frontmatter = parseFrontmatter(entity.compiled_truth ?? "");
+  const contentBody = stripFrontmatter(entity.compiled_truth ?? "");
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <button
           onClick={() => navigate(-1)}
-          className="text-sm text-fg-subtle hover:text-fg-default mb-3 inline-flex items-center gap-1"
+          className="text-sm text-fg-subtle hover:text-fg-default mb-3 inline-flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           ← Back
         </button>
         <div className="flex items-start gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-fg-default">
+            <h1 className="text-2xl font-bold font-serif text-fg-default">
               {entity.title ?? slug}
             </h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-fg-subtle">
@@ -134,10 +162,21 @@ export function EntityDetail() {
               <span>
                 {mentionCount} mention{mentionCount !== 1 ? "s" : ""}
               </span>
-              <span>
-                First seen: {new Date(entity.created_at).toLocaleDateString()}
-              </span>
+              <span>First seen: {new Date(entity.created_at).toLocaleDateString()}</span>
+              <span>Updated: {new Date(entity.updated_at).toLocaleDateString()}</span>
             </div>
+            {tags && tags.length > 0 && (
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[11px] text-fg-muted bg-bg-overlay border border-border-default rounded px-2 py-0.5"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -149,7 +188,7 @@ export function EntityDetail() {
             <button
               key={s}
               onClick={() => setActiveSection(s)}
-              className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
+              className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
                 activeSection === s
                   ? "bg-bg-overlay text-fg-default font-medium"
                   : "text-fg-subtle hover:text-fg-default hover:bg-bg-surface"
@@ -173,20 +212,20 @@ export function EntityDetail() {
                 </p>
               )}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-bg-surface border border-border-default rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-fg-default">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3 text-center">
+                  <div className="text-lg font-bold font-serif text-fg-default">
                     {mentionCount}
                   </div>
                   <div className="text-xs text-fg-subtle">Mentions</div>
                 </div>
-                <div className="bg-bg-surface border border-border-default rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-fg-default">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3 text-center">
+                  <div className="text-lg font-bold font-serif text-fg-default">
                     {links.length}
                   </div>
                   <div className="text-xs text-fg-subtle">Links</div>
                 </div>
-                <div className="bg-bg-surface border border-border-default rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-fg-default">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3 text-center">
+                  <div className="text-lg font-bold font-serif text-fg-default">
                     {timelineEntries.length}
                   </div>
                   <div className="text-xs text-fg-subtle">Timeline</div>
@@ -195,29 +234,68 @@ export function EntityDetail() {
             </div>
           )}
 
+          {activeSection === "content" && (
+            <div className="space-y-4">
+              <article className="prose dark:prose-invert prose-sm max-w-none bg-bg-surface rounded-xl p-5">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentBody}</ReactMarkdown>
+              </article>
+              {Object.keys(frontmatter).length > 0 && (
+                <div className="bg-bg-surface rounded-xl p-4">
+                  <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-widest mb-3">
+                    Frontmatter
+                  </div>
+                  <div className="font-mono text-[11px] text-fg-muted space-y-1">
+                    {Object.entries(frontmatter).map(([k, v]) => (
+                      <div key={k}>
+                        <span className="text-accent">{k}:</span> {String(v)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeSection === "timeline" && (
             <div className="space-y-3">
-              {timelineEntries.length === 0 ? (
-                <EmptyState
-                  title="No timeline"
-                  description="No timeline entries for this entity"
-                />
+              {sortedTimeline.length === 0 ? (
+                <EmptyState title="No timeline" description="No timeline entries for this entity" />
               ) : (
-                timelineEntries.map((entry: any, i: number) => (
-                  <div
-                    key={i}
-                    className="border border-border-default rounded-lg p-3 bg-bg-surface"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-fg-subtle">
-                        {new Date(entry.date).toLocaleDateString()}
-                      </span>
+                sortedTimeline.map((entry: any, i: number) => (
+                  <div key={i} className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3">
+                    <div className="text-xs text-fg-subtle mb-1">
+                      {new Date(entry.date).toLocaleDateString()}
                     </div>
                     <p className="text-sm text-fg-default">{entry.summary}</p>
+                    {entry.detail && (
+                      <details className="mt-1">
+                        <summary className="text-[11px] text-accent cursor-pointer">Detail</summary>
+                        <div className="text-xs text-fg-muted mt-1 whitespace-pre-wrap">
+                          {entry.detail}
+                        </div>
+                      </details>
+                    )}
+                    {entry.source && (
+                      <div className="text-[10px] text-fg-subtle mt-2">Source: {entry.source}</div>
+                    )}
                   </div>
                 ))
               )}
             </div>
+          )}
+
+          {activeSection === "links" && (
+            <LinksSection outgoing={outLinks ?? []} incoming={backLinks ?? []} />
+          )}
+
+          {activeSection === "chunks" && (
+            <>
+              {chunks ? (
+                <ChunksSection chunks={chunks} />
+              ) : (
+                <div className="text-fg-muted text-center py-4">Loading chunks...</div>
+              )}
+            </>
           )}
 
           {activeSection === "graph" && (
@@ -234,7 +312,7 @@ export function EntityDetail() {
                 </Link>
               </div>
               {graphData ? (
-                <div className="border border-border-default rounded-lg p-4 bg-bg-surface">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-4">
                   <div className="text-sm text-fg-default mb-2">
                     {(graphData.nodes as any[])?.length ?? 0} connected nodes,{" "}
                     {(graphData.edges as any[])?.length ?? 0} edges

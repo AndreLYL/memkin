@@ -21,7 +21,7 @@ export function ToggleSwitch({ id, label, checked, onChange, description }: Togg
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          checked ? "bg-blue-500" : "bg-gray-300"
+          checked ? "bg-accent" : "bg-border-muted"
         }`}
       >
         <span

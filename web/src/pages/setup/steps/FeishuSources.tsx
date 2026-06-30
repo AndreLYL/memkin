@@ -26,10 +26,10 @@ export function FeishuSources({ config, onUpdate, onNext, onBack }: StepProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-xl font-bold text-fg-default">Feishu Data Sources</h2>
+      <h2 className="font-serif text-xl font-bold text-fg-default">Feishu Data Sources</h2>
       <p className="text-sm text-fg-muted">Choose which Feishu data types to extract.</p>
 
-      <div className="divide-y divide-border-default rounded border border-border-default px-4">
+      <div className="divide-y divide-border-default rounded-xl bg-bg-surface px-4 shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
         {SOURCE_LIST.map(({ key, label, description }) => (
           <ToggleSwitch
             key={key}
@@ -44,7 +44,7 @@ export function FeishuSources({ config, onUpdate, onNext, onBack }: StepProps) {
 
       <div className="flex justify-between pt-2">
         {onBack && <button onClick={onBack} className="rounded border border-border-default px-4 py-2 text-sm text-fg-default hover:bg-bg-subtle">← Back</button>}
-        <button onClick={onNext} className="ml-auto rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Next →</button>
+        <button onClick={onNext} className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">Next →</button>
       </div>
     </div>
   );
