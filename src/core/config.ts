@@ -125,13 +125,23 @@ export interface SourcesConfig {
 }
 
 /**
+ * Managed postgres sub-configuration (engine: managed).
+ * The database_url is derived at runtime; no explicit URL is needed.
+ */
+export interface ManagedStoreConfig {
+  // override for the Postgres runtime root (binaries + extensions); same as MEMOARK_PG_RUNTIME_DIR
+  runtime_dir?: string;
+}
+
+/**
  * Store configuration for data persistence
  */
 export interface StoreConfig {
-  engine?: "pglite" | "postgres"; // 默认 pglite
+  engine?: "pglite" | "postgres" | "managed"; // 默认 pglite
   data_dir?: string; // engine: pglite（改为可选）
   database_url?: string; // engine: postgres，支持 ${ENV}
   pool_size?: number; // 可选，默认 10
+  managed?: ManagedStoreConfig; // engine: managed
 }
 
 /**
@@ -235,8 +245,10 @@ export interface Config {
 export function validateStoreConfig(s: StoreConfig, missingEnv: string[] = []): void {
   const engine = s.engine ?? "pglite";
 
-  if (engine !== "pglite" && engine !== "postgres") {
-    throw new Error(`Invalid store.engine "${engine}". Supported values: pglite, postgres.`);
+  if (engine !== "pglite" && engine !== "postgres" && engine !== "managed") {
+    throw new Error(
+      `Invalid store.engine "${engine}". Supported values: pglite, postgres, managed.`,
+    );
   }
 
   if (engine === "postgres") {
@@ -268,6 +280,17 @@ export function validateStoreConfig(s: StoreConfig, missingEnv: string[] = []): 
     if (s.pool_size !== undefined) {
       if (!Number.isInteger(s.pool_size) || s.pool_size < 1) {
         throw new Error(`store.pool_size must be an integer ≥ 1. Got: ${s.pool_size}`);
+      }
+    }
+  }
+
+  if (engine === "managed" && s.managed !== undefined) {
+    const m = s.managed;
+    if (m.runtime_dir !== undefined) {
+      if (typeof m.runtime_dir !== "string" || m.runtime_dir.trim() === "") {
+        throw new Error(
+          `store.managed.runtime_dir must be a non-empty string. Got: "${m.runtime_dir}"`,
+        );
       }
     }
   }

@@ -6,7 +6,7 @@ export interface AgentRef {
 export interface PlanUpDeps {
   detectedAgents: AgentRef[];
   missingEnvVars: string[];
-  engine: "pglite" | "postgres";
+  engine: "pglite" | "postgres" | "managed";
 }
 
 export interface UpPlan {

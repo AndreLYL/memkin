@@ -60,4 +60,25 @@ describe("validateStoreConfig", () => {
       }),
     ).not.toThrow();
   });
+
+  // engine=managed tests
+  it("accepts engine=managed without database_url", () => {
+    expect(() => validateStoreConfig({ engine: "managed" })).not.toThrow();
+  });
+
+  it("accepts store.managed with runtime_dir only", () => {
+    expect(() =>
+      validateStoreConfig({ engine: "managed", managed: { runtime_dir: "/tmp/pg" } }),
+    ).not.toThrow();
+  });
+
+  it("rejects store.managed.runtime_dir empty string", () => {
+    expect(() => validateStoreConfig({ engine: "managed", managed: { runtime_dir: "" } })).toThrow(
+      /runtime_dir/i,
+    );
+  });
+
+  it("rejects unknown engine and message lists managed as supported", () => {
+    expect(() => validateStoreConfig({ engine: "mongo" } as any)).toThrow(/managed/i);
+  });
 });

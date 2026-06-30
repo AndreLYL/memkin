@@ -1,0 +1,51 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { hasExistingPgliteData, resolveDefaultEngineForNewInstall } from "./new-install.js";
+
+describe("hasExistingPgliteData", () => {
+  it("returns false when ~/.memoark/data does not exist", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    expect(hasExistingPgliteData(home)).toBe(false);
+  });
+
+  it("returns false when ~/.memoark/data exists but is empty", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    mkdirSync(join(home, ".memoark", "data"), { recursive: true });
+    expect(hasExistingPgliteData(home)).toBe(false);
+  });
+
+  it("returns true when ~/.memoark/data exists and has files", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    const dataDir = join(home, ".memoark", "data");
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, "base.tar.gz"), "fake-pglite-data");
+    expect(hasExistingPgliteData(home)).toBe(true);
+  });
+});
+
+describe("resolveDefaultEngineForNewInstall", () => {
+  it("returns 'managed' on darwin with no existing PGLite data", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    expect(resolveDefaultEngineForNewInstall({ platform: "darwin", home })).toBe("managed");
+  });
+
+  it("returns 'pglite' on darwin when existing PGLite data is present (P1-5 guard)", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    const dataDir = join(home, ".memoark", "data");
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, "base.tar.gz"), "fake-pglite-data");
+    expect(resolveDefaultEngineForNewInstall({ platform: "darwin", home })).toBe("pglite");
+  });
+
+  it("returns 'pglite' on linux regardless of data presence", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    expect(resolveDefaultEngineForNewInstall({ platform: "linux", home })).toBe("pglite");
+  });
+
+  it("returns 'pglite' on win32 regardless of data presence", () => {
+    const home = mkdtempSync(join(tmpdir(), "memoark-test-"));
+    expect(resolveDefaultEngineForNewInstall({ platform: "win32", home })).toBe("pglite");
+  });
+});

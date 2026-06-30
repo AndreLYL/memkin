@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonRuntime } from "../daemon/autostart/argv.js";
 import { makeFakeRunner } from "../daemon/autostart/runner.js";
 import { runUp } from "./run-up.js";
@@ -238,5 +238,155 @@ describe("runUp integration (reconcile failure — FIX 2)", () => {
     // daemon.json must end up with the OLD instance_id (not the new one)
     const finalState = JSON.parse(readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"));
     expect(finalState.instance_id).toBe(OLD_INSTANCE_ID);
+  }, 15_000);
+});
+
+// ─── P0-3/P0-4: managed foreground provision ordering tests ──────────────────
+
+describe("runUp managed foreground provision ordering (P0-3/P0-4)", () => {
+  let tmpHome: string;
+  let managedConfigPath: string;
+  let pgliteConfigPath: string;
+
+  beforeEach(() => {
+    tmpHome = join(tmpdir(), `memoark-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpHome, { recursive: true });
+    mkdirSync(join(tmpHome, "Library", "LaunchAgents"), { recursive: true });
+    mkdirSync(join(tmpHome, ".memoark"), { recursive: true });
+
+    // Managed engine config
+    managedConfigPath = join(tmpHome, "memoark-managed.yaml");
+    writeFileSync(
+      managedConfigPath,
+      [
+        "store:",
+        "  engine: managed",
+        "  managed:",
+        "    runtime_dir: /tmp/fake-pg-runtime",
+        "mcp:",
+        "  http:",
+        "    enabled: true",
+        "    bind_host: 127.0.0.1",
+        "    port: 3931",
+        "    allowed_origins:",
+        "      - http://127.0.0.1:3931",
+        "    allowed_hosts:",
+        "      - 127.0.0.1:3931",
+        "    read_only: false",
+      ].join("\n"),
+    );
+
+    // PGlite engine config
+    pgliteConfigPath = join(tmpHome, "memoark-pglite.yaml");
+    writeFileSync(
+      pgliteConfigPath,
+      [
+        "store:",
+        "  engine: pglite",
+        "mcp:",
+        "  http:",
+        "    enabled: true",
+        "    bind_host: 127.0.0.1",
+        "    port: 3932",
+        "    allowed_origins:",
+        "      - http://127.0.0.1:3932",
+        "    allowed_hosts:",
+        "      - 127.0.0.1:3932",
+        "    read_only: false",
+      ].join("\n"),
+    );
+  });
+
+  afterEach(() => {
+    rmSync(tmpHome, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("engine=managed: provisionManagedForeground runs BEFORE enableAutostart (ordering)", async () => {
+    const order: string[] = [];
+
+    // Spy: records "provisioned" when called
+    const provisionManagedForeground = vi.fn().mockImplementation(async () => {
+      order.push("provisioned");
+    });
+
+    // Runner: records "enabled" when launchctl bootstrap is called
+    const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+
+    // fetchHealthImpl: returns ready immediately with correct instance_id
+    const fetchHealthImpl = async (_url: string) => {
+      try {
+        const daemonJson = JSON.parse(
+          readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"),
+        );
+        // Record ordering point here — enableAutostart has already run by the time we poll
+        order.push("enabled");
+        return {
+          status: 200,
+          body: {
+            instance_id: daemonJson.instance_id,
+            db_ok: true,
+            read_only: false,
+            engine: "managed",
+          },
+        };
+      } catch {
+        return { status: 503, body: {} };
+      }
+    };
+
+    await runUp(
+      { config: managedConfigPath },
+      {
+        runner,
+        fetchHealthImpl,
+        home: tmpHome,
+        platform: "darwin",
+        daemonRuntime: fakeDaemonRuntime,
+        provisionManagedForeground,
+      },
+    );
+
+    expect(provisionManagedForeground).toHaveBeenCalledTimes(1);
+    // "provisioned" must appear before "enabled" in the order array
+    expect(order.indexOf("provisioned")).toBeLessThan(order.indexOf("enabled"));
+  }, 15_000);
+
+  it("engine=pglite: provisionManagedForeground is NOT called", async () => {
+    const provisionManagedForeground = vi.fn().mockResolvedValue(undefined);
+
+    const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
+    const fetchHealthImpl = async (_url: string) => {
+      try {
+        const daemonJson = JSON.parse(
+          readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"),
+        );
+        return {
+          status: 200,
+          body: {
+            instance_id: daemonJson.instance_id,
+            db_ok: true,
+            read_only: false,
+            engine: "pglite",
+          },
+        };
+      } catch {
+        return { status: 503, body: {} };
+      }
+    };
+
+    await runUp(
+      { config: pgliteConfigPath },
+      {
+        runner,
+        fetchHealthImpl,
+        home: tmpHome,
+        platform: "darwin",
+        daemonRuntime: fakeDaemonRuntime,
+        provisionManagedForeground,
+      },
+    );
+
+    expect(provisionManagedForeground).not.toHaveBeenCalled();
   }, 15_000);
 });

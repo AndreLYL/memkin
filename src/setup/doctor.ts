@@ -1,4 +1,9 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { Pool } from "pg";
+import type { ManagedStoreConfig } from "../core/config.js";
+import { managedPaths, readManagedState } from "../store/managed/pg-paths.js";
+import { createPgRuntimeProvider } from "../store/managed/pg-runtime-provider.js";
 
 export interface PgCheck {
   connected: boolean;
@@ -58,4 +63,98 @@ export async function checkPostgres(url: string): Promise<PgCheck> {
   } finally {
     await pool.end();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Managed Postgres doctor check
+// ---------------------------------------------------------------------------
+
+export type DoctorSeverity = "ok" | "warn" | "fail";
+
+export interface ManagedDoctorCheck {
+  name: string;
+  severity: DoctorSeverity;
+  message: string;
+}
+
+export interface CheckManagedDeps {
+  /** Home directory (e.g. os.homedir()) */
+  home: string;
+  /** From config.store.managed */
+  managedConfig?: ManagedStoreConfig;
+  /** Injected fs probe — defaults to existsSync; override in tests */
+  fileExists?: (p: string) => boolean;
+}
+
+/**
+ * Runs the three managed-Postgres doctor checks:
+ *  1. Runtime binaries present and valid
+ *  2. Cluster initialized (pgdata/PG_VERSION exists)
+ *  3. Managed state file present (reports port/socketDir/pgVersion)
+ *
+ * Pure-ish: all side-effects are injectable via `deps`.
+ */
+export async function checkManagedPostgres(deps: CheckManagedDeps): Promise<ManagedDoctorCheck[]> {
+  const { home, managedConfig, fileExists = existsSync } = deps;
+  const PG_MAJOR = "17";
+  const results: ManagedDoctorCheck[] = [];
+
+  // 1 — runtime check
+  let runtimeOk = false;
+  try {
+    const provider = createPgRuntimeProvider({
+      home,
+      pgMajor: PG_MAJOR,
+      runtimeDir: managedConfig?.runtime_dir,
+    });
+    await provider.verify();
+    results.push({
+      name: "managed-runtime",
+      severity: "ok",
+      message: "Managed Postgres runtime binaries present and valid",
+    });
+    runtimeOk = true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    results.push({
+      name: "managed-runtime",
+      severity: "fail",
+      message: `Managed Postgres runtime not ready: ${msg}`,
+    });
+  }
+
+  // 2 — cluster initialized (pgdata/PG_VERSION)
+  const paths = managedPaths(home, PG_MAJOR);
+  const pgVersionFile = join(paths.pgdata, "PG_VERSION");
+  if (fileExists(pgVersionFile)) {
+    results.push({
+      name: "managed-cluster",
+      severity: "ok",
+      message: `Cluster initialized at ${paths.pgdata}`,
+    });
+  } else {
+    results.push({
+      name: "managed-cluster",
+      severity: runtimeOk ? "warn" : "fail",
+      message: `Cluster not initialized at ${paths.pgdata} — run \`memoark up\` to provision`,
+    });
+  }
+
+  // 3 — managed state file
+  const state = readManagedState(paths);
+  if (state) {
+    results.push({
+      name: "managed-state",
+      severity: "ok",
+      message: `Managed state present — pgVersion=${state.pgVersion}, port=${state.fixedPort}, socketDir=${state.socketDir}`,
+    });
+  } else {
+    results.push({
+      name: "managed-state",
+      severity: "warn",
+      message: "Managed state not present — not provisioned, run `memoark up`",
+    });
+  }
+
+  return results;
 }

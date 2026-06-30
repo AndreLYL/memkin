@@ -99,4 +99,55 @@ describe("generate setup config", () => {
     expect(parsed.store.engine).toBe("postgres");
     expect(parsed.store.database_url).toBe(DATABASE_URL_PLACEHOLDER);
   });
+
+  // Part A — managed branch in buildStore
+  it("buildConfigObject with engine managed: no data_dir, no database_url", () => {
+    const config = buildConfigObject({ store: { engine: "managed" } });
+    expect(config.store.engine).toBe("managed");
+    expect(config.store.data_dir).toBeUndefined();
+    expect(config.store.database_url).toBeUndefined();
+  });
+
+  it("buildConfigObject managed with runtime_dir round-trips through buildStore", () => {
+    const config = buildConfigObject({
+      store: { engine: "managed", managed: { runtime_dir: "/opt/pg" } },
+    });
+    expect(config.store.engine).toBe("managed");
+    expect((config.store as { managed?: { runtime_dir?: string } }).managed?.runtime_dir).toBe(
+      "/opt/pg",
+    );
+    expect(config.store.data_dir).toBeUndefined();
+    expect(config.store.database_url).toBeUndefined();
+  });
+
+  // Part C — opt-in newInstallEngine
+  it("buildConfigObject with newInstallEngine=managed and no explicit store.engine → managed", () => {
+    const config = buildConfigObject({}, { newInstallEngine: "managed" });
+    expect(config.store.engine).toBe("managed");
+    expect(config.store.data_dir).toBeUndefined();
+    expect(config.store.database_url).toBeUndefined();
+  });
+
+  it("buildConfigObject without opts (no newInstallEngine) → pglite (silent default unchanged)", () => {
+    const config = buildConfigObject({});
+    expect(config.store.engine).toBe("pglite");
+    expect(config.store.data_dir).toBe("~/.memoark/data");
+  });
+
+  it("explicit store.engine=pglite is respected even when newInstallEngine=managed", () => {
+    const config = buildConfigObject(
+      { store: { engine: "pglite" } },
+      { newInstallEngine: "managed" },
+    );
+    expect(config.store.engine).toBe("pglite");
+    expect(config.store.data_dir).toBe("~/.memoark/data");
+  });
+
+  it("generateConfigYaml with newInstallEngine=managed produces managed store YAML", () => {
+    const yaml = generateConfigYaml({}, { newInstallEngine: "managed" });
+    const parsed = parse(yaml);
+    expect(parsed.store.engine).toBe("managed");
+    expect(parsed.store.data_dir).toBeUndefined();
+    expect(parsed.store.database_url).toBeUndefined();
+  });
 });

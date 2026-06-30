@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Hono } from "hono";
 import { createFeishuCollector } from "../collectors/feishu/index.js";
 import { loadConfig } from "../core/config.js";
@@ -8,6 +10,15 @@ import { createLLMProvider } from "../extractors/providers/index.js";
 import type { StoreContext } from "./api.js";
 import type { BackfillJob, BackfillSourceType, RunForSourceFn } from "./backfill-job.js";
 import { BackfillJob as BackfillJobClass } from "./backfill-job.js";
+
+/**
+ * Engine-agnostic scratch/working directory used when building the pipeline
+ * config for backfill runs. The backfill always uses adapter:"store" so
+ * output_dir is never actually written to — it just needs to satisfy the type.
+ * Using a dedicated "work" path avoids a pglite-specific data_dir leaking into
+ * postgres/managed mode where store.data_dir is undefined.
+ */
+const BACKFILL_WORK_DIR = join(homedir(), ".memoark", "work");
 
 const COVERAGE_SQL = `
 SELECT
@@ -128,7 +139,7 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 
     const collector = createFeishuCollector(tempFeishuConfig as never);
 
-    const pipelineConfig = buildPipelineConfig(config, config.store.data_dir ?? "~/.memoark/data");
+    const pipelineConfig = buildPipelineConfig(config, BACKFILL_WORK_DIR);
 
     const llmConfig = { ...config.llm };
     if (!llmConfig.api_key) {

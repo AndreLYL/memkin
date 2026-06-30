@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { resolveConfigPath } from "../core/config.js";
+import { resolveDefaultEngineForNewInstall } from "../store/managed/new-install.js";
 import { runEmbeddingAssessment } from "./assess-hardware.js";
 import {
   checkOllamaModel,
@@ -560,6 +561,9 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
 
   const prompt = options.auto ? undefined : createPrompt(input, output);
 
+  // Capture before any overwrite logic — genuine new install means the config file doesn't exist yet.
+  const isNewInstall = !existsSync(configPath);
+
   try {
     if (existsSync(configPath) && !options.force) {
       if (options.auto || !prompt) {
@@ -581,13 +585,24 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
     const sources = detectSources();
     const keys = detectApiKeys();
 
+    // Only compute the managed-engine opt on a genuine new install.
+    // On --force overwrite, the user has an existing install; we must not silently change their engine.
+    const newInstallEngineOpt = isNewInstall
+      ? {
+          newInstallEngine: resolveDefaultEngineForNewInstall({
+            platform: process.platform,
+            home: homedir(),
+          }),
+        }
+      : undefined;
+
     if (options.auto) {
       if (!keys.openai && !keys.anthropic) {
         throw new Error("No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.");
       }
       const config = buildAutoConfig(keys, sources);
       validateOrThrow(config);
-      saveConfig(configPath, generateConfigYaml(config));
+      saveConfig(configPath, generateConfigYaml(config, newInstallEngineOpt));
       write(output, `[ok] Configuration saved to: ${configPath}`);
       return;
     }
@@ -605,7 +620,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
     const config = await buildInteractiveConfig(prompt, output, keys, sources);
     validateOrThrow(config);
 
-    const yaml = generateConfigYaml(config);
+    const yaml = generateConfigYaml(config, newInstallEngineOpt);
     write(output, "");
     write(output, "--- Preview ---");
     write(output, `# memoark.yaml (${yaml.split(/\r?\n/).filter(Boolean).length} lines)`);

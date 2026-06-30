@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { planStartup, shouldOpenBrowserOnServe } from "./cli-helpers.js";
+import { createStores, openIdentityStore } from "./cli-stores.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
 import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
@@ -55,7 +56,7 @@ import { scaffoldSkill } from "./install/skill.js";
 import { down } from "./lifecycle/down.js";
 import { acquireLifecycleLock } from "./lifecycle/lifecycle-lock.js";
 import { runUp } from "./lifecycle/run-up.js";
-import { computeStatus } from "./lifecycle/status.js";
+import { computeStatus, formatManagedStatus } from "./lifecycle/status.js";
 import { createApiApp } from "./server/api.js";
 import { getSessionContext } from "./server/context.js";
 import { createMcpServer } from "./server/mcp.js";
@@ -63,15 +64,10 @@ import { createMcpHttpApp } from "./server/mcp-http.js";
 import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
-import { ChunkStore } from "./store/chunks.js";
-import { Database } from "./store/database.js";
-import { EmbeddingService } from "./store/embedding.js";
-import { GraphStore } from "./store/graph.js";
-import { PageStore } from "./store/pages.js";
+import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
+import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
+import { stopManagedFromState } from "./store/managed/stop-from-state.js";
 import { PersonBehaviorStore } from "./store/person-behavior.js";
-import { SearchEngine } from "./store/search.js";
-import { TagStore } from "./store/tags.js";
-import { TimelineStore } from "./store/timeline.js";
 
 function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
   if (!path) return undefined;
@@ -100,10 +96,6 @@ function bootstrapCollectors(sources: SourcesConfig, projectRoot: string): void 
   }
 }
 
-function expandDataDir(dir: string, projectRoot: string): string {
-  return resolveProjectPath(dir, projectRoot) ?? dir;
-}
-
 // Try to extract feishu.lark_bin from an existing config so the setup UI's
 // "Feishu — Test Connection" button doesn't fall through to the hardcoded
 // ~/.local/bin/lark path. Silent on missing file or parse errors (the wizard
@@ -116,65 +108,6 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-async function createStores(config: LoadedConfig) {
-  const dataDir = expandDataDir(
-    config.store.data_dir ?? "~/.memoark/data",
-    config.__context.projectRoot,
-  );
-  mkdirSync(dataDir, { recursive: true });
-  const db = await Database.create(dataDir, {
-    embeddingDimensions: config.embedding.dimensions,
-  });
-  const pages = new PageStore(db.executor);
-  const chunks = new ChunkStore(db.executor);
-  const embedding = new EmbeddingService(db.executor, {
-    provider: config.embedding.provider as "openai" | "ollama",
-    model: config.embedding.model,
-    dimensions: config.embedding.dimensions,
-    apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
-    baseUrl: config.embedding.base_url,
-  });
-  const search = new SearchEngine(db.executor, {
-    embedText: (q) => embedding.embedText(q),
-    search: {
-      pool_by_page: config.search.pool_by_page,
-      llm_rewrite: config.search.llm_rewrite,
-    },
-  });
-  return {
-    db,
-    pages,
-    chunks,
-    search,
-    graph: new GraphStore(db.executor),
-    tags: new TagStore(db.executor),
-    timeline: new TimelineStore(db.executor),
-    embedding,
-  };
-}
-
-/**
- * Lightweight store for identity operations: opens only the Database + a
- * PersonIdentityStore. Deliberately avoids EmbeddingService so that person
- * alias/merge/rename never requires an LLM or embedding API key.
- */
-async function openIdentityStore(config: LoadedConfig) {
-  const dataDir = expandDataDir(
-    config.store.data_dir ?? "~/.memoark/data",
-    config.__context.projectRoot,
-  );
-  mkdirSync(dataDir, { recursive: true });
-  const db = await Database.create(dataDir, {
-    embeddingDimensions: config.embedding.dimensions,
-  });
-  const identity = new PersonIdentityStore(
-    db.executor,
-    { pages: new PageStore(db.executor) },
-    { behavior: new PersonBehaviorStore(db.executor) },
-  );
-  return { db, identity };
 }
 
 const program = new Command();
@@ -499,6 +432,24 @@ program
           }
         }
       }
+
+      // Check managed Postgres engine
+      if (config.store?.engine === "managed") {
+        const { checkManagedPostgres } = await import("./setup/doctor.js");
+        const checks = await checkManagedPostgres({
+          home: homedir(),
+          managedConfig: config.store.managed,
+        });
+        for (const check of checks) {
+          if (check.severity === "ok") {
+            ok.push(check.message);
+          } else if (check.severity === "warn") {
+            warnings.push(check.message);
+          } else {
+            issues.push(check.message);
+          }
+        }
+      }
     }
 
     // Report results
@@ -659,6 +610,12 @@ async function runServe(options: {
     }
     const stores = await createStores(config);
 
+    // P1-1: recovery loop is a PROCESS-LEVEL resource — started from stores.supervisor,
+    // never placed inside the ServeRuntimeHolder/runtime (which is disposed on every reload).
+    const recovery = stores.supervisor
+      ? startRecoveryLoop(stores.supervisor, { intervalMs: 3000 })
+      : undefined;
+
     const initialRuntime = await buildServeRuntime(config, stores, stateDir);
     const holder = new ServeRuntimeHolder(initialRuntime);
     if (config.scheduler?.enabled) await holder.current.scheduler?.start();
@@ -668,6 +625,10 @@ async function runServe(options: {
       // only read once at construction for the initial signature; ReloadManager tracks lastConfig internally afterward
       currentConfig: () => config,
       buildRuntime: (next) => buildServeRuntime(next, stores, stateDir),
+      onRestartRequired: () =>
+        console.warn(
+          "[reload] store/engine change saved — restart the daemon (`memoark up` or restart serve) to apply; the running process still uses the previous database.",
+        ),
     });
 
     const storesWithDaemon = {
@@ -683,6 +644,10 @@ async function runServe(options: {
     const shutdown = async () => {
       if (shuttingDown) return; // 防重入:连按 Ctrl-C 不会二次 db.close()
       shuttingDown = true;
+      // P1-1: stop recovery loop first, then dispose supervisor monitor (NOT the cluster),
+      // then dispose the runtime, then close the DB connection.
+      recovery?.stop();
+      stores.supervisor?.dispose(); // stops monitor only — does NOT stop the cluster
       await holder.current.dispose();
       try {
         await stores.db.close(); // 触发锁 release
@@ -768,6 +733,9 @@ async function runServe(options: {
               return false;
             }
           },
+          pgProbe: stores.supervisor
+            ? async () => (await stores.supervisor!.status()) === "running"
+            : undefined,
         },
       });
       const server = await startServer(app, {
@@ -1543,17 +1511,31 @@ program
   .command("down")
   .description("Stop the always-on daemon and remove its autostart entry")
   .action(async () => {
+    const h = homedir();
+    const plat = process.platform;
     try {
+      // Best-effort config load to detect engine; safe to fail (down works without a config)
+      let engine: string | undefined;
+      try {
+        const cfg = loadConfig();
+        engine = cfg.store.engine;
+      } catch {
+        // no config or parse error — treat engine as unknown (non-managed)
+      }
+
       const result = await down({
-        home: homedir(),
-        platform: process.platform,
+        home: h,
+        platform: plat,
         acquireLock: acquireLifecycleLock,
         disable: () =>
           disableAutostart({
-            platform: process.platform,
-            home: homedir(),
+            platform: plat,
+            home: h,
             runner: nodeRunner,
-          }).then(() => undefined),
+            keepStateOnBootoutFailure: true,
+          }),
+        engine,
+        stopManagedPg: () => stopManagedFromState(h, nodeRunner).then(() => undefined),
       });
       console.log(result.stopped ? `✓ ${result.note}` : `✗ ${result.note}`);
     } catch (err) {
@@ -1660,6 +1642,29 @@ program
       console.log("⚠ Serving subset changed — run `memoark up` to re-register agents.");
     if (report.drift.restartedOntoEditedConfig)
       console.log("⚠ Daemon restarted onto edited config.");
+
+    // Show managed Postgres state when engine is managed
+    const managedState = readManagedState(managedPaths(h, "17"));
+    if (managedState) {
+      // Lightweight pg_ctl status probe — run if pg_ctl is available
+      let clusterRunning: boolean | null = null;
+      try {
+        const { spawnSync } = await import("node:child_process");
+        const result = spawnSync(managedState.pgCtlPath, ["status", "-D", managedState.pgdata], {
+          encoding: "utf8",
+          timeout: 3000,
+        });
+        // pg_ctl status exits 0 if running, non-zero if stopped/no data dir
+        clusterRunning = result.status === 0;
+      } catch {
+        clusterRunning = null;
+      }
+      const managedLines = formatManagedStatus(managedState, clusterRunning);
+      console.log("");
+      for (const line of managedLines) {
+        console.log(`${line.label}: ${line.value}`);
+      }
+    }
   });
 
 program.parse(process.argv);
