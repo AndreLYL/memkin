@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Tailwind v4 data-attribute dark mode: make `dark:` utilities follow our
+   <html data-theme="dark"> toggle instead of the OS prefers-color-scheme.
+   https://tailwindcss.com/docs/dark-mode#using-a-data-attribute */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Display serif (Claude-style warm serif), self-hosted — woff2 committed under src/fonts. */
 @font-face {
