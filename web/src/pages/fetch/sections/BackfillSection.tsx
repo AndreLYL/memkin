@@ -76,7 +76,7 @@ function CoverageHeatmap({
               <div
                 key={i}
                 title={`${count} 条`}
-                className={`h-4 flex-1 rounded-sm ${count === 0 ? "bg-gray-100 dark:bg-gray-800" : ""}`}
+                className={`h-4 flex-1 rounded-sm ${count === 0 ? "bg-bg-subtle" : ""}`}
                 style={bg ? { backgroundColor: bg } : undefined}
               />
             );
@@ -92,7 +92,7 @@ function CoverageHeatmap({
           style={{ WebkitAppearance: "none" } as React.CSSProperties}
         />
         <div
-          className="pointer-events-none absolute top-0 h-full w-[2px] bg-blue-500"
+          className="pointer-events-none absolute top-0 h-full w-[2px] bg-accent"
           style={{ left: `${(sliderValue / WEEKS) * 100}%` }}
         />
       </div>
@@ -107,9 +107,9 @@ function CoverageHeatmap({
 function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+    <div className="h-2 w-full overflow-hidden rounded-full bg-bg-subtle">
       <div
-        className="h-full rounded-full bg-blue-500 transition-all"
+        className="h-full rounded-full bg-accent transition-all"
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -229,7 +229,7 @@ export function BackfillSection() {
             <button
               onClick={handleStart}
               disabled={selectedSources.size === 0}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               开始回溯
             </button>
@@ -256,7 +256,7 @@ export function BackfillSection() {
                 <span className="w-24 text-sm text-fg-default">{SOURCE_LABELS[src.source]}</span>
                 <div className="flex-1">
                   {src.status === "pending" ? (
-                    <div className="h-2 w-full rounded-full bg-gray-100" />
+                    <div className="h-2 w-full rounded-full bg-bg-subtle" />
                   ) : (
                     <ProgressBar value={src.processed} max={maxProcessed} />
                   )}
@@ -292,7 +292,7 @@ export function BackfillSection() {
           <div className="flex justify-end">
             <button
               onClick={handleReset}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               再次回溯
             </button>
@@ -308,7 +308,7 @@ export function BackfillSection() {
           <div className="flex justify-end">
             <button
               onClick={handleReset}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               重新开始
             </button>

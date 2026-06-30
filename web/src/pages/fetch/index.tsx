@@ -17,7 +17,7 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-lg border border-border-default bg-bg-default">
+    <div className="rounded-xl bg-bg-surface shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between px-5 py-4 text-left"
@@ -69,7 +69,7 @@ export function FetchPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-fg-default">数据抓取</h1>
+      <h1 className="mb-6 font-serif text-2xl font-bold text-fg-default">数据抓取</h1>
 
       {saveError && (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">

@@ -26,7 +26,7 @@ export function LLMConfig({ config, onUpdate, onNext, onBack }: StepProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold text-fg-default">LLM Configuration</h2>
+      <h2 className="font-serif text-xl font-bold text-fg-default">LLM Configuration</h2>
 
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium text-fg-default">Provider</label>
@@ -86,7 +86,7 @@ export function LLMConfig({ config, onUpdate, onNext, onBack }: StepProps) {
         <button
           onClick={onNext}
           disabled={!llm.model || !llm.api_key}
-          className="ml-auto rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40"
+          className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           Next →
         </button>

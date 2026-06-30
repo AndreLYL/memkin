@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckCircle } from "lucide-react";
 import type { WizardConfig } from "../../../api/config";
 import { configApi } from "../../../api/config";
 import { ToggleSwitch } from "../../../components/config/ToggleSwitch";
@@ -57,8 +58,8 @@ export function Review({ config, onBack }: StepProps) {
   if (saved) {
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
-        <div className="text-4xl">✓</div>
-        <h2 className="text-xl font-bold text-fg-default">Configuration Saved!</h2>
+        <CheckCircle size={40} strokeWidth={1.75} className="text-green-600" />
+        <h2 className="font-serif text-xl font-bold text-fg-default">Configuration Saved!</h2>
         <p className="text-fg-muted">Run <code className="rounded bg-bg-subtle px-1">memoark serve</code> to start Memoark.</p>
       </div>
     );
@@ -69,9 +70,9 @@ export function Review({ config, onBack }: StepProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold text-fg-default">Review Configuration</h2>
+      <h2 className="font-serif text-xl font-bold text-fg-default">Review Configuration</h2>
 
-      <div className="rounded border border-border-default divide-y divide-border-default text-sm">
+      <div className="rounded-xl bg-bg-surface divide-y divide-border-default text-sm shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
         <div className="grid grid-cols-2 gap-2 px-4 py-3">
           <span className="text-fg-muted">LLM Provider</span>
           <span className="text-fg-default">{llm?.provider ?? "—"} / {llm?.model ?? "—"}</span>
@@ -94,7 +95,7 @@ export function Review({ config, onBack }: StepProps) {
         </div>
       </div>
 
-      <div className="rounded border border-border-default px-4 py-3">
+      <div className="rounded-xl bg-bg-surface px-4 py-3 shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
         <ToggleSwitch
           id="enable-autofetch"
           label="启用后台定时抓取(开机后自动运行)"

@@ -72,13 +72,13 @@ export function SetupWizard() {
           </div>
           <div className="h-1.5 rounded-full bg-bg-subtle">
             <div
-              className="h-1.5 rounded-full bg-blue-500 transition-all"
+              className="h-1.5 rounded-full bg-accent transition-all"
               style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }}
             />
           </div>
         </div>
 
-        <div className="rounded-lg border border-border-default bg-bg-default p-8 shadow-sm">
+        <div className="rounded-xl bg-bg-surface p-8 shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)]">
           {steps[step]}
         </div>
       </div>
