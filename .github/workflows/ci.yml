@@ -49,3 +49,14 @@ jobs:
           timeout 300 bun run test --reporter=verbose || STATUS=$?
           if [ "${STATUS:-0}" -eq 124 ]; then echo "::warning::vitest hung after completion — forced exit"; exit 0; fi
           exit "${STATUS:-0}"
+
+  web-build:
+    name: Web Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: web
+      - run: bun run build
+        working-directory: web
