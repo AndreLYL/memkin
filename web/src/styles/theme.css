@@ -18,11 +18,6 @@
 /* ============================================================
    Memoark — warm-light redesign theme
    Terracotta accent · Notion density · Apple whitespace
-
-   Drop-in replacement for the old GitHub-Primer dark theme.
-   It also re-defines the legacy `neon-* / card-bg / muted / border`
-   names (which were UNDEFINED before, leaving several pages
-   unstyled) so those screens render correctly during migration.
    ============================================================ */
 
 @theme {
@@ -52,16 +47,6 @@
   /* ---- Interactive / brand ---- */
   --color-accent: #c2613d;        /* terracotta            */
   --color-accent-muted: #b35734;  /* hover / pressed accent */
-
-  /* ---- Legacy aliases (keep old pages alive until migrated) ---- */
-  --color-card-bg: #ffffff;
-  --color-muted: #6f675d;
-  --color-border: #ece7df;
-  --color-neon-cyan: #4f7cac;   /* was person   */
-  --color-neon-purple: #8a6fa8; /* was project  */
-  --color-neon-green: #5e8c61;  /* was decision */
-  --color-neon-orange: #bf8c3e; /* was session/pending */
-  --color-neon-pink: #b5677e;   /* was task     */
 
   /* ---- Radii ---- */
   --radius-sm: 9px;
@@ -115,16 +100,6 @@
 
   --color-accent: #d4754f;
   --color-accent-muted: #e08862;
-
-  /* legacy aliases */
-  --color-card-bg: #221e1a;
-  --color-muted: #a89e92;
-  --color-border: #322d27;
-  --color-neon-cyan: #6fa0d3;
-  --color-neon-purple: #ad93cb;
-  --color-neon-green: #7cb481;
-  --color-neon-orange: #d8ab5e;
-  --color-neon-pink: #d2879c;
 
   color-scheme: dark;
 }

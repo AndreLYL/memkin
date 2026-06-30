@@ -1,0 +1,18 @@
+# Memoark web — color-sweep allowlist
+# Intentional non-token color utilities that survive the redesign grep gate.
+# All `neon-*` DOM usages are eliminated; these are deliberate exceptions.
+
+## text-white on terracotta accent buttons (white-on-accent, intentional)
+# Pattern: `bg-accent ... text-white` primary buttons across config/, fetch/, setup/.
+# White text on #c2613d terracotta — see web/.contrast-exceptions.md for the AA note.
+
+## Status / validation colors (no semantic token exists; kept by design)
+text-red-500 / text-red-600 / text-red-700 / border-red-200/300 / bg-red-50  — errors, validation asterisks, failed status
+text-green-600 / bg-green-500                                                 — success / healthy status, CheckCircle
+text-yellow-500                                                               — warning (channel unresolved) in Timeline
+
+## Typography dark mode (intentional, data-theme controlled)
+dark:prose-invert  — web/src/pages/EntityDetail.tsx content section (Tailwind Typography, flips via @custom-variant)
+
+## Toggle knob
+bg-white  — web/src/components/config/ToggleSwitch.tsx knob (white knob on colored track, conventional)

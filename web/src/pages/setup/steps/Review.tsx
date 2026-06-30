@@ -119,7 +119,7 @@ export function Review({ config, onBack }: StepProps) {
         <button
           onClick={save}
           disabled={saving}
-          className="ml-auto rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save Configuration ✓"}
         </button>
