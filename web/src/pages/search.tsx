@@ -127,7 +127,7 @@ export function SearchPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-4">
-      <h1 className="text-xl font-semibold text-fg-default">Search</h1>
+      <h1 className="text-xl font-semibold font-serif text-fg-default">Search</h1>
 
       <div className="relative">
         <input
