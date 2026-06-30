@@ -115,11 +115,11 @@ export function Review({ config, onBack }: StepProps) {
       )}
 
       <div className="flex justify-between pt-2">
-        {onBack && <button onClick={onBack} className="rounded border border-border-default px-4 py-2 text-sm text-fg-default hover:bg-bg-subtle">← Back</button>}
+        {onBack && <button onClick={onBack} className="rounded border border-border-default px-4 py-2 text-sm text-fg-default hover:bg-bg-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">← Back</button>}
         <button
           onClick={save}
           disabled={saving}
-          className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50"
+          className="ml-auto rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {saving ? "Saving..." : "Save Configuration ✓"}
         </button>

@@ -16,3 +16,6 @@ dark:prose-invert  — web/src/pages/EntityDetail.tsx content section (Tailwind 
 
 ## Toggle knob
 bg-white  — web/src/components/config/ToggleSwitch.tsx knob (white knob on colored track, conventional)
+
+## Warning banner
+border-amber-200 / bg-amber-50 / text-amber-800  — warning banner (FeishuConfig), light-only by design like the red error banners

@@ -62,7 +62,7 @@ export function Sidebar() {
       <div className="px-2 space-y-0.5">
         {NAV_ITEMS.map((item) => (
           <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass}>
-                <item.Icon size={16} strokeWidth={1.75} />
+            <item.Icon size={16} strokeWidth={1.75} />
             <span>{item.label}</span>
           </NavLink>
         ))}

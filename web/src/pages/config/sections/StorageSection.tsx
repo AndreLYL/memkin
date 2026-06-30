@@ -29,7 +29,7 @@ export function StorageSection({ config, onSave }: SectionProps) {
       <div className="flex justify-between items-center">
         <h3 className="text-base font-semibold text-fg-default">Storage</h3>
         <button type="button" onClick={save} disabled={saving}
-          className="rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50">
+          className="rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
           {saving ? "Saving…" : "Save"}
         </button>
       </div>

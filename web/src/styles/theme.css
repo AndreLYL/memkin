@@ -26,6 +26,8 @@
   --color-bg-surface: #ffffff;  /* cards / panels      */
   --color-bg-overlay: #f5f2ec;  /* hover / raised      */
   --color-bg-inset: #efebe3;    /* wells / sidebar bg  */
+  --color-bg-subtle: #efebe3;   /* subtle well / progress track (= inset tone) */
+  --color-bg-default: #ffffff;  /* form input surface */
 
   /* ---- Borders ---- */
   --color-border-default: #ece7df;
@@ -83,6 +85,8 @@
   --color-bg-surface: #221e1a;
   --color-bg-overlay: #1f1b17;
   --color-bg-inset: #14110e;
+  --color-bg-subtle: #14110e;
+  --color-bg-default: #221e1a;
 
   --color-border-default: #322d27;
   --color-border-muted: #423b33;

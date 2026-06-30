@@ -171,7 +171,7 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
           type="button"
           onClick={save}
           disabled={saving}
-          className="rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50"
+          className="rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           {saving ? "保存中…" : "保存"}
         </button>
@@ -268,7 +268,7 @@ export function DataSourceSection({ config, onSave }: SectionProps) {
                   type="button"
                   onClick={fetchGroups}
                   disabled={groupsLoading}
-                  className="self-start rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50"
+                  className="self-start rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   {groupsLoading ? "获取中…" : "获取群列表"}
                 </button>
