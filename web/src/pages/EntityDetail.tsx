@@ -148,13 +148,13 @@ export function EntityDetail() {
       <div>
         <button
           onClick={() => navigate(-1)}
-          className="text-sm text-fg-subtle hover:text-fg-default mb-3 inline-flex items-center gap-1"
+          className="text-sm text-fg-subtle hover:text-fg-default mb-3 inline-flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
           ← Back
         </button>
         <div className="flex items-start gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-fg-default">
+            <h1 className="text-2xl font-bold font-serif text-fg-default">
               {entity.title ?? slug}
             </h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-fg-subtle">
@@ -188,7 +188,7 @@ export function EntityDetail() {
             <button
               key={s}
               onClick={() => setActiveSection(s)}
-              className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
+              className={`block w-full text-left px-3 py-1.5 rounded text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
                 activeSection === s
                   ? "bg-bg-overlay text-fg-default font-medium"
                   : "text-fg-subtle hover:text-fg-default hover:bg-bg-surface"
@@ -212,20 +212,20 @@ export function EntityDetail() {
                 </p>
               )}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-bg-surface border border-border-default rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-fg-default">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3 text-center">
+                  <div className="text-lg font-bold font-serif text-fg-default">
                     {mentionCount}
                   </div>
                   <div className="text-xs text-fg-subtle">Mentions</div>
                 </div>
-                <div className="bg-bg-surface border border-border-default rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-fg-default">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3 text-center">
+                  <div className="text-lg font-bold font-serif text-fg-default">
                     {links.length}
                   </div>
                   <div className="text-xs text-fg-subtle">Links</div>
                 </div>
-                <div className="bg-bg-surface border border-border-default rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-fg-default">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3 text-center">
+                  <div className="text-lg font-bold font-serif text-fg-default">
                     {timelineEntries.length}
                   </div>
                   <div className="text-xs text-fg-subtle">Timeline</div>
@@ -262,7 +262,7 @@ export function EntityDetail() {
                 <EmptyState title="No timeline" description="No timeline entries for this entity" />
               ) : (
                 sortedTimeline.map((entry: any, i: number) => (
-                  <div key={i} className="border border-border-default rounded-lg p-3 bg-bg-surface">
+                  <div key={i} className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-3">
                     <div className="text-xs text-fg-subtle mb-1">
                       {new Date(entry.date).toLocaleDateString()}
                     </div>
@@ -312,7 +312,7 @@ export function EntityDetail() {
                 </Link>
               </div>
               {graphData ? (
-                <div className="border border-border-default rounded-lg p-4 bg-bg-surface">
+                <div className="bg-bg-surface rounded-xl shadow-[0_1px_2px_rgba(43,37,33,0.04),0_6px_16px_rgba(43,37,33,0.035)] p-4">
                   <div className="text-sm text-fg-default mb-2">
                     {(graphData.nodes as any[])?.length ?? 0} connected nodes,{" "}
                     {(graphData.edges as any[])?.length ?? 0} edges
