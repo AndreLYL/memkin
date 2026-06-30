@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { NavLink } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { LayoutDashboard, Clock, Download, Share2, Layers, Search } from "lucide-react";
 import { api } from "../../api/client";
 
 const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: "📊" },
-  { to: "/timeline", label: "Timeline", icon: "⏱️" },
-  { to: "/fetch", label: "Fetch", icon: "📥" },
-  { to: "/graph", label: "Graph", icon: "🕸️" },
-  { to: "/entities", label: "All Entities", icon: "📄" },
-  { to: "/search", label: "Search", icon: "🔍" },
+  { to: "/", label: "Dashboard", Icon: LayoutDashboard },
+  { to: "/timeline", label: "Timeline", Icon: Clock },
+  { to: "/fetch", label: "Fetch", Icon: Download },
+  { to: "/graph", label: "Graph", Icon: Share2 },
+  { to: "/entities", label: "All Entities", Icon: Layers },
+  { to: "/search", label: "Search", Icon: Search },
 ];
 
 const CATEGORIES = [
@@ -61,7 +62,7 @@ export function Sidebar() {
       <div className="px-2 space-y-0.5">
         {NAV_ITEMS.map((item) => (
           <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass}>
-            <span className="text-sm">{item.icon}</span>
+                <item.Icon size={16} strokeWidth={1.75} />
             <span>{item.label}</span>
           </NavLink>
         ))}
