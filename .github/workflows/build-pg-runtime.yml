@@ -1,0 +1,228 @@
+name: build-pg-runtime
+
+# Triggers:
+#   - Manual dispatch (for one-off builds and testing)
+#   - Tag push matching pg-runtime-* (e.g. pg-runtime-v1.0.0)
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "pg-runtime-*"
+
+# ---------------------------------------------------------------------------
+# Build job — runs on both arm64 and x64 macOS 15 runners in parallel.
+#
+# Runner note: as of 2026-06, macOS 15 (Sequoia) runners:
+#   arm64 → macos-15           (Apple Silicon, generally available)
+#   x64   → macos-15-intel     (Intel, current x64 label for macOS 15)
+#   macos-13 is retired; macos-14 deprecating 2026-07-06.
+# ---------------------------------------------------------------------------
+jobs:
+  build:
+    name: "Build PG runtime (${{ matrix.arch }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+
+    runs-on: ${{ matrix.runner }}
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
+      # PostgreSQL version — must match PG_SHA256 below
+      PG_VERSION: "17.5"
+      # pgvector release tag — must match PGVECTOR_SHA below
+      PGVECTOR_REF: "v0.8.0"
+      # TODO: fill in the official sha256 for postgresql-17.5.tar.bz2
+      # Source: https://ftp.postgresql.org/pub/source/v17.5/postgresql-17.5.tar.bz2.sha256
+      PG_SHA256: ${{ vars.PG_SHA256 }}
+      # TODO: fill in the sha256 of the pgvector v0.8.0 source archive
+      # Source: curl -sL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz | shasum -a 256
+      PGVECTOR_SHA: ${{ vars.PGVECTOR_SHA }}
+      OUT_DIR: "${{ github.workspace }}/artifacts"
+
+    timeout-minutes: 60
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Checkout
+      # TODO: pin to a specific commit SHA for supply-chain security, e.g.:
+      #   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Install build dependencies not present on the macOS runner by default.
+      # e2fsprogs provides the e2fs uuid library required by --with-uuid=e2fs.
+      # -----------------------------------------------------------------------
+      - name: Install build dependencies (e2fsprogs)
+        run: brew install e2fsprogs
+
+      # -----------------------------------------------------------------------
+      # Build PostgreSQL + pgvector (OPTFLAGS="" inside the script to avoid
+      # -march=native; otool audit also runs inside the script).
+      # -----------------------------------------------------------------------
+      - name: Build PG runtime
+        run: bash scripts/build-pg-runtime.sh
+
+      # -----------------------------------------------------------------------
+      # Smoke test — gated step that validates the built tarball on THIS runner
+      # before uploading. Verifies: initdb, start, createdb, CREATE EXTENSION
+      # vector, CREATE EXTENSION pg_trgm, and basic queries.
+      # -----------------------------------------------------------------------
+      - name: Smoke test extracted tarball
+        run: |
+          set -euo pipefail
+          TARBALL="${OUT_DIR}/memoark-pg-darwin-${{ matrix.arch }}.tar.gz"
+          EXTRACT_DIR="$(mktemp -d /tmp/memoark-pg-smoke.XXXXXX)"
+          PGDATA="${EXTRACT_DIR}/pgdata"
+          SOCKET_DIR="${EXTRACT_DIR}/socket"
+
+          echo "==> Extracting tarball for smoke test ..."
+          tar xzf "$TARBALL" -C "$EXTRACT_DIR"
+
+          PG_BIN="${EXTRACT_DIR}/bin"
+          PG_CTL="${PG_BIN}/pg_ctl"
+          INITDB="${PG_BIN}/initdb"
+          CREATEDB="${PG_BIN}/createdb"
+          PSQL="${PG_BIN}/psql"
+          PG_ISREADY="${PG_BIN}/pg_isready"
+
+          mkdir -p "$SOCKET_DIR"
+
+          echo "==> initdb ..."
+          "$INITDB" -D "$PGDATA" --no-instructions -E UTF8
+
+          echo "==> Starting postgres on Unix socket (no TCP, listen_addresses='') ..."
+          # Pass unix_socket_directories so pg_isready / psql can find the socket.
+          "$PG_CTL" start -D "$PGDATA" -o "-k $SOCKET_DIR -c listen_addresses=''" -l "${EXTRACT_DIR}/pg.log"
+
+          # Wait for readiness (up to 30s)
+          for i in $(seq 1 30); do
+            "$PG_ISREADY" -h "$SOCKET_DIR" && break
+            if [[ $i -eq 30 ]]; then
+              echo "ERROR: postgres did not become ready in 30s" >&2
+              cat "${EXTRACT_DIR}/pg.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "==> createdb memoark ..."
+          "$CREATEDB" -h "$SOCKET_DIR" memoark
+
+          echo "==> CREATE EXTENSION vector; CREATE EXTENSION pg_trgm; ..."
+          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "CREATE EXTENSION vector;"
+          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "CREATE EXTENSION pg_trgm;"
+
+          echo "==> Smoke query: vector cast ..."
+          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "SELECT '[1,2,3]'::vector;"
+
+          echo "==> Smoke query: pg_trgm similarity ..."
+          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "SELECT similarity('hello', 'helo');"
+
+          echo "==> Stopping postgres ..."
+          "$PG_CTL" stop -D "$PGDATA" -m fast
+
+          echo "==> Smoke test PASSED."
+
+      # -----------------------------------------------------------------------
+      # Upload build artifacts (tarball + sha256 sidecar) for the release job.
+      # TODO: pin to a specific commit SHA, e.g.:
+      #   uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b  # v4.5.0
+      # -----------------------------------------------------------------------
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memoark-pg-darwin-${{ matrix.arch }}
+          path: |
+            ${{ env.OUT_DIR }}/memoark-pg-darwin-${{ matrix.arch }}.tar.gz
+            ${{ env.OUT_DIR }}/memoark-pg-darwin-${{ matrix.arch }}.tar.gz.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Release job — runs ONLY on tag push, ONLY after BOTH arch builds succeed.
+  #
+  # Release atomicity: both arches must be built and smoke-tested before the
+  # GitHub Release is created and before any npm version referencing these
+  # binaries is published. The `needs: build` + tag trigger enforces this.
+  # ---------------------------------------------------------------------------
+  release:
+    name: "Attach artifacts to GitHub Release"
+    needs: build
+    runs-on: ubuntu-latest
+    # Only run on tag pushes, not on workflow_dispatch
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/pg-runtime-')
+
+    permissions:
+      contents: write  # needed to create/update a GitHub Release
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Checkout (needed for gh CLI context)
+      # TODO: pin SHA — see above.
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Download BOTH arch artifacts (fail if either is missing).
+      # -----------------------------------------------------------------------
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: memoark-pg-darwin-arm64
+          path: release-assets/
+
+      - name: Download x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: memoark-pg-darwin-x64
+          path: release-assets/
+
+      # -----------------------------------------------------------------------
+      # Verify both tarballs are present before touching the release.
+      # -----------------------------------------------------------------------
+      - name: Verify both arch artifacts present
+        run: |
+          set -euo pipefail
+          ARM64="release-assets/memoark-pg-darwin-arm64.tar.gz"
+          X64="release-assets/memoark-pg-darwin-x64.tar.gz"
+          [[ -f "$ARM64" ]] || { echo "ERROR: arm64 tarball missing"; exit 1; }
+          [[ -f "$X64"   ]] || { echo "ERROR: x64 tarball missing";   exit 1; }
+          echo "Both arch artifacts present — proceeding to release."
+          ls -lh release-assets/
+
+      # -----------------------------------------------------------------------
+      # Create or update the GitHub Release and attach all four files.
+      # TODO: pin softprops/action-gh-release to a specific commit SHA, e.g.:
+      #   uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191  # v2.2.0
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "PG Runtime ${{ github.ref_name }}"
+          body: |
+            Relocatable PostgreSQL 17 + pgvector + pg_trgm runtime for macOS.
+
+            Both `arm64` (Apple Silicon) and `x64` (Intel) tarballs have been
+            built on macOS 15 runners and smoke-tested before this release.
+
+            **Do not publish the npm package** that references these binaries
+            until both assets appear below.
+          files: |
+            release-assets/memoark-pg-darwin-arm64.tar.gz
+            release-assets/memoark-pg-darwin-arm64.tar.gz.sha256
+            release-assets/memoark-pg-darwin-x64.tar.gz
+            release-assets/memoark-pg-darwin-x64.tar.gz.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
