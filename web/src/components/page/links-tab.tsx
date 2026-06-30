@@ -16,7 +16,7 @@ function LinkList({ links, direction }: { links: LinkRow[]; direction: "outgoing
         return (
           <Link
             key={i}
-            to={`/pages/${encodeURIComponent(targetSlug)}`}
+            to={`/entity/${encodeURIComponent(targetSlug)}`}
             className="flex items-center gap-3 px-4 py-3 bg-card-bg border border-border rounded-lg hover:border-neon-purple/30 transition-colors"
           >
             <span className="text-sm text-gray-200 hover:text-neon-purple">{targetSlug}</span>

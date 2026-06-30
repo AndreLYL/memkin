@@ -67,7 +67,7 @@ export function PageList() {
         {filtered.map((page) => (
           <Link
             key={page.slug}
-            to={`/pages/${encodeURIComponent(page.slug)}`}
+            to={`/entity/${encodeURIComponent(page.slug)}`}
             className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-card-bg transition-colors group"
           >
             <div className={`w-2 h-2 rounded-full ${TYPE_COLORS[page.type] ?? "bg-neon-pink"} shadow-[0_0_6px_currentColor]`} />

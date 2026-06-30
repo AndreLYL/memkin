@@ -43,7 +43,7 @@ export function NodePanel({ slug, type, links, onClose }: NodePanelProps) {
         </>
       )}
       <div className="border-t border-border pt-3">
-        <Link to={`/pages/${encodeURIComponent(slug)}`} className="text-[11px] text-neon-purple hover:underline">
+        <Link to={`/entity/${encodeURIComponent(slug)}`} className="text-[11px] text-neon-purple hover:underline">
           View Page →
         </Link>
       </div>
