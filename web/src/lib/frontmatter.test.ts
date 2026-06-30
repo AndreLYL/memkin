@@ -15,4 +15,9 @@ describe("frontmatter", () => {
   it("returns full text when no frontmatter to strip", () => {
     expect(stripFrontmatter("body only")).toBe("body only");
   });
+  it("preserves colons in values", () => {
+    expect(parseFrontmatter("---\nurl: http://example.com\n---\n")).toEqual({
+      url: "http://example.com",
+    });
+  });
 });

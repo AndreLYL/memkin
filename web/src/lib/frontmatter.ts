@@ -1,6 +1,6 @@
-export function parseFrontmatter(compiledTruth: string): Record<string, string> {
+export function parseFrontmatter(content: string): Record<string, string> {
   const fm: Record<string, string> = {};
-  const match = compiledTruth?.match(/^---\n([\s\S]*?)\n---/);
+  const match = content?.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return fm;
   for (const line of match[1].split("\n")) {
     const idx = line.indexOf(":");
@@ -9,6 +9,6 @@ export function parseFrontmatter(compiledTruth: string): Record<string, string> 
   return fm;
 }
 
-export function stripFrontmatter(compiledTruth: string): string {
-  return compiledTruth?.replace(/^---\n[\s\S]*?\n---\n*/, "") ?? "";
+export function stripFrontmatter(content: string): string {
+  return content?.replace(/^---\n[\s\S]*?\n---\n*/, "") ?? "";
 }
