@@ -1,10 +1,18 @@
 import { useParams, useNavigate, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "../api/client";
 import { SignalCard } from "../components/shared/SignalCard";
 import { EmptyState } from "../components/shared/EmptyState";
 import { EntityBadge } from "../components/shared/EntityBadge";
 import { useState } from "react";
+import { useTags } from "../hooks/use-tags";
+import { useLinks, useBacklinks } from "../hooks/use-links";
+import { useTimeline } from "../hooks/use-timeline";
+import { parseFrontmatter, stripFrontmatter } from "../lib/frontmatter";
+import { LinksTab } from "../components/page/links-tab";
+import { ChunksTab } from "../components/page/chunks-tab";
 
 const TYPE_LABELS: Record<string, string> = {
   person: "Person",
@@ -24,7 +32,10 @@ const TYPE_LABELS: Record<string, string> = {
 
 type Section =
   | "overview"
+  | "content"
   | "timeline"
+  | "links"
+  | "chunks"
   | "graph"
   | "decisions"
   | "tasks"
@@ -33,13 +44,13 @@ type Section =
 function getSections(type: string): Section[] {
   switch (type) {
     case "project":
-      return ["overview", "tasks", "timeline", "graph", "decisions", "knowledge"];
+      return ["overview", "content", "tasks", "timeline", "links", "graph", "decisions", "knowledge", "chunks"];
     case "tool":
-      return ["overview", "knowledge", "timeline", "graph", "decisions", "tasks"];
+      return ["overview", "content", "knowledge", "timeline", "links", "graph", "decisions", "tasks", "chunks"];
     case "concept":
-      return ["overview", "decisions", "knowledge", "timeline", "graph", "tasks"];
+      return ["overview", "content", "decisions", "knowledge", "timeline", "links", "graph", "tasks", "chunks"];
     default:
-      return ["overview", "timeline", "graph", "decisions", "tasks", "knowledge"];
+      return ["overview", "content", "timeline", "links", "graph", "decisions", "tasks", "knowledge", "chunks"];
   }
 }
 
@@ -63,6 +74,16 @@ export function EntityDetail() {
     queryKey: ["entity-graph", slug],
     queryFn: () => api.traverse(slug, 1, "both"),
     enabled: slug.length > 0 && activeSection === "graph",
+  });
+
+  const { data: tags } = useTags(slug);
+  const { data: outLinks } = useLinks(slug);
+  const { data: backLinks } = useBacklinks(slug);
+  const { data: timelineFull } = useTimeline(slug);
+  const { data: chunks } = useQuery({
+    queryKey: ["chunks", slug],
+    queryFn: () => api.chunks(slug),
+    enabled: slug.length > 0 && activeSection === "chunks",
   });
 
   if (isLoading)
@@ -134,10 +155,21 @@ export function EntityDetail() {
               <span>
                 {mentionCount} mention{mentionCount !== 1 ? "s" : ""}
               </span>
-              <span>
-                First seen: {new Date(entity.created_at).toLocaleDateString()}
-              </span>
+              <span>First seen: {new Date(entity.created_at).toLocaleDateString()}</span>
+              <span>Updated: {new Date(entity.updated_at).toLocaleDateString()}</span>
             </div>
+            {tags && tags.length > 0 && (
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[11px] text-fg-muted bg-bg-overlay border border-border-default rounded px-2 py-0.5"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -195,29 +227,78 @@ export function EntityDetail() {
             </div>
           )}
 
-          {activeSection === "timeline" && (
-            <div className="space-y-3">
-              {timelineEntries.length === 0 ? (
-                <EmptyState
-                  title="No timeline"
-                  description="No timeline entries for this entity"
-                />
-              ) : (
-                timelineEntries.map((entry: any, i: number) => (
-                  <div
-                    key={i}
-                    className="border border-border-default rounded-lg p-3 bg-bg-surface"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-fg-subtle">
-                        {new Date(entry.date).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-fg-default">{entry.summary}</p>
+          {activeSection === "content" && (
+            <div className="space-y-4">
+              <article className="prose dark:prose-invert prose-sm max-w-none bg-bg-surface rounded-xl p-5">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {stripFrontmatter(entity.compiled_truth ?? "")}
+                </ReactMarkdown>
+              </article>
+              {Object.keys(parseFrontmatter(entity.compiled_truth ?? "")).length > 0 && (
+                <div className="bg-bg-surface rounded-xl p-4">
+                  <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-widest mb-3">
+                    Frontmatter
                   </div>
-                ))
+                  <div className="font-mono text-[11px] text-fg-muted space-y-1">
+                    {Object.entries(parseFrontmatter(entity.compiled_truth ?? "")).map(
+                      ([k, v]) => (
+                        <div key={k}>
+                          <span className="text-accent">{k}:</span> {String(v)}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
               )}
             </div>
+          )}
+
+          {activeSection === "timeline" && (
+            <div className="space-y-3">
+              {(timelineFull ?? timelineEntries).length === 0 ? (
+                <EmptyState title="No timeline" description="No timeline entries for this entity" />
+              ) : (
+                (() => {
+                  const entries = (timelineFull ?? timelineEntries) as any[];
+                  const sorted = [...entries].sort(
+                    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+                  );
+                  return sorted.map((entry: any, i: number) => (
+                    <div key={i} className="border border-border-default rounded-lg p-3 bg-bg-surface">
+                      <div className="text-xs text-fg-subtle mb-1">
+                        {new Date(entry.date).toLocaleDateString()}
+                      </div>
+                      <p className="text-sm text-fg-default">{entry.summary}</p>
+                      {entry.detail && (
+                        <details className="mt-1">
+                          <summary className="text-[11px] text-accent cursor-pointer">Detail</summary>
+                          <div className="text-xs text-fg-muted mt-1 whitespace-pre-wrap">
+                            {entry.detail}
+                          </div>
+                        </details>
+                      )}
+                      {entry.source && (
+                        <div className="text-[10px] text-fg-subtle mt-2">Source: {entry.source}</div>
+                      )}
+                    </div>
+                  ));
+                })()
+              )}
+            </div>
+          )}
+
+          {activeSection === "links" && (
+            <LinksTab outgoing={outLinks ?? []} incoming={backLinks ?? []} />
+          )}
+
+          {activeSection === "chunks" && (
+            <>
+              {chunks ? (
+                <ChunksTab chunks={chunks} />
+              ) : (
+                <div className="text-fg-muted text-center py-4">Loading chunks...</div>
+              )}
+            </>
           )}
 
           {activeSection === "graph" && (
