@@ -11,8 +11,8 @@ import { useTags } from "../hooks/use-tags";
 import { useLinks, useBacklinks } from "../hooks/use-links";
 import { useTimeline } from "../hooks/use-timeline";
 import { parseFrontmatter, stripFrontmatter } from "../lib/frontmatter";
-import { LinksTab } from "../components/page/links-tab";
-import { ChunksTab } from "../components/page/chunks-tab";
+import { LinksSection } from "../components/shared/links-section";
+import { ChunksSection } from "../components/shared/chunks-section";
 
 const TYPE_LABELS: Record<string, string> = {
   person: "Person",
@@ -285,13 +285,13 @@ export function EntityDetail() {
           )}
 
           {activeSection === "links" && (
-            <LinksTab outgoing={outLinks ?? []} incoming={backLinks ?? []} />
+            <LinksSection outgoing={outLinks ?? []} incoming={backLinks ?? []} />
           )}
 
           {activeSection === "chunks" && (
             <>
               {chunks ? (
-                <ChunksTab chunks={chunks} />
+                <ChunksSection chunks={chunks} />
               ) : (
                 <div className="text-fg-muted text-center py-4">Loading chunks...</div>
               )}
