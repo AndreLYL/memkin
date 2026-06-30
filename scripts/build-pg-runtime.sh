@@ -27,16 +27,18 @@ set -euo pipefail
 # Pin: https://ftp.postgresql.org/pub/source/v17.5/
 PG_VERSION="${PG_VERSION:-17.5}"
 
-# TODO: pin the official sha256 for PG_VERSION before production use.
-# Get it from: https://ftp.postgresql.org/pub/source/v${PG_VERSION}/postgresql-${PG_VERSION}.tar.bz2.sha256
-PG_SHA256="${PG_SHA256:-TODO_PIN_SHA256}"
+# Official sha256 for postgresql-17.5.tar.bz2
+# Source: https://ftp.postgresql.org/pub/source/v17.5/postgresql-17.5.tar.bz2.sha256
+# NOTE: must be updated whenever PG_VERSION changes.
+PG_SHA256="${PG_SHA256:-fcb7ab38e23b264d1902cb25e6adafb4525a6ebcbd015434aeef9eda80f528d8}"
 
 # pgvector pinned release tag
 PGVECTOR_REF="${PGVECTOR_REF:-v0.8.0}"
 
-# TODO: pin the sha256 of the pgvector source archive for PGVECTOR_REF.
-# Get it from the GitHub release page or: curl -sL <tarball-url> | shasum -a 256
-PGVECTOR_SHA="${PGVECTOR_SHA:-TODO_PIN_SHA256}"
+# sha256 of the pgvector v0.8.0 source archive
+# Source: https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz (commit 2627c5ff775ae6d7aef0c430121ccf857842d2f2)
+# NOTE: must be updated whenever PGVECTOR_REF changes.
+PGVECTOR_SHA="${PGVECTOR_SHA:-867a2c328d4928a5a9d6f052cd3bc78c7d60228a9b914ad32aa3db88e9de27b0}"
 
 # Build staging prefix (all PG files land here before tarring)
 STAGE="${STAGE:-/tmp/memoark-pg-stage}"
