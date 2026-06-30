@@ -109,7 +109,7 @@ export async function checkManagedPostgres(
       pgMajor: PG_MAJOR,
       runtimeDir: managedConfig?.runtime_dir,
     });
-    await provider.ensure();
+    await provider.verify();
     results.push({
       name: "managed-runtime",
       severity: "ok",
