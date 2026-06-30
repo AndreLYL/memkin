@@ -104,7 +104,7 @@ export function EntityDetail() {
   const sections = getSections(type);
   const links = (entity as any).links ?? [];
   const backlinks = (entity as any).backlinks ?? [];
-  const timelineEntries = (entity as any).timeline ?? [];
+  const timelineEntries: any[] = (entity as any).timeline ?? [];
   const mentionCount = backlinks.length;
 
   const relatedByType = (targetType: string) =>
@@ -134,6 +134,13 @@ export function EntityDetail() {
     ...relatedByType("knowledge"),
     ...backlinksByType("knowledge"),
   ];
+
+  const sortedTimeline = [...((timelineFull ?? timelineEntries) as any[])].sort(
+    (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
+
+  const frontmatter = parseFrontmatter(entity.compiled_truth ?? "");
+  const contentBody = stripFrontmatter(entity.compiled_truth ?? "");
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -230,23 +237,19 @@ export function EntityDetail() {
           {activeSection === "content" && (
             <div className="space-y-4">
               <article className="prose dark:prose-invert prose-sm max-w-none bg-bg-surface rounded-xl p-5">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {stripFrontmatter(entity.compiled_truth ?? "")}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{contentBody}</ReactMarkdown>
               </article>
-              {Object.keys(parseFrontmatter(entity.compiled_truth ?? "")).length > 0 && (
+              {Object.keys(frontmatter).length > 0 && (
                 <div className="bg-bg-surface rounded-xl p-4">
                   <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-widest mb-3">
                     Frontmatter
                   </div>
                   <div className="font-mono text-[11px] text-fg-muted space-y-1">
-                    {Object.entries(parseFrontmatter(entity.compiled_truth ?? "")).map(
-                      ([k, v]) => (
-                        <div key={k}>
-                          <span className="text-accent">{k}:</span> {String(v)}
-                        </div>
-                      ),
-                    )}
+                    {Object.entries(frontmatter).map(([k, v]) => (
+                      <div key={k}>
+                        <span className="text-accent">{k}:</span> {String(v)}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -255,34 +258,28 @@ export function EntityDetail() {
 
           {activeSection === "timeline" && (
             <div className="space-y-3">
-              {(timelineFull ?? timelineEntries).length === 0 ? (
+              {sortedTimeline.length === 0 ? (
                 <EmptyState title="No timeline" description="No timeline entries for this entity" />
               ) : (
-                (() => {
-                  const entries = (timelineFull ?? timelineEntries) as any[];
-                  const sorted = [...entries].sort(
-                    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-                  );
-                  return sorted.map((entry: any, i: number) => (
-                    <div key={i} className="border border-border-default rounded-lg p-3 bg-bg-surface">
-                      <div className="text-xs text-fg-subtle mb-1">
-                        {new Date(entry.date).toLocaleDateString()}
-                      </div>
-                      <p className="text-sm text-fg-default">{entry.summary}</p>
-                      {entry.detail && (
-                        <details className="mt-1">
-                          <summary className="text-[11px] text-accent cursor-pointer">Detail</summary>
-                          <div className="text-xs text-fg-muted mt-1 whitespace-pre-wrap">
-                            {entry.detail}
-                          </div>
-                        </details>
-                      )}
-                      {entry.source && (
-                        <div className="text-[10px] text-fg-subtle mt-2">Source: {entry.source}</div>
-                      )}
+                sortedTimeline.map((entry: any, i: number) => (
+                  <div key={i} className="border border-border-default rounded-lg p-3 bg-bg-surface">
+                    <div className="text-xs text-fg-subtle mb-1">
+                      {new Date(entry.date).toLocaleDateString()}
                     </div>
-                  ));
-                })()
+                    <p className="text-sm text-fg-default">{entry.summary}</p>
+                    {entry.detail && (
+                      <details className="mt-1">
+                        <summary className="text-[11px] text-accent cursor-pointer">Detail</summary>
+                        <div className="text-xs text-fg-muted mt-1 whitespace-pre-wrap">
+                          {entry.detail}
+                        </div>
+                      </details>
+                    )}
+                    {entry.source && (
+                      <div className="text-[10px] text-fg-subtle mt-2">Source: {entry.source}</div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           )}
