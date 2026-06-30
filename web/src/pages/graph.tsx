@@ -143,7 +143,7 @@ export function GraphPage() {
       {/* Top bar */}
       <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 gap-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-fg-default">Knowledge Graph</h2>
+          <h2 className="text-sm font-semibold font-serif text-fg-default">Knowledge Graph</h2>
           <div className="flex gap-1 bg-bg-surface border border-border-default rounded-md p-0.5">
             <button
               onClick={switchToGlobal}
