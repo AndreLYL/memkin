@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
-/* Display serif (Claude-style warm serif), self-hosted from Google's CDN. */
+/* Display serif (Claude-style warm serif), self-hosted — woff2 committed under src/fonts. */
 @font-face {
   font-family: "Newsreader";
   font-style: normal;
   font-weight: 400 600;
   font-display: swap;
-  src: url("https://fonts.gstatic.com/s/newsreader/v23/cY9qfjOCX1hbuyalUrK49dLac06G1ZGsZBtoBCzBDXXD9JVF438wQih5GAExk24.woff2") format("woff2");
+  src: url("../fonts/newsreader.woff2") format("woff2");
 }
 
 /* ============================================================
