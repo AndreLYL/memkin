@@ -161,6 +161,18 @@ export interface EmbeddingConfig {
 export interface ServerConfig {
   http_port: number;
   mcp_transport: "stdio" | "sse" | "streamable_http";
+  /**
+   * Bind host for the `serve` HTTP API + Web UI. Defaults to loopback
+   * (127.0.0.1). Setting a non-loopback host (e.g. 0.0.0.0) requires an auth
+   * token; the CLI `--host` flag overrides this.
+   */
+  host?: string;
+  /**
+   * Bearer token required on `/api/*` and `/mcp`. When set, auth is enforced on
+   * every interface (including loopback). Env `MEMOARK_AUTH_TOKEN` overrides.
+   * Required whenever `host` is non-loopback.
+   */
+  auth_token?: string;
 }
 
 export interface McpHttpConfig {

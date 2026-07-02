@@ -1,6 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
 import { createMcpServer, type StoreContext } from "./mcp.js";
+import { tokensMatch } from "./server-security.js";
 
 export interface McpHttpHealth {
   instanceId?: string;
@@ -82,7 +83,7 @@ export function authorizeMcpHttpRequest(
     };
   }
 
-  if (options.authToken && bearerToken(request) !== options.authToken) {
+  if (options.authToken && !tokensMatch(options.authToken, bearerToken(request))) {
     return {
       ok: false,
       status: 401,

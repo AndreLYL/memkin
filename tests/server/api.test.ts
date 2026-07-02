@@ -92,6 +92,12 @@ describe("REST API", () => {
     expect(body.some((r: { slug: string }) => r.slug === "entities/alice")).toBe(true);
   });
 
+  it("does not require auth when no token is configured (loopback UX)", async () => {
+    // `app` in beforeEach is built without an auth token.
+    const res = await app.request("/api/health");
+    expect(res.status).toBe(200);
+  });
+
   it("supports graph, tags, timeline, chunks, and embed routes", async () => {
     await app.request("/api/pages/by-slug?slug=entities/alice", {
       method: "PUT",
@@ -145,5 +151,63 @@ describe("REST API", () => {
     ).toBe(200);
     expect((await app.request("/api/chunks?slug=entities/alice")).status).toBe(200);
     expect((await app.request("/api/embed", { method: "POST" })).status).toBe(200);
+  });
+});
+
+describe("REST API auth middleware", () => {
+  let db: Database;
+  let app: ReturnType<typeof createApiApp>;
+
+  beforeEach(async () => {
+    db = await Database.create();
+    const pages = new PageStore(db.executor);
+    const chunks = new ChunkStore(db.executor);
+    const graph = new GraphStore(db.executor);
+    const tags = new TagStore(db.executor);
+    const timeline = new TimelineStore(db.executor);
+    const search = new SearchEngine(db.executor, {
+      embedText: vi.fn().mockResolvedValue(Array(768).fill(0.1)),
+    });
+    const embedding = new EmbeddingService(db.executor, {
+      provider: "openai",
+      model: "text-embedding-3-large",
+      dimensions: 768,
+      apiKey: "test-key",
+    });
+    app = createApiApp(
+      { db, pages, chunks, graph, tags, timeline, search, embedding },
+      { authToken: "secret-token" },
+    );
+  });
+  afterEach(async () => {
+    await db.close();
+  });
+
+  it("401s /api/* with no Authorization header", async () => {
+    const res = await app.request("/api/health");
+    expect(res.status).toBe(401);
+  });
+
+  it("401s /api/* with a wrong bearer token", async () => {
+    const res = await app.request("/api/health", {
+      headers: { authorization: "Bearer wrong-token" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("200s /api/* with the correct bearer token", async () => {
+    const res = await app.request("/api/health", {
+      headers: { authorization: "Bearer secret-token" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("guards write routes too (PUT /api/pages)", async () => {
+    const res = await app.request("/api/pages/by-slug?slug=projects/x", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: "---\ntitle: X\ntype: project\n---\nX." }),
+    });
+    expect(res.status).toBe(401);
   });
 });
