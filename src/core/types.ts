@@ -232,6 +232,13 @@ export interface Collector {
 export interface CursorProvider {
   getCommittableCursors(): Record<string, unknown>;
   discardSource(sourceName: string): void;
+  /**
+   * Restore a previously-persisted per-source checkpoint before fetch. The
+   * shape is exactly what `getCommittableCursors()` returned (and what the
+   * pipeline round-trips through CursorStore.setJSON/getJSON). Optional so
+   * providers that don't rely on injection-based restore can omit it.
+   */
+  setCheckpoint?(checkpoint: Record<string, unknown> | null): void;
 }
 
 export interface Formatter {

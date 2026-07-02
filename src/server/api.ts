@@ -13,6 +13,7 @@ import type { ChatNameRefreshJob } from "./chat-name-refresh-job.js";
 import { registerChatNameRoutes } from "./chat-name-routes.js";
 import { createConfigRoutes } from "./config-routes.js";
 import type { EventBus } from "./event-bus.js";
+import { extractBearerToken, tokensMatch } from "./server-security.js";
 
 export interface DaemonStatus {
   running: boolean;
@@ -43,10 +44,32 @@ function missing(c: { json: (body: unknown, status?: number) => Response }, name
 export interface ApiAppOpts {
   /** Fired after a successful config save (triggers async hot-reload). Not awaited. */
   onConfigSaved?: () => void;
+  /**
+   * When set, every `/api/*` route requires `Authorization: Bearer <token>`.
+   * When unset (loopback-only default), no auth is enforced and the local UX is
+   * unchanged. Web UI static assets are served OUTSIDE this Hono app (in the
+   * Bun.serve fetch closure) and stay unauthenticated — they are the app shell,
+   * not data; auth protects the data-bearing `/api/*` routes.
+   */
+  authToken?: string;
 }
 
 export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Hono {
   const app = new Hono();
+
+  // Bearer-token guard for all data-bearing routes. Every route in this app
+  // (config, backfill, chat-name, data) resolves under /api/*, so a single
+  // prefix guard covers them all. No token configured → no auth (loopback UX).
+  if (apiOpts.authToken) {
+    const expected = apiOpts.authToken;
+    app.use("/api/*", async (c, next) => {
+      const presented = extractBearerToken({ header: (name) => c.req.header(name) });
+      if (!tokensMatch(expected, presented)) {
+        return c.json({ error: "Unauthorized: valid bearer token required" }, 401);
+      }
+      return next();
+    });
+  }
 
   const configRoutes = createConfigRoutes({
     configPath: resolve(process.cwd(), "memoark.yaml"),

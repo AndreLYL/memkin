@@ -283,7 +283,9 @@ export function createPgRuntimeProvider(
         assetKey = "x64";
       } else {
         throw new Error(
-          `unsupported arch for managed Postgres: ${arch} (mac arm64/x64 only in SP2)`,
+          `The self-managed Postgres engine is currently macOS-only (arm64/x64); your platform (${process.platform}/${arch}) is not supported yet. ` +
+            `Use the default PGLite backend instead — it works everywhere. ` +
+            `Set \`store.engine: pglite\` in memoark.yaml (or remove \`store.engine\` to use the default).`,
         );
       }
 

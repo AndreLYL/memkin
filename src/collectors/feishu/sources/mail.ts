@@ -47,16 +47,32 @@ export class MailSource implements FeishuSource {
 
     const concurrency = this.opts.fetchConcurrency ?? 1;
     let maxDateMs = 0;
+    let oldestFailedMs = Number.POSITIVE_INFINITY;
 
     for await (const { item, detail } of this.fetchConcurrent(filteredItems, concurrency)) {
-      if (!detail) continue;
       const itemDateMs = new Date(item.date).getTime();
+      if (!detail) {
+        // A transient detail-fetch failure (rate limit, timeout, etc.) must not
+        // be lost. Track the oldest failure so we can clamp the committed cursor
+        // below it — the next run's window will re-include this message. The
+        // dedup store skips the successfully-ingested newer messages as
+        // "unchanged" (identity is per-message via metadata.message_id).
+        if (itemDateMs < oldestFailedMs) oldestFailedMs = itemDateMs;
+        continue;
+      }
       if (itemDateMs > maxDateMs) maxDateMs = itemDateMs;
       yield this.mapMessage(item, detail);
     }
 
-    if (maxDateMs > 0) {
-      cursorStaging.stage("mail", "INBOX", { last_sync_at: maxDateMs });
+    // Clamp the high-water-mark so it never advances past the oldest failed
+    // message. If every processed item failed, do not advance the cursor at all.
+    let committedMs = maxDateMs;
+    if (oldestFailedMs !== Number.POSITIVE_INFINITY) {
+      committedMs = Math.min(committedMs, oldestFailedMs - 1);
+    }
+
+    if (committedMs > 0) {
+      cursorStaging.stage("mail", "INBOX", { last_sync_at: committedMs });
       cursorStaging.commit("mail", "INBOX");
     }
   }

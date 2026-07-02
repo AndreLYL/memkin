@@ -25,14 +25,22 @@ describe("init wizard", () => {
   let originalCwd: string;
   let originalOpenAI: string | undefined;
   let originalAnthropic: string | undefined;
+  let originalHome: string | undefined;
+  let originalUserProfile: string | undefined;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "memoark-init-"));
     originalCwd = process.cwd();
     originalOpenAI = process.env.OPENAI_API_KEY;
     originalAnthropic = process.env.ANTHROPIC_API_KEY;
+    originalHome = process.env.HOME;
+    originalUserProfile = process.env.USERPROFILE;
     delete process.env.OPENAI_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
+    // Point HOME at an empty temp dir so detectApiKeys()'s shell-file fallback
+    // (.zshrc/.bashrc/...) can't leak a real developer's API key into the test.
+    process.env.HOME = tempDir;
+    process.env.USERPROFILE = tempDir;
     process.chdir(tempDir);
   });
 
@@ -47,6 +55,16 @@ describe("init wizard", () => {
       delete process.env.ANTHROPIC_API_KEY;
     } else {
       process.env.ANTHROPIC_API_KEY = originalAnthropic;
+    }
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+    if (originalUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = originalUserProfile;
     }
     rmSync(tempDir, { recursive: true, force: true });
   });
