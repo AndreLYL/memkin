@@ -269,6 +269,15 @@ npx @andre.li/memoark
 | HTTP API + Web UI | `3927` | `http://localhost:3927` |
 | MCP Streamable HTTP (`--mcp-http`) | `3928` | `http://localhost:3928/mcp` |
 
+> **Exposing on a LAN & auth**: the server binds `127.0.0.1` (loopback only) by default. To expose it on your LAN, use `memoark serve --host 0.0.0.0` (or set `server.host` in `memoark.yaml`) — this **requires an auth token**, or the server refuses to start. The token comes from `server.auth_token` (config) or `MEMOARK_AUTH_TOKEN` (env); once set, every API request must carry an `Authorization: Bearer <token>` header.
+>
+> ```yaml
+> # memoark.yaml
+> server:
+>   host: 0.0.0.0
+>   auth_token: <your-token>   # or export MEMOARK_AUTH_TOKEN=<your-token>
+> ```
+
 ### Install (recommended: npm)
 
 ```bash
@@ -497,7 +506,7 @@ flowchart TB
 - **♻️ Consolidation (Dream Cycle)** — background pass over the store: hot → warm → cold rotation, dead-link repair, preference inference.
 - **⏰ Scheduling / AutoFetch** — background driver of Collection: scheduled capture, run history, alerts. *(Runs inside `serve` today; standalone daemon + autostart is on the roadmap.)*
 
-> Runs on macOS / Linux / Windows · one-command install (npm / npx) · local-first, self-hosted, zero cloud dependency.
+> Runs on macOS / Linux / Windows with PGLite (default, embedded — works out of the box) · one-command install (npm / npx) · local-first, self-hosted, zero cloud dependency. The self-managed local Postgres engine (faster, optional) is currently macOS (arm64/x64) only.
 
 ### Signal Extraction Pipeline
 
