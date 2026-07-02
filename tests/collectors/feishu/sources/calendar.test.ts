@@ -94,10 +94,11 @@ describe("CalendarSource", () => {
     const source = new CalendarSource(client, ["cal_001"]);
     const staging = new CursorStaging();
 
+    // The collector injects `lastCheckpoint["calendar"]` into the source, so the
+    // per-source checkpoint IS the per-calendar map — NOT wrapped in another
+    // `.calendar` key. See FeishuCollector.fetch (collector.ts).
     const checkpoint = {
-      calendar: {
-        cal_001: { sync_token: "prior_token_xyz" },
-      },
+      cal_001: { sync_token: "prior_token_xyz" },
     };
 
     for await (const _msg of source.fetch(checkpoint, staging)) {
@@ -109,6 +110,39 @@ describe("CalendarSource", () => {
       "/open-apis/calendar/v4/calendars/cal_001/events",
       {
         params: { sync_token: "prior_token_xyz" },
+      },
+    );
+  });
+
+  it("round-trips: committed cursor shape feeds back as next-run checkpoint", async () => {
+    // Run 1: no checkpoint → full window; stages + commits sync_token.
+    const client1 = createMockClient(fixtureData.data);
+    const source1 = new CalendarSource(client1, ["cal_001"]);
+    const staging1 = new CursorStaging();
+    for await (const _msg of source1.fetch(null, staging1)) {
+      // consume
+    }
+    const committable = staging1.getCommittable();
+
+    // The collector extracts `committable.calendar` and injects it as the
+    // per-source checkpoint on the next run.
+    const nextCheckpoint = committable.calendar;
+    expect(nextCheckpoint).toEqual({ cal_001: { sync_token: "sync_token_v2_abc123" } });
+
+    // Run 2: receiving that checkpoint must restore the sync_token into params.
+    const requestMock = vi.fn().mockResolvedValue({ code: 0, data: fixtureData.data });
+    const client2 = { request: requestMock, paginate: vi.fn() } as unknown as FeishuHttpClient;
+    const source2 = new CalendarSource(client2, ["cal_001"]);
+    const staging2 = new CursorStaging();
+    for await (const _msg of source2.fetch(nextCheckpoint, staging2)) {
+      // consume
+    }
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "GET",
+      "/open-apis/calendar/v4/calendars/cal_001/events",
+      {
+        params: { sync_token: "sync_token_v2_abc123" },
       },
     );
   });
