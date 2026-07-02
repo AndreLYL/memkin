@@ -253,7 +253,7 @@ npx @andre.li/memoark
 | HTTP API + Web UI | `3927` | `http://localhost:3927` |
 | MCP Streamable HTTP（`--mcp-http`） | `3928` | `http://localhost:3928/mcp` |
 
-> **对外暴露与鉴权**:服务默认只绑定 `127.0.0.1`(仅本机)。要在局域网暴露,用 `memoark serve --host 0.0.0.0`(或在 `memoark.yaml` 里设 `server.host`)——这会**强制要求配置鉴权令牌**,否则拒绝启动。令牌来自 `server.auth_token`(config)或 `MEMOARK_AUTH_TOKEN`(env);配置后,所有 API 请求都需带 `Authorization: Bearer <token>` 请求头。
+> **对外暴露与鉴权**：服务默认只绑定 `127.0.0.1`（仅本机）。要在局域网暴露，用 `memoark serve --host 0.0.0.0`（或在 `memoark.yaml` 里设 `server.host`）——这会**强制要求配置鉴权令牌**，否则拒绝启动。令牌来自 `server.auth_token`（config）或 `MEMOARK_AUTH_TOKEN`（env）；配置后，所有 API 请求都需带 `Authorization: Bearer <token>` 请求头。
 >
 > ```yaml
 > # memoark.yaml
