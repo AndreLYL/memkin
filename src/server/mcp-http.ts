@@ -1,7 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
 import { createMcpServer, type StoreContext } from "./mcp.js";
-import { tokensMatch } from "./server-security.js";
+import { isLoopbackHost, tokensMatch } from "./server-security.js";
 
 export interface McpHttpHealth {
   instanceId?: string;
@@ -48,9 +48,9 @@ function bearerToken(request: Request): string | undefined {
   return request.headers.get("x-memoark-mcp-token") ?? undefined;
 }
 
+/** Delegates to the shared loopback definition in server-security.ts (single source of truth). */
 export function isPublicBindHost(host: string): boolean {
-  const normalized = host.trim().toLowerCase();
-  return !["localhost", "127.0.0.1", "::1", "[::1]"].includes(normalized);
+  return !isLoopbackHost(host);
 }
 
 export function authorizeMcpHttpRequest(

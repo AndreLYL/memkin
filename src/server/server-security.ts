@@ -85,9 +85,9 @@ export function resolveServeSecurity(
 }
 
 /**
- * Constant-time-ish comparison of a presented bearer token against the expected
- * token. Length mismatches short-circuit (lengths are not secret), otherwise the
- * comparison runs in constant time to avoid leaking the token via timing.
+ * Constant-time comparison (length is not secret and short-circuits) of a
+ * presented bearer token against the expected token, to avoid leaking the
+ * token via timing.
  */
 export function tokensMatch(expected: string, presented: string | undefined): boolean {
   if (presented === undefined) return false;
