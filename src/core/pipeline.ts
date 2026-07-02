@@ -126,8 +126,22 @@ export async function runPipeline(
     dedupStore.load();
     cursorStore.load();
 
-    // Get cursor for this collector
+    // Duck-typed CursorProvider guard, shared by the restore (below) and the
+    // commit (Stage 5) paths.
+    const isCursorProvider = (s: unknown): s is import("./types.js").CursorProvider =>
+      typeof s === "object" && s !== null && "getCommittableCursors" in s;
+
+    // Get cursor for this collector.
+    // - CursorProvider collectors (e.g. Feishu) persist a STRUCTURED per-source
+    //   checkpoint via setJSON. Restore it and inject it back into the source
+    //   before fetch so incremental sync actually resumes across runs. Without
+    //   this, every run starts from a null checkpoint → full re-fetch.
+    // - Legacy collectors use a plain STRING cursor passed via FetchOpts.
     const cursor = cursorStore.get(opts.source.id);
+    if (isCursorProvider(opts.source) && opts.source.setCheckpoint) {
+      const restored = cursorStore.getJSON(opts.source.id) ?? null;
+      opts.source.setCheckpoint(restored);
+    }
 
     // Stage 1: Collector.fetch + Dedup.check
     const newOrModifiedMessages: RawMessage[] = [];
@@ -412,9 +426,6 @@ export async function runPipeline(
       dedupStore.commit(messagesToCommit);
 
       // Commit cursor — check for CursorProvider (structured) or legacy string cursor
-      const isCursorProvider = (s: unknown): s is import("./types.js").CursorProvider =>
-        typeof s === "object" && s !== null && "getCommittableCursors" in s;
-
       if (isCursorProvider(opts.source)) {
         const cursors = opts.source.getCommittableCursors();
         if (Object.keys(cursors).length > 0) {
