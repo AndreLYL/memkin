@@ -378,9 +378,14 @@ export async function runPipeline(
     }
 
     // Stage 4: Adapter.push (all results in one batch)
+    // Track per-signal write failures so Stage 5 can withhold the dedup/cursor
+    // commit. Extraction can succeed while the store write fails (DB error,
+    // disk full, constraint violation); those signals never landed.
+    let pushErrorCount = 0;
     if (extractedResults.length > 0) {
       try {
         const pushResult = await adapter.push(extractedResults);
+        pushErrorCount = pushResult.errors.length;
 
         // Log adapter errors as warnings
         for (const error of pushResult.errors) {
@@ -393,8 +398,15 @@ export async function runPipeline(
       }
     }
 
-    // Stage 5: Commit (only if no failed blocks)
-    if (result.failedBlocks === 0) {
+    // Stage 5: Commit dedup + cursor only when every block extracted AND every
+    // signal persisted. Gating on `pushErrorCount === 0` prevents permanent
+    // data loss: if a store write failed for an already-extracted block, we do
+    // NOT record its messages as processed. Re-collecting and re-extracting them
+    // on the next run is safe because store writes are idempotent upserts keyed
+    // on source_hash — re-running produces no duplicates. Committing here, by
+    // contrast, would mark the messages "unchanged" forever and silently drop
+    // the signals that failed to persist (AUDIT #1).
+    if (result.failedBlocks === 0 && pushErrorCount === 0) {
       // Commit dedup entries for ok + skipped messages
       const messagesToCommit = [...result.okMessages, ...result.skippedMessages];
       dedupStore.commit(messagesToCommit);
