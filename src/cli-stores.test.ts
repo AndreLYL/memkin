@@ -60,6 +60,9 @@ function makeConfig(
       provider: "openai",
       model: "text-embedding-3-small",
       dimensions: 768,
+      // Hermetic: supply a dummy key so EmbeddingService construction never
+      // depends on OPENAI_API_KEY being exported in the test environment.
+      api_key: "sk-test",
     },
     search: {
       pool_by_page: 10,
