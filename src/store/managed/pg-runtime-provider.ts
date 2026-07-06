@@ -166,7 +166,7 @@ function assertNoPathTraversal(root: string, dir: string): void {
             `path-traversal guard: dangling symlink at ${entryPath} in extracted runtime`,
           );
         }
-        if (!resolved.startsWith(realRoot + "/") && resolved !== realRoot) {
+        if (!resolved.startsWith(`${realRoot}/`) && resolved !== realRoot) {
           throw new Error(
             `path-traversal guard: symlink ${entryPath} points outside extraction dir (resolved to ${resolved})`,
           );

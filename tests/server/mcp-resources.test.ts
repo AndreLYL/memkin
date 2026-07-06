@@ -78,9 +78,7 @@ describe("MCP resources", () => {
       "---\ntitle: Memkin\ntype: project\n---\nMemkin memory layer.",
     );
 
-    const health = parseResourceText(
-      await current.client.readResource({ uri: "memkin://health" }),
-    );
+    const health = parseResourceText(await current.client.readResource({ uri: "memkin://health" }));
     expect(health).toMatchObject({
       status: "ok",
       mcp_version: expect.any(String),
