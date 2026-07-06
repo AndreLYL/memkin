@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from "node:path";
 import type { Config, LoadedConfig } from "./core/config.js";
 import { PersonIdentityStore } from "./core/person-identity.js";
 import { nodeRunner } from "./daemon/autostart/runner.js";
+import { AgentSessionStore } from "./store/agent-sessions.js";
 import { ChunkStore } from "./store/chunks.js";
 import { Database } from "./store/database.js";
 import { EmbeddingService } from "./store/embedding.js";
@@ -140,6 +141,7 @@ export interface Stores {
   tags: TagStore;
   timeline: TimelineStore;
   embedding: EmbeddingService;
+  agentSessions: AgentSessionStore;
   supervisor?: ManagedSupervisor;
 }
 
@@ -173,6 +175,7 @@ export async function createStores(
     tags: new TagStore(db.executor),
     timeline: new TimelineStore(db.executor),
     embedding,
+    agentSessions: new AgentSessionStore(db.executor),
     supervisor,
   };
 }
@@ -198,4 +201,26 @@ export async function openIdentityStore(
     { behavior: new PersonBehaviorStore(db.executor) },
   );
   return { db, identity, supervisor };
+}
+
+// ---------------------------------------------------------------------------
+// openSessionLedger — lightweight store for agent session ledger inspection
+// ---------------------------------------------------------------------------
+
+export interface SessionLedgerStores {
+  db: Database;
+  agentSessions: AgentSessionStore;
+  supervisor?: ManagedSupervisor;
+}
+
+/**
+ * Open just the agent session ledger — no EmbeddingService/SearchEngine, so
+ * `memkin sessions ls/inspect` works without embedding credentials configured.
+ */
+export async function openSessionLedger(
+  config: LoadedConfig,
+  deps: CreateStoresDeps = {},
+): Promise<SessionLedgerStores> {
+  const { db, supervisor } = await resolveDb(config, deps);
+  return { db, agentSessions: new AgentSessionStore(db.executor), supervisor };
 }

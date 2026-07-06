@@ -108,6 +108,37 @@ ALTER TABLE pages DROP COLUMN IF EXISTS search_vector;
 ALTER TABLE content_chunks DROP COLUMN IF EXISTS search_vector;
 `;
 
+// Migration 007: agent_sessions processing ledger (extraction-quality-redesign PR-0).
+// One row per session REVISION, keyed by (source_instance, session_id, content_hash) so a
+// changed transcript (new content_hash) lands as a fresh revision without clobbering history.
+// This replaces the lossy per-agent cursor watermark (claude-code compared sessionId
+// lexicographically, permanently dropping recovered sessions). The state machine models the
+// distill→apply lifecycle; PR-0 only writes `discovered` and lays down the reserved columns
+// (payload_id, staging_applied_at, prod_applied_at) that PR-2/PR-4 populate. Migration-only
+// (like M005 person_behavior) — runMigrations runs on both fresh and upgraded databases.
+const M007_AGENT_SESSIONS = `
+CREATE TABLE IF NOT EXISTS agent_sessions (
+  id                 SERIAL PRIMARY KEY,
+  source_instance    TEXT NOT NULL,
+  session_id         TEXT NOT NULL,
+  content_hash       TEXT NOT NULL,
+  byte_size          BIGINT NOT NULL,
+  line_count         INTEGER NOT NULL,
+  state              TEXT NOT NULL DEFAULT 'discovered'
+                       CHECK (state IN ('discovered','distilled','applying','done','retrying','dead_letter')),
+  retry_count        INTEGER NOT NULL DEFAULT 0,
+  payload_id         INTEGER,
+  staging_applied_at TIMESTAMPTZ,
+  prod_applied_at    TIMESTAMPTZ,
+  discovered_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (source_instance, session_id, content_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_lookup ON agent_sessions (source_instance, session_id);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_state ON agent_sessions (state);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
@@ -115,6 +146,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 4, name: "identity_cache_nullable", sql: M004_IDENTITY_CACHE_NULLABLE },
   { version: 5, name: "person_behavior", sql: M005_PERSON_BEHAVIOR },
   { version: 6, name: "trgm_fts", sql: M006_TRGM_FTS },
+  { version: 7, name: "agent_sessions", sql: M007_AGENT_SESSIONS },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {

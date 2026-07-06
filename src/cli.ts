@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Command } from "commander";
 import { planStartup, shouldOpenBrowserOnServe } from "./cli-helpers.js";
-import { createStores, openIdentityStore } from "./cli-stores.js";
+import { createStores, openIdentityStore, openSessionLedger } from "./cli-stores.js";
 import { normalizeDocsConfig } from "./collectors/feishu/docs/config.js";
 import { FullCardBuilder } from "./collectors/feishu/docs/full-builder.js";
 import type { IngestDeps } from "./collectors/feishu/docs/ingest.js";
@@ -609,6 +609,82 @@ sourcesCmd
       console.error("Test failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
+  });
+
+/**
+ * Sessions subcommand group — inspect the agent_sessions processing ledger (PR-0).
+ * `retry` / `purge` are interface placeholders wired for later PRs (PR-2+).
+ */
+const sessionsCmd = program.command("sessions").description("Inspect the agent session ledger");
+
+sessionsCmd
+  .command("ls")
+  .description("List agent session revisions from the ledger")
+  .option("-c, --config <path>", "Path to config file")
+  .option("-s, --source <id>", "Filter by source instance (claude-code/codex/hermes)")
+  .option(
+    "--state <state>",
+    "Filter by state (discovered/distilled/applying/done/retrying/dead_letter)",
+  )
+  .action(async (options) => {
+    const config = loadConfig(options.config);
+    const stores = await openSessionLedger(config);
+    try {
+      const rows = await stores.agentSessions.listSessions({
+        sourceInstance: options.source,
+        state: options.state,
+      });
+      if (rows.length === 0) {
+        console.log("No agent sessions recorded yet.");
+        return;
+      }
+      console.log(
+        "id    source        session                          rev       state        retry  discovered",
+      );
+      for (const r of rows) {
+        const sid =
+          r.sessionId.length > 30 ? `${r.sessionId.slice(0, 29)}…` : r.sessionId.padEnd(30);
+        console.log(
+          `${String(r.id).padEnd(5)} ${r.sourceInstance.padEnd(13)} ${sid} ${r.contentHash.slice(0, 8)}  ${r.state.padEnd(11)}  ${String(r.retryCount).padEnd(5)}  ${r.discoveredAt}`,
+        );
+      }
+    } finally {
+      await stores.db.close();
+    }
+  });
+
+sessionsCmd
+  .command("inspect <id>")
+  .description("Show a single session revision with all ledger fields")
+  .option("-c, --config <path>", "Path to config file")
+  .action(async (id, options) => {
+    const config = loadConfig(options.config);
+    const stores = await openSessionLedger(config);
+    try {
+      const rev = await stores.agentSessions.getRevision(Number(id));
+      if (!rev) {
+        console.error(`No agent session revision with id ${id}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(JSON.stringify(rev, null, 2));
+    } finally {
+      await stores.db.close();
+    }
+  });
+
+sessionsCmd
+  .command("retry <id>")
+  .description("Re-queue a session revision for distillation (PR-2+)")
+  .action((id) => {
+    console.log(`sessions retry ${id}: not yet implemented (arrives with PR-2 distiller)`);
+  });
+
+sessionsCmd
+  .command("purge <id>")
+  .description("Purge a dead-lettered session revision (PR-2+)")
+  .action((id) => {
+    console.log(`sessions purge ${id}: not yet implemented (arrives with PR-2 distiller)`);
   });
 
 async function runServe(options: {

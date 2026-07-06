@@ -90,7 +90,7 @@ export class CodexParser implements SessionParser {
       direction: "sent",
       metadata: {
         session_id: context.sessionId,
-        cursor: context.sessionId,
+        // cursor retired — agent incrementality is driven by the agent_sessions ledger.
         record_type: "response_item",
       },
     };
@@ -117,7 +117,7 @@ export class CodexParser implements SessionParser {
       direction: "received",
       metadata: {
         session_id: context.sessionId,
-        cursor: context.sessionId,
+        // cursor retired — agent incrementality is driven by the agent_sessions ledger.
         record_type: "response_item",
       },
     };
@@ -147,7 +147,7 @@ export class CodexParser implements SessionParser {
       direction: "sent",
       metadata: {
         session_id: context.sessionId,
-        cursor: context.sessionId,
+        // cursor retired — agent incrementality is driven by the agent_sessions ledger.
         record_type: "event_msg",
       },
     };

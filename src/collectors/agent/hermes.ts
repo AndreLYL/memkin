@@ -49,7 +49,7 @@ export class HermesParser implements SessionParser {
       direction: message.role === "user" ? "sent" : "received",
       metadata: {
         session_id: context.sessionId,
-        cursor: context.sessionId,
+        // cursor retired — agent incrementality is driven by the agent_sessions ledger.
         agent_name: agentName,
       },
     };
