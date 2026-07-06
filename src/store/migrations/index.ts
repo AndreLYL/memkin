@@ -139,6 +139,37 @@ CREATE INDEX IF NOT EXISTS idx_agent_sessions_lookup ON agent_sessions (source_i
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_state ON agent_sessions (state);
 `;
 
+// Migration 008: generalize person_handles → entity_handles (extraction-quality-redesign
+// PR-3, spec §9). Entity normalization needs the same typed-handle registry for project
+// and tool entities that persons already have — one table, namespaced by (entity_type,
+// scope), NOT a parallel registry. Existing person rows are preserved with
+// entity_type='person'. The primary key widens from (kind, value) to
+// (entity_type, scope, kind, value) so "Codex the tool" and "Codex the project" can each
+// hold a name handle in their own namespace.
+//
+// Two compat guards, both load-bearing:
+//  - `person_handles` remains as a VIEW over entity_handles. Database.create re-applies
+//    schema.sql (which has CREATE TABLE IF NOT EXISTS person_handles) on EVERY boot,
+//    before migrations run; the view occupies the relation name so that statement skips
+//    instead of resurrecting an empty parallel table.
+//  - The idx_person_handles_slug index name is kept (table renames don't rename indexes);
+//    schema.sql's CREATE INDEX IF NOT EXISTS matches by index name and skips. Renaming it
+//    would make that statement try to index the view and fail.
+const M008_ENTITY_HANDLES = `
+ALTER TABLE person_handles RENAME TO entity_handles;
+ALTER TABLE entity_handles ADD COLUMN entity_type TEXT NOT NULL DEFAULT 'person'
+  CHECK (entity_type IN ('person','project','organization','tool','concept'));
+ALTER TABLE entity_handles ADD COLUMN scope TEXT NOT NULL DEFAULT 'global';
+ALTER TABLE entity_handles DROP CONSTRAINT person_handles_pkey;
+ALTER TABLE entity_handles ADD CONSTRAINT entity_handles_pkey
+  PRIMARY KEY (entity_type, scope, kind, value);
+
+CREATE VIEW person_handles AS
+  SELECT kind, value, canonical_slug, strength, created_at
+  FROM entity_handles
+  WHERE entity_type = 'person';
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
@@ -147,6 +178,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 5, name: "person_behavior", sql: M005_PERSON_BEHAVIOR },
   { version: 6, name: "trgm_fts", sql: M006_TRGM_FTS },
   { version: 7, name: "agent_sessions", sql: M007_AGENT_SESSIONS },
+  { version: 8, name: "entity_handles", sql: M008_ENTITY_HANDLES },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {
