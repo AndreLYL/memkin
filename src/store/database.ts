@@ -2,6 +2,7 @@ import type { Config } from "../core/config.js";
 import { SCHEMA_SQL } from "../embedded-assets.generated.js";
 import { createEngine } from "./engine-factory.js";
 import { runMigrations } from "./migrations/index.js";
+import { resyncIdSequences } from "./sequence-sync.js";
 import type { SqlConn, SqlExecutor } from "./sql-executor.js";
 import { fingerprintString, readMeta, writeMeta } from "./store-meta.js";
 
@@ -48,6 +49,16 @@ export class Database {
       await e.bootstrap(async (conn: SqlConn) => {
         await conn.exec(loadSchemaSql(dims));
         await runMigrations(conn);
+        // Self-heal SERIAL sequences left behind by id-preserving imports —
+        // otherwise new-row INSERTs collide on the pkey (see sequence-sync.ts).
+        const repaired = await resyncIdSequences(conn);
+        if (repaired.length > 0) {
+          // stderr: stdout may be an MCP stdio channel.
+          console.warn(
+            `[memoark] Repaired id sequence desync (likely an id-preserving import/restore): ` +
+              repaired.map((r) => `${r.table} → next id ${r.maxId + 1}`).join(", "),
+          );
+        }
         await ensureEmbeddingConsistency(conn, dims, config);
       });
       return new Database(e, dims);
