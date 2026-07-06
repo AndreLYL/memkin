@@ -65,6 +65,24 @@ bun run test:watch        # Watch mode
 bun run test -- path/to   # Run specific test file
 ```
 
+## Extraction Quality Gate (local, pre-merge)
+
+Changes that touch the extraction pipeline (collectors, extractors, distiller, prompts)
+must pass a **local quality gate** before merging. It cannot run in CI because the golden
+dataset is built from real sessions and contains private data.
+
+- The golden dataset lives in `eval-data/` at the repo root (gitignored — never commit it):
+  - `eval-data/sessions/` — real session transcripts
+  - `eval-data/golden/` — human annotations per session (format: `src/eval/golden.ts`)
+  - `eval-data/manifest.json` — versioned manifest with the locked tune/holdout split and
+    annotation hashes (format: `src/eval/manifest.ts`)
+- How to annotate sessions and build the manifest: see `docs/eval-annotation-guide.md`.
+- The gate compares miss rate / noise rate on the **holdout split only** (3 runs,
+  mean ± variance — see `src/eval/metrics.ts`). Tune-split numbers are descriptive only;
+  judging on the tune set (or the full set) would be training-set leakage.
+- CI runs only mechanical-correctness checks against the sanitized synthetic fixtures in
+  `tests/fixtures/eval/` (`src/eval/ci-fixture.test.ts`) — that is not the quality gate.
+
 ## Reporting Issues
 
 Use [GitHub Issues](https://github.com/AndreLYL/memkin/issues). Include:

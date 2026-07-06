@@ -1,0 +1,23 @@
+{
+  "session_ref": "ci-fixture:ci-session-2",
+  "should_record": [
+    {
+      "type": "task",
+      "authority": "assistant_claimed",
+      "topic": "http-client-retry-backoff",
+      "what": "Added retry logic with exponential backoff (3 attempts, 250ms base, jitter) to the HTTP client fetch wrapper."
+    },
+    {
+      "type": "preference",
+      "authority": "user_confirmed",
+      "topic": "small-focused-prs",
+      "what": "Prefer small focused PRs; never bundle refactors with features."
+    }
+  ],
+  "should_not_record": [
+    {
+      "what": "Assistant offered to migrate the HTTP layer to a shared client library with circuit breaking; user said 'Not now. Maybe later.'",
+      "reason": "assistant_proposed and explicitly deferred by the user — not a decision or task"
+    }
+  ]
+}

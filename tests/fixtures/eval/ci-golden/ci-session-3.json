@@ -1,0 +1,23 @@
+{
+  "session_ref": "ci-fixture:ci-session-3",
+  "should_record": [
+    {
+      "type": "knowledge",
+      "authority": "assistant_claimed",
+      "topic": "staging-migration-role-drift",
+      "what": "Staging deploy migration failures are caused by the migration runner using a read-only database role; DDL silently fails and the schema drifts. Production uses the owner role."
+    },
+    {
+      "type": "reference",
+      "authority": "user_confirmed",
+      "topic": "staging-migration-runbook",
+      "what": "Platform runbook for granting the migration runner a dedicated DDL role: https://example.com/platform/runbooks/staging-migration-role — needed every time a new environment is brought up."
+    }
+  ],
+  "should_not_record": [
+    {
+      "what": "User asked 'Where is the role configured?' mid-diagnosis.",
+      "reason": "transient question during debugging, answered inline; not standalone knowledge"
+    }
+  ]
+}
