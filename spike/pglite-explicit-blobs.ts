@@ -28,7 +28,7 @@ async function runOnce(label: string, dataDir?: string) {
 
 async function main() {
   await runOnce("memory");
-  const dir = join(tmpdir(), "memoark-spike-db");
+  const dir = join(tmpdir(), "memkin-spike-db");
   await rm(dir, { recursive: true, force: true });
   await runOnce("dataDir", dir);
   console.log("SPIKE_A_PASS");

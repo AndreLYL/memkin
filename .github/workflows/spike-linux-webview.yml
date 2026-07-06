@@ -27,7 +27,7 @@ jobs:
           # lightweight WM so windows get mapped/decorated and become capturable
           (command -v openbox >/dev/null && openbox &) || true
           sleep 1
-          BIN=$(find spike/src-tauri/target/release -maxdepth 1 -type f -name 'memoark-spike*' ! -name '*.d' | head -1)
+          BIN=$(find spike/src-tauri/target/release -maxdepth 1 -type f -name 'memkin-spike*' ! -name '*.d' | head -1)
           echo "binary: $BIN"
           WEBKIT_FORCE_SANDBOX=0 "$BIN" & APP_PID=$!
           for i in $(seq 1 40); do
@@ -40,7 +40,7 @@ jobs:
           echo "=== wmctrl -l ==="; wmctrl -l || true
           echo "=== xwininfo -root -tree ==="; xwininfo -root -tree 2>/dev/null | head -40 || true
           # try to capture the app window specifically, fall back to root
-          WID=$(wmctrl -l 2>/dev/null | grep -iE 'memoark|spike|RENDER_DONE|INLINE_DONE|probe' | head -1 | awk '{print $1}')
+          WID=$(wmctrl -l 2>/dev/null | grep -iE 'memkin|spike|RENDER_DONE|INLINE_DONE|probe' | head -1 | awk '{print $1}')
           echo "app window id: ${WID:-none}"
           if [ -n "$WID" ]; then
             import -window "$WID" spike/linux-graph.png || true
