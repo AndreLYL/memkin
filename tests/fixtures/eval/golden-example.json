@@ -1,0 +1,33 @@
+{
+  "session_ref": "ci-fixture:sanitized-session-1",
+  "should_record": [
+    {
+      "type": "decision",
+      "authority": "user_confirmed",
+      "topic": "use-bun-for-package-manager",
+      "what": "Use Bun instead of npm for this project's package management and test runner."
+    },
+    {
+      "type": "task",
+      "authority": "assistant_claimed",
+      "topic": "add-retry-logic",
+      "what": "Add retry logic with exponential backoff to the HTTP client."
+    },
+    {
+      "type": "preference",
+      "authority": "user_confirmed",
+      "topic": "commit-message-style",
+      "what": "Always use conventional commits, never add AI co-author trailers."
+    }
+  ],
+  "should_not_record": [
+    {
+      "what": "Assistant said 'I could refactor this to use a factory pattern, want me to?' and the user never responded.",
+      "reason": "assistant_proposed with no user confirmation — should stay out of canonical memory"
+    },
+    {
+      "what": "User said 'let me check the logs real quick' while debugging.",
+      "reason": "transient debugging chatter, not a decision/task/preference/knowledge worth persisting"
+    }
+  ]
+}
