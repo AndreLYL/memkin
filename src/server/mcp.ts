@@ -3,7 +3,8 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { z } from "zod";
 // Static JSON import: bun's bundler inlines this into the --compile binary
 // (a runtime require("../../package.json") is not resolvable inside $bunfs).
-import pkg from "../../package.json";
+// The `with { type: "json" }` attribute is required by plain Node's ESM loader.
+import pkg from "../../package.json" with { type: "json" };
 import { type IngestDeps, ingestFeishuDoc } from "../collectors/feishu/docs/ingest.js";
 import {
   type HandleKind,
