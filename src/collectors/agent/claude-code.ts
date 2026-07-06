@@ -49,7 +49,8 @@ export class ClaudeCodeParser implements SessionParser {
       metadata: {
         session_id: sessionId,
         uuid,
-        cursor: sessionId,
+        // No `cursor` field: agent incrementality is driven by the agent_sessions ledger,
+        // not the legacy pipeline string-cursor (which this omission disables for this source).
         cwd,
       },
     };
@@ -67,46 +68,15 @@ export function claudeCodeLayout(baseDir?: string): SessionLayout {
 }
 
 export function createClaudeCodeCollector(baseDir?: string): AgentSessionCollector {
-  const baseCollector = new AgentSessionCollector(
-    claudeCodeLayout(baseDir),
-    new ClaudeCodeParser(),
-    {
-      name: "Claude Code Agent",
-      description: "Collects conversation history from Claude Code JSONL transcripts",
-    },
-  );
-
-  // Wrap fetch to add cursor-based pagination
-  const originalFetch = baseCollector.fetch.bind(baseCollector);
-  baseCollector.fetch = async function* (opts) {
-    const cursor = opts.cursor;
-    const seenSessions = new Set<string>();
-
-    for await (const message of originalFetch(opts)) {
-      const sessionId = message.metadata?.session_id as string;
-
-      if (!sessionId) {
-        yield message;
-        continue;
-      }
-
-      // If we've already started yielding this session, continue yielding
-      if (seenSessions.has(sessionId)) {
-        yield message;
-        continue;
-      }
-
-      // If cursor is set and this session should be skipped, skip ALL messages from this session
-      if (cursor && sessionId <= cursor) {
-        seenSessions.add(sessionId);
-        continue;
-      }
-
-      // First message from this session and it passes cursor check
-      seenSessions.add(sessionId);
-      yield message;
-    }
-  };
-
-  return baseCollector;
+  // Cursor pagination retired (extraction-quality-redesign PR-0). The former fetch wrapper
+  // skipped sessions via `sessionId <= cursor` — a lexicographic UUID comparison that only
+  // dropped the FIRST message of each "past" session (subsequent turns leaked through) and
+  // lost single-message and recovered sessions entirely. Incremental processing is now the
+  // job of the agent_sessions ledger (content_hash-keyed revisions) + scan watermark, so the
+  // collector just yields every conversation turn from every stable transcript. A stale
+  // string cursor may still be read from cursors.yaml for back-compat, but it is ignored.
+  return new AgentSessionCollector(claudeCodeLayout(baseDir), new ClaudeCodeParser(), {
+    name: "Claude Code Agent",
+    description: "Collects conversation history from Claude Code JSONL transcripts",
+  });
 }
