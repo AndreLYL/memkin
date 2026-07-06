@@ -6,7 +6,7 @@ import { hooksInstall, hooksUninstall } from "../../src/hooks/install.js";
 
 let home: string;
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-hooks-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-hooks-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -38,10 +38,10 @@ describe("hooks install/uninstall", () => {
     expect(ss).toHaveLength(1);
   });
 
-  it("uninstall removes all memoark hooks", () => {
+  it("uninstall removes all memkin hooks", () => {
     hooksInstall({ home, writeBack: true });
     hooksUninstall({ home });
-    expect(JSON.stringify(settings())).not.toContain("memoark hook");
+    expect(JSON.stringify(settings())).not.toContain("memkin hook");
   });
 
   it("dry-run writes nothing", () => {

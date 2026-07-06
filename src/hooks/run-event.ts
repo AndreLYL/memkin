@@ -11,7 +11,7 @@ export interface RunEventDeps {
   port?: number;
 }
 
-/** Dispatch a `memoark hook <event>` invocation. Returns the stdout payload object. */
+/** Dispatch a `memkin hook <event>` invocation. Returns the stdout payload object. */
 export async function runHookEvent(
   event: string,
   input: HookInput,

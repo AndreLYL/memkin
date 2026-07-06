@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 // the built CLI directly executable.
 
 const distCli = resolve(process.cwd(), "dist", "cli.js");
-const binCli = resolve(process.cwd(), "bin", "memoark.mjs");
+const binCli = resolve(process.cwd(), "bin", "memkin.mjs");
 const shebang = "#!/usr/bin/env node";
 
 if (!existsSync(distCli)) {

@@ -16,7 +16,7 @@ export interface DocCandidate {
   created_at: string; // ISO8601
   modified_at: string; // ISO8601
   source: DocSourceOrigin;
-  parent_path: string; // "Wiki/Research/Memoark/"
+  parent_path: string; // "Wiki/Research/Memkin/"
 }
 
 // ── Cards ────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ export interface DocBlock {
   text: string;
 }
 
-// ── Decision engine config (subset of memoark.yaml docs config) ──
+// ── Decision engine config (subset of memkin.yaml docs config) ──
 export interface DocDecisionConfig {
   self_edit: boolean; // T1
   recent_window_days: number | null; // T2: null = off

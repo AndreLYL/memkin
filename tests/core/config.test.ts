@@ -10,17 +10,17 @@ import { loadConfig, resolveConfigPath } from "../../src/core/config.js";
 import { ensureStateDir, statePath } from "../../src/core/state.js";
 
 // Create a temporary test directory
-const testDir = resolve(`/tmp/memoark-test-${Date.now()}`);
+const testDir = resolve(`/tmp/memkin-test-${Date.now()}`);
 
 describe("Config loader", () => {
-  let originalMemoarkConfig: string | undefined;
+  let originalMemkinConfig: string | undefined;
 
   beforeEach(() => {
     mkdirSync(testDir, { recursive: true });
     // Save original cwd
     process.env.TEST_ORIGINAL_CWD = process.cwd();
-    originalMemoarkConfig = process.env.MEMOARK_CONFIG;
-    delete process.env.MEMOARK_CONFIG;
+    originalMemkinConfig = process.env.MEMKIN_CONFIG;
+    delete process.env.MEMKIN_CONFIG;
     process.chdir(testDir);
   });
 
@@ -30,10 +30,10 @@ describe("Config loader", () => {
       process.chdir(process.env.TEST_ORIGINAL_CWD);
       delete process.env.TEST_ORIGINAL_CWD;
     }
-    if (originalMemoarkConfig === undefined) {
-      delete process.env.MEMOARK_CONFIG;
+    if (originalMemkinConfig === undefined) {
+      delete process.env.MEMKIN_CONFIG;
     } else {
-      process.env.MEMOARK_CONFIG = originalMemoarkConfig;
+      process.env.MEMKIN_CONFIG = originalMemkinConfig;
     }
     // Clean up test directory
     if (existsSync(testDir)) {
@@ -87,7 +87,7 @@ block_builder:
   block_gap_minutes: 60
   max_block_tokens: 8000
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     expect(config.privacy.enabled).toBe(false);
@@ -108,7 +108,7 @@ block_builder:
 llm:
   provider: custom-provider
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     // User override
@@ -128,7 +128,7 @@ llm:
   provider: \${TEST_PROVIDER}
   api_key: \${TEST_API_KEY}
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     expect(config.llm.provider).toBe("my-provider");
@@ -144,7 +144,7 @@ llm:
   api_key: \${MISSING_VAR}
   base_url: \${ANOTHER_MISSING}
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     expect(config.llm.api_key).toBe("$" + "{MISSING_VAR}");
@@ -162,7 +162,7 @@ privacy:
     - \${TEST_WORD1}
     - \${TEST_WORD2}
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     expect(config.privacy.blocked_words).toEqual(["secret", "private"]);
@@ -178,7 +178,7 @@ privacy:
 privacy:
   replacement: "[REDACTED-\${TEST_ENV}]"
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     expect(config.privacy.replacement).toBe("[REDACTED-prod]");
@@ -204,30 +204,30 @@ llm:
     expect(config.__context.projectRoot).toBe(customDir);
   });
 
-  it("should discover memoark.yaml from parent directories", () => {
+  it("should discover memkin.yaml from parent directories", () => {
     const nestedDir = join(testDir, "nested", "workspace");
     mkdirSync(nestedDir, { recursive: true });
-    writeFileSync("memoark.yaml", "llm:\n  model: parent-model\n");
+    writeFileSync("memkin.yaml", "llm:\n  model: parent-model\n");
 
     process.chdir(nestedDir);
     const config = loadConfig();
 
     expect(resolveConfigPath()).toBe(config.__context.configPath);
-    expect(config.__context.configPath.endsWith("/memoark.yaml")).toBe(true);
+    expect(config.__context.configPath.endsWith("/memkin.yaml")).toBe(true);
     expect(config.llm.model).toBe("parent-model");
     expect(config.__context.projectRoot).toBe(dirname(config.__context.configPath));
   });
 
-  it("should prefer MEMOARK_CONFIG over parent directory discovery", () => {
+  it("should prefer MEMKIN_CONFIG over parent directory discovery", () => {
     const envDir = join(testDir, "env-config");
     const nestedDir = join(testDir, "nested");
     mkdirSync(envDir, { recursive: true });
     mkdirSync(nestedDir, { recursive: true });
-    writeFileSync("memoark.yaml", "llm:\n  model: parent-model\n");
-    const envConfig = join(envDir, "memoark.yaml");
+    writeFileSync("memkin.yaml", "llm:\n  model: parent-model\n");
+    const envConfig = join(envDir, "memkin.yaml");
     writeFileSync(envConfig, "llm:\n  model: env-model\n");
 
-    process.env.MEMOARK_CONFIG = envConfig;
+    process.env.MEMKIN_CONFIG = envConfig;
     process.chdir(nestedDir);
     const config = loadConfig();
 
@@ -237,7 +237,7 @@ llm:
   });
 
   it("should handle empty YAML file", () => {
-    writeFileSync("memoark.yaml", "");
+    writeFileSync("memkin.yaml", "");
     const config = loadConfig();
 
     // All defaults should be applied
@@ -250,7 +250,7 @@ llm:
 privacy:
   enabled: [invalid yaml
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
 
     expect(() => loadConfig()).toThrow();
   });
@@ -266,7 +266,7 @@ adapters:
     enabled: true
     output_dir: /tmp/output
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     // Verify nested privacy merging
@@ -289,7 +289,7 @@ block_builder:
   max_block_tokens: 5000
   max_block_messages: 50
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
 
     // Verify all values are correct type
@@ -309,7 +309,7 @@ block_builder:
   });
 
   it("should allow disabling a source", () => {
-    const tmpConfig = resolve(os.tmpdir(), `memoark-test-${Date.now()}.yaml`);
+    const tmpConfig = resolve(os.tmpdir(), `memkin-test-${Date.now()}.yaml`);
     writeFileSync(tmpConfig, "sources:\n  codex:\n    enabled: false\n");
     try {
       const config = loadConfig(tmpConfig);
@@ -324,7 +324,7 @@ block_builder:
     process.env.OPENAI_API_KEY = "test-key-123";
     const yaml = `
 store:
-  data_dir: /tmp/memoark-test
+  data_dir: /tmp/memkin-test
 embedding:
   provider: openai
   model: text-embedding-3-large
@@ -334,9 +334,9 @@ server:
   http_port: 3927
   mcp_transport: stdio
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
-    expect(config.store.data_dir).toBe("/tmp/memoark-test");
+    expect(config.store.data_dir).toBe("/tmp/memkin-test");
     expect(config.embedding.provider).toBe("openai");
     expect(config.embedding.dimensions).toBe(768);
     expect(config.embedding.api_key).toBe("test-key-123");
@@ -349,9 +349,9 @@ server:
 llm:
   provider: mock
 `;
-    writeFileSync("memoark.yaml", yaml);
+    writeFileSync("memkin.yaml", yaml);
     const config = loadConfig();
-    expect(config.store.data_dir).toBe("~/.memoark/data");
+    expect(config.store.data_dir).toBe("~/.memkin/data");
     expect(config.embedding.provider).toBe("openai");
     expect(config.embedding.dimensions).toBe(768);
     expect(config.server.http_port).toBe(3927);
@@ -375,14 +375,14 @@ describe("State directory management", () => {
     }
   });
 
-  it("should create .memoark directory if it does not exist", () => {
+  it("should create .memkin directory if it does not exist", () => {
     const stateDir = ensureStateDir();
 
     expect(existsSync(stateDir)).toBe(true);
-    expect(stateDir).toBe(resolve(process.cwd(), ".memoark"));
+    expect(stateDir).toBe(resolve(process.cwd(), ".memkin"));
   });
 
-  it("should return existing .memoark directory without error", () => {
+  it("should return existing .memkin directory without error", () => {
     // First call creates it
     const stateDir1 = ensureStateDir();
     // Second call should not error and return same path
@@ -398,7 +398,7 @@ describe("State directory management", () => {
 
     const stateDir = ensureStateDir(customBase);
 
-    expect(stateDir).toBe(resolve(customBase, ".memoark"));
+    expect(stateDir).toBe(resolve(customBase, ".memkin"));
     expect(existsSync(stateDir)).toBe(true);
   });
 
@@ -414,18 +414,18 @@ describe("State directory management", () => {
     ensureStateDir();
     const path = statePath("cursors.yaml");
 
-    expect(path).toBe(resolve(process.cwd(), ".memoark", "cursors.yaml"));
+    expect(path).toBe(resolve(process.cwd(), ".memkin", "cursors.yaml"));
   });
 
   it("should return correct path for different state files", () => {
     ensureStateDir();
 
     expect(statePath("checkpoints.jsonl")).toBe(
-      resolve(process.cwd(), ".memoark", "checkpoints.jsonl"),
+      resolve(process.cwd(), ".memkin", "checkpoints.jsonl"),
     );
-    expect(statePath("cursors.yaml")).toBe(resolve(process.cwd(), ".memoark", "cursors.yaml"));
+    expect(statePath("cursors.yaml")).toBe(resolve(process.cwd(), ".memkin", "cursors.yaml"));
     expect(statePath("redaction_map.jsonl")).toBe(
-      resolve(process.cwd(), ".memoark", "redaction_map.jsonl"),
+      resolve(process.cwd(), ".memkin", "redaction_map.jsonl"),
     );
   });
 
@@ -439,11 +439,11 @@ describe("State directory management", () => {
     expect(readFileSync(path, "utf-8")).toBe("test content");
   });
 
-  it("should handle nested .memoark directory creation", () => {
+  it("should handle nested .memkin directory creation", () => {
     const nestedBase = resolve(testDir, "a", "b", "c");
     const stateDir = ensureStateDir(nestedBase);
 
     expect(existsSync(stateDir)).toBe(true);
-    expect(stateDir).toBe(resolve(nestedBase, ".memoark"));
+    expect(stateDir).toBe(resolve(nestedBase, ".memkin"));
   });
 });

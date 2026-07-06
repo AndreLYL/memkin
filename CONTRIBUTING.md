@@ -1,4 +1,4 @@
-# Contributing to Memoark
+# Contributing to Memkin
 
 Thanks for your interest in contributing! This guide will help you get started.
 
@@ -6,8 +6,8 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 ```bash
 # Clone the repo
-git clone https://github.com/AndreLYL/memoark.git
-cd memoark
+git clone https://github.com/AndreLYL/memkin.git
+cd memkin
 
 # Install Bun (if not installed)
 curl -fsSL https://bun.sh/install | bash
@@ -39,7 +39,7 @@ See [README.md](README.md) for the full architecture and directory layout.
 
 1. Create a parser in `src/collectors/agent/` implementing the `SessionParser` interface
 2. Register it in `src/collectors/index.ts`
-3. Add configuration in `memoark.yaml` under `sources:`
+3. Add configuration in `memkin.yaml` under `sources:`
 4. Add tests covering parsing and edge cases
 5. Update `sources list` and `sources test` CLI output
 
@@ -67,7 +67,7 @@ bun run test -- path/to   # Run specific test file
 
 ## Reporting Issues
 
-Use [GitHub Issues](https://github.com/AndreLYL/memoark/issues). Include:
+Use [GitHub Issues](https://github.com/AndreLYL/memkin/issues). Include:
 - Steps to reproduce
 - Expected vs actual behavior
 - Environment (OS, Bun version, Node version)

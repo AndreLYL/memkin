@@ -11,7 +11,7 @@ import {
 
 let dir: string;
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "memoark-dstate-"));
+  dir = mkdtempSync(join(tmpdir(), "memkin-dstate-"));
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -19,7 +19,7 @@ afterEach(() => {
 
 const state = {
   instance_id: "n1",
-  config_path: "/c/memoark.yaml",
+  config_path: "/c/memkin.yaml",
   raw_yaml_hash: "h",
   serving_subset_hash: "s",
   url: "http://127.0.0.1:3928/mcp",
@@ -36,7 +36,7 @@ describe("daemon-state", () => {
     expect(readDaemonState(dir)).toBeNull();
   });
   it("rawYamlHash hashes file text WITHOUT interpolating ${VAR}", () => {
-    const p = join(dir, "memoark.yaml");
+    const p = join(dir, "memkin.yaml");
     writeFileSync(p, "store:\n  database_url: ${DATABASE_URL}\n");
     const h1 = rawYamlHash(p);
     expect(typeof h1).toBe("string");

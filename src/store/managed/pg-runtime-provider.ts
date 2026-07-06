@@ -44,14 +44,14 @@ export interface ProviderOptions {
 export const RUNTIME_MANIFEST = {
   version: "17.5-1", // pinned; bump when republishing runtime
   // TODO: confirm release URL once the GitHub release is published
-  baseUrl: "https://github.com/AndreLYL/memoark/releases/download/pg-runtime-17.5-1",
+  baseUrl: "https://github.com/AndreLYL/memkin/releases/download/pg-runtime-17.5-1",
   assets: {
     arm64: {
-      file: "memoark-pg-darwin-arm64.tar.gz",
+      file: "memkin-pg-darwin-arm64.tar.gz",
       sha256: "TODO_PIN_ARM64_SHA256", // TODO: fill in after building the release asset
     },
     x64: {
-      file: "memoark-pg-darwin-x64.tar.gz",
+      file: "memkin-pg-darwin-x64.tar.gz",
       sha256: "TODO_PIN_X64_SHA256", // TODO: fill in after building the release asset
     },
   },
@@ -231,7 +231,7 @@ export function createPgRuntimeProvider(
   /** Resolve override dir (explicit runtimeDir > env var > already-present runtimeRoot). */
   function resolveOverrideDir(): string | undefined {
     const { home, pgMajor, runtimeDir } = opts;
-    const envOverride = process.env.MEMOARK_PG_RUNTIME_DIR;
+    const envOverride = process.env.MEMKIN_PG_RUNTIME_DIR;
     const paths = managedPaths(home, pgMajor);
 
     if (runtimeDir !== undefined) return runtimeDir;
@@ -243,7 +243,7 @@ export function createPgRuntimeProvider(
   return {
     /**
      * verify() — checks an ALREADY-present runtime without downloading.
-     * Used by `memoark doctor` so it never triggers a 40-80 MB download as a side effect.
+     * Used by `memkin doctor` so it never triggers a 40-80 MB download as a side effect.
      */
     async verify(): Promise<RuntimePaths> {
       const { home, pgMajor } = opts;
@@ -255,13 +255,13 @@ export function createPgRuntimeProvider(
 
       const paths = managedPaths(home, pgMajor);
       throw new Error(
-        `managed Postgres runtime not provisioned at ${paths.runtimeRoot} — run \`memoark up\``,
+        `managed Postgres runtime not provisioned at ${paths.runtimeRoot} — run \`memkin up\``,
       );
     },
 
     /**
      * ensure() — validates existing runtime OR downloads it on first-run.
-     * Used by `memoark up`.
+     * Used by `memkin up`.
      */
     async ensure(): Promise<RuntimePaths> {
       const { home, pgMajor } = opts;
@@ -285,7 +285,7 @@ export function createPgRuntimeProvider(
         throw new Error(
           `The self-managed Postgres engine is currently macOS-only (arm64/x64); your platform (${process.platform}/${arch}) is not supported yet. ` +
             `Use the default PGLite backend instead — it works everywhere. ` +
-            `Set \`store.engine: pglite\` in memoark.yaml (or remove \`store.engine\` to use the default).`,
+            `Set \`store.engine: pglite\` in memkin.yaml (or remove \`store.engine\` to use the default).`,
         );
       }
 
@@ -310,7 +310,7 @@ export function createPgRuntimeProvider(
         );
       }
 
-      // 5. Write buf to a temp file under the same filesystem (.memoark/tmp) to
+      // 5. Write buf to a temp file under the same filesystem (.memkin/tmp) to
       //    keep the later atomic rename cross-device-safe.
       const managedBase = managedPaths(home, pgMajor).base;
       mkdirSync(managedBase, { recursive: true });

@@ -703,7 +703,7 @@ describe("SignalExtractor — SourceRef v2 provenance", () => {
           channel: "dm/wechat/wxid_zhangsan",
           contact: "张三",
           timestamp: "2026-06-04T08:00:00Z",
-          content: "Memoark 部署先用本地 PGLite",
+          content: "Memkin 部署先用本地 PGLite",
           direction: "received",
           metadata: { message_id: "wx_msg_001", channel_name: "张三" },
         },

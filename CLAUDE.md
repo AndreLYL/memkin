@@ -1,6 +1,6 @@
-# Memoark — Agent Guide
+# Memkin — Agent Guide
 
-Memoark is a personal memory layer. It stores and retrieves signals (decisions, tasks, knowledge, preferences, references) as pages anchored to entities (people, projects, tools) via a graph.
+Memkin is a personal memory layer. It stores and retrieves signals (decisions, tasks, knowledge, preferences, references) as pages anchored to entities (people, projects, tools) via a graph.
 
 ## Session Start
 
@@ -40,4 +40,4 @@ Signal types: `decision`, `task`, `knowledge`, `preference`, `reference`, `entit
 
 ## Memory Tiers
 
-Pages move through tiers automatically (`hot` → `warm` → `cold`). Query results weight hot pages higher. Use `memoark consolidate --hot` to run tier rotation manually.
+Pages move through tiers automatically (`hot` → `warm` → `cold`). Query results weight hot pages higher. Use `memkin consolidate --hot` to run tier rotation manually.

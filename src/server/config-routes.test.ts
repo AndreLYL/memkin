@@ -24,9 +24,9 @@ describe("createConfigRoutes", () => {
   let configPath: string;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `memoark-test-${Date.now()}`);
+    tmpDir = join(tmpdir(), `memkin-test-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
-    configPath = join(tmpDir, "memoark.yaml");
+    configPath = join(tmpDir, "memkin.yaml");
   });
 
   afterEach(() => {

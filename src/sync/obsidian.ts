@@ -1,8 +1,8 @@
 /**
  * Obsidian vault bidirectional sync.
  *
- * Implements `memoark export --vault <path>` and `memoark import --vault <path>`.
- * See spec: docs/specs/memoark-2026-06-04-obsidian-sync.md (v7).
+ * Implements `memkin export --vault <path>` and `memkin import --vault <path>`.
+ * See spec: docs/specs/memkin-2026-06-04-obsidian-sync.md (v7).
  */
 
 import { createHash } from "node:crypto";
@@ -30,8 +30,8 @@ import type { TimelineEntry, TimelineStore } from "../store/timeline.js";
 // Constants
 // ============================================================================
 
-const RELATED_MARKER = "<!-- memoark:related -->";
-const TIMELINE_MARKER = "<!-- memoark:timeline -->";
+const RELATED_MARKER = "<!-- memkin:related -->";
+const TIMELINE_MARKER = "<!-- memkin:timeline -->";
 
 /** Unicode-safe slug regex (H3). */
 const SLUG_REGEX = /^[\p{L}\p{N}_-]+(\/[\p{L}\p{N}_-]+)*$/u;
@@ -120,14 +120,14 @@ export function serializePage(
   bodyParts.push(compiledWithoutAliases.trim());
 
   if (links.length > 0) {
-    bodyParts.push("", "<!-- memoark:related -->", "");
+    bodyParts.push("", "<!-- memkin:related -->", "");
     for (const link of links) {
       bodyParts.push(`- [[${link.to_slug}]]`);
     }
   }
 
   if (timeline.length > 0) {
-    bodyParts.push("", "<!-- memoark:timeline -->", "");
+    bodyParts.push("", "<!-- memkin:timeline -->", "");
     bodyParts.push("> ⚠️ Timeline 为只读派生数据，编辑此处不会同步回 DB", "");
     for (const entry of timeline) {
       bodyParts.push(`- **${entry.date}**: ${entry.summary}`);
@@ -311,7 +311,7 @@ export function parseVaultFile(content: string, relativePath: string): ParseVaul
 // Section 3: Manifest I/O (Spec §4.7 + §7.8)
 // ============================================================================
 
-const MANIFEST_FILENAME = ".memoark-sync.json";
+const MANIFEST_FILENAME = ".memkin-sync.json";
 const MANIFEST_VERSION = 2;
 
 export interface ManifestPageEntry {
@@ -653,7 +653,7 @@ export async function importFromVault(
       //   - addLink: INSERT ... ON CONFLICT UPDATE (idempotent)
       //   - rechunk: DELETE + INSERT (eventual consistency; retry-safe)
       //
-      // If the process crashes mid-write, the next `memoark import` run will
+      // If the process crashes mid-write, the next `memkin import` run will
       // re-process the file (file_hash will still differ) and reach a
       // consistent state. Worst case: chunks briefly out of date.
       // autoWikilink:false — Obsidian sync owns [[...]] semantics (creates "obsidian"-typed

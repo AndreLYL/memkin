@@ -6,7 +6,7 @@ import { acquireLifecycleLock, LifecycleLockError } from "./lifecycle-lock.js";
 
 let home: string;
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-life-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-life-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -15,7 +15,7 @@ afterEach(() => {
 describe("acquireLifecycleLock", () => {
   it("acquires in a fresh home and writes the lock file with correct fields", () => {
     const h = acquireLifecycleLock(home, "up");
-    const p = join(home, ".memoark", "lifecycle.lock");
+    const p = join(home, ".memkin", "lifecycle.lock");
     expect(existsSync(p)).toBe(true);
     h.release();
     expect(existsSync(p)).toBe(false);
@@ -34,9 +34,9 @@ describe("acquireLifecycleLock", () => {
     }
   });
   it("reclaims a stale (dead pid) lock", () => {
-    mkdirSync(join(home, ".memoark"), { recursive: true });
+    mkdirSync(join(home, ".memkin"), { recursive: true });
     writeFileSync(
-      join(home, ".memoark", "lifecycle.lock"),
+      join(home, ".memkin", "lifecycle.lock"),
       JSON.stringify({
         pid: 999999,
         command: "x",
@@ -46,6 +46,6 @@ describe("acquireLifecycleLock", () => {
     );
     const h = acquireLifecycleLock(home, "up");
     h.release();
-    expect(existsSync(join(home, ".memoark", "lifecycle.lock"))).toBe(false);
+    expect(existsSync(join(home, ".memkin", "lifecycle.lock"))).toBe(false);
   });
 });

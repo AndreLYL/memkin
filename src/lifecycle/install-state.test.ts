@@ -6,7 +6,7 @@ import { opKey, readInstallState, recordOriginal, restorableOriginal } from "./i
 
 let home: string;
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-is-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-is-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });

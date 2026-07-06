@@ -74,7 +74,7 @@ export async function resolveDb(
   }
 
   // pglite (default)
-  const rawDir = config.store?.data_dir ?? "~/.memoark/data";
+  const rawDir = config.store?.data_dir ?? "~/.memkin/data";
   const dataDir = expandDataDir(rawDir, config.__context.projectRoot);
   mkdirSync(dataDir, { recursive: true });
   const pgliteConfig: Config = {

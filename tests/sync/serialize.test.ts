@@ -29,8 +29,8 @@ describe("serializePage", () => {
     expect(result).toContain("slug: person/alice");
     expect(result).toContain("user_edited: false");
     expect(result).toContain("## Context\n\nSenior engineer.");
-    expect(result).not.toContain("memoark:related");
-    expect(result).not.toContain("memoark:timeline");
+    expect(result).not.toContain("memkin:related");
+    expect(result).not.toContain("memkin:timeline");
   });
 
   it("H1: explicit fields override frontmatter spread (no clobbering)", () => {
@@ -83,7 +83,7 @@ describe("serializePage", () => {
     ];
     const result = serializePage(makePage(), [], links, [], false);
 
-    expect(result).toContain("<!-- memoark:related -->");
+    expect(result).toContain("<!-- memkin:related -->");
     expect(result).toContain("- [[project/auth]]");
     expect(result).toContain("- [[person/bob]]");
   });
@@ -102,7 +102,7 @@ describe("serializePage", () => {
     ];
     const result = serializePage(makePage(), [], [], timeline, false);
 
-    expect(result).toContain("<!-- memoark:timeline -->");
+    expect(result).toContain("<!-- memkin:timeline -->");
     expect(result).toContain("⚠️ Timeline 为只读派生数据");
     expect(result).toContain("- **2026-05-20**: Decision: use JWT");
   });

@@ -8,7 +8,7 @@ describe("detect sources", () => {
   let homeDir: string;
 
   beforeEach(() => {
-    homeDir = mkdtempSync(join(tmpdir(), "memoark-sources-"));
+    homeDir = mkdtempSync(join(tmpdir(), "memkin-sources-"));
   });
 
   afterEach(() => {

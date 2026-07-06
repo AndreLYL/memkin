@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { makeIsolatedPgUrl } from "../test-helpers/pg-harness.js";
 
-const BASE = process.env.MEMOARK_TEST_PG_URL;
+const BASE = process.env.MEMKIN_TEST_PG_URL;
 const d = BASE ? describe : describe.skip;
 
 d("PostgresExecutor", () => {
   it("query {rows}, multi-statement exec, transaction commit + rollback", async () => {
-    const url = await makeIsolatedPgUrl(BASE!, "memoark_pgexec_test");
+    const url = await makeIsolatedPgUrl(BASE!, "memkin_pgexec_test");
     const { PostgresExecutor } = await import("../../src/store/postgres-executor.js");
     const ex = await PostgresExecutor.create({
       store: { engine: "postgres", database_url: url },
@@ -26,7 +26,7 @@ d("PostgresExecutor", () => {
     await ex.close();
   });
   it("bootstrap runs fn under advisory lock", async () => {
-    const url = await makeIsolatedPgUrl(BASE!, "memoark_pgboot_test");
+    const url = await makeIsolatedPgUrl(BASE!, "memkin_pgboot_test");
     const { PostgresExecutor } = await import("../../src/store/postgres-executor.js");
     const ex = await PostgresExecutor.create({
       store: { engine: "postgres", database_url: url },

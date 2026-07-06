@@ -7,7 +7,7 @@ import { Database } from "./database.js";
 
 let dir: string;
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "memoark-lock-"));
+  dir = mkdtempSync(join(tmpdir(), "memkin-lock-"));
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -16,7 +16,7 @@ afterEach(() => {
 describe("acquireLock", () => {
   it("在空目录获取锁,写出含正确字段的锁文件", () => {
     const handle = acquireLock(dir, "test-cmd");
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     expect(existsSync(lockPath)).toBe(true);
     const info = JSON.parse(readFileSync(lockPath, "utf8"));
     expect(info.pid).toBe(process.pid);
@@ -44,7 +44,7 @@ describe("acquireLock", () => {
   });
 
   it("死 pid 的 stale 锁被抢占成功", () => {
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     const stale = {
       pid: 999999,
       command: "dead",
@@ -60,7 +60,7 @@ describe("acquireLock", () => {
   });
 
   it("损坏的锁文件被视为 stale 并抢占", () => {
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     writeFileSync(lockPath, "{ this is not json");
     const handle = acquireLock(dir, "winner");
     const info = JSON.parse(readFileSync(lockPath, "utf8"));
@@ -69,7 +69,7 @@ describe("acquireLock", () => {
   });
 
   it("不同 hostname 的锁即使 pid 死也保守拒绝", () => {
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     const other = {
       pid: 999999,
       command: "remote",
@@ -82,7 +82,7 @@ describe("acquireLock", () => {
 
   it("release 幂等;不删别的进程持有的锁", () => {
     const handle = acquireLock(dir, "me");
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     handle.release();
     expect(existsSync(lockPath)).toBe(false);
     expect(() => handle.release()).not.toThrow();
@@ -98,7 +98,7 @@ describe("acquireLock", () => {
   });
 
   it("抢占 stale 锁后,结果是唯一独占持有者", () => {
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     writeFileSync(
       lockPath,
       JSON.stringify({
@@ -116,21 +116,21 @@ describe("acquireLock", () => {
 
 describe("Database.create lock 接入", () => {
   it("真实 data_dir 上 create 持锁,close 释放锁", async () => {
-    const lockPath = join(dir, "memoark.lock");
+    const lockPath = join(dir, "memkin.lock");
     const db = await Database.create(dir, { embeddingDimensions: 768, lockLabel: "test" });
     expect(existsSync(lockPath)).toBe(true);
     await db.close();
     expect(existsSync(lockPath)).toBe(false);
   });
 
-  it("MEMOARK_NO_LOCK=1 时跳过锁", async () => {
-    process.env.MEMOARK_NO_LOCK = "1";
+  it("MEMKIN_NO_LOCK=1 时跳过锁", async () => {
+    process.env.MEMKIN_NO_LOCK = "1";
     try {
       const db = await Database.create(dir, { embeddingDimensions: 768 });
-      expect(existsSync(join(dir, "memoark.lock"))).toBe(false);
+      expect(existsSync(join(dir, "memkin.lock"))).toBe(false);
       await db.close();
     } finally {
-      delete process.env.MEMOARK_NO_LOCK;
+      delete process.env.MEMKIN_NO_LOCK;
     }
   });
 

@@ -26,7 +26,7 @@ const makeConfig = (apiKey: string, schedulerInterval = 3600) =>
       sources: {},
     },
     __context: {
-      configPath: "/tmp/memoark.yaml",
+      configPath: "/tmp/memkin.yaml",
       projectRoot: "/tmp",
       missingEnvVars: [],
     },

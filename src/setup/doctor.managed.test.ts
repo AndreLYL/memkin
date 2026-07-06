@@ -29,13 +29,13 @@ beforeEach(() => {
 });
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
-  delete process.env.MEMOARK_PG_RUNTIME_DIR;
+  delete process.env.MEMKIN_PG_RUNTIME_DIR;
 });
 
 describe("checkManagedPostgres", () => {
   it("all checks OK with valid runtime, pgdata, and written state", async () => {
     const rt = makeValidRuntime(root);
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
 
     // Write fake pgdata/PG_VERSION
     const paths = managedPaths(root, "17");
@@ -50,7 +50,7 @@ describe("checkManagedPostgres", () => {
       runtimeRoot: rt,
       pgVersion: "17.2",
       pgCtlPath: join(rt, "bin", "pg_ctl"),
-      logPath: join(root, ".memoark", "pg.log"),
+      logPath: join(root, ".memkin", "pg.log"),
     });
 
     const checks = await checkManagedPostgres({ home: root });
@@ -71,18 +71,18 @@ describe("checkManagedPostgres", () => {
   });
 
   it("runtime check FAILs with actionable message when runtime is missing", async () => {
-    // No MEMOARK_PG_RUNTIME_DIR, no runtime at default location → provider throws
+    // No MEMKIN_PG_RUNTIME_DIR, no runtime at default location → provider throws
     const checks = await checkManagedPostgres({ home: root });
 
     const runtime = checks.find((c) => c.name === "managed-runtime");
     expect(runtime?.severity).toBe("fail");
-    expect(runtime?.message).toMatch(/memoark up/i);
+    expect(runtime?.message).toMatch(/memkin up/i);
   });
 
   it("runtime check FAILs when a required binary is missing", async () => {
     const rt = makeValidRuntime(root);
     rmSync(join(rt, "bin", "initdb"));
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
 
     const checks = await checkManagedPostgres({ home: root });
 
@@ -93,22 +93,22 @@ describe("checkManagedPostgres", () => {
 
   it("cluster check is warn and state check is warn when neither pgdata nor state exist", async () => {
     const rt = makeValidRuntime(root);
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
 
     const checks = await checkManagedPostgres({ home: root });
 
     const cluster = checks.find((c) => c.name === "managed-cluster");
     expect(cluster?.severity).toBe("warn");
-    expect(cluster?.message).toMatch(/memoark up/i);
+    expect(cluster?.message).toMatch(/memkin up/i);
 
     const state = checks.find((c) => c.name === "managed-state");
     expect(state?.severity).toBe("warn");
-    expect(state?.message).toMatch(/memoark up/i);
+    expect(state?.message).toMatch(/memkin up/i);
   });
 
   it("uses injected fileExists probe — treats missing pgdata as warn", async () => {
     const rt = makeValidRuntime(root);
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
 
     const checks = await checkManagedPostgres({
       home: root,

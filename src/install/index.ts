@@ -55,8 +55,8 @@ function applyOp(op: InstallOp): void {
       const obj = parseJsonConfig(readFileOr(op.path, ""), op.path);
       const next =
         op.action === "upsert" && op.entry
-          ? upsertMcpServer(obj, "memoark", op.entry)
-          : removeMcpServer(obj, "memoark");
+          ? upsertMcpServer(obj, "memkin", op.entry)
+          : removeMcpServer(obj, "memkin");
       writeFileSync(op.path, stringifyJsonConfig(next));
       break;
     }
@@ -64,8 +64,8 @@ function applyOp(op: InstallOp): void {
       const text = readFileOr(op.path, "");
       const next =
         op.action === "upsert" && op.entry
-          ? upsertMcpServerToml(text, "memoark", op.entry)
-          : removeMcpServerToml(text, "memoark");
+          ? upsertMcpServerToml(text, "memkin", op.entry)
+          : removeMcpServerToml(text, "memkin");
       writeFileSync(op.path, next);
       break;
     }
@@ -73,8 +73,8 @@ function applyOp(op: InstallOp): void {
       const text = readFileOr(op.path, "");
       const next =
         op.action === "upsert" && op.entry
-          ? upsertMcpServerYaml(text, "memoark", op.entry)
-          : removeMcpServerYaml(text, "memoark");
+          ? upsertMcpServerYaml(text, "memkin", op.entry)
+          : removeMcpServerYaml(text, "memkin");
       writeFileSync(op.path, next);
       break;
     }

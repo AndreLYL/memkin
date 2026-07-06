@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkPostgres } from "../../src/setup/doctor.js";
 
-const BASE = process.env.MEMOARK_TEST_PG_URL;
+const BASE = process.env.MEMKIN_TEST_PG_URL;
 const d = BASE ? describe : describe.skip;
 d("checkPostgres", () => {
   it("reports connectivity + pgvector ready", async () => {

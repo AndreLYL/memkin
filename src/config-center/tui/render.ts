@@ -11,7 +11,7 @@ import { CONFIG_SECTIONS, type ConfigField, getConfigFieldsForSection } from "..
 import { maskSecret } from "../secrets.js";
 import { formatSourceBaseDirValue } from "../source-dirs.js";
 
-export const MEMOARK_SLANT_HEADER = [
+export const MEMKIN_SLANT_HEADER = [
   "  ═══════════════════════════════════════════════════════════════════════",
   "      __  ___                                __",
   "     /  |/  /__  ____ ___  ____  ____ ______/ /__",
@@ -96,7 +96,7 @@ function formatFieldLabel(field: ConfigField): string {
 
 function renderFieldList(doc: ConfigDocument, state: Required<RenderState>): string[] {
   if (state.sectionId === "feishu") {
-    return ["Feishu", "Coming soon — edit memoark.yaml directly."];
+    return ["Feishu", "Coming soon — edit memkin.yaml directly."];
   }
 
   const fields = getConfigFieldsForSection(state.sectionId, doc.draft);
@@ -155,7 +155,7 @@ function renderDetailPane(doc: ConfigDocument, state: Required<RenderState>): st
       fixedDetailLine("Default", "-"),
       fixedDetailLine(
         "Description",
-        "Full Feishu editing is planned for Phase 6. Edit memoark.yaml directly for now.",
+        "Full Feishu editing is planned for Phase 6. Edit memkin.yaml directly for now.",
       ),
     ];
   }
@@ -201,9 +201,9 @@ export function renderConfigCenter(doc: ConfigDocument, renderState: RenderState
     return `${left} │  ${right}`;
   });
 
-  return `${MEMOARK_SLANT_HEADER}
+  return `${MEMKIN_SLANT_HEADER}
 
-Memoark Config Center
+Memkin Config Center
 ${doc.path}  ${state.dirty ? "modified" : doc.exists ? "loaded" : "new"}
 ${renderConnectionStatus(state.connectionStatus)}
 --------------------------------------------------------------------------------

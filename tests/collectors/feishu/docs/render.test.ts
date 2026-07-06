@@ -19,9 +19,9 @@ function full(over: Partial<FullCard> = {}): FullCard {
     source: { kind: "my_space", folder_token: "fld_a" },
     parent_path: "My Space/Research/",
     extract_level: "full",
-    purpose: "Track the memoark roadmap",
-    topics: ["roadmap", "memoark"],
-    entities: [{ name: "Memoark", type_guess: "project" }],
+    purpose: "Track the memkin roadmap",
+    topics: ["roadmap", "memkin"],
+    entities: [{ name: "Memkin", type_guess: "project" }],
     toc: [{ level: 1, title: "Goals" }],
     overview: "An overview of the roadmap.",
     source_body_hash: "abc",
@@ -71,7 +71,7 @@ describe("renderDocCardMarkdown — full card", () => {
 
   test("nested fields round-trip through YAML", () => {
     const fm = frontmatterOf(md) as { entities: unknown; toc: unknown };
-    expect(fm.entities).toEqual([{ name: "Memoark", type_guess: "project" }]);
+    expect(fm.entities).toEqual([{ name: "Memkin", type_guess: "project" }]);
     expect(fm.toc).toEqual([{ level: 1, title: "Goals" }]);
   });
 
@@ -83,7 +83,7 @@ describe("renderDocCardMarkdown — full card", () => {
 
   test("body renders purpose, overview, topics and back-link", () => {
     const body = md.split(/\n---\n/)[1];
-    expect(body).toContain("Track the memoark roadmap");
+    expect(body).toContain("Track the memkin roadmap");
     expect(body).toContain("An overview of the roadmap.");
     expect(body).toContain("- roadmap");
     expect(body).toContain("https://feishu.cn/docx/tok123");

@@ -8,7 +8,7 @@ describe("detect api keys", () => {
   let homeDir: string;
 
   beforeEach(() => {
-    homeDir = mkdtempSync(join(tmpdir(), "memoark-keys-"));
+    homeDir = mkdtempSync(join(tmpdir(), "memkin-keys-"));
   });
 
   afterEach(() => {

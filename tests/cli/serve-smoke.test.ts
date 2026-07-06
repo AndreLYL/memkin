@@ -3,7 +3,7 @@
  *
  * Runs the real CLI (via the dist build under Node, or `src/cli.ts` under Bun)
  * with a non-existent config path and asserts it exits non-zero while pointing
- * the user at `memoark start`. We can't use `process.execPath` directly on
+ * the user at `memkin start`. We can't use `process.execPath` directly on
  * `src/cli.ts`: under vitest that resolves to Node, which can't load the TS
  * entrypoint, so the runtime is selected the same way the published `bin` does.
  */
@@ -27,12 +27,12 @@ function cliCommand(): { command: string; args: string[] } {
   if (existsSync(BUN)) {
     return { command: BUN, args: ["src/cli.ts"] };
   }
-  return { command: process.execPath, args: ["bin/memoark.mjs"] };
+  return { command: process.execPath, args: ["bin/memkin.mjs"] };
 }
 
 describe("serve without config", () => {
-  it("exits non-zero and points user to `memoark start`", () => {
-    const dir = mkdtempSync(join(tmpdir(), "memoark-serve-"));
+  it("exits non-zero and points user to `memkin start`", () => {
+    const dir = mkdtempSync(join(tmpdir(), "memkin-serve-"));
     const cli = cliCommand();
     const result = spawnSync(cli.command, [...cli.args, "serve", "-c", join(dir, "nope.yaml")], {
       cwd: PROJECT_ROOT,
@@ -41,6 +41,6 @@ describe("serve without config", () => {
 
     expect(result.status).not.toBe(0);
     const out = `${result.stderr ?? ""}${result.stdout ?? ""}`;
-    expect(out).toContain("memoark start");
+    expect(out).toContain("memkin start");
   });
 });

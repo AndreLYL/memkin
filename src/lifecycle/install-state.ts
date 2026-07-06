@@ -29,7 +29,7 @@ export function opKey(op: OpRef): string {
 }
 
 function stateFilePath(home: string): string {
-  return join(home, ".memoark", "install-state.json");
+  return join(home, ".memkin", "install-state.json");
 }
 
 /** Read persisted install state. Returns `{ ops: [] }` when the file is absent or unreadable. */
@@ -45,7 +45,7 @@ export function readInstallState(home: string): InstallState {
 
 /** Atomically write install state to disk (temp + rename, mode 600). */
 function writeInstallState(home: string, state: InstallState): void {
-  const stateDir = join(home, ".memoark");
+  const stateDir = join(home, ".memkin");
   if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
 
   const filePath = stateFilePath(home);
@@ -56,7 +56,7 @@ function writeInstallState(home: string, state: InstallState): void {
 }
 
 /**
- * Record the original state of an op before memoark mutates it.
+ * Record the original state of an op before memkin mutates it.
  *
  * First-backup-wins: if the op key already exists, `original` is NOT overwritten.
  * `managed_hash` is always updated to the latest written value.

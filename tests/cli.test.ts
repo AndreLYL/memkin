@@ -22,7 +22,7 @@ function cliCommand(): { command: string; args: string[] } {
   if (existsSync(BUN)) {
     return { command: BUN, args: ["src/cli.ts"] };
   }
-  return { command: process.execPath, args: ["bin/memoark.mjs"] };
+  return { command: process.execPath, args: ["bin/memkin.mjs"] };
 }
 
 function runCli(args: string[], options: Parameters<typeof spawnSync>[2] = {}) {
@@ -54,11 +54,11 @@ describe("CLI", () => {
     test.skipIf(!existsSync(DIST_CLI))(
       "bin falls back to current Node when Bun is unavailable",
       () => {
-        const emptyPath = mkdtempSync(join(tmpdir(), "memoark-empty-path-"));
+        const emptyPath = mkdtempSync(join(tmpdir(), "memkin-empty-path-"));
         try {
           const result = spawnSync(
             process.execPath,
-            [join(PROJECT_ROOT, "bin", "memoark.mjs"), "--help"],
+            [join(PROJECT_ROOT, "bin", "memkin.mjs"), "--help"],
             {
               cwd: PROJECT_ROOT,
               encoding: "utf-8",
@@ -67,7 +67,7 @@ describe("CLI", () => {
           );
 
           expect(result.status).toBe(0);
-          expect(result.stdout).toContain("memoark");
+          expect(result.stdout).toContain("memkin");
         } finally {
           rmSync(emptyPath, { recursive: true, force: true });
         }
@@ -75,12 +75,12 @@ describe("CLI", () => {
     );
   });
 
-  describe("memoark --help", () => {
+  describe("memkin --help", () => {
     test("shows main help with version and description", () => {
       const result = runCli(["--help"]);
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("memoark");
+      expect(result.stdout).toContain("memkin");
       expect(result.stdout).toContain("Local-first personal memory");
       expect(result.stdout).toContain("version");
     });
@@ -99,7 +99,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("memoark extract", () => {
+  describe("memkin extract", () => {
     test("shows help with --help flag", () => {
       const result = runCli(["extract", "--help"]);
 
@@ -122,7 +122,7 @@ describe("CLI", () => {
 
     test("defaults to claude-code source and fails on missing API key", () => {
       const { OPENAI_API_KEY, ANTHROPIC_API_KEY, DBE_API_KEY, ...cleanEnv } = process.env;
-      const missingConfig = join(tmpdir(), `memoark-missing-${Date.now()}.yaml`);
+      const missingConfig = join(tmpdir(), `memkin-missing-${Date.now()}.yaml`);
       const result = runCli(["extract", "--config", missingConfig], {
         env: cleanEnv,
       });
@@ -155,7 +155,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("memoark doctor", () => {
+  describe("memkin doctor", () => {
     test("shows help with --help flag", () => {
       const result = runCli(["doctor", "--help"]);
 
@@ -177,11 +177,11 @@ describe("CLI", () => {
 
       const output = result.stdout;
       // Should contain diagnostic report title or sections
-      expect(output).toMatch(/Diagnostic|Configuration|state|\.memoark/i);
+      expect(output).toMatch(/Diagnostic|Configuration|state|\.memkin/i);
     });
   });
 
-  describe("memoark config init", () => {
+  describe("memkin config init", () => {
     test("shows config subcommand help", () => {
       const result = runCli(["config", "--help"]);
 
@@ -201,11 +201,11 @@ describe("CLI", () => {
       // We won't actually create a file, but verify the help text is correct
       const result = runCli(["config", "--help"]);
 
-      expect(result.stdout).toContain("memoark.yaml");
+      expect(result.stdout).toContain("memkin.yaml");
     });
   });
 
-  describe("memoark sources list", () => {
+  describe("memkin sources list", () => {
     test("shows sources subcommand help", () => {
       const result = runCli(["sources", "--help"]);
 
@@ -229,7 +229,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("memoark sources test", () => {
+  describe("memkin sources test", () => {
     test("test command runs health check", () => {
       const result = runCli(["sources", "test", "claude-code"]);
 
@@ -253,7 +253,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("memoark serve", () => {
+  describe("memkin serve", () => {
     test("shows help", () => {
       const result = runCli(["serve", "--help"]);
       expect(result.status).toBe(0);
@@ -262,7 +262,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("memoark search", () => {
+  describe("memkin search", () => {
     test("shows help", () => {
       const result = runCli(["search", "--help"]);
       expect(result.status).toBe(0);
@@ -271,7 +271,7 @@ describe("CLI", () => {
     });
   });
 
-  describe("memoark embed", () => {
+  describe("memkin embed", () => {
     test("shows help", () => {
       const result = runCli(["embed", "--help"]);
       expect(result.status).toBe(0);

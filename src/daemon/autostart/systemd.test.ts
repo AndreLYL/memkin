@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderSystemdUnit } from "./systemd.js";
 
 const unit = renderSystemdUnit({
-  description: "Memoark daemon",
+  description: "Memkin daemon",
   argv: ["/abs/node", "/abs/dist/cli.js", "serve", "--mcp-http"],
   env: { DATABASE_URL: "postgres://x?a=1" },
 });

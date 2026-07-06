@@ -43,13 +43,13 @@ WantedBy=default.target
 export function systemdEnable(runner: CommandRunner): Promise<CommandResult> {
   return runner
     .run(["systemctl", "--user", "daemon-reload"])
-    .then(() => runner.run(["systemctl", "--user", "enable", "--now", "memoark.service"]));
+    .then(() => runner.run(["systemctl", "--user", "enable", "--now", "memkin.service"]));
 }
 
 export function systemdDisable(runner: CommandRunner): Promise<CommandResult> {
-  return runner.run(["systemctl", "--user", "disable", "--now", "memoark.service"]);
+  return runner.run(["systemctl", "--user", "disable", "--now", "memkin.service"]);
 }
 
 export function systemdStatus(runner: CommandRunner): Promise<CommandResult> {
-  return runner.run(["systemctl", "--user", "is-active", "memoark.service"]);
+  return runner.run(["systemctl", "--user", "is-active", "memkin.service"]);
 }

@@ -4,13 +4,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 // Opt-in, debounced, non-blocking auto write-back for the SessionEnd hook.
-// When enabled, triggers a detached `memoark extract --source claude-code`
+// When enabled, triggers a detached `memkin extract --source claude-code`
 // (incremental + deduped + L1/L2 noise-filtered) at most once per debounce window.
 
 const DEFAULT_DEBOUNCE_MS = 10 * 60 * 1000; // 10 minutes
 
 function stampPath(home: string): string {
-  return join(home, ".memoark", ".last-writeback");
+  return join(home, ".memkin", ".last-writeback");
 }
 
 function defaultReadStamp(home: string): number | null {
@@ -24,12 +24,12 @@ function defaultWriteStamp(home: string, t: number): void {
   try {
     writeFileSync(stampPath(home), String(t));
   } catch {
-    // best-effort; a missing ~/.memoark just means no debounce persistence
+    // best-effort; a missing ~/.memkin just means no debounce persistence
   }
 }
 
 function defaultSpawn(): void {
-  const child = spawn("memoark", ["extract", "--source", "claude-code"], {
+  const child = spawn("memkin", ["extract", "--source", "claude-code"], {
     detached: true,
     stdio: "ignore",
   });

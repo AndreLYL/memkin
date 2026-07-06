@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed the product from `memoark` to `memkin`** (trademark/SEO collision). The npm package moves from `@andre.li/memoark` to `memkin`, the config file `memoark.yaml` becomes `memkin.yaml`, and the data/state directories `~/.memoark` / `.memoark/` become `~/.memkin` / `.memkin/`. Automatic migration of existing config and data ships in a follow-up release.
+
 ### Added
 
 - SourceRef v2 core and extension fields with schema parity, compact provenance handling, participant metadata, and cross-source source type support.

@@ -47,13 +47,13 @@ describe("computeStatus", () => {
 
 describe("formatManagedStatus", () => {
   const managedState = {
-    pgdata: "/home/user/.memoark/pgdata",
+    pgdata: "/home/user/.memkin/pgdata",
     fixedPort: 54329,
-    socketDir: "/home/user/.memoark/run",
-    runtimeRoot: "/home/user/.memoark/runtime/17",
+    socketDir: "/home/user/.memkin/run",
+    runtimeRoot: "/home/user/.memkin/runtime/17",
     pgVersion: "17.2",
-    pgCtlPath: "/home/user/.memoark/runtime/17/bin/pg_ctl",
-    logPath: "/home/user/.memoark/pg.log",
+    pgCtlPath: "/home/user/.memkin/runtime/17/bin/pg_ctl",
+    logPath: "/home/user/.memkin/pg.log",
   };
 
   it("renders all secret-free fields", () => {
@@ -68,9 +68,9 @@ describe("formatManagedStatus", () => {
   it("shows correct values for pgdata, port, socketDir, pgVersion", () => {
     const lines = formatManagedStatus(managedState, null);
     const byLabel = Object.fromEntries(lines.map((l) => [l.label, l.value]));
-    expect(byLabel["Managed Postgres pgdata"]).toBe("/home/user/.memoark/pgdata");
+    expect(byLabel["Managed Postgres pgdata"]).toBe("/home/user/.memkin/pgdata");
     expect(byLabel["Managed Postgres port"]).toBe("54329");
-    expect(byLabel["Managed Postgres socketDir"]).toBe("/home/user/.memoark/run");
+    expect(byLabel["Managed Postgres socketDir"]).toBe("/home/user/.memkin/run");
     expect(byLabel["Managed Postgres version"]).toBe("17.2");
   });
 

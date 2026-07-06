@@ -103,6 +103,6 @@ export function validateEnvForCommand(
     `Missing required environment variables: ${missing.join(", ")}\n` +
       `Referenced by: ${config.__context.configPath}\n` +
       "Set them in your shell or replace the $" +
-      "{VAR} placeholders in memoark.yaml.",
+      "{VAR} placeholders in memkin.yaml.",
   );
 }

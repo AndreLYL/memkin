@@ -33,9 +33,9 @@ export function StorageSection({ config, onSave }: SectionProps) {
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
-      <PathInput id="cfg-data-dir" label="Database Path" value={dataDir} onChange={setDataDir} defaultHint="~/.memoark/data" />
+      <PathInput id="cfg-data-dir" label="Database Path" value={dataDir} onChange={setDataDir} defaultHint="~/.memkin/data" />
       <PathInput id="cfg-export-dir" label="Markdown Export Directory" value={exportDir} onChange={setExportDir}
-        defaultHint="~/Documents/memoark-export" optional />
+        defaultHint="~/Documents/memkin-export" optional />
     </div>
   );
 }

@@ -19,7 +19,7 @@ const cand: DocCandidate = {
 const goodLlmJson = JSON.stringify({
   purpose: "Track roadmap",
   topics: ["roadmap"],
-  entities: [{ name: "Memoark", type_guess: "project" }],
+  entities: [{ name: "Memkin", type_guess: "project" }],
   overview: "An overview.",
 });
 

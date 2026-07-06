@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">Memoark</h1>
+  <h1 align="center">Memkin</h1>
   <p align="center"><em>You are the sum of your working relationships.</em></p>
   <p align="center"><strong>A local-first memory system for your work — turning your DMs, group chats, emails, docs, and meetings into a private personal memory, so your AI agents truly know you.</strong></p>
 </p>
@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
-  <a href="https://www.npmjs.com/package/@andre.li/memoark"><img alt="npm" src="https://img.shields.io/npm/v/@andre.li/memoark?color=cb3837&logo=npm"></a>
+  <a href="https://www.npmjs.com/package/memkin"><img alt="npm" src="https://img.shields.io/npm/v/memkin?color=cb3837&logo=npm"></a>
   <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-black">
   <img alt="Language: TypeScript" src="https://img.shields.io/badge/lang-TypeScript-3178c6">
   <img alt="Tests: 1000+" src="https://img.shields.io/badge/tests-1000%2B-success">
@@ -26,12 +26,12 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AndreLYL/memoark/main/docs/assets/web-ui-graph.jpeg" alt="Memoark knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
+  <img src="https://raw.githubusercontent.com/AndreLYL/memkin/main/docs/assets/web-ui-graph.jpeg" alt="Memkin knowledge graph — entities, decisions, tasks, and knowledge connected across your work" width="850">
   <br>
   <em>Your work, as a living knowledge graph — people, decisions, tasks, and knowledge, connected.</em>
 </p>
 
-<!-- TODO(demo): replace with an 8-12s demo GIF — ask Memoark a question inside Claude Code
+<!-- TODO(demo): replace with an 8-12s demo GIF — ask Memkin a question inside Claude Code
      and watch the agent recall a Feishu meeting decision + linked task over MCP.
      Research shows a GIF of "the product actually working" is the single highest-converting
      element in a README. -->
@@ -51,7 +51,7 @@ But every time you open a new agent session, it knows nothing. You re-explain wh
 
 ## The Solution
 
-Memoark is a **local-first personal memory system built for the Chinese workplace**. Work in China happens inside Feishu, DingTalk, and WeCom — Memoark pulls the DMs, group chats, emails, meetings, and docs out of these tools, together with your AI-agent sessions, and extracts them into structured signals (entities, decisions, tasks, discoveries, knowledge, relationships) — into one searchable knowledge graph on your own machine, then serves that memory back to any agent over **MCP**.
+Memkin is a **local-first personal memory system built for the Chinese workplace**. Work in China happens inside Feishu, DingTalk, and WeCom — Memkin pulls the DMs, group chats, emails, meetings, and docs out of these tools, together with your AI-agent sessions, and extracts them into structured signals (entities, decisions, tasks, discoveries, knowledge, relationships) — into one searchable knowledge graph on your own machine, then serves that memory back to any agent over **MCP**.
 
 > The MVP focuses on full **Feishu** capture; **DingTalk, WeCom**, and more Chinese workplace tools are on the roadmap (below).
 
@@ -76,7 +76,7 @@ The result: your agents both **write to** and **read from** the same memory — 
 
 > "I discussed a proposal with a colleague on Feishu yesterday, implemented part of it in Claude Code today, and have a review meeting next week."
 >
-> Memoark connects these three events automatically — across platforms, across time — and hands the whole thread to your agent on demand.
+> Memkin connects these three events automatically — across platforms, across time — and hands the whole thread to your agent on demand.
 
 ## Three Pillars
 
@@ -92,10 +92,10 @@ Signals are anchored to entities (people, projects, tools) and linked in a direc
 ## Features
 
 **🛰️ Full Feishu (Lark) Capture**
-Your work lives in Feishu. Memoark collects across **7 sources** — DMs, group chats, email, calendar, docs, tasks, and message search — turning your working relationships into structured memory. Doc capture produces upgradable "summary cards" (DocSource v2).
+Your work lives in Feishu. Memkin collects across **7 sources** — DMs, group chats, email, calendar, docs, tasks, and message search — turning your working relationships into structured memory. Doc capture produces upgradable "summary cards" (DocSource v2).
 
 **🤖 Agents That Know You (MCP)**
-Use Memoark as the memory layer for any MCP agent — Claude Code, Cursor, Claude Desktop, Windsurf. **29 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
+Use Memkin as the memory layer for any MCP agent — Claude Code, Cursor, Claude Desktop, Windsurf. **29 built-in tools** let your agent query your history, read entity pages, and write new knowledge back. Agents are both producers and consumers of your memory.
 
 **🧠 AI-Powered Signal Extraction**
 An LLM pipeline extracts 7 types of structured signals from raw conversations: entities, timeline events, decisions, tasks, discoveries, knowledge, and relationships.
@@ -120,7 +120,7 @@ Full Hono-powered HTTP API for all store operations. Integrate with any client.
 
 ## Works With
 
-Memoark is a standard MCP stdio server and plugs into any MCP client:
+Memkin is a standard MCP stdio server and plugs into any MCP client:
 
 **Claude Code** · **Cursor** · **Claude Desktop** · **Windsurf** · and any MCP-compatible agent.
 
@@ -204,11 +204,11 @@ The full capability list (✅ = shipped and included in the package).
 - ✅ Auto-detection: runtime, API keys, existing data sources
 - ✅ Hardware assessment → recommends local / remote embeddings
 - ✅ Live connection checks (LLM / embedding API key and connectivity)
-- ✅ `memoark doctor` environment diagnostics
+- ✅ `memkin doctor` environment diagnostics
 
 ## Use Cases
 
-> Memoark answers not "what do I know" but "**what should I do**" — every scenario returns a cited, traceable action, not a pile of chunks.
+> Memkin answers not "what do I know" but "**what should I do**" — every scenario returns a cited, traceable action, not a pile of chunks.
 
 **🌟 Know how to talk to someone before you meet them (Hero)**
 *"I'm meeting Director Zhang tomorrow to negotiate a renewal price increase — what should I keep in mind?"* — `prep_for_person` **passively infers** a communication profile from your real interactions (direct vs. indirect, data-driven vs. relationship-driven, landmines), tailors advice to this goal, and flags gaps (*"nothing new about Zhang in 18 days — the profile may be stale"*). Zero questionnaire; the profile never leaves your machine.
@@ -220,14 +220,14 @@ The full capability list (✅ = shipped and included in the package).
 *"Why won't the ADAS engage?"* — `troubleshoot` walks the playbook's diagnostic chain (`precedes`) to give ordered steps and explain what each result means. Playbooks can be authored by hand or auto-extracted (as drafts) from your troubleshooting conversations.
 
 **⚡ Onboard your agent to a project in seconds**
-*"What's the current state of the memoark project?"* — `get_session_context` pulls the aggregated decisions, open tasks, and recent timeline straight from memory, no re-explaining.
+*"What's the current state of the memkin project?"* — `get_session_context` pulls the aggregated decisions, open tasks, and recent timeline straight from memory, no re-explaining.
 
 **🔎 Recall a person or a thread**
 *"What did I discuss with this colleague last week?"* — stitches Feishu DMs, the meeting, and the follow-up task into one cited answer.
 
-## Why Memoark
+## Why Memkin
 
-| | Memoark | Pure RAG / vector search | Note apps (Obsidian / Notion) | GBrain | OpenHuman |
+| | Memkin | Pure RAG / vector search | Note apps (Obsidian / Notion) | GBrain | OpenHuman |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Local-first & private | ✅ | depends | depends | ✅ | ✅ |
 | Open source | ✅ | varies | partial | partial | ✅ |
@@ -238,7 +238,7 @@ The full capability list (✅ = shipped and included in the package).
 | Structured signal extraction (not just chunks) | ✅ | ❌ | ❌ | ✅ | ✅ |
 | Memory consolidation + scheduled-capture daemon | ✅ | ❌ | ❌ | partial | partial |
 
-> Pure RAG gives you vectors but no entities or relationships, so answers lack context. Note apps are powerful but rely on manual upkeep. Memoark keeps it local and agent-native — with Feishu work as a first-class source.
+> Pure RAG gives you vectors but no entities or relationships, so answers lack context. Note apps are powerful but rely on manual upkeep. Memkin keeps it local and agent-native — with Feishu work as a first-class source.
 
 ## Quick Start
 
@@ -252,15 +252,15 @@ The full capability list (✅ = shipped and included in the package).
 ```bash
 # Run without installing — no config? it auto-launches the setup wizard,
 # then starts the server and opens your browser
-npx @andre.li/memoark start
+npx memkin start
 
 # Running with no subcommand is equivalent to `start`
-npx @andre.li/memoark
+npx memkin
 ```
 
-`memoark start` is the single-step path: if there's no `memoark.yaml`, it opens the browser setup wizard first, then starts the HTTP server and auto-opens your browser.
+`memkin start` is the single-step path: if there's no `memkin.yaml`, it opens the browser setup wizard first, then starts the HTTP server and auto-opens your browser.
 
-> The npm package is `@andre.li/memoark` (scoped), but the command is still `memoark`.
+> The npm package and the command are both `memkin`.
 
 ### Ports at a glance
 
@@ -269,40 +269,40 @@ npx @andre.li/memoark
 | HTTP API + Web UI | `3927` | `http://localhost:3927` |
 | MCP Streamable HTTP (`--mcp-http`) | `3928` | `http://localhost:3928/mcp` |
 
-> **Exposing on a LAN & auth**: the server binds `127.0.0.1` (loopback only) by default. To expose it on your LAN, use `memoark serve --host 0.0.0.0` (or set `server.host` in `memoark.yaml`) — this **requires an auth token**, or the server refuses to start. The token comes from `server.auth_token` (config) or `MEMOARK_AUTH_TOKEN` (env); once set, every API request must carry an `Authorization: Bearer <token>` header.
+> **Exposing on a LAN & auth**: the server binds `127.0.0.1` (loopback only) by default. To expose it on your LAN, use `memkin serve --host 0.0.0.0` (or set `server.host` in `memkin.yaml`) — this **requires an auth token**, or the server refuses to start. The token comes from `server.auth_token` (config) or `MEMKIN_AUTH_TOKEN` (env); once set, every API request must carry an `Authorization: Bearer <token>` header.
 >
 > ```yaml
-> # memoark.yaml
+> # memkin.yaml
 > server:
 >   host: 0.0.0.0
->   auth_token: <your-token>   # or export MEMOARK_AUTH_TOKEN=<your-token>
+>   auth_token: <your-token>   # or export MEMKIN_AUTH_TOKEN=<your-token>
 > ```
 
 ### Install (recommended: npm)
 
 ```bash
 # Run without installing
-npx @andre.li/memoark --help
+npx memkin --help
 
-# Or install globally to get the `memoark` command
-npm install -g @andre.li/memoark
+# Or install globally to get the `memkin` command
+npm install -g memkin
 ```
 
 ### Install from source (development)
 
 ```bash
-git clone https://github.com/AndreLYL/memoark.git
-cd memoark
+git clone https://github.com/AndreLYL/memkin.git
+cd memkin
 bun install
-npm link          # registers the `memoark` command globally
+npm link          # registers the `memkin` command globally
 ```
 
 ### Initialize Configuration
 
-`memoark init` launches an **interactive configuration center** — a full-screen TUI (built with React + ink) that lets you generate and edit `memoark.yaml` without hand-writing YAML:
+`memkin init` launches an **interactive configuration center** — a full-screen TUI (built with React + ink) that lets you generate and edit `memkin.yaml` without hand-writing YAML:
 
 ```bash
-memoark init
+memkin init
 ```
 
 **Config center features:**
@@ -311,93 +311,93 @@ memoark init
 - 🔌 **Live connection checks**: validates your LLM / embedding API key and connectivity as you edit
 - 💡 **Smart recommendations**: suggests local (Ollama) vs remote (OpenAI) embedding based on your hardware
 - 🔒 **Secret masking**: API keys are always shown masked
-- 🧭 **Auto-detection**: finds existing data sources (Claude Code, Codex, Hermes) and registers the `memoark` command
+- 🧭 **Auto-detection**: finds existing data sources (Claude Code, Codex, Hermes) and registers the `memkin` command
 
 **Run modes:**
 
 | Command / environment | Behavior |
 |---|---|
-| `memoark init` (in a TTY) | Full-screen TUI config center |
-| `memoark init --no-tui` | Linear question-and-answer wizard (fallback) |
-| `memoark init --auto` | Fully automatic, no prompts, uses detected defaults |
-| `memoark init --force` | Overwrite an existing configuration |
-| `MEMOARK_NO_TUI=1` | Force-disable the TUI (also auto-falls back in non-TTY environments) |
+| `memkin init` (in a TTY) | Full-screen TUI config center |
+| `memkin init --no-tui` | Linear question-and-answer wizard (fallback) |
+| `memkin init --auto` | Fully automatic, no prompts, uses detected defaults |
+| `memkin init --force` | Overwrite an existing configuration |
+| `MEMKIN_NO_TUI=1` | Force-disable the TUI (also auto-falls back in non-TTY environments) |
 
-> `memoark config init` is equivalent to `memoark init`. A few advanced settings (e.g. Feishu) currently need to be edited directly in `memoark.yaml` (see [Configuration](#configuration)).
+> `memkin config init` is equivalent to `memkin init`. A few advanced settings (e.g. Feishu) currently need to be edited directly in `memkin.yaml` (see [Configuration](#configuration)).
 
 ### Check Environment
 
 ```bash
-memoark doctor
+memkin doctor
 ```
 
 ### Run Your First Extraction
 
 ```bash
 # Extract from Feishu (your work source)
-memoark extract --source feishu --since 3d
+memkin extract --source feishu --since 3d
 
 # Extract from Claude Code
-memoark extract --source claude-code
+memkin extract --source claude-code
 
 # Extract from all enabled sources
-memoark extract --source all
+memkin extract --source all
 
 # Dry run (no LLM calls, just scan data volume)
-memoark extract --source claude-code --dry-run
+memkin extract --source claude-code --dry-run
 ```
 
-> Feishu requires a one-time `lark-cli` user login and a `feishu` block in `memoark.yaml`. See [Configuration](#configuration) for the full Feishu setup, including DM vs. group capture paths.
+> Feishu requires a one-time `lark-cli` user login and a `feishu` block in `memkin.yaml`. See [Configuration](#configuration) for the full Feishu setup, including DM vs. group capture paths.
 
 ### Search Your Memory
 
 ```bash
 # Hybrid search (FTS + vector)
-memoark search "auth middleware decision"
+memkin search "auth middleware decision"
 
 # FTS-only search
-memoark search "JWT token" --mode fts
+memkin search "JWT token" --mode fts
 ```
 
 ### Start the Server
 
 ```bash
 # HTTP API + Web UI (default http://localhost:3927) — auto-opens your browser
-memoark serve
+memkin serve
 
 # Skip the auto-open (e.g. on a remote/headless host)
-memoark serve --no-open
+memkin serve --no-open
 
 # MCP stdio (local direct connect for AI agents — Claude Code, Cursor, etc.; no browser)
-memoark serve --mcp
+memkin serve --mcp
 
 # MCP Streamable HTTP (remote / multi-client, default http://localhost:3928/mcp; no browser)
-memoark serve --mcp-http
+memkin serve --mcp-http
 ```
 
-> Without a `memoark.yaml`, `serve` tells you to run `memoark start` for one-step setup + launch, or `memoark init --web` to configure first.
+> Without a `memkin.yaml`, `serve` tells you to run `memkin start` for one-step setup + launch, or `memkin init --web` to configure first.
 
 ### Connect Your Agent (MCP)
 
-**One command (recommended)**: `memoark install` writes the MCP config plus a tiny memory directive into your AI client (**global by default**, across all projects). Supports **Claude Code · Claude Desktop · Cursor · Codex · Windsurf**:
+**One command (recommended)**: `memkin install` writes the MCP config plus a tiny memory directive into your AI client (**global by default**, across all projects). Supports **Claude Code · Claude Desktop · Cursor · Codex · Windsurf**:
 
 ```bash
-memoark install                      # detect installed clients and wire them up
-memoark install --agent claude-code  # target a single client
-memoark install --dry-run            # preview file changes, write nothing
-memoark uninstall                    # clean removal (idempotent)
+memkin install                      # detect installed clients and wire them up
+memkin install --agent claude-code  # target a single client
+memkin install --dry-run            # preview file changes, write nothing
+memkin uninstall                    # clean removal (idempotent)
 ```
 
-Reopen the client and you're set — ask "what did X tell me last week?" or "where is this project at?" and the agent will **proactively query Memoark** per the injected directive (cheap-first: `search` keyword lookup at zero cost, escalating to `query`/`recall` only if thin) instead of guessing.
+Reopen the client and you're set — ask "what did X tell me last week?" or "where is this project at?" and the agent will **proactively query Memkin** per the injected directive (cheap-first: `search` keyword lookup at zero cost, escalating to `query`/`recall` only if thin) instead of guessing.
 
 > Claude Desktop has no rules file, so it relies on the MCP server's `instructions` field. You can also configure things manually below.
 
 **Automatic recall on Claude Code (optional · hooks)**: go further on Claude Code so memory arrives with zero effort:
 
 ```bash
-memoark hooks install               # SessionStart + UserPromptSubmit read hooks (on by default)
-memoark hooks install --write-back  # also enable end-of-session auto write-back (opt-in)
-memoark hooks uninstall             # remove
+memkin hooks install               # SessionStart + UserPromptSubmit read hooks (on by default)
+memkin hooks install --write-back  # also enable end-of-session auto write-back (opt-in)
+memkin hooks uninstall             # remove
 ```
 
 - **SessionStart**: injects an "active projects / decisions / open tasks / key people" digest at the start of each session (the always-on core).
@@ -406,20 +406,20 @@ memoark hooks uninstall             # remove
 
 > Read hooks default on (local, cheap); write-back is explicit `--write-back` (cost + privacy, opt-in). Other clients have no lifecycle hooks and rely on the instruction layer above for model-initiated recall.
 
-**Let the agent install itself**: for agents that can read a URL, just say "onboard me to Memoark following [`MEMOARK_FOR_AGENTS.md`](MEMOARK_FOR_AGENTS.md)" and it runs the commands above and self-checks. For **OpenClaw / Hermes**, use `memoark install --agent hermes` (writes `mcp_servers` into `config.yaml` + drops the `memoark` skill; run `/reload-mcp` in-session to apply); or scaffold the skill alone with `memoark skill scaffold --dir ~/.hermes/skills`.
+**Let the agent install itself**: for agents that can read a URL, just say "onboard me to Memkin following [`MEMKIN_FOR_AGENTS.md`](MEMKIN_FOR_AGENTS.md)" and it runs the commands above and self-checks. For **OpenClaw / Hermes**, use `memkin install --agent hermes` (writes `mcp_servers` into `config.yaml` + drops the `memkin` skill; run `/reload-mcp` in-session to apply); or scaffold the skill alone with `memkin skill scaffold --dir ~/.hermes/skills`.
 
-Memoark offers two MCP transports — pick by scenario:
+Memkin offers two MCP transports — pick by scenario:
 
-- **stdio (`--mcp`)** — local direct connect; the agent spawns `memoark` as a subprocess. Zero network setup; best for a single client on one machine.
+- **stdio (`--mcp`)** — local direct connect; the agent spawns `memkin` as a subprocess. Zero network setup; best for a single client on one machine.
 - **Streamable HTTP (`--mcp-http`)** — over HTTP (default `3928`); use it for remote access or sharing one memory across multiple clients.
 
-Point any MCP client at Memoark so it can read and write your memory. For Claude Code (stdio, local direct connect):
+Point any MCP client at Memkin so it can read and write your memory. For Claude Code (stdio, local direct connect):
 
 ```json
 {
   "mcpServers": {
-    "memoark": {
-      "command": "memoark",
+    "memkin": {
+      "command": "memkin",
       "args": ["serve", "--mcp"]
     }
   }
@@ -438,10 +438,10 @@ bun run dev        # dashboard, timeline, knowledge graph, search
 
 ## Architecture
 
-Memoark is **5 vertical data-flow layers + 3 cross-cutting concerns**. Data flows top-down: sources are collected, extracted into signals, stored as local memory, then read/written through the bottom interfaces. **Person identity**, **consolidation**, and **scheduling** cut across the stack.
+Memkin is **5 vertical data-flow layers + 3 cross-cutting concerns**. Data flows top-down: sources are collected, extracted into signals, stored as local memory, then read/written through the bottom interfaces. **Person identity**, **consolidation**, and **scheduling** cut across the stack.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AndreLYL/memoark/main/docs/assets/architecture.png" alt="Memoark architecture — 5 vertical layers + 3 cross-cutting concerns" width="920">
+  <img src="https://raw.githubusercontent.com/AndreLYL/memkin/main/docs/assets/architecture.png" alt="Memkin architecture — 5 vertical layers + 3 cross-cutting concerns" width="920">
 </p>
 
 <details>
@@ -450,7 +450,7 @@ Memoark is **5 vertical data-flow layers + 3 cross-cutting concerns**. Data flow
 ```mermaid
 flowchart TB
   subgraph L1["① Config & Onboarding"]
-    cfg["TUI config center · Web UI config · memoark.yaml<br/>auto-detect · hardware assessment · connection checks"]
+    cfg["TUI config center · Web UI config · memkin.yaml<br/>auto-detect · hardware assessment · connection checks"]
   end
   subgraph L2["② Collection"]
     feishu["Feishu: DMs · groups · email · calendar · tasks · message search · docs"]
@@ -494,7 +494,7 @@ flowchart TB
 
 | Layer | Responsibility |
 |-------|----------------|
-| **① Config & Onboarding** | TUI config center (React + ink), Web UI config, hand-edited `memoark.yaml`; auto-detect runtime / API keys / sources, hardware-aware embedding recommendation, live connection checks |
+| **① Config & Onboarding** | TUI config center (React + ink), Web UI config, hand-edited `memkin.yaml`; auto-detect runtime / API keys / sources, hardware-aware embedding recommendation, live connection checks |
 | **② Collection** | Feishu (DMs / groups / email / calendar / tasks / message search / docs), AI-agent sessions (Claude Code / Codex / Hermes); incremental capture (per-source cursor + content dedup), historical Backfill. **Planned**: DingTalk, WeCom, local documents |
 | **③ Extraction Pipeline** | Block Builder → Noise Filter (L1 rules + L2 LLM) → Signal Extractor (OpenAI / Anthropic) → entity extraction → scoring → privacy redaction; emits 7 signal types via output adapters (store / file / gbrain / stdout) |
 | **④ Memory Store** | PGLite (in-process embedded PostgreSQL) + pgvector; Page / Chunk / Tag / Timeline / Graph stores; hybrid search (tsvector FTS + vector + RRF) |
@@ -523,13 +523,13 @@ flowchart TB
 
 | Signal | Description | Example |
 |--------|-------------|---------|
-| **Entities** | People, projects, tools, concepts | `project/memoark`, `tool/claude-code` |
+| **Entities** | People, projects, tools, concepts | `project/memkin`, `tool/claude-code` |
 | **Timeline** | Key events with timestamps | "2026-05-19: Completed multi-platform collector refactoring" |
 | **Decisions** | Technical choices with reasoning | "Chose PGLite for embedded PostgreSQL with vector support" |
 | **Tasks** | Action items with status | `[open] Implement token auto-refresh` |
 | **Discoveries** | Insights, root causes, edge cases | "UUID v4 is not lexicographically sortable" |
 | **Knowledge** | Reusable facts with provenance | "PGLite runs full Postgres in-process via WASM" |
-| **Links** | Relationships between entities | `project/memoark --[depends_on]--> tool/pglite` |
+| **Links** | Relationships between entities | `project/memkin --[depends_on]--> tool/pglite` |
 
 ### Storage Layer
 
@@ -545,7 +545,7 @@ flowchart TB
 
 ## MCP Tools
 
-Memoark's MCP server exposes **29 tools** spanning retrieval, synthesis, page CRUD, graph, tags, timeline, identity, and Feishu doc ingestion. Prefer the high-level tools first:
+Memkin's MCP server exposes **29 tools** spanning retrieval, synthesis, page CRUD, graph, tags, timeline, identity, and Feishu doc ingestion. Prefer the high-level tools first:
 
 | Category | Tools |
 |----------|-------|
@@ -564,27 +564,27 @@ Memoark's MCP server exposes **29 tools** spanning retrieval, synthesis, page CR
 
 | Command | Description |
 |---------|-------------|
-| `memoark start` | One-step launch: setup if needed, then serve + auto-open browser (bare `memoark` is equivalent) |
-| `memoark init` | Interactive config center to generate / edit `memoark.yaml` (`--auto` / `--no-tui` / `--force` / `--web`) |
-| `memoark extract` | Extract signals from a data source |
-| `memoark search <query>` | Search memory (hybrid / `--mode fts`) |
-| `memoark embed` | Generate embeddings for stale chunks |
-| `memoark serve` | Start HTTP API (auto-opens browser, `--no-open` to skip) / `--mcp` stdio / `--mcp-http` |
-| `memoark consolidate` | Run memory consolidation (tier rotation hot→warm / warm→cold) |
-| `memoark export` | Export memory pages to an Obsidian vault (Markdown) |
-| `memoark import` | Import an Obsidian vault back into Memoark |
-| `memoark docs` | Feishu doc summary cards: `sync` / `status` / `retry` |
-| `memoark identity` | Person identity: aliases, merge, rename |
-| `memoark sources` | `list` sources / `test <name>` connectivity |
-| `memoark doctor` | Diagnose configuration and connectivity |
-| `memoark config` | `init` (alias of `memoark init`) / `edit` (browser UI) |
+| `memkin start` | One-step launch: setup if needed, then serve + auto-open browser (bare `memkin` is equivalent) |
+| `memkin init` | Interactive config center to generate / edit `memkin.yaml` (`--auto` / `--no-tui` / `--force` / `--web`) |
+| `memkin extract` | Extract signals from a data source |
+| `memkin search <query>` | Search memory (hybrid / `--mode fts`) |
+| `memkin embed` | Generate embeddings for stale chunks |
+| `memkin serve` | Start HTTP API (auto-opens browser, `--no-open` to skip) / `--mcp` stdio / `--mcp-http` |
+| `memkin consolidate` | Run memory consolidation (tier rotation hot→warm / warm→cold) |
+| `memkin export` | Export memory pages to an Obsidian vault (Markdown) |
+| `memkin import` | Import an Obsidian vault back into Memkin |
+| `memkin docs` | Feishu doc summary cards: `sync` / `status` / `retry` |
+| `memkin identity` | Person identity: aliases, merge, rename |
+| `memkin sources` | `list` sources / `test <name>` connectivity |
+| `memkin doctor` | Diagnose configuration and connectivity |
+| `memkin config` | `init` (alias of `memkin init`) / `edit` (browser UI) |
 
-### `memoark extract`
+### `memkin extract`
 
 Extract signals from data sources.
 
 ```bash
-memoark extract \
+memkin extract \
   --source <name>              # feishu, claude-code, codex, hermes, all
   --format json|markdown       # Output format (default: json)
   --adapter store|file|gbrain|stdout  # Output target (default: store)
@@ -594,125 +594,125 @@ memoark extract \
   --dry-run                    # Test without LLM calls or writes
 ```
 
-### `memoark start`
+### `memkin start`
 
-One-step launch. If no `memoark.yaml` exists, it opens the browser setup wizard first; once configured, it starts the HTTP server and auto-opens your browser. Running `memoark` with no subcommand does the same thing.
+One-step launch. If no `memkin.yaml` exists, it opens the browser setup wizard first; once configured, it starts the HTTP server and auto-opens your browser. Running `memkin` with no subcommand does the same thing.
 
 ```bash
-memoark start
-memoark              # equivalent
+memkin start
+memkin              # equivalent
 ```
 
-### `memoark serve`
+### `memkin serve`
 
-Start the Memoark server.
+Start the Memkin server.
 
 ```bash
 # HTTP API + Web UI (default http://localhost:3927) — auto-opens the browser
-memoark serve
+memkin serve
 
 # Skip the auto-open
-memoark serve --no-open
+memkin serve --no-open
 
 # MCP stdio transport (local direct connect for AI agents)
-memoark serve --mcp
+memkin serve --mcp
 
 # MCP Streamable HTTP transport (remote / multi-client, default http://localhost:3928/mcp)
-memoark serve --mcp-http
+memkin serve --mcp-http
 ```
 
-### `memoark search <query>`
+### `memkin search <query>`
 
 Search your stored memory.
 
 ```bash
 # Hybrid search (FTS + vector, default)
-memoark search "authentication middleware"
+memkin search "authentication middleware"
 
 # FTS-only search
-memoark search "JWT token" --mode fts
+memkin search "JWT token" --mode fts
 
 # Limit results
-memoark search "deployment" --limit 5
+memkin search "deployment" --limit 5
 ```
 
-### `memoark embed`
+### `memkin embed`
 
 Generate embeddings for unembedded chunks.
 
 ```bash
 # Embed all stale chunks
-memoark embed
+memkin embed
 
 # Limit batch size
-memoark embed --limit 100
+memkin embed --limit 100
 ```
 
-### `memoark doctor`
+### `memkin doctor`
 
 Diagnose configuration and environment.
 
 ```bash
-memoark doctor
+memkin doctor
 ```
 
-### `memoark config init`
+### `memkin config init`
 
-Equivalent to `memoark init` — launches the interactive configuration center to generate / edit `memoark.yaml` (supports `--auto` / `--no-tui` / `--force`).
+Equivalent to `memkin init` — launches the interactive configuration center to generate / edit `memkin.yaml` (supports `--auto` / `--no-tui` / `--force`).
 
 ```bash
-memoark config init
+memkin config init
 ```
 
-### `memoark sources list`
+### `memkin sources list`
 
 List available data sources.
 
 ```bash
-memoark sources list
+memkin sources list
 ```
 
-### `memoark sources test <name>`
+### `memkin sources test <name>`
 
 Test data source connectivity.
 
 ```bash
-memoark sources test claude-code
+memkin sources test claude-code
 ```
 
-### `memoark consolidate`
+### `memkin consolidate`
 
 Run memory lifecycle tier rotation (the "dream cycle").
 
 ```bash
-memoark consolidate          # hot→warm and/or warm→cold rotation
+memkin consolidate          # hot→warm and/or warm→cold rotation
 ```
 
-### `memoark export` / `memoark import`
+### `memkin export` / `memkin import`
 
 Bidirectional Obsidian sync.
 
 ```bash
-memoark export   # memory pages → Obsidian vault (Markdown)
-memoark import   # Obsidian vault → Memoark
+memkin export   # memory pages → Obsidian vault (Markdown)
+memkin import   # Obsidian vault → Memkin
 ```
 
-### `memoark docs`
+### `memkin docs`
 
 Feishu doc summary cards (DocSource v2) — build lightweight pointer cards first, then upgrade triggered docs to full summary cards.
 
 ```bash
-memoark docs sync                # scan docs, build pointer cards, upgrade triggered docs
-memoark docs status              # show card counts by type
-memoark docs retry <doc_token>   # retry a failed full-card extraction
-memoark docs retry --all-failed  # retry every failed doc
+memkin docs sync                # scan docs, build pointer cards, upgrade triggered docs
+memkin docs status              # show card counts by type
+memkin docs retry <doc_token>   # retry a failed full-card extraction
+memkin docs retry --all-failed  # retry every failed doc
 ```
 
 Agents can also ingest a single doc directly via the MCP tool `ingest_feishu_doc` (pass a doc URL or token).
 
 ## Configuration
 
-### `memoark.yaml`
+### `memkin.yaml`
 
 ```yaml
 # Privacy
@@ -766,7 +766,7 @@ sources:
 
 # Store (PGLite)
 store:
-  data_dir: ~/.memoark/data
+  data_dir: ~/.memkin/data
 
 # Embeddings
 embedding:
@@ -925,9 +925,9 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before sub
 
 ## Community & Support
 
-- 🐛 Found a bug or have a feature request? [Open an issue](https://github.com/AndreLYL/memoark/issues).
+- 🐛 Found a bug or have a feature request? [Open an issue](https://github.com/AndreLYL/memkin/issues).
 - 💡 Questions and ideas are welcome in the issue tracker.
-- ⭐ If Memoark helps you, give it a Star — it's the best way to support the project.
+- ⭐ If Memkin helps you, give it a Star — it's the best way to support the project.
 
 ## License
 

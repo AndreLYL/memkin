@@ -30,7 +30,7 @@ async function createStores() {
 async function connect() {
   const stores = await createStores();
   const server = createMcpServer(stores);
-  const client = new Client({ name: "memoark-resource-test", version: "1.0.0" });
+  const client = new Client({ name: "memkin-resource-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
@@ -58,28 +58,28 @@ describe("MCP resources", () => {
 
     const { resources } = await current.client.listResources();
     expect(resources.map((resource) => resource.uri)).toEqual([
-      "memoark://health",
-      "memoark://pages",
+      "memkin://health",
+      "memkin://pages",
     ]);
     expect(resources.every((resource) => resource.description)).toBe(true);
 
     const { resourceTemplates } = await current.client.listResourceTemplates();
     expect(resourceTemplates.map((template) => template.uriTemplate)).toEqual([
-      "memoark://pages/{slug}",
-      "memoark://pages/{slug}/context",
-      "memoark://pages/{slug}/timeline",
+      "memkin://pages/{slug}",
+      "memkin://pages/{slug}/context",
+      "memkin://pages/{slug}/timeline",
     ]);
   });
 
   it("reads health and pages resources with bounded JSON content", async () => {
     current = await connect();
     await current.stores.pages.putPage(
-      "projects/memoark",
-      "---\ntitle: Memoark\ntype: project\n---\nMemoark memory layer.",
+      "projects/memkin",
+      "---\ntitle: Memkin\ntype: project\n---\nMemkin memory layer.",
     );
 
     const health = parseResourceText(
-      await current.client.readResource({ uri: "memoark://health" }),
+      await current.client.readResource({ uri: "memkin://health" }),
     );
     expect(health).toMatchObject({
       status: "ok",
@@ -87,11 +87,11 @@ describe("MCP resources", () => {
       legacy_tools_exposed: false,
     });
 
-    const pages = parseResourceText(await current.client.readResource({ uri: "memoark://pages" }));
+    const pages = parseResourceText(await current.client.readResource({ uri: "memkin://pages" }));
     expect(pages.pages).toEqual([
       expect.objectContaining({
-        slug: "projects/memoark",
-        title: "Memoark",
+        slug: "projects/memkin",
+        title: "Memkin",
         type: "project",
       }),
     ]);
@@ -101,32 +101,32 @@ describe("MCP resources", () => {
   it("reads page, context, and timeline resources through templates", async () => {
     current = await connect();
     await current.stores.pages.putPage(
-      "projects/memoark",
-      "---\ntitle: Memoark\ntype: project\n---\nMemoark memory layer.",
+      "projects/memkin",
+      "---\ntitle: Memkin\ntype: project\n---\nMemkin memory layer.",
     );
-    await current.stores.timeline.addEntry("projects/memoark", {
+    await current.stores.timeline.addEntry("projects/memkin", {
       date: "2026-06-04",
       summary: "Implemented MCP resources",
       detail: "Resources expose page context to MCP clients.",
     });
 
     const page = parseResourceText(
-      await current.client.readResource({ uri: "memoark://pages/projects%2Fmemoark" }),
+      await current.client.readResource({ uri: "memkin://pages/projects%2Fmemkin" }),
     );
-    expect(page.page.slug).toBe("projects/memoark");
-    expect(page.page.compiled_truth).toContain("Memoark memory layer");
+    expect(page.page.slug).toBe("projects/memkin");
+    expect(page.page.compiled_truth).toContain("Memkin memory layer");
 
     const context = parseResourceText(
       await current.client.readResource({
-        uri: "memoark://pages/projects%2Fmemoark/context",
+        uri: "memkin://pages/projects%2Fmemkin/context",
       }),
     );
-    expect(context.page.slug).toBe("projects/memoark");
+    expect(context.page.slug).toBe("projects/memkin");
     expect(context.timeline).toHaveLength(1);
 
     const timeline = parseResourceText(
       await current.client.readResource({
-        uri: "memoark://pages/projects%2Fmemoark/timeline",
+        uri: "memkin://pages/projects%2Fmemkin/timeline",
       }),
     );
     expect(timeline.timeline[0]).toMatchObject({
@@ -139,7 +139,7 @@ describe("MCP resources", () => {
     current = await connect();
 
     const missing = parseResourceText(
-      await current.client.readResource({ uri: "memoark://pages/missing%2Fpage" }),
+      await current.client.readResource({ uri: "memkin://pages/missing%2Fpage" }),
     );
 
     expect(missing).toEqual({

@@ -10,7 +10,7 @@ import {
 describe("splitBody", () => {
   it("splits all three sections in correct order", () => {
     const body =
-      "main content\n\n<!-- memoark:related -->\n\n- [[a]]\n\n<!-- memoark:timeline -->\n\n- **2026-05-20**: e";
+      "main content\n\n<!-- memkin:related -->\n\n- [[a]]\n\n<!-- memkin:timeline -->\n\n- **2026-05-20**: e";
     const result = splitBody(body);
     expect(result.orderError).toBe(false);
     expect(result.mainBody).toBe("main content");
@@ -27,14 +27,14 @@ describe("splitBody", () => {
   });
 
   it("handles only related marker", () => {
-    const result = splitBody("main\n\n<!-- memoark:related -->\n\n- [[a]]");
+    const result = splitBody("main\n\n<!-- memkin:related -->\n\n- [[a]]");
     expect(result.orderError).toBe(false);
     expect(result.mainBody).toBe("main");
     expect(result.related).toContain("[[a]]");
   });
 
   it("M3: detects marker order reversal (timeline before related)", () => {
-    const body = "main\n\n<!-- memoark:timeline -->\n\n- e\n\n<!-- memoark:related -->\n\n- [[a]]";
+    const body = "main\n\n<!-- memkin:timeline -->\n\n- e\n\n<!-- memkin:related -->\n\n- [[a]]";
     const result = splitBody(body);
     expect(result.orderError).toBe(true);
   });
@@ -237,11 +237,11 @@ slug: a
 
 body
 
-<!-- memoark:timeline -->
+<!-- memkin:timeline -->
 
 - e
 
-<!-- memoark:related -->
+<!-- memkin:related -->
 
 - [[x]]
 `;
@@ -257,7 +257,7 @@ slug: a
 
 body
 
-<!-- memoark:timeline -->
+<!-- memkin:timeline -->
 
 - **2026-05-20**: from vault
 `;

@@ -77,10 +77,10 @@ describe("SearchEngine — FTS", () => {
 
   it("search and query apply platform, source_type, and participant filters consistently", async () => {
     const wechat = await pageStore.putPage(
-      "projects/memoark-wechat-deploy",
+      "projects/memkin-wechat-deploy",
       [
         "---",
-        "title: Memoark WeChat Deploy",
+        "title: Memkin WeChat Deploy",
         "type: decision",
         "source:",
         "  platform: wechat",
@@ -94,16 +94,16 @@ describe("SearchEngine — FTS", () => {
         "    - name: 张三",
         "      role: participant",
         "---",
-        "Memoark deployment uses PGLite for local storage.",
+        "Memkin deployment uses PGLite for local storage.",
       ].join("\n"),
     );
     await chunkStore.rechunk(wechat.id, wechat.compiled_truth);
 
     const feishu = await pageStore.putPage(
-      "projects/memoark-feishu-deploy",
+      "projects/memkin-feishu-deploy",
       [
         "---",
-        "title: Memoark Feishu Deploy",
+        "title: Memkin Feishu Deploy",
         "type: decision",
         "source:",
         "  platform: feishu",
@@ -117,24 +117,24 @@ describe("SearchEngine — FTS", () => {
         "    - name: 李四",
         "      role: participant",
         "---",
-        "Memoark deployment uses cloud Postgres for shared staging.",
+        "Memkin deployment uses cloud Postgres for shared staging.",
       ].join("\n"),
     );
     await chunkStore.rechunk(feishu.id, feishu.compiled_truth);
 
-    const searchResults = await search.search("Memoark deployment", {
+    const searchResults = await search.search("Memkin deployment", {
       platform: "wechat",
       source_type: "dm",
       participant: "张三",
     });
-    const queryResults = await search.query("Memoark deployment", {
+    const queryResults = await search.query("Memkin deployment", {
       platform: "wechat",
       source_type: "dm",
       participant: "张三",
     });
 
-    expect(searchResults.map((r) => r.slug)).toEqual(["projects/memoark-wechat-deploy"]);
-    expect(queryResults.map((r) => r.slug)).toEqual(["projects/memoark-wechat-deploy"]);
+    expect(searchResults.map((r) => r.slug)).toEqual(["projects/memkin-wechat-deploy"]);
+    expect(queryResults.map((r) => r.slug)).toEqual(["projects/memkin-wechat-deploy"]);
     expect(searchResults[0].provenance?.platform).toBe("wechat");
     expect(queryResults[0].provenance?.participants?.[0]?.name).toBe("张三");
   });

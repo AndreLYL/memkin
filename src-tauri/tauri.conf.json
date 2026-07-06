@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MemoArk",
+  "productName": "Memkin",
   "version": "0.1.0",
-  "identifier": "ai.memoark.desktop",
+  "identifier": "ai.memkin.desktop",
   "build": {
     "frontendDist": "splash"
   },
@@ -10,7 +10,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MemoArk",
+        "title": "Memkin",
         "width": 1200,
         "height": 800,
         "resizable": true,
@@ -25,7 +25,7 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
-    "externalBin": ["binaries/memoark"],
+    "externalBin": ["binaries/memkin"],
     "resources": [
       "assets/pglite.wasm",
       "assets/initdb.wasm",
@@ -47,7 +47,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/AndreLYL/memoark/releases/latest/download/latest.json"
+        "https://github.com/AndreLYL/memkin/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1QTc2MjlBMEFBQTIxQTUKUldTbElhb0ttbUtueFI2WWJ5RkxKSUxtaTY5S3NiSlNvWmJ3d04zdHRZUU5uM3ZlY1BqN3JJeUoK"
     }

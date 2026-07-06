@@ -3,8 +3,8 @@ import { httpEntry, type McpEntry, stdioEntry } from "../../src/install/mcp-entr
 
 describe("McpEntry", () => {
   it("stdioEntry builds a stdio-kind entry", () => {
-    const e = stdioEntry("memoark", ["serve", "--mcp"]);
-    expect(e).toEqual({ kind: "stdio", command: "memoark", args: ["serve", "--mcp"] });
+    const e = stdioEntry("memkin", ["serve", "--mcp"]);
+    expect(e).toEqual({ kind: "stdio", command: "memkin", args: ["serve", "--mcp"] });
   });
   it("httpEntry builds an http-kind entry", () => {
     const e: McpEntry = httpEntry("http://127.0.0.1:3928/mcp");

@@ -52,7 +52,7 @@ export function assertLoopbackOrThrow(rt: { bind: string }): void {
   if (isPublicBindHost(rt.bind)) {
     throw new Error(
       `Refusing to start: bind host "${rt.bind}" is not loopback. ` +
-        `Memoark's always-on daemon is loopback-only (127.0.0.1). Remote access is not supported in this version.`,
+        `Memkin's always-on daemon is loopback-only (127.0.0.1). Remote access is not supported in this version.`,
     );
   }
 }

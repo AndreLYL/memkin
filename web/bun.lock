@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "memoark-web",
+      "name": "memkin-web",
       "dependencies": {
         "@tanstack/react-query": "^5.100.14",
         "lucide-react": "^1.22.0",

@@ -41,10 +41,10 @@ PGVECTOR_REF="${PGVECTOR_REF:-v0.8.0}"
 PGVECTOR_SHA="${PGVECTOR_SHA:-867a2c328d4928a5a9d6f052cd3bc78c7d60228a9b914ad32aa3db88e9de27b0}"
 
 # Build staging prefix (all PG files land here before tarring)
-STAGE="${STAGE:-/tmp/memoark-pg-stage}"
+STAGE="${STAGE:-/tmp/memkin-pg-stage}"
 
 # Where the final tarball + sha256 are written
-OUT_DIR="${OUT_DIR:-/tmp/memoark-pg-out}"
+OUT_DIR="${OUT_DIR:-/tmp/memkin-pg-out}"
 
 MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"
 export MACOSX_DEPLOYMENT_TARGET
@@ -66,7 +66,7 @@ echo "==> arch: $ARCH (raw: $_raw_arch)"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-WORK_DIR="$(mktemp -d /tmp/memoark-pg-build.XXXXXX)"
+WORK_DIR="$(mktemp -d /tmp/memkin-pg-build.XXXXXX)"
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
@@ -351,7 +351,7 @@ cp "${PGVECTOR_SRC}/LICENSE"          "${STAGE}/share/licenses/pgvector-LICENSE"
 log "Packaging tarball ..."
 mkdir -p "$OUT_DIR"
 
-TARBALL_NAME="memoark-pg-darwin-${ARCH}.tar.gz"
+TARBALL_NAME="memkin-pg-darwin-${ARCH}.tar.gz"
 TARBALL_PATH="${OUT_DIR}/${TARBALL_NAME}"
 
 # tar the STAGE contents (not the directory itself, so extraction puts files at

@@ -1,5 +1,5 @@
 /**
- * Configuration loader for Memoark
+ * Configuration loader for Memkin
  * Loads YAML config files with environment variable interpolation
  * and recursive merging with defaults
  */
@@ -129,7 +129,7 @@ export interface SourcesConfig {
  * The database_url is derived at runtime; no explicit URL is needed.
  */
 export interface ManagedStoreConfig {
-  // override for the Postgres runtime root (binaries + extensions); same as MEMOARK_PG_RUNTIME_DIR
+  // override for the Postgres runtime root (binaries + extensions); same as MEMKIN_PG_RUNTIME_DIR
   runtime_dir?: string;
 }
 
@@ -169,7 +169,7 @@ export interface ServerConfig {
   host?: string;
   /**
    * Bearer token required on `/api/*` and `/mcp`. When set, auth is enforced on
-   * every interface (including loopback). Env `MEMOARK_AUTH_TOKEN` overrides.
+   * every interface (including loopback). Env `MEMKIN_AUTH_TOKEN` overrides.
    * Required whenever `host` is non-loopback.
    */
   auth_token?: string;
@@ -349,7 +349,7 @@ const DEFAULT_CONFIG: Config = {
     hermes: { enabled: true },
   },
   store: {
-    data_dir: "~/.memoark/data",
+    data_dir: "~/.memkin/data",
   },
   embedding: {
     provider: "openai",
@@ -438,12 +438,12 @@ function attachContext(config: Config, context: ConfigContext): LoadedConfig {
 export function resolveConfigPath(explicit?: string): string {
   if (explicit) return resolve(explicit);
 
-  const envPath = process.env.MEMOARK_CONFIG;
+  const envPath = process.env.MEMKIN_CONFIG;
   if (envPath) return resolve(envPath);
 
   let dir = process.cwd();
   while (true) {
-    const candidate = join(dir, "memoark.yaml");
+    const candidate = join(dir, "memkin.yaml");
     if (existsSync(candidate)) return candidate;
 
     const parent = dirname(dir);
@@ -451,7 +451,7 @@ export function resolveConfigPath(explicit?: string): string {
     dir = parent;
   }
 
-  return resolve(process.cwd(), "memoark.yaml");
+  return resolve(process.cwd(), "memkin.yaml");
 }
 
 /**
@@ -498,7 +498,7 @@ function mergeConfig(
  * Load configuration from YAML file
  * Performs environment variable interpolation and merges with defaults
  *
- * @param filePath - Path to YAML config file (default: discovered memoark.yaml)
+ * @param filePath - Path to YAML config file (default: discovered memkin.yaml)
  * @returns Loaded and merged configuration
  * @throws Error if file cannot be read or parsed
  */

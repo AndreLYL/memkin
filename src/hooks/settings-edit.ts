@@ -1,5 +1,5 @@
 // Idempotent editing of Claude Code ~/.claude/settings.json `hooks`.
-// memoark-owned groups are identified by a command containing "memoark hook",
+// memkin-owned groups are identified by a command containing "memkin hook",
 // so user-authored hooks are always preserved.
 
 export interface HookSpec {
@@ -10,13 +10,13 @@ export interface HookSpec {
 
 type Json = Record<string, unknown>;
 
-function isMemoarkGroup(group: unknown): boolean {
+function isMemkinGroup(group: unknown): boolean {
   if (!group || typeof group !== "object") return false;
   const hooks = (group as Record<string, unknown>).hooks;
   if (!Array.isArray(hooks)) return false;
   return hooks.some((h) => {
     const command = h && typeof h === "object" ? (h as Record<string, unknown>).command : undefined;
-    return typeof command === "string" && command.includes("memoark hook");
+    return typeof command === "string" && command.includes("memkin hook");
   });
 }
 
@@ -24,7 +24,7 @@ export function upsertHooks(obj: Json, specs: HookSpec[]): Json {
   const hooks: Record<string, unknown> = { ...((obj.hooks as Record<string, unknown>) ?? {}) };
   for (const spec of specs) {
     const existing = Array.isArray(hooks[spec.event]) ? [...(hooks[spec.event] as unknown[])] : [];
-    const kept = existing.filter((g) => !isMemoarkGroup(g));
+    const kept = existing.filter((g) => !isMemkinGroup(g));
     const group: Record<string, unknown> = {};
     if (spec.matcher) group.matcher = spec.matcher;
     group.hooks = [{ type: "command", command: spec.command }];
@@ -42,7 +42,7 @@ export function removeHooks(obj: Json): Json {
       hooks[event] = groups;
       continue;
     }
-    const kept = (groups as unknown[]).filter((g) => !isMemoarkGroup(g));
+    const kept = (groups as unknown[]).filter((g) => !isMemkinGroup(g));
     if (kept.length > 0) hooks[event] = kept;
   }
   return { ...obj, hooks };

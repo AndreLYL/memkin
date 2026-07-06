@@ -20,7 +20,7 @@ describe("isLoopbackHost", () => {
   it("treats 0.0.0.0 and LAN/public hosts as non-loopback", () => {
     expect(isLoopbackHost("0.0.0.0")).toBe(false);
     expect(isLoopbackHost("192.168.1.10")).toBe(false);
-    expect(isLoopbackHost("memoark.example.com")).toBe(false);
+    expect(isLoopbackHost("memkin.example.com")).toBe(false);
   });
 });
 
@@ -63,7 +63,7 @@ describe("resolveServeSecurity", () => {
   });
   it("non-loopback with no token → refuses to start with actionable message", () => {
     expect(() => resolveServeSecurity({ flagHost: "0.0.0.0" })).toThrow(
-      /MEMOARK_AUTH_TOKEN|auth_token/,
+      /MEMKIN_AUTH_TOKEN|auth_token/,
     );
   });
   it("non-loopback with token → allowed", () => {

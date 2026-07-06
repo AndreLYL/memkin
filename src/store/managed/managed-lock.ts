@@ -21,7 +21,7 @@ function isProcessAlive(pid: number): boolean {
 }
 
 export async function withManagedLock<T>(home: string, fn: () => Promise<T>): Promise<T> {
-  const lockDir = join(home, ".memoark");
+  const lockDir = join(home, ".memkin");
   const lockPath = join(lockDir, "managed-pg.lock");
   const content = JSON.stringify({ pid: process.pid, ts: Date.now() });
 

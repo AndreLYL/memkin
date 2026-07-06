@@ -63,14 +63,14 @@ describe("config.profile defaults", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "memoark-cfg-"));
+    dir = mkdtempSync(join(tmpdir(), "memkin-cfg-"));
   });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("defaults to disabled with min_sample_size 20 and empty allow/deny", () => {
-    const p = join(dir, "memoark.yaml");
+    const p = join(dir, "memkin.yaml");
     writeFileSync(p, "store:\n  data_dir: ./data\n");
     const cfg = loadConfig(p);
     expect(cfg.profile.enabled).toBe(false);
@@ -81,7 +81,7 @@ describe("config.profile defaults", () => {
   });
 
   it("accepts user-provided profile fields", () => {
-    const p = join(dir, "memoark.yaml");
+    const p = join(dir, "memkin.yaml");
     writeFileSync(
       p,
       "profile:\n  enabled: true\n  min_sample_size: 5\n  allow:\n    - people/alice\n  deny:\n    - people/bob\n",

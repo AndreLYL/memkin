@@ -151,7 +151,7 @@ function invalidSlugError(): ToolError {
   return structuredError(
     "INVALID_ARGUMENT",
     "slug must be a non-empty stable page identifier",
-    "Use a slug such as `projects/memoark` or `people/alice`.",
+    "Use a slug such as `projects/memkin` or `people/alice`.",
   );
 }
 
@@ -721,7 +721,7 @@ const outputSchemas = {
     entries: z.array(z.record(z.unknown())).describe("Timeline feed entries."),
   },
   pageContext: {
-    page: z.record(z.unknown()).describe("Memoark page."),
+    page: z.record(z.unknown()).describe("Memkin page."),
     tags: z.array(z.string()).describe("Tags on the page."),
     links: z.array(z.record(z.unknown())).describe("Outgoing links."),
     backlinks: z.array(z.record(z.unknown())).describe("Incoming links."),
@@ -733,7 +733,7 @@ const outputSchemas = {
     status: z.string().describe("Health status."),
     pages: z.number().describe("Stored page count."),
     chunks: z.number().describe("Stored chunk count."),
-    mcp_version: z.string().describe("Memoark package version exposed by MCP."),
+    mcp_version: z.string().describe("Memkin package version exposed by MCP."),
     mcp_contract_version: z.string().describe("MCP contract version."),
     legacy_tools_exposed: z.boolean().describe("Whether legacy MCP tools are exposed."),
     read_only: z.boolean().describe("Whether this server hides write tools."),
@@ -783,7 +783,7 @@ function registerPreferredTools(
       title: "Semantic Memory Query",
       description: description(
         "query",
-        "Semantic search across Memoark memory.\n\nWhen to use: fuzzy, conceptual recall across people, projects, decisions, tasks, and prior work.\nWhen NOT to use: exact keyword matching; use `search` instead. Do not look for source-specific tools; use filters.\nReturns: ranked results with slug, title, type, snippet, score, and provenance.\nOn error: broaden filters or retry with fewer constraints.",
+        "Semantic search across Memkin memory.\n\nWhen to use: fuzzy, conceptual recall across people, projects, decisions, tasks, and prior work.\nWhen NOT to use: exact keyword matching; use `search` instead. Do not look for source-specific tools; use filters.\nReturns: ranked results with slug, title, type, snippet, score, and provenance.\nOn error: broaden filters or retry with fewer constraints.",
       ),
       inputSchema: {
         query: z.string().describe("Natural language search query, for example `上周部署方案`."),
@@ -803,7 +803,7 @@ function registerPreferredTools(
       title: "Exact Memory Search",
       description: description(
         "search",
-        "Keyword search across Memoark memory.\n\nWhen to use: exact words, identifiers, tokens, page titles, or known phrases.\nWhen NOT to use: fuzzy conceptual recall; use `query` instead.\nReturns: ranked keyword matches with provenance.\nOn error: simplify the query or relax filters.",
+        "Keyword search across Memkin memory.\n\nWhen to use: exact words, identifiers, tokens, page titles, or known phrases.\nWhen NOT to use: fuzzy conceptual recall; use `query` instead.\nReturns: ranked keyword matches with provenance.\nOn error: simplify the query or relax filters.",
       ),
       inputSchema: {
         query: z.string().describe("Exact keyword query, for example `JWT token`."),
@@ -826,7 +826,7 @@ function registerPreferredTools(
         "Read a page plus nearby memory context.\n\nWhen to use: after finding a slug and needing page, tags, links, backlinks, timeline, or chunks in one call.\nWhen NOT to use: broad recall without a slug; use `query` or `search` first.\nReturns: page, tags, limited related context, and provenance.\nOn error: if the slug is missing, search for the correct slug first.",
       ),
       inputSchema: {
-        slug: z.string().describe("Page slug to read, for example `projects/memoark`."),
+        slug: z.string().describe("Page slug to read, for example `projects/memkin`."),
         include: z
           .object({
             links: z.boolean().optional().describe("Include outgoing links."),
@@ -1004,7 +1004,7 @@ function registerPreferredTools(
       title: "Get Health",
       description: description(
         "get_health",
-        "Return Memoark MCP health and capability metadata.\n\nWhen to use: diagnose database counts, MCP version, and legacy tool exposure.\nWhen NOT to use: retrieve memory content; use read tools.\nReturns: status, page/chunk counts, MCP version, and legacy setting.\nOn error: inspect server logs.",
+        "Return Memkin MCP health and capability metadata.\n\nWhen to use: diagnose database counts, MCP version, and legacy tool exposure.\nWhen NOT to use: retrieve memory content; use read tools.\nReturns: status, page/chunk counts, MCP version, and legacy setting.\nOn error: inspect server logs.",
       ),
       inputSchema: {},
       outputSchema: outputSchemas.health,
@@ -1036,7 +1036,7 @@ function registerWriteTools(server: McpServer, tools: ReturnType<typeof createMc
       title: "Put Page",
       description: description(
         "put_page",
-        "Create or update a Memoark page idempotently.\n\nWhen to use: write a durable memory page.\nWhen NOT to use: append a dated event; use `add_timeline_entry`.\nReturns: ok, slug, changed flag, content hash, previous hash, and updated_at.\nOn error: fix slug or non-empty content.",
+        "Create or update a Memkin page idempotently.\n\nWhen to use: write a durable memory page.\nWhen NOT to use: append a dated event; use `add_timeline_entry`.\nReturns: ok, slug, changed flag, content hash, previous hash, and updated_at.\nOn error: fix slug or non-empty content.",
       ),
       inputSchema: {
         slug: z.string().describe("Stable page slug, for example `decisions/use-pglite`."),
@@ -1283,10 +1283,10 @@ function registerLegacyTools(
 function registerResources(server: McpServer, tools: ReturnType<typeof createMcpToolHandlers>) {
   server.registerResource(
     "health",
-    "memoark://health",
+    "memkin://health",
     {
-      title: "Memoark Health",
-      description: "Memoark MCP health, version, and capability metadata.",
+      title: "Memkin Health",
+      description: "Memkin MCP health, version, and capability metadata.",
       mimeType: "application/json",
     },
     async (uri) => jsonResource(uri.toString(), await tools.get_health()),
@@ -1294,9 +1294,9 @@ function registerResources(server: McpServer, tools: ReturnType<typeof createMcp
 
   server.registerResource(
     "pages",
-    "memoark://pages",
+    "memkin://pages",
     {
-      title: "Memoark Pages",
+      title: "Memkin Pages",
       description: "Bounded page index for browsing available memory pages.",
       mimeType: "application/json",
     },
@@ -1309,10 +1309,10 @@ function registerResources(server: McpServer, tools: ReturnType<typeof createMcp
 
   server.registerResource(
     "page",
-    new ResourceTemplate("memoark://pages/{slug}", { list: undefined }),
+    new ResourceTemplate("memkin://pages/{slug}", { list: undefined }),
     {
-      title: "Memoark Page",
-      description: "Read a Memoark page by URL-encoded slug.",
+      title: "Memkin Page",
+      description: "Read a Memkin page by URL-encoded slug.",
       mimeType: "application/json",
     },
     async (uri, variables) => {
@@ -1323,9 +1323,9 @@ function registerResources(server: McpServer, tools: ReturnType<typeof createMcp
 
   server.registerResource(
     "page-context",
-    new ResourceTemplate("memoark://pages/{slug}/context", { list: undefined }),
+    new ResourceTemplate("memkin://pages/{slug}/context", { list: undefined }),
     {
-      title: "Memoark Page Context",
+      title: "Memkin Page Context",
       description: "Read a page plus tags, links, backlinks, timeline, chunks, and provenance.",
       mimeType: "application/json",
     },
@@ -1342,10 +1342,10 @@ function registerResources(server: McpServer, tools: ReturnType<typeof createMcp
 
   server.registerResource(
     "page-timeline",
-    new ResourceTemplate("memoark://pages/{slug}/timeline", { list: undefined }),
+    new ResourceTemplate("memkin://pages/{slug}/timeline", { list: undefined }),
     {
-      title: "Memoark Page Timeline",
-      description: "Read bounded timeline entries for a Memoark page.",
+      title: "Memkin Page Timeline",
+      description: "Read bounded timeline entries for a Memkin page.",
       mimeType: "application/json",
     },
     async (uri, variables) => {
@@ -1375,14 +1375,14 @@ function registerPrompts(server: McpServer) {
       },
     },
     async ({ topic, platform, source_type, participant, from, to }) => ({
-      description: "Recall relevant Memoark memories with provenance.",
+      description: "Recall relevant Memkin memories with provenance.",
       messages: [
         {
           role: "user",
           content: {
             type: "text",
             text: [
-              `Use the \`query\` tool to recall Memoark memories about: ${topic}.`,
+              `Use the \`query\` tool to recall Memkin memories about: ${topic}.`,
               "Apply only the filters that are provided.",
               platform ? `platform: ${platform}` : undefined,
               source_type ? `source_type: ${source_type}` : undefined,
@@ -1411,14 +1411,14 @@ function registerPrompts(server: McpServer) {
       },
     },
     async ({ days, platform, participant }) => ({
-      description: "Create a recent Memoark activity digest.",
+      description: "Create a recent Memkin activity digest.",
       messages: [
         {
           role: "user",
           content: {
             type: "text",
             text: [
-              `Use \`timeline_feed\` to summarize the last ${days} days of Memoark activity.`,
+              `Use \`timeline_feed\` to summarize the last ${days} days of Memkin activity.`,
               "Use date filters if the client provides absolute dates.",
               platform ? `Apply platform filter: ${platform}` : undefined,
               participant ? `Apply participant filter: ${participant}` : undefined,
@@ -1436,7 +1436,7 @@ function registerPrompts(server: McpServer) {
     "who-is",
     {
       title: "Who Is",
-      description: "Build a person context brief from Memoark memory.",
+      description: "Build a person context brief from Memkin memory.",
       argsSchema: {
         person: z.string().describe("Person name or slug to investigate."),
       },
@@ -1655,7 +1655,7 @@ function registerMainTools(
         title: "Ingest Feishu Document",
         description: description(
           "ingest_feishu_doc",
-          "Ingest a Feishu document into Memoark.\n\nWhen to use: import a Feishu doc by URL or token.\nReturns: ingest result with slug and status.",
+          "Ingest a Feishu document into Memkin.\n\nWhen to use: import a Feishu doc by URL or token.\nReturns: ingest result with slug and status.",
         ),
         inputSchema: {
           url_or_token: z.string().describe("Feishu document URL or token."),
@@ -1704,7 +1704,7 @@ export function createMcpServer(
   ingestDeps?: IngestDeps,
 ): McpServer {
   const server = new McpServer(
-    { name: "memoark", version: options.version ?? packageVersion },
+    { name: "memkin", version: options.version ?? packageVersion },
     { instructions: DIRECTIVE_L2 },
   );
   const tools = createMcpToolHandlers(stores, {

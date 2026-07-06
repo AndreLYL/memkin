@@ -23,10 +23,10 @@ export interface ManagedState {
 }
 
 export function managedPaths(home: string, pgMajor: string): ManagedPaths {
-  const base = join(home, ".memoark");
+  const base = join(home, ".memkin");
   return {
     base,
-    runtimeRoot: process.env.MEMOARK_PG_RUNTIME_DIR ?? join(base, "runtime", pgMajor),
+    runtimeRoot: process.env.MEMKIN_PG_RUNTIME_DIR ?? join(base, "runtime", pgMajor),
     pgdata: join(base, "pgdata"),
     socketDir: join(base, "run"),
     fixedPort: MANAGED_FIXED_PORT,
@@ -36,16 +36,16 @@ export function managedPaths(home: string, pgMajor: string): ManagedPaths {
 
 /**
  * Returns the path to managed-pg.json without requiring a pgMajor version.
- * The state file path is version-independent (~/.memoark/managed-pg.json).
+ * The state file path is version-independent (~/.memkin/managed-pg.json).
  */
 export function managedStatePath(home: string): string {
-  return join(home, ".memoark", "managed-pg.json");
+  return join(home, ".memkin", "managed-pg.json");
 }
 
 // socketDir as host; node-postgres needs the port to find .s.PGSQL.<port> (P0-2)
 export function managedConnUrl(p: ManagedPaths): string {
   const host = encodeURIComponent(p.socketDir);
-  return `postgresql://memoark@/memoark?host=${host}&port=${p.fixedPort}`;
+  return `postgresql://memkin@/memkin?host=${host}&port=${p.fixedPort}`;
 }
 
 export function writeManagedState(p: ManagedPaths, s: ManagedState): void {

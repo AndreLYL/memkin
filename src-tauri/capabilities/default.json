@@ -13,7 +13,7 @@
     "updater:default",
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "binaries/memoark", "sidecar": true, "args": true }]
+      "allow": [{ "name": "binaries/memkin", "sidecar": true, "args": true }]
     }
   ]
 }

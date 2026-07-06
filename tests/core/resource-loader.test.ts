@@ -10,7 +10,7 @@ describe("loadResource", () => {
   let moduleUrl: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "memoark-resource-"));
+    tempDir = mkdtempSync(join(tmpdir(), "memkin-resource-"));
     moduleUrl = pathToFileURL(join(tempDir, "module.js")).href;
   });
 

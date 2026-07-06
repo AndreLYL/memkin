@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createConfigRoutes } from "../../src/server/config-routes.js";
 
 const testDir = join(tmpdir(), `config-routes-test-${Date.now()}`);
-const configPath = join(testDir, "memoark.yaml");
+const configPath = join(testDir, "memkin.yaml");
 
 function makeApp() {
   return createConfigRoutes({ configPath });

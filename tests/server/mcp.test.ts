@@ -57,20 +57,20 @@ describe("MCP server", () => {
       content: "---\ntitle: Alice\ntype: person\n---\nAlice.",
     });
     await tools.put_page({
-      slug: "projects/memoark",
-      content: "---\ntitle: Memoark\ntype: project\n---\nMemoark.",
+      slug: "projects/memkin",
+      content: "---\ntitle: Memkin\ntype: project\n---\nMemkin.",
     });
-    await tools.add_link({ from: "entities/alice", to: "projects/memoark", type: "works_on" });
+    await tools.add_link({ from: "entities/alice", to: "projects/memkin", type: "works_on" });
     await tools.add_tag({ slug: "entities/alice", tag: "person" });
     await tools.add_timeline_entry({
       slug: "entities/alice",
       date: "2026-05-26",
-      summary: "Started Memoark",
+      summary: "Started Memkin",
     });
 
     expect(await tools.search({ query: "Alice" })).toHaveLength(1);
     expect(await tools.get_links({ slug: "entities/alice" })).toHaveLength(1);
-    expect(await tools.get_backlinks({ slug: "projects/memoark" })).toHaveLength(1);
+    expect(await tools.get_backlinks({ slug: "projects/memkin" })).toHaveLength(1);
     const traverseResult = await tools.traverse_graph({
       slug: "entities/alice",
       depth: 1,
@@ -250,14 +250,14 @@ describe("MCP server", () => {
     const searchSpy = vi.spyOn(stores.search, "search").mockResolvedValue([]);
 
     await tools.query({
-      query: "Memoark deployment",
+      query: "Memkin deployment",
       platform: "wechat",
       source_type: "dm",
       participant: "张三",
       limit: 999,
     });
     await tools.search({
-      query: "Memoark deployment",
+      query: "Memkin deployment",
       platform: ["wechat", "feishu"],
       source_type: "group",
       participant: "李四",
@@ -265,7 +265,7 @@ describe("MCP server", () => {
     });
 
     expect(querySpy).toHaveBeenCalledWith(
-      "Memoark deployment",
+      "Memkin deployment",
       expect.objectContaining({
         platform: "wechat",
         source_type: "dm",
@@ -274,7 +274,7 @@ describe("MCP server", () => {
       }),
     );
     expect(searchSpy).toHaveBeenCalledWith(
-      "Memoark deployment",
+      "Memkin deployment",
       expect.objectContaining({
         platform: ["wechat", "feishu"],
         source_type: "group",
@@ -326,7 +326,7 @@ describe("MCP server", () => {
       error: {
         code: "INVALID_ARGUMENT",
         message: "slug must be a non-empty stable page identifier",
-        suggestion: "Use a slug such as `projects/memoark` or `people/alice`.",
+        suggestion: "Use a slug such as `projects/memkin` or `people/alice`.",
       },
     });
 
@@ -394,15 +394,15 @@ describe("MCP server", () => {
       content: "---\ntitle: Alice\ntype: person\n---\nAlice.",
     });
     await tools.put_page({
-      slug: "projects/memoark",
-      content: "---\ntitle: Memoark\ntype: project\n---\nMemoark.",
+      slug: "projects/memkin",
+      content: "---\ntitle: Memkin\ntype: project\n---\nMemkin.",
     });
 
     expect(
       await tools.manage_links({
         action: "add",
         from: "entities/alice",
-        to: "projects/memoark",
+        to: "projects/memkin",
         provenance: { channel: "missing-platform" },
       }),
     ).toEqual({

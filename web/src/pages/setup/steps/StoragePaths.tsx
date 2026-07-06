@@ -21,7 +21,7 @@ export function StoragePaths({ config, onUpdate, onNext, onBack }: StepProps) {
         label="Database Path"
         value={dataDir}
         onChange={(v) => onUpdate({ store: { data_dir: v } })}
-        defaultHint="~/.memoark/data"
+        defaultHint="~/.memkin/data"
       />
 
       <PathInput
@@ -29,7 +29,7 @@ export function StoragePaths({ config, onUpdate, onNext, onBack }: StepProps) {
         label="Markdown Export Directory"
         value={exportDir}
         onChange={(v) => onUpdate({ adapters: { file: { enabled: Boolean(v), output_dir: v } } })}
-        defaultHint="~/Documents/memoark-export"
+        defaultHint="~/Documents/memkin-export"
         optional
       />
 

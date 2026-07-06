@@ -13,16 +13,16 @@ export interface LockHandle {
   release(): void;
 }
 
-const LOCK_FILENAME = "memoark.lock";
+const LOCK_FILENAME = "memkin.lock";
 const MAX_PREEMPT_RETRIES = 5;
 
 function formatLockError(h: LockInfo): string {
   return [
-    "✗ Memoark 已在运行(另一个进程持有数据库锁)",
+    "✗ Memkin 已在运行(另一个进程持有数据库锁)",
     `  持有者: PID ${h.pid}, 命令 '${h.command}', 启动于 ${h.startedAt} (host: ${h.hostname})`,
     "  data_dir 同时只能被一个进程访问(PGLite 限制)。",
     "  → 先停掉那个进程,或改用 serve 的 HTTP API。",
-    "  → 确认是残留锁?设 MEMOARK_NO_LOCK=1 强制跳过。",
+    "  → 确认是残留锁?设 MEMKIN_NO_LOCK=1 强制跳过。",
   ].join("\n");
 }
 

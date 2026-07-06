@@ -7,7 +7,7 @@ import { EmptyState } from "../components/shared/EmptyState";
 
 type SearchMode = "semantic" | "keyword";
 
-const HISTORY_KEY = "memoark-search-history";
+const HISTORY_KEY = "memkin-search-history";
 const MAX_HISTORY = 10;
 
 const TYPE_ORDER = ["person", "project", "decision", "knowledge", "task", "tool", "concept", "organization"];

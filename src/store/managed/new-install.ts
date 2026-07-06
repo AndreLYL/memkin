@@ -1,9 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-/** True if ~/.memoark/data exists and is a non-empty PGLite data dir. */
+/** True if ~/.memkin/data exists and is a non-empty PGLite data dir. */
 export function hasExistingPgliteData(home: string): boolean {
-  const dir = join(home, ".memoark", "data");
+  const dir = join(home, ".memkin", "data");
   try {
     return existsSync(dir) && readdirSync(dir).length > 0;
   } catch {

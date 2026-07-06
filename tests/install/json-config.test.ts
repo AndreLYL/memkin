@@ -7,34 +7,34 @@ import {
 } from "../../src/install/json-config.js";
 import { httpEntry, stdioEntry } from "../../src/install/mcp-entry.js";
 
-const entry: McpEntry = { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] };
-const entryWire = { command: "memoark", args: ["serve", "--mcp"] };
+const entry: McpEntry = { kind: "stdio", command: "memkin", args: ["serve", "--mcp"] };
+const entryWire = { command: "memkin", args: ["serve", "--mcp"] };
 
 describe("json-config mcp upsert/remove", () => {
-  it("adds memoark without disturbing other servers or keys", () => {
+  it("adds memkin without disturbing other servers or keys", () => {
     const obj = { theme: "dark", mcpServers: { other: { command: "x", args: [] } } };
-    const out = upsertMcpServer(obj, "memoark", entry);
+    const out = upsertMcpServer(obj, "memkin", entry);
     expect(out.mcpServers).toEqual({
       other: { command: "x", args: [] },
-      memoark: entryWire,
+      memkin: entryWire,
     });
     expect(out.theme).toBe("dark");
   });
 
   it("creates mcpServers when missing", () => {
-    const out = upsertMcpServer({}, "memoark", entry);
-    expect(out.mcpServers).toEqual({ memoark: entryWire });
+    const out = upsertMcpServer({}, "memkin", entry);
+    expect(out.mcpServers).toEqual({ memkin: entryWire });
   });
 
-  it("overwrites an existing memoark entry", () => {
-    const obj = { mcpServers: { memoark: { command: "old", args: [] } } };
-    const out = upsertMcpServer(obj, "memoark", entry);
-    expect((out.mcpServers as Record<string, unknown>).memoark).toEqual(entryWire);
+  it("overwrites an existing memkin entry", () => {
+    const obj = { mcpServers: { memkin: { command: "old", args: [] } } };
+    const out = upsertMcpServer(obj, "memkin", entry);
+    expect((out.mcpServers as Record<string, unknown>).memkin).toEqual(entryWire);
   });
 
-  it("removes memoark, keeps the rest", () => {
-    const obj = { mcpServers: { memoark: entryWire, other: { command: "x", args: [] } } };
-    const out = removeMcpServer(obj, "memoark");
+  it("removes memkin, keeps the rest", () => {
+    const obj = { mcpServers: { memkin: entryWire, other: { command: "x", args: [] } } };
+    const out = removeMcpServer(obj, "memkin");
     expect(out.mcpServers).toEqual({ other: { command: "x", args: [] } });
   });
 
@@ -44,14 +44,14 @@ describe("json-config mcp upsert/remove", () => {
   });
 
   it("http entry writes {type:'http', url} with NO kind field", () => {
-    const out = upsertMcpServer({}, "memoark", httpEntry("http://127.0.0.1:3928/mcp")) as any;
-    expect(out.mcpServers.memoark).toEqual({ type: "http", url: "http://127.0.0.1:3928/mcp" });
-    expect(out.mcpServers.memoark).not.toHaveProperty("kind");
+    const out = upsertMcpServer({}, "memkin", httpEntry("http://127.0.0.1:3928/mcp")) as any;
+    expect(out.mcpServers.memkin).toEqual({ type: "http", url: "http://127.0.0.1:3928/mcp" });
+    expect(out.mcpServers.memkin).not.toHaveProperty("kind");
   });
 
   it("stdio entry writes {command, args} with NO kind field", () => {
-    const out = upsertMcpServer({}, "memoark", stdioEntry("memoark", ["serve", "--mcp"])) as any;
-    expect(out.mcpServers.memoark).toEqual({ command: "memoark", args: ["serve", "--mcp"] });
-    expect(out.mcpServers.memoark).not.toHaveProperty("kind");
+    const out = upsertMcpServer({}, "memkin", stdioEntry("memkin", ["serve", "--mcp"])) as any;
+    expect(out.mcpServers.memkin).toEqual({ command: "memkin", args: ["serve", "--mcp"] });
+    expect(out.mcpServers.memkin).not.toHaveProperty("kind");
   });
 });

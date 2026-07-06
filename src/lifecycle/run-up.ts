@@ -29,7 +29,7 @@ import { bringUpDaemon, planUp, wireAgents } from "./up.js";
 
 export interface RunUpOptions {
   port?: number; // override mcp port
-  config?: string; // path to memoark.yaml
+  config?: string; // path to memkin.yaml
   linger?: boolean; // systemd --linger (linux)
 }
 
@@ -154,7 +154,7 @@ export async function runUp(
     };
 
     // Step 10: read prior state
-    const stateDir = join(home, ".memoark");
+    const stateDir = join(home, ".memkin");
     const priorState = readDaemonState(stateDir);
     const reconcile = priorState !== null;
 
@@ -164,8 +164,8 @@ export async function runUp(
 
     const serviceFilePath =
       platform === "darwin"
-        ? join(home, "Library", "LaunchAgents", "com.memoark.daemon.plist")
-        : join(home, ".config", "systemd", "user", "memoark.service");
+        ? join(home, "Library", "LaunchAgents", "com.memkin.daemon.plist")
+        : join(home, ".config", "systemd", "user", "memkin.service");
 
     // Step 11: bringUpDaemon
     await bringUpDaemon({
@@ -344,7 +344,7 @@ function captureBeforeImage(
 
 /**
  * FIX 3: Record Layer-1 backup (install-state.json) for all ops of an agent BEFORE mutating.
- * managedHash is a hash of the memoark MCP entry content that will be written (used by
+ * managedHash is a hash of the memkin MCP entry content that will be written (used by
  * restorableOriginal to detect post-install hand-edits).
  */
 function recordBeforeInstall(

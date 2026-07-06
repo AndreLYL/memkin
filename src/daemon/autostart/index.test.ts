@@ -7,7 +7,7 @@ import { makeFakeRunner } from "./runner.js";
 
 let home: string;
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-home-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-home-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -19,16 +19,16 @@ const state = {
   raw_yaml_hash: "h",
   serving_subset_hash: "s",
   url: "http://127.0.0.1:3928/mcp",
-  argv: ["/abs/memoark", "serve", "--mcp-http"],
+  argv: ["/abs/memkin", "serve", "--mcp-http"],
 };
 
 describe("autostart darwin", () => {
   it("enable writes plist + daemon.json + calls launchctl", async () => {
     const runner = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     await enableAutostart({ platform: "darwin", home, runner, state, env: {} });
-    const plistPath = join(home, "Library/LaunchAgents/com.memoark.daemon.plist");
+    const plistPath = join(home, "Library/LaunchAgents/com.memkin.daemon.plist");
     expect(existsSync(plistPath)).toBe(true);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(true);
     expect(runner.calls[0][0]).toBe("launchctl");
     // FIX 1: plist must be mode 0600 (contains secret env values)
     expect(statSync(plistPath).mode & 0o777).toBe(0o600);
@@ -38,16 +38,16 @@ describe("autostart darwin", () => {
     await expect(
       enableAutostart({ platform: "darwin", home, runner, state, env: {} }),
     ).rejects.toThrow(/load failed/);
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
   });
   it("disable boots out + removes plist + daemon.json (idempotent if absent)", async () => {
     const r1 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
     const r2 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
     expect(r2.calls.length).toBeGreaterThan(0);
     expect(result.outcome).toBe("success");
   });
@@ -56,8 +56,8 @@ describe("autostart darwin", () => {
     await enableAutostart({ platform: "darwin", home, runner: r1, state, env: {} });
     const r2 = makeFakeRunner([{ code: 1, stdout: "", stderr: "bootout error" }]);
     const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
     expect(result.launcherCode).toBe(1);
     expect(result.launcherStderr).toContain("bootout error");
   });
@@ -70,8 +70,8 @@ describe("disableAutostart outcome classification (darwin)", () => {
     const r2 = makeFakeRunner([{ code: 0, stdout: "", stderr: "" }]);
     const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
     expect(result.outcome).toBe("success");
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
   });
 
   it("bootout code non-zero + stderr 'No such process' → outcome:notLoaded, files removed", async () => {
@@ -80,8 +80,8 @@ describe("disableAutostart outcome classification (darwin)", () => {
     const r2 = makeFakeRunner([{ code: 3, stdout: "", stderr: "No such process" }]);
     const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
     expect(result.outcome).toBe("notLoaded");
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
   });
 
   it("bootout code 1 + other stderr → outcome:bootoutFailed, files removed (default keepState:false)", async () => {
@@ -91,8 +91,8 @@ describe("disableAutostart outcome classification (darwin)", () => {
     const result = await disableAutostart({ platform: "darwin", home, runner: r2 });
     expect(result.outcome).toBe("bootoutFailed");
     // default: keepStateOnBootoutFailure=false → files removed as before
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
   });
 
   it("bootoutFailed + keepStateOnBootoutFailure:true → files NOT removed", async () => {
@@ -107,8 +107,8 @@ describe("disableAutostart outcome classification (darwin)", () => {
     });
     expect(result.outcome).toBe("bootoutFailed");
     // keepStateOnBootoutFailure=true: files must be preserved
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(true);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(true);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(true);
   });
 
   it("notLoaded + keepStateOnBootoutFailure:true → files still removed (not a failed bootout)", async () => {
@@ -124,8 +124,8 @@ describe("disableAutostart outcome classification (darwin)", () => {
       keepStateOnBootoutFailure: true,
     });
     expect(result.outcome).toBe("notLoaded");
-    expect(existsSync(join(home, "Library/LaunchAgents/com.memoark.daemon.plist"))).toBe(false);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(false);
+    expect(existsSync(join(home, "Library/LaunchAgents/com.memkin.daemon.plist"))).toBe(false);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(false);
   });
 });
 
@@ -136,9 +136,9 @@ describe("autostart linux", () => {
       { code: 0, stdout: "", stderr: "" },
     ]);
     await enableAutostart({ platform: "linux", home, runner, state, env: {} });
-    const unitPath = join(home, ".config/systemd/user/memoark.service");
+    const unitPath = join(home, ".config/systemd/user/memkin.service");
     expect(existsSync(unitPath)).toBe(true);
-    expect(existsSync(join(home, ".memoark/daemon.json"))).toBe(true);
+    expect(existsSync(join(home, ".memkin/daemon.json"))).toBe(true);
     expect(runner.calls.some((c) => c[0] === "systemctl")).toBe(true);
     // FIX 1: unit file must be mode 0600 (contains secret env values)
     expect(statSync(unitPath).mode & 0o777).toBe(0o600);

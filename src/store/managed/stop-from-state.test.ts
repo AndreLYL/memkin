@@ -23,7 +23,7 @@ describe("stopManagedFromState", () => {
   it("state present → runs pg_ctl stop -D pgdata -m fast with state's pgCtlPath + pgdata, returns true", async () => {
     // Write managed state file
     const statePath = managedStatePath(home);
-    mkdirSync(join(home, ".memoark"), { recursive: true });
+    mkdirSync(join(home, ".memkin"), { recursive: true });
     writeFileSync(
       statePath,
       JSON.stringify({
@@ -54,7 +54,7 @@ describe("stopManagedFromState", () => {
 
   it("pg_ctl stop returns non-zero (already stopped) → still returns true, no throw", async () => {
     const statePath = managedStatePath(home);
-    mkdirSync(join(home, ".memoark"), { recursive: true });
+    mkdirSync(join(home, ".memkin"), { recursive: true });
     writeFileSync(
       statePath,
       JSON.stringify({

@@ -3,7 +3,7 @@ import { createDefaultConfigDocument, updateDraft } from "../../src/config-cente
 import {
   DETAIL_PANE_HEIGHT,
   DETAIL_PANE_WIDTH,
-  MEMOARK_SLANT_HEADER,
+  MEMKIN_SLANT_HEADER,
   renderConfigCenter,
 } from "../../src/config-center/tui/render.js";
 
@@ -16,31 +16,31 @@ function getDetailLines(output: string): string[] {
 
 describe("config-center render", () => {
   it("renders the shared Slant header", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc);
 
-    expect(output).toContain(MEMOARK_SLANT_HEADER);
+    expect(output).toContain(MEMKIN_SLANT_HEADER);
     expect(output).toContain("════════════════════════════════════════");
   });
 
   it("renders the title and config path/status on separate lines", () => {
-    const doc = { ...createDefaultConfigDocument("/tmp/memoark.yaml"), exists: true };
+    const doc = { ...createDefaultConfigDocument("/tmp/memkin.yaml"), exists: true };
     const output = renderConfigCenter(doc);
 
-    expect(output).toContain("\nMemoark Config Center\n/tmp/memoark.yaml  loaded\n");
-    expect(output).not.toContain("Memoark Config Center                         /tmp/memoark.yaml");
+    expect(output).toContain("\nMemkin Config Center\n/tmp/memkin.yaml  loaded\n");
+    expect(output).not.toContain("Memkin Config Center                         /tmp/memkin.yaml");
   });
 
   it("renders Feishu as a coming-soon placeholder in MVP", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, { sectionId: "feishu" });
 
     expect(output).toContain("Feishu");
-    expect(output).toContain("Coming soon — edit memoark.yaml directly.");
+    expect(output).toContain("Coming soon — edit memkin.yaml directly.");
   });
 
   it("hides the right-side field cursor while the sidebar is focused", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "llm",
       fieldIndex: 0,
@@ -53,7 +53,7 @@ describe("config-center render", () => {
   });
 
   it("keeps the selected sidebar arrow and shows the first right-side cursor after entering field focus", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "llm",
       fieldIndex: 0,
@@ -65,7 +65,7 @@ describe("config-center render", () => {
   });
 
   it("renders a fixed-size detail pane with only default and description", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, { sectionId: "llm", fieldIndex: 0 });
     const lines = getDetailLines(output);
 
@@ -80,7 +80,7 @@ describe("config-center render", () => {
   });
 
   it("shows the configured default instead of the edited current value", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const updated = updateDraft(doc, "llm.model", "gpt-test");
     const output = renderConfigCenter(updated, { sectionId: "llm", fieldIndex: 1 });
     const detailText = getDetailLines(output).join("\n");
@@ -91,7 +91,7 @@ describe("config-center render", () => {
   });
 
   it("keeps embedding provider recommendations concise in Description", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "embedding",
       fieldIndex: 0,
@@ -116,7 +116,7 @@ describe("config-center render", () => {
   });
 
   it("does not mark the LLM provider recommendation in the field list", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "llm",
       fieldIndex: 0,
@@ -137,7 +137,7 @@ describe("config-center render", () => {
   });
 
   it("renders connection status instead of validation and recommendation status", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "llm",
       fieldIndex: 0,
@@ -164,7 +164,7 @@ describe("config-center render", () => {
   });
 
   it("renders the compact navigation footer", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc);
 
     expect(output).toContain(
@@ -175,7 +175,7 @@ describe("config-center render", () => {
 
   it("does not mark the current embedding provider when it already matches the recommendation", () => {
     const doc = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "embedding.provider",
       "ollama",
     );
@@ -199,7 +199,7 @@ describe("config-center render", () => {
 
   it("hides provider-specific embedding fields that do not apply", () => {
     const doc = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "embedding.provider",
       "ollama",
     );
@@ -217,7 +217,7 @@ describe("config-center render", () => {
   });
 
   it("shows a manual-config message for enabled sources without detected base dirs", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "sources",
       fieldIndex: 1,
@@ -229,7 +229,7 @@ describe("config-center render", () => {
 
   it("shows disabled source base dirs as dash", () => {
     const doc = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "sources.claude-code.enabled",
       false,
     );
@@ -244,7 +244,7 @@ describe("config-center render", () => {
   });
 
   it("marks required fields with a stable field-list marker", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const output = renderConfigCenter(doc, {
       sectionId: "embedding",
       fieldIndex: 0,

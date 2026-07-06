@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderLaunchdPlist } from "./launchd.js";
 
 const plist = renderLaunchdPlist({
-  label: "com.memoark.daemon",
+  label: "com.memkin.daemon",
   argv: ["/abs/node", "/abs/dist/cli.js", "serve", "--mcp-http"],
   stdoutPath: "/abs/logs/out.log",
   stderrPath: "/abs/logs/err.log",

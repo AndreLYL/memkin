@@ -29,7 +29,7 @@ describe("init wizard", () => {
   let originalUserProfile: string | undefined;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "memoark-init-"));
+    tempDir = mkdtempSync(join(tmpdir(), "memkin-init-"));
     originalCwd = process.cwd();
     originalOpenAI = process.env.OPENAI_API_KEY;
     originalAnthropic = process.env.ANTHROPIC_API_KEY;
@@ -70,7 +70,7 @@ describe("init wizard", () => {
   });
 
   it("resolves config paths and first-run state", () => {
-    expect(getConfigPath()).toBe(resolve(process.cwd(), "memoark.yaml"));
+    expect(getConfigPath()).toBe(resolve(process.cwd(), "memkin.yaml"));
     expect(isFirstRun()).toBe(true);
   });
 
@@ -80,8 +80,8 @@ describe("init wizard", () => {
 
     await runInit({ auto: true, output });
 
-    expect(existsSync("memoark.yaml")).toBe(true);
-    const yaml = readFileSync("memoark.yaml", "utf-8");
+    expect(existsSync("memkin.yaml")).toBe(true);
+    const yaml = readFileSync("memkin.yaml", "utf-8");
     expect(yaml).toContain(`api_key: ${OPENAI_API_KEY_PLACEHOLDER}`);
     expect(yaml).toContain("claude-code:");
     expect(output.text()).toContain("[ok] Configuration saved");
@@ -108,11 +108,11 @@ describe("init wizard", () => {
       globalThis.fetch = originalFetch;
     }
 
-    const yaml = readFileSync("memoark.yaml", "utf-8");
+    const yaml = readFileSync("memkin.yaml", "utf-8");
     expect(yaml).toContain("provider: openai");
     expect(yaml).toContain("model: gpt-4o-mini");
     expect(yaml).toContain(`api_key: ${OPENAI_API_KEY_PLACEHOLDER}`);
-    expect(output.text()).toContain("Welcome to Memoark Setup");
+    expect(output.text()).toContain("Welcome to Memkin Setup");
   });
 
   it("selects TUI only for TTY interactive init", () => {
@@ -123,9 +123,9 @@ describe("init wizard", () => {
 
     expect(shouldUseTui({ auto: true }, ttyInput, ttyOutput, {})).toBe(false);
     expect(shouldUseTui({ tui: false }, ttyInput, ttyOutput, {})).toBe(false);
-    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMOARK_NO_TUI: "1" })).toBe(false);
-    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMOARK_NO_TUI: "true" })).toBe(false);
-    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMOARK_NO_TUI: "yes" })).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMKIN_NO_TUI: "1" })).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMKIN_NO_TUI: "true" })).toBe(false);
+    expect(shouldUseTui({}, ttyInput, ttyOutput, { MEMKIN_NO_TUI: "yes" })).toBe(false);
     expect(shouldUseTui({}, pipeInput, ttyOutput, {})).toBe(false);
     expect(shouldUseTui({}, ttyInput, pipeOutput, {})).toBe(false);
     expect(shouldUseTui({}, ttyInput, ttyOutput, {})).toBe(true);

@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   DIRECTIVE_L1,
-  MEMOARK_BLOCK_END,
-  MEMOARK_BLOCK_START,
+  MEMKIN_BLOCK_END,
+  MEMKIN_BLOCK_START,
 } from "../../src/install/directive.js";
 import { hasBlock, removeBlock, upsertBlock } from "../../src/install/marked-block.js";
 
 function countBlocks(text: string): number {
-  return text.split(MEMOARK_BLOCK_START).length - 1;
+  return text.split(MEMKIN_BLOCK_START).length - 1;
 }
 
 describe("marked-block upsert/remove", () => {
   it("inserts the block into empty/absent content", () => {
     const out = upsertBlock("", DIRECTIVE_L1);
-    expect(out).toContain(MEMOARK_BLOCK_START);
-    expect(out).toContain(MEMOARK_BLOCK_END);
+    expect(out).toContain(MEMKIN_BLOCK_START);
+    expect(out).toContain(MEMKIN_BLOCK_END);
     expect(countBlocks(out)).toBe(1);
   });
 
@@ -23,13 +23,13 @@ describe("marked-block upsert/remove", () => {
     const out = upsertBlock(original, DIRECTIVE_L1);
     expect(out.startsWith("# My Notes\n\nsome existing rules")).toBe(true);
     expect(countBlocks(out)).toBe(1);
-    expect(out).toContain(MEMOARK_BLOCK_START);
+    expect(out).toContain(MEMKIN_BLOCK_START);
   });
 
   it("is idempotent: re-upsert with changed content replaces in place (no duplicate)", () => {
     const original = "# Notes\n\nkeep me\n";
     const once = upsertBlock(original, DIRECTIVE_L1);
-    const changedBlock = `${MEMOARK_BLOCK_START}\nnew body\n${MEMOARK_BLOCK_END}`;
+    const changedBlock = `${MEMKIN_BLOCK_START}\nnew body\n${MEMKIN_BLOCK_END}`;
     const twice = upsertBlock(once, changedBlock);
     expect(countBlocks(twice)).toBe(1);
     expect(twice).toContain("new body");

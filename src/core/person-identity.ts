@@ -260,7 +260,7 @@ export class PersonIdentityStore {
    * (already merged by a concurrent caller), the method returns as a no-op.
    *
    * Note: the old page's embeddings (chunks) are dropped with it — run
-   * `memoark embed` afterwards to re-embed the folded content.
+   * `memkin embed` afterwards to re-embed the folded content.
    */
   async merge(fromSlug: string, intoSlug: string): Promise<void> {
     if (fromSlug === intoSlug) throw new Error("cannot merge a person into itself");

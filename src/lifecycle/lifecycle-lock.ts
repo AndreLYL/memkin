@@ -21,7 +21,7 @@ export class LifecycleLockError extends Error {
   constructor(holder: LockInfo) {
     super(
       [
-        "✗ Memoark lifecycle lock is held by another process",
+        "✗ Memkin lifecycle lock is held by another process",
         `  Holder: PID ${holder.pid}, command '${holder.command}', started at ${holder.startedAt} (host: ${holder.hostname})`,
         "  Only one SP4 mutation command can run at a time.",
         "  → Wait for the other command to finish, then retry.",
@@ -61,12 +61,12 @@ function makeHandle(lockPath: string, self: LockInfo): LockHandle {
 }
 
 /**
- * Acquire the lifecycle advisory lock at `<home>/.memoark/lifecycle.lock`.
+ * Acquire the lifecycle advisory lock at `<home>/.memkin/lifecycle.lock`.
  * Throws `LifecycleLockError` if another live process on this hostname holds the lock.
  * Reclaims stale locks (dead pid).
  */
 export function acquireLifecycleLock(home: string, command: string): LockHandle {
-  const lockDir = join(home, ".memoark");
+  const lockDir = join(home, ".memkin");
   if (!existsSync(lockDir)) mkdirSync(lockDir, { recursive: true });
 
   const lockPath = join(lockDir, LOCK_FILENAME);

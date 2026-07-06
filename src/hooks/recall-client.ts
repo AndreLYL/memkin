@@ -1,6 +1,6 @@
 // Fast, zero-cost recall for the UserPromptSubmit hook.
 //
-// Prefers the running `memoark serve` REST endpoint (GET /api/search), which is
+// Prefers the running `memkin serve` REST endpoint (GET /api/search), which is
 // FTS-only (SearchEngine.search → to_tsquery, no embeddings) and warm, and which
 // also avoids contending for the PGLite single-writer lock. Falls back to a
 // direct FTS store search when serve is not running. NEVER use the hybrid

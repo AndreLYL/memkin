@@ -9,9 +9,9 @@ describe("loadConfig", () => {
   let configPath: string;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `memoark-config-test-${Date.now()}`);
+    tmpDir = join(tmpdir(), `memkin-config-test-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
-    configPath = join(tmpDir, "memoark.yaml");
+    configPath = join(tmpDir, "memkin.yaml");
   });
 
   afterEach(() => {

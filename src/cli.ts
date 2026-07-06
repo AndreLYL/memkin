@@ -102,7 +102,7 @@ function bootstrapCollectors(sources: SourcesConfig, projectRoot: string): void 
 // ~/.local/bin/lark path. Silent on missing file or parse errors (the wizard
 // may be running because the YAML doesn't exist yet).
 function readLarkBinFromConfig(configPath?: string): string | undefined {
-  const path = configPath ?? resolve(process.cwd(), "memoark.yaml");
+  const path = configPath ?? resolve(process.cwd(), "memkin.yaml");
   if (!existsSync(path)) return undefined;
   try {
     return loadConfig(path).sources?.feishu?.lark_bin;
@@ -114,16 +114,16 @@ function readLarkBinFromConfig(configPath?: string): string | undefined {
 const program = new Command();
 
 program
-  .name("memoark")
+  .name("memkin")
   .description("Local-first personal memory extraction and storage")
   .version(VERSION);
 
 program
   .command("init")
-  .description("Interactive setup wizard - generates memoark.yaml")
+  .description("Interactive setup wizard - generates memkin.yaml")
   .option("--auto", "Automatic mode, no prompts")
   .option("--force", "Overwrite existing configuration")
-  .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to output config file (default: memkin.yaml)")
   .option("--no-tui", "Use non-TUI fallback")
   .option("--web", "Launch browser-based setup UI")
   .action(async (options) => {
@@ -160,7 +160,7 @@ program
     "Source/collector name (e.g., claude-code, codex, hermes, feishu, or 'all' for all enabled sources)",
     "claude-code",
   )
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memkin.yaml)")
   .option("-f, --format <type>", "Output format (json|markdown)", "json")
   .option("-a, --adapter <type>", "Output adapter (store|file|gbrain|stdout)", "store")
   .option("-o, --output <dir>", "Output directory for file adapter")
@@ -200,7 +200,7 @@ program
           const envVarName =
             llmConfig.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
           console.error(
-            `Error: No API key configured. Set api_key in memoark.yaml or ${envVarName} env var.`,
+            `Error: No API key configured. Set api_key in memkin.yaml or ${envVarName} env var.`,
           );
           process.exit(1);
         }
@@ -335,7 +335,7 @@ program
 program
   .command("doctor")
   .description("Diagnose configuration and connectivity")
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memkin.yaml)")
   .action(async (options) => {
     const issues: string[] = [];
     const warnings: string[] = [];
@@ -356,12 +356,12 @@ program
       }
     } else {
       warnings.push(`Configuration file not found: ${configPath}`);
-      warnings.push("Create one with: memoark init");
+      warnings.push("Create one with: memkin init");
     }
 
     // Check state directory
     const projectRoot = config?.__context.projectRoot ?? dirname(configPath);
-    const stateDir = resolve(projectRoot, ".memoark");
+    const stateDir = resolve(projectRoot, ".memkin");
     if (existsSync(stateDir)) {
       ok.push(`State directory exists: ${stateDir}`);
     } else {
@@ -369,7 +369,7 @@ program
       warnings.push("It will be created automatically on first extract");
     }
 
-    const cwdStateDir = resolve(process.cwd(), ".memoark");
+    const cwdStateDir = resolve(process.cwd(), ".memkin");
     if (cwdStateDir !== stateDir && existsSync(cwdStateDir)) {
       warnings.push(`Legacy state directory found at current cwd: ${cwdStateDir}`);
       warnings.push(`Current config-root state directory is: ${stateDir}`);
@@ -454,7 +454,7 @@ program
     }
 
     // Report results
-    console.log("=== Memoark Diagnostic Report ===\n");
+    console.log("=== Memkin Diagnostic Report ===\n");
 
     if (ok.length > 0) {
       console.log("✓ OK:");
@@ -491,10 +491,10 @@ const configCmd = program.command("config").description("Manage configuration");
 
 configCmd
   .command("init")
-  .description("Generate memoark.yaml (alias for 'memoark init')")
+  .description("Generate memkin.yaml (alias for 'memkin init')")
   .option("--auto", "Automatic mode, no prompts")
   .option("--force", "Overwrite existing configuration")
-  .option("-c, --config <path>", "Path to output config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to output config file (default: memkin.yaml)")
   .option("--no-tui", "Use non-TUI fallback")
   .action(async (options) => {
     try {
@@ -515,7 +515,7 @@ configCmd
   .command("edit")
   .description("Edit configuration in browser UI")
   .option("--web", "Launch browser-based settings UI (default behavior)")
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memkin.yaml)")
   .action(async (options) => {
     const { startSetupServer } = await import("./server/setup-server.js");
     await startSetupServer({
@@ -591,17 +591,17 @@ async function runServe(options: {
   daemonInstanceId?: string;
 }): Promise<void> {
   {
-    const serveConfigPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
+    const serveConfigPath = options.config ?? resolve(process.cwd(), "memkin.yaml");
     if (!existsSync(serveConfigPath)) {
       console.error(
         "No configuration file found.\n" +
-          "Run `memoark start` for one-step setup + launch, or `memoark init --web` to configure first.",
+          "Run `memkin start` for one-step setup + launch, or `memkin init --web` to configure first.",
       );
       process.exit(1);
     }
     const config = loadConfig(options.config);
-    // Anchor the .memoark state dir to the config's project root, not process.cwd().
-    // A Finder-launched sidecar has cwd=/, so the default would try to mkdir /.memoark
+    // Anchor the .memkin state dir to the config's project root, not process.cwd().
+    // A Finder-launched sidecar has cwd=/, so the default would try to mkdir /.memkin
     // (EROFS on macOS). projectRoot = dirname(configPath), so it lives beside the config.
     const stateDir = ensureStateDir(config.__context.projectRoot);
     const missingEnvVars = getMissingEnvVarsForCommand(config, "serve");
@@ -629,7 +629,7 @@ async function runServe(options: {
       buildRuntime: (next) => buildServeRuntime(next, stores, stateDir),
       onRestartRequired: () =>
         console.warn(
-          "[reload] store/engine change saved — restart the daemon (`memoark up` or restart serve) to apply; the running process still uses the previous database.",
+          "[reload] store/engine change saved — restart the daemon (`memkin up` or restart serve) to apply; the running process still uses the previous database.",
         ),
     });
 
@@ -704,13 +704,13 @@ async function runServe(options: {
         daemonInstanceId: options.daemonInstanceId,
       });
       assertLoopbackOrThrow(runtime);
-      // Server-wide auth token (config server.auth_token / MEMOARK_AUTH_TOKEN)
+      // Server-wide auth token (config server.auth_token / MEMKIN_AUTH_TOKEN)
       // also protects the MCP HTTP endpoint. The MCP-specific auth_token_env is
       // kept for backward compat; the server-wide token wins when both are set.
       const serverToken = resolveServeSecurity({
         configHost: config.server.host,
         configToken: config.server.auth_token,
-        envToken: process.env.MEMOARK_AUTH_TOKEN,
+        envToken: process.env.MEMKIN_AUTH_TOKEN,
       }).authToken;
       const tokenEnv = config.mcp.http.auth_token_env;
       const resolvedConfigPath = config.__context.configPath;
@@ -753,7 +753,7 @@ async function runServe(options: {
         port: runtime.port,
       });
       console.log(
-        `Memoark MCP Streamable HTTP listening on http://${server.hostname}:${server.port}/mcp`,
+        `Memkin MCP Streamable HTTP listening on http://${server.hostname}:${server.port}/mcp`,
       );
       return;
     }
@@ -766,7 +766,7 @@ async function runServe(options: {
       flagHost: options.host,
       configHost: config.server.host,
       configToken: config.server.auth_token,
-      envToken: process.env.MEMOARK_AUTH_TOKEN,
+      envToken: process.env.MEMKIN_AUTH_TOKEN,
     });
 
     const app = createApiApp(storesWithDaemon, {
@@ -783,11 +783,11 @@ async function runServe(options: {
     });
     // In a `bun --compile` sidecar, import.meta.url lives under $bunfs and web/dist is
     // NOT embedded, so the default path can't be served. The Tauri shell ships web/dist
-    // as a resource and injects its real path via MEMOARK_WEB_DIST (mirrors pglite-assets).
+    // as a resource and injects its real path via MEMKIN_WEB_DIST (mirrors pglite-assets).
     const webDist =
-      process.env.MEMOARK_WEB_DIST ?? join(fileURLToPath(import.meta.url), "../../web/dist");
+      process.env.MEMKIN_WEB_DIST ?? join(fileURLToPath(import.meta.url), "../../web/dist");
     // `--port 0` (used by the Tauri shell) binds an OS-assigned free port so the desktop
-    // app never collides with a CLI `memoark serve`, a stale instance, or anything else
+    // app never collides with a CLI `memkin serve`, a stale instance, or anything else
     // on the default port. The actual port is reported below for the webview to read.
     const requestedPort =
       options.port !== undefined ? Number(options.port) : config.server.http_port;
@@ -808,10 +808,10 @@ async function runServe(options: {
         return new Response(Bun.file(join(webDist, "index.html")));
       },
     });
-    console.log(`Memoark HTTP API listening on http://localhost:${server.port}`);
+    console.log(`Memkin HTTP API listening on http://localhost:${server.port}`);
     // Stdout contract for the Tauri shell: the URL after the marker is where the webview
     // navigates (the port may be OS-assigned, so report the real one — never hardcode).
-    console.log(`MEMOARK_READY http://localhost:${server.port}`);
+    console.log(`MEMKIN_READY http://localhost:${server.port}`);
     if (
       shouldOpenBrowserOnServe({
         open: options.open !== false,
@@ -832,7 +832,7 @@ async function runServe(options: {
 
 program
   .command("serve")
-  .description("Start Memoark HTTP API or MCP stdio server")
+  .description("Start Memkin HTTP API or MCP stdio server")
   .option("-c, --config <path>", "Path to config file")
   .option("--mcp", "Run MCP stdio transport instead of HTTP")
   .option("--mcp-http", "Run MCP Streamable HTTP transport instead of the HTTP API")
@@ -853,7 +853,7 @@ program
     "--host <host>",
     "Bind host for the HTTP API + Web UI (default 127.0.0.1, loopback only). " +
       "Binding a non-loopback host (e.g. 0.0.0.0) requires an auth token " +
-      "(server.auth_token in config or MEMOARK_AUTH_TOKEN env), or the server refuses to start.",
+      "(server.auth_token in config or MEMKIN_AUTH_TOKEN env), or the server refuses to start.",
   )
   .option("--mcp-bind <host>", "")
   .option("--mcp-port <port>", "", (v: string) => {
@@ -870,13 +870,13 @@ program
   )
   .option("--daemon-instance-id <id>", "")
   .action((options) => {
-    if (options.pgliteAssets) process.env.MEMOARK_PGLITE_ASSETS = options.pgliteAssets;
-    if (options.webDist) process.env.MEMOARK_WEB_DIST = options.webDist;
+    if (options.pgliteAssets) process.env.MEMKIN_PGLITE_ASSETS = options.pgliteAssets;
+    if (options.webDist) process.env.MEMKIN_WEB_DIST = options.webDist;
     return runServe(options);
   });
 
 async function runStart(options: { config?: string }): Promise<void> {
-  const configPath = options.config ?? resolve(process.cwd(), "memoark.yaml");
+  const configPath = options.config ?? resolve(process.cwd(), "memkin.yaml");
   const plan = planStartup(existsSync(configPath));
   if (plan.runSetup) {
     console.log("No configuration found — launching setup wizard...");
@@ -916,7 +916,7 @@ function reportPlan(planned: PlannedClient[], verb: string, dryRun: boolean): vo
 
 program
   .command("install")
-  .description("Register Memoark (MCP config + memory directive) into your AI agents")
+  .description("Register Memkin (MCP config + memory directive) into your AI agents")
   .option(
     "--agent <ids...>",
     "Target client(s): claude-code, claude-desktop, cursor, codex, windsurf (default: all detected)",
@@ -948,7 +948,7 @@ program
 
 program
   .command("uninstall")
-  .description("Remove Memoark MCP config + memory directive from your AI agents")
+  .description("Remove Memkin MCP config + memory directive from your AI agents")
   .option("--agent <ids...>", "Target client(s) (default: all detected)")
   .option("--project", "Operate on the current project instead of globally")
   .option("--dry-run", "Preview changes without writing")
@@ -985,19 +985,19 @@ hooksCmd
 
 hooksCmd
   .command("uninstall")
-  .description("Remove all Memoark hooks from settings.json")
+  .description("Remove all Memkin hooks from settings.json")
   .option("--project", "Operate on ./.claude/settings.json instead of the global one")
   .option("--dry-run", "Preview without writing")
   .action((options) => {
     const res = hooksUninstall({ project: !!options.project, dryRun: !!options.dryRun });
-    console.log(`${options.dryRun ? "Would remove" : "Removed"} Memoark hooks → ${res.path}`);
+    console.log(`${options.dryRun ? "Would remove" : "Removed"} Memkin hooks → ${res.path}`);
   });
 
-const skillCmd = program.command("skill").description("Manage the Memoark agent skill");
+const skillCmd = program.command("skill").description("Manage the Memkin agent skill");
 
 skillCmd
   .command("scaffold")
-  .description("Write the memoark skill (SKILL.md) into a skills directory")
+  .description("Write the memkin skill (SKILL.md) into a skills directory")
   .option("--dir <path>", "Target skills directory (default: ./.claude/skills)")
   .action((options) => {
     const dir = options.dir ?? join(process.cwd(), ".claude", "skills");
@@ -1053,7 +1053,7 @@ program
 
 program
   .command("search <query>")
-  .description("Search Memoark memory")
+  .description("Search Memkin memory")
   .option("-c, --config <path>", "Path to config file")
   .option("--mode <mode>", "Search mode (hybrid|fts)", "hybrid")
   .option("--limit <n>", "Limit results", "20")
@@ -1074,7 +1074,7 @@ program
 
 program
   .command("embed")
-  .description("Embed stale Memoark chunks")
+  .description("Embed stale Memkin chunks")
   .option("-c, --config <path>", "Path to config file")
   .option("--limit <n>", "Limit chunks")
   .action(async (options) => {
@@ -1090,11 +1090,11 @@ program
 
 /**
  * Obsidian sync — bidirectional export/import between PGLite and a vault.
- * See docs/specs/memoark-2026-06-04-obsidian-sync.md
+ * See docs/specs/memkin-2026-06-04-obsidian-sync.md
  */
 program
   .command("export")
-  .description("Export Memoark pages to an Obsidian vault (Markdown)")
+  .description("Export Memkin pages to an Obsidian vault (Markdown)")
   .requiredOption("--vault <path>", "Obsidian vault directory")
   .option("--force", "Ignore hash comparison, overwrite all files")
   .option("--dry-run", "Print intended actions without writing")
@@ -1121,7 +1121,7 @@ program
 
 program
   .command("import")
-  .description("Import an Obsidian vault back into Memoark")
+  .description("Import an Obsidian vault back into Memkin")
   .requiredOption("--vault <path>", "Obsidian vault directory")
   .option("--force", "Ignore hash comparison, import all files")
   .option("--dry-run", "Print intended actions without writing")
@@ -1149,7 +1149,7 @@ program
         console.error(`  error: ${err.file}: ${err.reason}`);
       }
       if (!options.dryRun && result.imported > 0) {
-        console.log("Tip: Run 'memoark embed' to update embeddings for changed pages.");
+        console.log("Tip: Run 'memkin embed' to update embeddings for changed pages.");
       }
     } finally {
       await stores.db.close();
@@ -1159,7 +1159,7 @@ program
 program
   .command("consolidate")
   .description("Run memory lifecycle tier rotation (hot→warm and/or warm→cold)")
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memkin.yaml)")
   .option("--hot", "Run hot→warm rotation only")
   .option("--warm", "Run warm→cold rotation only (requires LLM API key)")
   .option("--dry-run", "Report what would be consolidated without writing")
@@ -1182,7 +1182,7 @@ program
         } else if (options.warm) {
           // Explicit --warm with no LLM key: fail fast
           console.error(
-            "Error: --warm requires an LLM API key. Set ANTHROPIC_API_KEY or configure api_key in memoark.yaml.",
+            "Error: --warm requires an LLM API key. Set ANTHROPIC_API_KEY or configure api_key in memkin.yaml.",
           );
           process.exit(1);
         } else {
@@ -1301,7 +1301,7 @@ identityCmd
     try {
       await identity.merge(from, into);
       console.log(`Merged ${from} → ${into}`);
-      console.log("Note: run `memoark embed` to re-embed the folded content.");
+      console.log("Note: run `memkin embed` to re-embed the folded content.");
     } catch (error) {
       console.error("merge failed:", error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -1332,7 +1332,7 @@ const docsCmd = program.command("docs").description("Feishu doc summary cards (D
 docsCmd
   .command("sync")
   .description("Scan Feishu docs, build pointer cards, upgrade triggered docs to full cards")
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .option("-c, --config <path>", "Path to config file (default: memkin.yaml)")
   .action(async (options) => {
     try {
       const config = loadConfig(options.config);
@@ -1505,8 +1505,8 @@ docsCmd
 
 program
   .command("up")
-  .description("Start the always-on Memoark daemon and wire detected AI agents")
-  .option("-c, --config <path>", "Path to config file (default: memoark.yaml)")
+  .description("Start the always-on Memkin daemon and wire detected AI agents")
+  .option("-c, --config <path>", "Path to config file (default: memkin.yaml)")
   .option("--port <n>", "Override MCP HTTP port", (v) => {
     const n = Number.parseInt(v, 10);
     if (Number.isNaN(n)) throw new Error(`--port: invalid number "${v}"`);
@@ -1520,7 +1520,7 @@ program
         port: options.port as number | undefined,
         linger: !!options.linger,
       });
-      console.log(`✓ Memoark daemon running`);
+      console.log(`✓ Memkin daemon running`);
       console.log(`  URL:    ${result.url}`);
       console.log(`  Port:   ${result.port}`);
       console.log(`  Engine: ${result.engine}`);
@@ -1536,7 +1536,7 @@ program
         console.log(`  ⚠ ${w}`);
       }
     } catch (err) {
-      console.error("memoark up failed:", err instanceof Error ? err.message : String(err));
+      console.error("memkin up failed:", err instanceof Error ? err.message : String(err));
       process.exit(1);
     }
   });
@@ -1573,7 +1573,7 @@ program
       });
       console.log(result.stopped ? `✓ ${result.note}` : `✗ ${result.note}`);
     } catch (err) {
-      console.error("memoark down failed:", err instanceof Error ? err.message : String(err));
+      console.error("memkin down failed:", err instanceof Error ? err.message : String(err));
       process.exit(1);
     }
   });
@@ -1616,7 +1616,7 @@ program
       }
     } catch (err) {
       console.error(
-        `memoark autostart ${action} failed:`,
+        `memkin autostart ${action} failed:`,
         err instanceof Error ? err.message : String(err),
       );
       process.exit(1);
@@ -1628,7 +1628,7 @@ program
   .description("Show the current state of the always-on daemon")
   .action(async () => {
     const h = homedir();
-    const stateDir = join(h, ".memoark");
+    const stateDir = join(h, ".memkin");
     const stored = readDaemonState(stateDir);
 
     let health: { status: number; body: Record<string, unknown> } | null = null;
@@ -1671,9 +1671,9 @@ program
     if (report.engine) console.log(`Engine: ${report.engine}`);
     if (report.configPath) console.log(`Config: ${report.configPath}`);
     if (report.drift.configChanged)
-      console.log("⚠ Config changed since last up — run `memoark up` to apply.");
+      console.log("⚠ Config changed since last up — run `memkin up` to apply.");
     if (report.drift.needsReup)
-      console.log("⚠ Serving subset changed — run `memoark up` to re-register agents.");
+      console.log("⚠ Serving subset changed — run `memkin up` to re-register agents.");
     if (report.drift.restartedOntoEditedConfig)
       console.log("⚠ Daemon restarted onto edited config.");
 

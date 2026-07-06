@@ -238,11 +238,11 @@ slug: broken
 
 body
 
-<!-- memoark:timeline -->
+<!-- memkin:timeline -->
 
 - e
 
-<!-- memoark:related -->
+<!-- memkin:related -->
 
 - [[x]]
 `,

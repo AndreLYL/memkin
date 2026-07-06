@@ -1,11 +1,11 @@
 import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
 
-// Resolves the command an MCP client should spawn to launch Memoark's stdio
-// (or HTTP) server. Prefers a globally-installed `memoark` binary; otherwise
-// falls back to `npx -y @andre.li/memoark`.
+// Resolves the command an MCP client should spawn to launch Memkin's stdio
+// (or HTTP) server. Prefers a globally-installed `memkin` binary; otherwise
+// falls back to `npx -y memkin`.
 
-const PACKAGE = "@andre.li/memoark";
+const PACKAGE = "memkin";
 
 export interface LaunchCmd {
   command: string;
@@ -40,8 +40,8 @@ export function isOnPath(bin: string, env: NodeJS.ProcessEnv = process.env): boo
 export function resolveLaunchCmd(opts: ResolveOpts = {}): LaunchCmd {
   const transport = opts.http ? "--mcp-http" : "--mcp";
   const onPath = opts.onPath ?? isOnPath;
-  if (onPath("memoark")) {
-    return { command: "memoark", args: ["serve", transport] };
+  if (onPath("memkin")) {
+    return { command: "memkin", args: ["serve", transport] };
   }
   return { command: "npx", args: ["-y", PACKAGE, "serve", transport] };
 }

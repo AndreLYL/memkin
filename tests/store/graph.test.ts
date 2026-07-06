@@ -15,7 +15,7 @@ describe("GraphStore", () => {
     graph = new GraphStore(db.executor);
     await pages.putPage("entities/alice", "---\ntitle: Alice\ntype: person\n---\nAlice.");
     await pages.putPage("entities/bob", "---\ntitle: Bob\ntype: person\n---\nBob.");
-    await pages.putPage("projects/memoark", "---\ntitle: Memoark\ntype: project\n---\nMemoark.");
+    await pages.putPage("projects/memkin", "---\ntitle: Memkin\ntype: project\n---\nMemkin.");
   });
   afterEach(async () => {
     await db.close();
@@ -32,17 +32,17 @@ describe("GraphStore", () => {
   }
 
   it("addLink creates a link between two pages", async () => {
-    await graph.addLink("entities/alice", "projects/memoark", "works_on", "Lead engineer");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on", "Lead engineer");
     const links = await graph.getLinks("entities/alice");
     expect(links).toHaveLength(1);
-    expect(links[0].to_slug).toBe("projects/memoark");
+    expect(links[0].to_slug).toBe("projects/memkin");
     expect(links[0].link_type).toBe("works_on");
     expect(links[0].context).toBe("Lead engineer");
   });
 
   it("addLink upserts context on conflict", async () => {
-    await graph.addLink("entities/alice", "projects/memoark", "works_on", "V1");
-    await graph.addLink("entities/alice", "projects/memoark", "works_on", "V2 updated");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on", "V1");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on", "V2 updated");
     const links = await graph.getLinks("entities/alice");
     expect(links).toHaveLength(1);
     expect(links[0].context).toBe("V2 updated");
@@ -51,7 +51,7 @@ describe("GraphStore", () => {
   it("addLink upserts provenance and source hash on conflict", async () => {
     await graph.addLink(
       "entities/alice",
-      "projects/memoark",
+      "projects/memkin",
       "works_on",
       "V1",
       sourceRef("first-hash"),
@@ -59,7 +59,7 @@ describe("GraphStore", () => {
     );
     await graph.addLink(
       "entities/alice",
-      "projects/memoark",
+      "projects/memkin",
       "works_on",
       "V2",
       sourceRef("latest-hash", "feishu"),
@@ -87,9 +87,9 @@ describe("GraphStore", () => {
   });
 
   it("getBacklinks returns incoming links", async () => {
-    await graph.addLink("entities/alice", "projects/memoark", "works_on");
-    await graph.addLink("entities/bob", "projects/memoark", "works_on");
-    const backlinks = await graph.getBacklinks("projects/memoark");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on");
+    await graph.addLink("entities/bob", "projects/memkin", "works_on");
+    const backlinks = await graph.getBacklinks("projects/memkin");
     expect(backlinks).toHaveLength(2);
     const slugs = backlinks.map((l) => l.from_slug);
     expect(slugs).toContain("entities/alice");
@@ -104,37 +104,37 @@ describe("GraphStore", () => {
   });
 
   it("traverse BFS returns connected nodes", async () => {
-    await graph.addLink("entities/alice", "projects/memoark", "works_on");
-    await graph.addLink("entities/bob", "projects/memoark", "works_on");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on");
+    await graph.addLink("entities/bob", "projects/memkin", "works_on");
     const result = await graph.traverse("entities/alice", { depth: 2, direction: "out" });
     expect(result.focus.slug).toBe("entities/alice");
     expect(result.focus.title).toBe("Alice");
     const slugs = result.nodes.map((n) => n.slug);
-    expect(slugs).toContain("projects/memoark");
+    expect(slugs).toContain("projects/memkin");
     expect(result.edges).toHaveLength(1);
     expect(result.edges[0]).toEqual({
       from_slug: "entities/alice",
-      to_slug: "projects/memoark",
+      to_slug: "projects/memkin",
       link_type: "works_on",
     });
   });
 
   it("traverse respects depth limit", async () => {
     await graph.addLink("entities/alice", "entities/bob", "collaborates");
-    await graph.addLink("entities/bob", "projects/memoark", "works_on");
+    await graph.addLink("entities/bob", "projects/memkin", "works_on");
     const result = await graph.traverse("entities/alice", { depth: 1, direction: "out" });
     const slugs = result.nodes.map((n) => n.slug);
     expect(slugs).toContain("entities/bob");
-    expect(slugs).not.toContain("projects/memoark");
+    expect(slugs).not.toContain("projects/memkin");
     expect(result.edges).toHaveLength(1);
   });
 
   it("traverse both directions", async () => {
-    await graph.addLink("entities/alice", "projects/memoark", "works_on");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on");
     await graph.addLink("entities/bob", "entities/alice", "reports_to");
     const result = await graph.traverse("entities/alice", { depth: 1, direction: "both" });
     const slugs = result.nodes.map((n) => n.slug);
-    expect(slugs).toContain("projects/memoark");
+    expect(slugs).toContain("projects/memkin");
     expect(slugs).toContain("entities/bob");
     expect(result.edges).toHaveLength(2);
   });
@@ -149,9 +149,9 @@ describe("GraphStore", () => {
   });
 
   it("getAllLinksGrouped returns Map<from_slug, links[]> for batch export", async () => {
-    await graph.addLink("entities/alice", "projects/memoark", "works_on", "Lead");
+    await graph.addLink("entities/alice", "projects/memkin", "works_on", "Lead");
     await graph.addLink("entities/alice", "entities/bob", "collaborates", "Pair");
-    await graph.addLink("entities/bob", "projects/memoark", "mentions", "");
+    await graph.addLink("entities/bob", "projects/memkin", "mentions", "");
 
     const grouped = await graph.getAllLinksGrouped();
 
@@ -160,7 +160,7 @@ describe("GraphStore", () => {
     expect(
       grouped.get("entities/alice")?.find((l) => l.to_slug === "entities/bob")?.link_type,
     ).toBe("collaborates");
-    expect(grouped.has("projects/memoark")).toBe(false);
+    expect(grouped.has("projects/memkin")).toBe(false);
   });
 
   it("getAllLinksGrouped returns empty Map when no links", async () => {

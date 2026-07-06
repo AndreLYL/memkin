@@ -61,16 +61,16 @@ describe("REST API", () => {
   });
 
   it("creates and reads pages by slug query param", async () => {
-    const put = await app.request("/api/pages/by-slug?slug=projects/memoark", {
+    const put = await app.request("/api/pages/by-slug?slug=projects/memkin", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: "---\ntitle: Memoark\ntype: project\n---\nLocal memory." }),
+      body: JSON.stringify({ content: "---\ntitle: Memkin\ntype: project\n---\nLocal memory." }),
     });
     expect(put.status).toBe(200);
-    const get = await app.request("/api/pages/by-slug?slug=projects/memoark");
+    const get = await app.request("/api/pages/by-slug?slug=projects/memkin");
     expect(get.status).toBe(200);
     const page = await get.json();
-    expect(page.slug).toBe("projects/memoark");
+    expect(page.slug).toBe("projects/memkin");
   });
 
   it("returns 400 when slug is missing", async () => {
@@ -104,10 +104,10 @@ describe("REST API", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: "---\ntitle: Alice\ntype: person\n---\nAlice." }),
     });
-    await app.request("/api/pages/by-slug?slug=projects/memoark", {
+    await app.request("/api/pages/by-slug?slug=projects/memkin", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: "---\ntitle: Memoark\ntype: project\n---\nMemoark." }),
+      body: JSON.stringify({ content: "---\ntitle: Memkin\ntype: project\n---\nMemkin." }),
     });
 
     expect(
@@ -124,7 +124,7 @@ describe("REST API", () => {
         await app.request("/api/timeline?slug=entities/alice", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ date: "2026-05-26", summary: "Started Memoark" }),
+          body: JSON.stringify({ date: "2026-05-26", summary: "Started Memkin" }),
         })
       ).status,
     ).toBe(200);
@@ -135,7 +135,7 @@ describe("REST API", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             from: "entities/alice",
-            to: "projects/memoark",
+            to: "projects/memkin",
             type: "works_on",
           }),
         })
@@ -145,7 +145,7 @@ describe("REST API", () => {
     expect((await app.request("/api/tags?slug=entities/alice")).status).toBe(200);
     expect((await app.request("/api/timeline?slug=entities/alice")).status).toBe(200);
     expect((await app.request("/api/links?slug=entities/alice")).status).toBe(200);
-    expect((await app.request("/api/backlinks?slug=projects/memoark")).status).toBe(200);
+    expect((await app.request("/api/backlinks?slug=projects/memkin")).status).toBe(200);
     expect(
       (await app.request("/api/graph/traverse?slug=entities/alice&depth=1&direction=out")).status,
     ).toBe(200);
