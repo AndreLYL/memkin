@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "sessions": [
+    {
+      "session_ref": "ci-fixture:ci-session-1",
+      "split": "tune",
+      "annotation_hash": "daaf2afd383c1628267c3d0d7bd8e74ee1a90e18fa1d30f2819368690949937d"
+    },
+    {
+      "session_ref": "ci-fixture:ci-session-2",
+      "split": "tune",
+      "annotation_hash": "042b31d2baff310696865839aaee60ed5640be1dc917a169b840dbdb17571664"
+    },
+    {
+      "session_ref": "ci-fixture:ci-session-3",
+      "split": "tune",
+      "annotation_hash": "8453fe75c0e70fdbaee41a8f5ee96a8475106d4161a33159067c99ca68734d80"
+    },
+    {
+      "session_ref": "ci-fixture:ci-session-4",
+      "split": "holdout",
+      "annotation_hash": "5e16cde92893ec7274758f9292a28aad8c4590061b27c9387d0898ad67c4abad"
+    }
+  ],
+  "created_at": "2026-07-07T00:00:00.000Z"
+}

@@ -42,6 +42,10 @@ output/
 # Test temp files
 tests/temp/
 
+# Local golden eval dataset (real sessions + human annotations — private, never commit).
+# Only the sanitized CI fixtures under tests/fixtures/eval/ ship in the repo.
+eval-data/
+
 # PGlite in-memory filesystem artifact
 :memory:/
 

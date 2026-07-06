@@ -1,0 +1,23 @@
+{
+  "session_ref": "ci-fixture:ci-session-1",
+  "should_record": [
+    {
+      "type": "decision",
+      "authority": "user_confirmed",
+      "topic": "switch-to-bun",
+      "what": "Switch package management and the test runner to Bun and update the CI workflow."
+    },
+    {
+      "type": "preference",
+      "authority": "user_confirmed",
+      "topic": "conventional-commits",
+      "what": "Always use conventional commit messages in this repo."
+    }
+  ],
+  "should_not_record": [
+    {
+      "what": "Assistant compared pnpm vs Bun as options before the user decided.",
+      "reason": "assistant_proposed alternatives — superseded by the confirmed decision"
+    }
+  ]
+}

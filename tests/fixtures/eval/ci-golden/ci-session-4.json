@@ -1,0 +1,10 @@
+{
+  "session_ref": "ci-fixture:ci-session-4",
+  "should_record": [],
+  "should_not_record": [
+    {
+      "what": "Entire session is transient debugging chatter about a flaky test that passed on re-run.",
+      "reason": "no decision, task, preference, knowledge, or reference worth persisting — a good pipeline extracts nothing here"
+    }
+  ]
+}
