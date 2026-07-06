@@ -10,8 +10,8 @@ import { StdoutAdapter } from "../adapters/stdout.js";
 import { StoreAdapter, type StoreAdapterContext } from "../adapters/store.js";
 import {
   filterNoiseL1,
-  mapScoreDecision,
   type NoiseFilterVerdict,
+  resolveScoreDecision,
 } from "../extractors/noise-filter.js";
 import { classifyPlaybook, extractPlaybookDraft } from "../extractors/playbook-extractor.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
@@ -281,10 +281,10 @@ export async function runPipeline(
         if (l1Verdict !== null) {
           filterVerdict = l1Verdict;
         } else {
-          // L2 replaced by signal scoring: canonicalize → scoreBlock → gate
+          // Score gate: canonicalize → scoreBlock → admit/drop, evaluate band → LLM judgment
           const cb = canonicalize(block);
           const score = scoreBlock(cb);
-          filterVerdict = mapScoreDecision(score);
+          filterVerdict = await resolveScoreDecision(score, block, opts.provider);
         }
 
         if (filterVerdict === "skip") {

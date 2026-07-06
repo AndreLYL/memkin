@@ -5,7 +5,7 @@
  * 1. L1 filter (keyword-based) → skip/escalate/null
  * 2. Canonicalize (source-aware cleaning)
  * 3. ScoreBlock (5-dim cheap scoring)
- * 4. Score gate (mapScoreDecision) → skip/pass
+ * 4. Score gate (resolveScoreDecision) → admit/drop directly, evaluate band → LLM significance judgment
  * 5. LLM extraction (only for pass/escalate)
  * 6. Empty extraction guard
  */
@@ -132,13 +132,29 @@ describe("Signal Extraction Redesign E2E Tests", () => {
   let tempDir: string;
   let config: PipelineConfig;
   let llmCallCount: number;
+  let significanceCallCount: number;
 
   /**
-   * Create a mock provider that counts calls and returns valid extractions
+   * Create a mock provider that counts calls and returns valid extractions.
+   * Significance-judgment calls (evaluate band) are routed by their system
+   * prompt and counted separately from extraction calls.
    */
-  function createCountingMockProvider(extractionResult: ExtractionResult | "empty"): LLMProvider {
+  function createCountingMockProvider(
+    extractionResult: ExtractionResult | "empty",
+    opts?: { worthProcessing?: boolean },
+  ): LLMProvider {
     return {
-      async chat(_messages: ChatMessage[]): Promise<string> {
+      async chat(messages: ChatMessage[]): Promise<string> {
+        const systemPrompt = messages.find((m) => m.role === "system")?.content ?? "";
+        if (systemPrompt.includes("significance judgment")) {
+          significanceCallCount++;
+          return JSON.stringify({
+            worth_processing: opts?.worthProcessing ?? true,
+            confidence: 0.9,
+            reason: "mock significance verdict",
+            topics: ["test"],
+          });
+        }
         llmCallCount++;
         const result =
           extractionResult === "empty" ? createEmptyExtraction("mock content") : extractionResult;
@@ -149,6 +165,7 @@ describe("Signal Extraction Redesign E2E Tests", () => {
 
   beforeEach(async () => {
     llmCallCount = 0;
+    significanceCallCount = 0;
     tempDir = await mkdtemp(join(tmpdir(), "memkin-redesign-e2e-"));
     config = {
       dedup_checkpoint: join(tempDir, "dedup.jsonl"),
@@ -207,6 +224,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
     expect(result.fatal).toBe(false);
     expect(result.okBlocks).toBe(1);
     expect(result.skippedBlocks).toBe(0);
+    // Middle-band score → one significance judgment, then one extraction call
+    expect(significanceCallCount).toBe(1);
     expect(llmCallCount).toBe(1);
   });
 
@@ -334,6 +353,7 @@ describe("Signal Extraction Redesign E2E Tests", () => {
     const result = await runPipeline(config, opts);
 
     expect(result.fatal).toBe(false);
+    expect(significanceCallCount).toBe(1);
     expect(llmCallCount).toBe(1);
     expect(result.okBlocks).toBe(0);
     expect(result.skippedBlocks).toBe(1);
@@ -398,6 +418,8 @@ describe("Signal Extraction Redesign E2E Tests", () => {
     const result = await runPipeline(config, opts);
 
     expect(result.fatal).toBe(false);
+    // Email block sits in the evaluate band → 1 significance call; escalate block bypasses the gate
+    expect(significanceCallCount).toBe(1);
     expect(llmCallCount).toBe(2);
     expect(result.okBlocks).toBe(2);
     expect(result.skippedBlocks).toBe(2);
@@ -450,8 +472,45 @@ describe("Signal Extraction Redesign E2E Tests", () => {
     const result = await runPipeline(config, opts);
 
     expect(result.fatal).toBe(false);
+    expect(significanceCallCount).toBe(1);
     expect(llmCallCount).toBe(1);
     expect(result.okBlocks).toBe(1);
     expect(result.skippedBlocks).toBe(0);
+  });
+
+  test("h. Evaluate band + LLM judges not worth processing → skipped, no extraction call", async () => {
+    const messages: RawMessage[] = [
+      {
+        platform: "wechat",
+        channel: "group/oc_xyz",
+        contact: "alice",
+        timestamp: "2024-01-01T10:00:00Z",
+        content:
+          "Did anyone watch the game last night? That final quarter was something else, we should grab lunch and talk about it sometime this week maybe.",
+        direction: "sent",
+        metadata: { cursor: "1", message_id: "msg-001" },
+      },
+    ];
+
+    const collector = createMockCollector(messages);
+    const provider = createCountingMockProvider(createValidExtraction("small talk"), {
+      worthProcessing: false,
+    });
+
+    const opts: PipelineOpts = {
+      source: collector,
+      provider: provider,
+      format: "json",
+      adapter: "stdout",
+      dryRun: false,
+    };
+
+    const result = await runPipeline(config, opts);
+
+    expect(result.fatal).toBe(false);
+    expect(significanceCallCount).toBe(1);
+    expect(llmCallCount).toBe(0);
+    expect(result.okBlocks).toBe(0);
+    expect(result.skippedBlocks).toBe(1);
   });
 });
