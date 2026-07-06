@@ -4,8 +4,9 @@
  * The migration runs ONCE at CLI startup, before config load / store open.
  * It covers three moves, all with the same rules:
  *   1. user data dir   ~/.memoark      → ~/.memkin
- *   2. config file      memoark.yaml   → memkin.yaml   (in the config search dir)
- *   3. project state    ./.memoark/    → ./.memkin/
+ *   2. config file      memoark.yaml   → memkin.yaml   (nearest ancestor from
+ *      cwd, mirroring resolveConfigPath's upward walk)
+ *   3. project state    .memoark/      → .memkin/      (config anchor dir + cwd)
  *
  * Rules: rename-only (never copy-recursive), never merge, never delete when both
  * exist (use new, warn once), silent no-op when neither exists, idempotent, and
@@ -156,13 +157,61 @@ describe("migrateLegacyData — config file (memoark.yaml → memkin.yaml)", () 
     expect(warnings.some((w) => w.includes("memoark.yaml"))).toBe(true);
   });
 
-  it("does not touch a user-supplied --config path (only default names)", () => {
-    // A --config path is user-owned; migration only handles the default filename.
-    // We assert the default-name behavior: an unrelated file is left alone.
+  it("only touches the default config filename, never other yaml files", () => {
+    // Migration handles the default `memoark.yaml` name only. Files with other
+    // names (including anything a user passes via --config, which never enters
+    // migration at all) are left alone.
     writeFileSync(join(cwd, "custom.yaml"), "x: 1\n");
     run();
     expect(existsSync(join(cwd, "custom.yaml"))).toBe(true);
     expect(existsSync(join(cwd, "memkin.yaml"))).toBe(false);
+  });
+
+  it("renames memoark.yaml found in a PARENT dir when run from a subdir (upward walk)", () => {
+    // Mirrors resolveConfigPath: discovery walks up parent dirs, so migration
+    // must find the nearest ancestor memoark.yaml and rename it IN PLACE —
+    // otherwise post-R1 discovery walks past it and boots on defaults.
+    writeFileSync(join(cwd, "memoark.yaml"), "root: true\n");
+    const subdir = join(cwd, "packages", "web");
+    mkdirSync(subdir, { recursive: true });
+
+    const { notices } = run({ cwd: subdir });
+
+    expect(existsSync(join(cwd, "memkin.yaml"))).toBe(true);
+    expect(existsSync(join(cwd, "memoark.yaml"))).toBe(false);
+    expect(readFileSync(join(cwd, "memkin.yaml"), "utf8")).toContain("root: true");
+    // no stray files created in the subdir itself
+    expect(existsSync(join(subdir, "memkin.yaml"))).toBe(false);
+    expect(notices.some((n) => n.includes("memoark.yaml") && n.includes("memkin.yaml"))).toBe(true);
+  });
+
+  it("applies both-exist rules at the ancestor level (parent has old AND new)", () => {
+    writeFileSync(join(cwd, "memoark.yaml"), "old: true\n");
+    writeFileSync(join(cwd, "memkin.yaml"), "new: true\n");
+    const subdir = join(cwd, "sub");
+    mkdirSync(subdir, { recursive: true });
+
+    const { warnings } = run({ cwd: subdir });
+
+    expect(readFileSync(join(cwd, "memkin.yaml"), "utf8")).toContain("new: true");
+    expect(readFileSync(join(cwd, "memoark.yaml"), "utf8")).toContain("old: true");
+    expect(warnings.some((w) => w.includes("memoark.yaml"))).toBe(true);
+  });
+
+  it("a nearer memkin.yaml shadows an older memoark.yaml higher up (walk stops)", () => {
+    // Discovery stops at the first memkin.yaml, so a memoark.yaml above it is
+    // outside the resolved scope — left untouched, silently.
+    writeFileSync(join(cwd, "memoark.yaml"), "outer-old: true\n");
+    const subdir = join(cwd, "inner");
+    mkdirSync(subdir, { recursive: true });
+    writeFileSync(join(subdir, "memkin.yaml"), "inner-new: true\n");
+
+    const { notices, warnings } = run({ cwd: subdir });
+
+    expect(existsSync(join(cwd, "memoark.yaml"))).toBe(true);
+    expect(existsSync(join(cwd, "memkin.yaml"))).toBe(false);
+    expect(notices).toHaveLength(0);
+    expect(warnings).toHaveLength(0);
   });
 });
 
@@ -187,6 +236,47 @@ describe("migrateLegacyData — project-local state dir (./.memoark → ./.memki
     expect(existsSync(join(cwd, ".memoark"))).toBe(true);
     expect(existsSync(join(cwd, ".memkin"))).toBe(true);
     expect(warnings.length).toBeGreaterThan(0);
+  });
+
+  it("also migrates .memoark at the config anchor dir when run from a subdir", () => {
+    // State files anchor to the config's projectRoot (dirname of the resolved
+    // config), not cwd — extract/serve pass projectRoot to ensureStateDir. So a
+    // legacy .memoark next to the config in a parent dir must move too.
+    writeFileSync(join(cwd, "memoark.yaml"), "root: true\n");
+    mkdirSync(join(cwd, ".memoark"), { recursive: true });
+    writeFileSync(join(cwd, ".memoark", "cursors.yaml"), "c: 1");
+    const subdir = join(cwd, "sub");
+    mkdirSync(subdir, { recursive: true });
+
+    run({ cwd: subdir });
+
+    expect(existsSync(join(cwd, ".memkin", "cursors.yaml"))).toBe(true);
+    expect(existsSync(join(cwd, ".memoark"))).toBe(false);
+  });
+});
+
+describe("migrateLegacyData — rename failure (EXDEV / cross-volume)", () => {
+  it("leaves the old dir untouched and warns with a manual mv hint on EXDEV", () => {
+    const oldDir = join(home, ".memoark");
+    mkdirSync(oldDir, { recursive: true });
+    writeFileSync(join(oldDir, "marker.txt"), "keep");
+
+    const exdev = Object.assign(new Error("cross-device link"), { code: "EXDEV" });
+    const { notices, warnings } = run({
+      renameFn: () => {
+        throw exdev;
+      },
+    });
+
+    // never copy-recursively: old stays fully intact, new is never half-created
+    expect(existsSync(oldDir)).toBe(true);
+    expect(readFileSync(join(oldDir, "marker.txt"), "utf8")).toBe("keep");
+    expect(existsSync(join(home, ".memkin"))).toBe(false);
+    expect(notices.some((n) => n.toLowerCase().includes("migrated"))).toBe(false);
+    // actionable manual-move instruction with real paths
+    const w = warnings.join("\n");
+    expect(w).toContain("different volumes");
+    expect(w).toContain(`mv "${oldDir}" "${join(home, ".memkin")}"`);
   });
 });
 

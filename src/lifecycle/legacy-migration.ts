@@ -10,8 +10,10 @@
  * loadConfig reads memkin.yaml or any store is opened. It covers three moves:
  *
  *   1. user data dir   ~/.memoark      → ~/.memkin
- *   2. config file      memoark.yaml   → memkin.yaml   (default name, cwd search)
- *   3. project state    ./.memoark/    → ./.memkin/
+ *   2. config file      memoark.yaml   → memkin.yaml   (nearest-ancestor search,
+ *      mirroring resolveConfigPath's upward walk from cwd)
+ *   3. project state    .memoark/      → .memkin/      (at the config anchor dir
+ *      AND at cwd — see migrateLegacyData for why both)
  *
  * Design rules (see R2 spec):
  *   - rename-only (fs.renameSync). NEVER copy-recursive — a half-copied SQLite/PG
@@ -34,7 +36,7 @@
  */
 
 import { existsSync, readFileSync, renameSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export interface MigrateLegacyOptions {
   /** Home directory (injected for tests). */
@@ -47,6 +49,8 @@ export interface MigrateLegacyOptions {
   notice?: (message: string) => void;
   /** Sink for warnings. Defaults to stderr. */
   warn?: (message: string) => void;
+  /** Rename primitive (injected for tests, e.g. to simulate EXDEV). Defaults to fs.renameSync. */
+  renameFn?: (oldPath: string, newPath: string) => void;
 }
 
 /** A single directory/file migration target (old path → new path). */
@@ -103,6 +107,7 @@ function migrateTarget(
   target: MigrationTarget,
   notice: (m: string) => void,
   warn: (m: string) => void,
+  renameFn: (oldPath: string, newPath: string) => void,
 ): void {
   const { oldPath, newPath, oldLabel, newLabel } = target;
 
@@ -123,7 +128,7 @@ function migrateTarget(
 
   // old exists, new absent → rename (same-volume move; atomic, no copy).
   try {
-    renameSync(oldPath, newPath);
+    renameFn(oldPath, newPath);
     notice(`Migrated legacy ${oldLabel} → ${newLabel}`);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
@@ -133,6 +138,33 @@ function migrateTarget(
       `Could not migrate legacy ${oldLabel} → ${newLabel}${hint}. ` +
         `Move it manually: mv "${oldPath}" "${newPath}"`,
     );
+  }
+}
+
+/**
+ * Find the directory where config discovery will anchor, mirroring
+ * resolveConfigPath (src/core/config.ts): walk up from cwd and stop at the
+ * FIRST directory containing memkin.yaml OR memoark.yaml.
+ *
+ * Including the legacy name in the stop condition is the whole point: a user
+ * with memoark.yaml at the project root who runs memkin from a subdir must get
+ * that file renamed IN PLACE at the ancestor, or post-R1 discovery walks past
+ * it and silently boots on defaults. A nearer memkin.yaml shadows any older
+ * memoark.yaml higher up (exactly as discovery would), so we stop there and
+ * leave the shadowed file alone.
+ *
+ * Falls back to cwd when nothing is found — same as resolveConfigPath's
+ * `resolve(process.cwd(), "memkin.yaml")` fallback.
+ */
+function findConfigAnchorDir(cwd: string): string {
+  let dir = cwd;
+  while (true) {
+    if (existsSync(join(dir, "memkin.yaml")) || existsSync(join(dir, "memoark.yaml"))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return cwd;
+    dir = parent;
   }
 }
 
@@ -164,6 +196,7 @@ function warnLegacyEnvVars(
 export function migrateLegacyData(opts: MigrateLegacyOptions): void {
   const notice = opts.notice ?? ((m: string) => console.error(m));
   const warn = opts.warn ?? ((m: string) => console.error(m));
+  const renameFn = opts.renameFn ?? renameSync;
   const { home, cwd, env } = opts;
 
   // 0. Legacy env vars — warn but do not honor.
@@ -188,6 +221,7 @@ export function migrateLegacyData(opts: MigrateLegacyOptions): void {
         },
         notice,
         warn,
+        renameFn,
       );
     }
   } else if (existsSync(oldDataDir) && existsSync(newDataDir)) {
@@ -196,31 +230,47 @@ export function migrateLegacyData(opts: MigrateLegacyOptions): void {
       { oldPath: oldDataDir, newPath: newDataDir, oldLabel: "~/.memoark", newLabel: "~/.memkin" },
       notice,
       warn,
+      renameFn,
     );
   }
 
-  // 2. Config file: memoark.yaml → memkin.yaml in cwd (default name only; a
-  //    user-supplied --config / MEMKIN_CONFIG path is their own and untouched).
+  // 2. Config file: memoark.yaml → memkin.yaml at the discovery anchor (nearest
+  //    ancestor from cwd, mirroring resolveConfigPath's upward walk — NOT just
+  //    cwd, or a config at the project root is missed when running from a
+  //    subdir). Default name only; a user-supplied --config / MEMKIN_CONFIG
+  //    path is their own and untouched.
+  const anchorDir = findConfigAnchorDir(cwd);
+  const inAnchor = anchorDir === cwd ? "" : ` (in ${anchorDir})`;
   migrateTarget(
     {
-      oldPath: join(cwd, "memoark.yaml"),
-      newPath: join(cwd, "memkin.yaml"),
-      oldLabel: "memoark.yaml",
+      oldPath: join(anchorDir, "memoark.yaml"),
+      newPath: join(anchorDir, "memkin.yaml"),
+      oldLabel: `memoark.yaml${inAnchor}`,
       newLabel: "memkin.yaml",
     },
     notice,
     warn,
+    renameFn,
   );
 
-  // 3. Project-local state dir: ./.memoark → ./.memkin in cwd.
-  migrateTarget(
-    {
-      oldPath: join(cwd, ".memoark"),
-      newPath: join(cwd, ".memkin"),
-      oldLabel: "./.memoark",
-      newLabel: "./.memkin",
-    },
-    notice,
-    warn,
-  );
+  // 3. Project-local state dir: .memoark/ → .memkin/. State resolution is NOT
+  //    cwd-only (src/core/state.ts defaults to cwd, but most call sites anchor
+  //    to the config's projectRoot = dirname(configPath) — e.g. extract/serve in
+  //    cli.ts), so migrate at BOTH locations: the config anchor dir (projectRoot
+  //    callers) and cwd (no-base callers like `docs sync`). Same rules each.
+  const stateDirs = anchorDir === cwd ? [cwd] : [anchorDir, cwd];
+  for (const base of stateDirs) {
+    const inBase = base === cwd ? "" : ` (in ${base})`;
+    migrateTarget(
+      {
+        oldPath: join(base, ".memoark"),
+        newPath: join(base, ".memkin"),
+        oldLabel: `.memoark/${inBase}`,
+        newLabel: ".memkin/",
+      },
+      notice,
+      warn,
+      renameFn,
+    );
+  }
 }
