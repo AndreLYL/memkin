@@ -64,6 +64,7 @@ import { createMcpHttpApp } from "./server/mcp-http.js";
 import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
+import { resolveServeSecurity } from "./server/server-security.js";
 import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
 import { stopManagedFromState } from "./store/managed/stop-from-state.js";
@@ -598,6 +599,7 @@ async function runServe(options: {
   pgliteAssets?: string;
   webDist?: string;
   port?: string;
+  host?: string;
   mcpBind?: string;
   mcpPort?: number;
   mcpReadWrite?: boolean;
@@ -718,6 +720,14 @@ async function runServe(options: {
         daemonInstanceId: options.daemonInstanceId,
       });
       assertLoopbackOrThrow(runtime);
+      // Server-wide auth token (config server.auth_token / MEMOARK_AUTH_TOKEN)
+      // also protects the MCP HTTP endpoint. The MCP-specific auth_token_env is
+      // kept for backward compat; the server-wide token wins when both are set.
+      const serverToken = resolveServeSecurity({
+        configHost: config.server.host,
+        configToken: config.server.auth_token,
+        envToken: process.env.MEMOARK_AUTH_TOKEN,
+      }).authToken;
       const tokenEnv = config.mcp.http.auth_token_env;
       const resolvedConfigPath = config.__context.configPath;
       let loadedConfigHash: string | undefined;
@@ -729,7 +739,7 @@ async function runServe(options: {
       const app = createMcpHttpApp(storesWithDaemon, {
         allowedOrigins: runtime.allowedOrigins,
         allowedHosts: runtime.allowedHosts,
-        authToken: tokenEnv ? process.env[tokenEnv] : undefined,
+        authToken: serverToken ?? (tokenEnv ? process.env[tokenEnv] : undefined),
         exposeLegacyTools: config.mcp.expose_legacy_tools,
         readOnly: runtime.readOnly,
         health: {
@@ -764,7 +774,19 @@ async function runServe(options: {
       return;
     }
 
+    // Resolve bind host + auth token BEFORE creating stores' HTTP surface.
+    // Rule: loopback by default; a non-loopback bind REFUSES to start unless an
+    // auth token is configured. When a token is set it is enforced everywhere
+    // (including loopback). Throws with an actionable message on misconfig.
+    const security = resolveServeSecurity({
+      flagHost: options.host,
+      configHost: config.server.host,
+      configToken: config.server.auth_token,
+      envToken: process.env.MEMOARK_AUTH_TOKEN,
+    });
+
     const app = createApiApp(storesWithDaemon, {
+      authToken: security.authToken,
       onConfigSaved: () => {
         try {
           void reloadManager.run(loadConfig(options.config)).catch((err) => {
@@ -787,8 +809,14 @@ async function runServe(options: {
       options.port !== undefined ? Number(options.port) : config.server.http_port;
     const server = Bun.serve({
       port: requestedPort,
+      // Loopback by default; `--host` / `server.host` can widen this, but only
+      // when an auth token is configured (enforced by resolveServeSecurity above).
+      hostname: security.host,
       fetch: async (req) => {
         const url = new URL(req.url);
+        // Auth (when a token is configured) is enforced inside the Hono app's
+        // /api/* middleware. Web UI static assets below stay unauthenticated —
+        // they are the app shell, not data.
         if (url.pathname.startsWith("/api")) return app.fetch(req);
         const filePath = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
         const candidate = Bun.file(join(webDist, filePath));
@@ -836,6 +864,12 @@ program
   .option(
     "--port <n>",
     "Override the HTTP port; 0 binds an OS-assigned free port (used by the Tauri shell)",
+  )
+  .option(
+    "--host <host>",
+    "Bind host for the HTTP API + Web UI (default 127.0.0.1, loopback only). " +
+      "Binding a non-loopback host (e.g. 0.0.0.0) requires an auth token " +
+      "(server.auth_token in config or MEMOARK_AUTH_TOKEN env), or the server refuses to start.",
   )
   .option("--mcp-bind <host>", "")
   .option("--mcp-port <port>", "", (v: string) => {

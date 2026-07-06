@@ -172,7 +172,7 @@ describe("PgRuntimeProvider download path", () => {
     expect(fetchTarball).not.toHaveBeenCalled();
   });
 
-  it("unsupported arch: throws /unsupported arch/i", async () => {
+  it("unsupported arch: throws an actionable macOS-only error pointing to PGLite", async () => {
     const fakeBuf = Buffer.from("any");
     const sha = sha256hex(fakeBuf);
     const manifest = pinnedManifest(sha, sha);
@@ -185,7 +185,11 @@ describe("PgRuntimeProvider download path", () => {
       { manifest, fetchTarball, extract, arch: "ia32" as NodeJS.Architecture },
     );
 
-    await expect(provider.ensure()).rejects.toThrow(/unsupported arch/i);
+    // Message must name the macOS-only limitation AND steer the user to the
+    // default PGLite backend via the store.engine config key.
+    await expect(provider.ensure()).rejects.toThrow(/macOS-only/i);
+    await expect(provider.ensure()).rejects.toThrow(/PGLite/i);
+    await expect(provider.ensure()).rejects.toThrow(/store\.engine/i);
     expect(fetchTarball).not.toHaveBeenCalled();
   });
 

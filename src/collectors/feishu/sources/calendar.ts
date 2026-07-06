@@ -33,9 +33,12 @@ export class CalendarSource implements FeishuSource {
     const path = `/open-apis/calendar/v4/calendars/${calendarId}/events`;
     const params: Record<string, string> = {};
 
-    const calendarCheckpoint = checkpoint?.calendar?.[calendarId] as
-      | { sync_token?: string }
-      | undefined;
+    // The collector injects `lastCheckpoint["calendar"]` as this source's
+    // checkpoint, so `checkpoint` IS already the per-calendar map
+    // (Record<calendarId, { sync_token }>). Read at that level directly — an
+    // extra `.calendar` deref would look for a calendar literally named
+    // "calendar" and always miss, killing incremental sync.
+    const calendarCheckpoint = checkpoint?.[calendarId] as { sync_token?: string } | undefined;
     if (calendarCheckpoint?.sync_token) {
       params.sync_token = calendarCheckpoint.sync_token;
     } else {

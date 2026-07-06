@@ -3,6 +3,26 @@ import { CursorStaging } from "../../../../src/collectors/feishu/cursor-staging"
 import type { LarkCliHttpClient } from "../../../../src/collectors/feishu/lark-cli-client";
 import { MessageSearchSource } from "../../../../src/collectors/feishu/sources/message-search";
 
+// Fixture create_time values are anchored relative to "now" so the default
+// lookbackDays window always includes them, regardless of when the suite runs.
+// (Previously these were hardcoded to 2026-05-28, which silently fell outside
+// the 30-day lookback once the wall clock moved past ~2026-06-27 — every
+// assertion then saw zero results.)
+//
+// MessageSearchSource.parseCreateTime treats a "T"-less string as Beijing time
+// ("YYYY-MM-DD HH:MM" + "+08:00"), so we format the relative anchor the same way.
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function feishuCreateTime(msAgo: number): string {
+  const beijing = new Date(Date.now() - msAgo + 8 * 60 * 60 * 1000);
+  const iso = beijing.toISOString(); // YYYY-MM-DDTHH:MM:SS.sssZ (now Beijing wall-clock)
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`; // "YYYY-MM-DD HH:MM"
+}
+
+// Two distinct anchors a minute apart to preserve om_1 < om_2 ordering.
+const CREATE_TIME_1 = feishuCreateTime(5 * DAY_MS);
+const CREATE_TIME_2 = feishuCreateTime(5 * DAY_MS - 60 * 1000);
+
 function createMockClient(pages: unknown[]): LarkCliHttpClient {
   let i = 0;
   return {
@@ -33,7 +53,7 @@ describe("MessageSearchSource", () => {
               chat_id: "oc_p2p",
               chat_type: "p2p",
               content: "你好",
-              create_time: "2026-05-28 23:07",
+              create_time: CREATE_TIME_1,
               deleted: false,
               message_id: "om_1",
               msg_type: "text",
@@ -72,7 +92,7 @@ describe("MessageSearchSource", () => {
               chat_id: "oc_p2p",
               chat_type: "p2p",
               content: "one",
-              create_time: "2026-05-28 23:07",
+              create_time: CREATE_TIME_1,
               message_id: "om_1",
               msg_type: "text",
               sender: { id: "ou_other", id_type: "open_id", sender_type: "user" },
@@ -89,7 +109,7 @@ describe("MessageSearchSource", () => {
               chat_id: "oc_p2p",
               chat_type: "p2p",
               content: "two",
-              create_time: "2026-05-28 23:08",
+              create_time: CREATE_TIME_2,
               message_id: "om_2",
               msg_type: "text",
               sender: { id: "ou_other", id_type: "open_id", sender_type: "user" },
@@ -125,7 +145,7 @@ describe("MessageSearchSource", () => {
               chat_id: "oc_p2p",
               chat_type: "p2p",
               content: "from me",
-              create_time: "2026-05-28 23:07",
+              create_time: CREATE_TIME_1,
               message_id: "om_1",
               msg_type: "text",
               sender: { id: "ou_me", id_type: "open_id", sender_type: "user" },
@@ -159,7 +179,7 @@ describe("MessageSearchSource", () => {
               chat_id: "oc_p2p",
               chat_type: "p2p",
               content: "cursor",
-              create_time: "2026-05-28 23:07",
+              create_time: CREATE_TIME_1,
               message_id: "om_1",
               msg_type: "text",
               sender: { id: "ou_other", id_type: "open_id", sender_type: "user" },

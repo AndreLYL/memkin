@@ -253,6 +253,15 @@ npx @andre.li/memoark
 | HTTP API + Web UI | `3927` | `http://localhost:3927` |
 | MCP Streamable HTTP（`--mcp-http`） | `3928` | `http://localhost:3928/mcp` |
 
+> **对外暴露与鉴权**：服务默认只绑定 `127.0.0.1`（仅本机）。要在局域网暴露，用 `memoark serve --host 0.0.0.0`（或在 `memoark.yaml` 里设 `server.host`）——这会**强制要求配置鉴权令牌**，否则拒绝启动。令牌来自 `server.auth_token`（config）或 `MEMOARK_AUTH_TOKEN`（env）；配置后，所有 API 请求都需带 `Authorization: Bearer <token>` 请求头。
+>
+> ```yaml
+> # memoark.yaml
+> server:
+>   host: 0.0.0.0
+>   auth_token: <你的令牌>   # 或 export MEMOARK_AUTH_TOKEN=<你的令牌>
+> ```
+
 ### 30 秒上手（手动配置）
 
 ```bash
@@ -575,7 +584,7 @@ flowchart TB
 - **♻️ 记忆巩固(Dream Cycle)** — 后台旁路作用于存储层:hot → warm → cold 分层轮转、死链修复、偏好推断,让记忆自我整理。
 - **⏰ 调度 / AutoFetch** — 后台驱动采集层:定时自动采集、运行历史、告警。*(当前运行于 `serve` 进程内;独立 daemon 服务化 + 开机自启见路线图。)*
 
-> 运行平台:macOS / Linux / Windows · 一键安装(npm / npx)· 本地优先、自托管、零云依赖。
+> 运行平台:macOS / Linux / Windows(默认内嵌 PGLite,开箱即用)· 一键安装(npm / npx)· 本地优先、自托管、零云依赖。自管理本地 Postgres 引擎(更快,可选)目前仅支持 macOS(arm64/x64)。
 
 ### 信号类型
 
