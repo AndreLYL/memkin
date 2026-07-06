@@ -1,6 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { ConversationBlock, SignalScore } from "../../src/core/types.js";
-import { filterNoiseL1, mapScoreDecision } from "../../src/extractors/noise-filter.js";
+import { filterNoiseL1, resolveScoreDecision } from "../../src/extractors/noise-filter.js";
+import type { LLMProvider } from "../../src/extractors/providers/types.js";
 
 function makeBlock(
   channel: string,
@@ -104,16 +105,84 @@ describe("filterNoiseL1 — structured channel", () => {
   });
 });
 
-describe("mapScoreDecision", () => {
-  test("admit → pass", () => {
-    expect(mapScoreDecision({ decision: "admit" } as SignalScore)).toBe("pass");
+describe("resolveScoreDecision", () => {
+  const block = () => makeBlock("group/oc_abc", "我们讨论了下一步的排期安排");
+
+  function mockProvider(response: string): LLMProvider & { chat: ReturnType<typeof vi.fn> } {
+    return { chat: vi.fn().mockResolvedValue(response) };
+  }
+
+  test("admit → pass without calling LLM", async () => {
+    const provider = mockProvider("{}");
+    await expect(
+      resolveScoreDecision({ decision: "admit" } as SignalScore, block(), provider),
+    ).resolves.toBe("pass");
+    expect(provider.chat).not.toHaveBeenCalled();
   });
 
-  test("drop → skip", () => {
-    expect(mapScoreDecision({ decision: "drop" } as SignalScore)).toBe("skip");
+  test("drop → skip without calling LLM", async () => {
+    const provider = mockProvider("{}");
+    await expect(
+      resolveScoreDecision({ decision: "drop" } as SignalScore, block(), provider),
+    ).resolves.toBe("skip");
+    expect(provider.chat).not.toHaveBeenCalled();
   });
 
-  test("evaluate → pass", () => {
-    expect(mapScoreDecision({ decision: "evaluate" } as SignalScore)).toBe("pass");
+  test("evaluate without provider → pass (fail-open)", async () => {
+    await expect(
+      resolveScoreDecision({ decision: "evaluate" } as SignalScore, block()),
+    ).resolves.toBe("pass");
+  });
+
+  test("evaluate → LLM judges worth processing → pass", async () => {
+    const provider = mockProvider(
+      JSON.stringify({
+        worth_processing: true,
+        confidence: 0.9,
+        reason: "contains schedule decision",
+        topics: ["planning"],
+      }),
+    );
+    await expect(
+      resolveScoreDecision({ decision: "evaluate" } as SignalScore, block(), provider),
+    ).resolves.toBe("pass");
+    expect(provider.chat).toHaveBeenCalledOnce();
+  });
+
+  test("evaluate → LLM judges not worth processing → skip", async () => {
+    const provider = mockProvider(
+      JSON.stringify({
+        worth_processing: false,
+        confidence: 0.9,
+        reason: "small talk",
+        topics: [],
+      }),
+    );
+    await expect(
+      resolveScoreDecision({ decision: "evaluate" } as SignalScore, block(), provider),
+    ).resolves.toBe("skip");
+  });
+
+  test("evaluate → LLM low confidence → skip", async () => {
+    const provider = mockProvider(
+      JSON.stringify({
+        worth_processing: true,
+        confidence: 0.1,
+        reason: "unsure",
+        topics: [],
+      }),
+    );
+    await expect(
+      resolveScoreDecision({ decision: "evaluate" } as SignalScore, block(), provider),
+    ).resolves.toBe("skip");
+  });
+
+  test("evaluate → LLM call throws → pass (fail-open)", async () => {
+    const provider: LLMProvider = {
+      chat: vi.fn().mockRejectedValue(new Error("provider down")),
+    };
+    await expect(
+      resolveScoreDecision({ decision: "evaluate" } as SignalScore, block(), provider),
+    ).resolves.toBe("pass");
   });
 });

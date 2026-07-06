@@ -223,9 +223,24 @@ export function filterNoise(
 }
 
 /**
- * Map a SignalScore decision to a NoiseFilterVerdict
+ * Resolve a SignalScore decision to a NoiseFilterVerdict.
+ *
+ * PRD v2 §4.3.2: admit/drop are decided by the cheap 5-dim score alone;
+ * the evaluate band (middle scores) gets a final LLM significance judgment.
+ * Fail-open: no provider or LLM failure → pass, never lose data silently.
  */
-export function mapScoreDecision(score: { decision: string }): NoiseFilterVerdict {
+export async function resolveScoreDecision(
+  score: { decision: string },
+  block: ConversationBlock,
+  provider?: LLMProvider,
+): Promise<NoiseFilterVerdict> {
   if (score.decision === "drop") return "skip";
-  return "pass";
+  if (score.decision === "admit") return "pass";
+
+  if (!provider) return "pass";
+  try {
+    return await filterL2(block, provider);
+  } catch {
+    return "pass";
+  }
 }
