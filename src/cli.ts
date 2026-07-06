@@ -430,6 +430,22 @@ program
                   "install pgvector and ensure the role has permission to CREATE EXTENSION",
               );
             }
+            const { checkPgIdSequences } = await import("./setup/doctor.js");
+            const desync = await checkPgIdSequences(dbUrl);
+            if (desync === null) {
+              warnings.push("Postgres: id sequence check could not run (connection error)");
+            } else if (desync.length > 0) {
+              warnings.push(
+                `Postgres: id sequence desync on ${desync
+                  .map((d) => `${d.table} (max id ${d.maxId}, sequence would yield ${d.nextValue})`)
+                  .join(", ")} — usually caused by an id-preserving import/restore. ` +
+                  "Writes to new slugs fail with duplicate-key errors until repaired; " +
+                  "memoark repairs this automatically the next time the store is opened " +
+                  "(any command that touches the store, e.g. `memoark serve`).",
+              );
+            } else {
+              ok.push("Postgres: id sequences in sync ✓");
+            }
           }
         }
       }

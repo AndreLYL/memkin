@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import type { ManagedStoreConfig } from "../core/config.js";
 import { managedPaths, readManagedState } from "../store/managed/pg-paths.js";
 import { createPgRuntimeProvider } from "../store/managed/pg-runtime-provider.js";
+import { detectIdSequenceDesync, type SequenceDesync } from "../store/sequence-sync.js";
 
 export interface PgCheck {
   connected: boolean;
@@ -60,6 +61,31 @@ export async function checkPostgres(url: string): Promise<PgCheck> {
     return { connected: true, vectorReady: canCreate, canCreate };
   } catch {
     return { connected: false, vectorReady: false, canCreate: false };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Detects SERIAL id sequences that fell behind MAX(id) — the aftermath of an
+ * id-preserving import/restore. Read-only; the store auto-repairs on the next
+ * open (Database.create → resyncIdSequences), so doctor only reports.
+ * Returns null when the check itself could not run (connection failure).
+ */
+export async function checkPgIdSequences(url: string): Promise<SequenceDesync[] | null> {
+  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 5000 });
+  try {
+    return await detectIdSequenceDesync({
+      async query<T>(sql: string, params?: unknown[]) {
+        const res = await pool.query(sql, params);
+        return { rows: res.rows as T[] };
+      },
+      async exec(sql: string) {
+        await pool.query(sql);
+      },
+    });
+  } catch {
+    return null;
   } finally {
     await pool.end();
   }
