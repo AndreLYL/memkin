@@ -65,7 +65,8 @@ describe("ClaudeCodeCollector", () => {
     expect(firstUser.timestamp).toBe("2024-01-01T10:00:01.000Z");
     expect(firstUser.metadata?.session_id).toBe("test-session-001");
     expect(firstUser.metadata?.uuid).toBe("uuid-001");
-    expect(firstUser.metadata?.cursor).toBe("test-session-001");
+    // cursor field retired (PR-0): incrementality is driven by the agent_sessions ledger.
+    expect(firstUser.metadata?.cursor).toBeUndefined();
 
     // Check first assistant message
     const firstAssistant = messages[1];
@@ -77,8 +78,11 @@ describe("ClaudeCodeCollector", () => {
     expect(firstAssistant.metadata?.uuid).toBe("uuid-002");
   });
 
-  it("should handle cursor-based pagination", async () => {
-    // Create two session files
+  it("ignores the legacy cursor and yields all sessions (cursor retired in PR-0)", async () => {
+    // The former cursor-based pagination (`sessionId <= cursor`) is retired: it silently
+    // dropped the first message of any session sorting before the cursor and lost
+    // single-message / recovered sessions. Incrementality now lives in the agent_sessions
+    // ledger, so the collector yields every turn regardless of the cursor value.
     const projectDir = path.join(tempDir, "test-project");
     await fs.mkdir(projectDir, { recursive: true });
 
@@ -96,20 +100,22 @@ describe("ClaudeCodeCollector", () => {
       '{"type":"user","message":{"role":"user","content":"Second session"},"uuid":"s2-001","timestamp":"2024-01-01T11:00:00.000Z","sessionId":"session-002"}\n',
     );
 
-    // First fetch - no cursor, should get both sessions
+    // No cursor — both sessions.
     const allMessages = [];
     for await (const msg of collector.fetch({})) {
       allMessages.push(msg);
     }
     expect(allMessages.length).toBe(2);
 
-    // Second fetch - with cursor for session-001, should only get session-002
-    const newMessages = [];
+    // A stale cursor is now ignored — both sessions still yielded (no first-message drop).
+    const withCursor = [];
     for await (const msg of collector.fetch({ cursor: "session-001" })) {
-      newMessages.push(msg);
+      withCursor.push(msg);
     }
-    expect(newMessages.length).toBe(1);
-    expect(newMessages[0].metadata?.session_id).toBe("session-002");
+    expect(withCursor.length).toBe(2);
+    const ids = withCursor.map((m) => m.metadata?.session_id);
+    expect(ids).toContain("session-001");
+    expect(ids).toContain("session-002");
   });
 
   it("should normalize metadata field names to snake_case", async () => {
@@ -133,7 +139,8 @@ describe("ClaudeCodeCollector", () => {
     // Should have snake_case keys
     expect(metadata?.session_id).toBe("test-session");
     expect(metadata?.uuid).toBe("test-uuid");
-    expect(metadata?.cursor).toBe("test-session");
+    // cursor field retired (PR-0).
+    expect(metadata?.cursor).toBeUndefined();
 
     // Should NOT have camelCase keys
     expect(metadata?.sessionId).toBeUndefined();
