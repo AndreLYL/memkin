@@ -1,8 +1,63 @@
 // src/collectors/agent/collector.ts
+import { createHash } from "node:crypto";
 import * as fs from "node:fs/promises";
 import fg from "fast-glob";
 import type { Collector, FetchOpts, RawMessage } from "../../core/types.js";
 import type { SessionLayout, SessionMeta, SessionParseContext, SessionParser } from "./types.js";
+
+/** A consistent point-in-time read of a transcript file, plus its revision fingerprint. */
+export interface StableSnapshot {
+  content: string;
+  /** sha256 of the raw file content — the revision key (see agent_sessions / M007). */
+  contentHash: string;
+  byteSize: number;
+  /** Total lines via split("\n") — aligns with programmatic msg_id assignment (spec §5.2). */
+  lineCount: number;
+}
+
+/** Minimal fs surface used by readStableSnapshot — injectable for deterministic tests. */
+export interface SnapshotFs {
+  stat(path: string): Promise<{ size: number; mtimeMs: number }>;
+  readFile(path: string, enc: "utf-8"): Promise<string>;
+}
+
+const defaultSnapshotFs: SnapshotFs = {
+  stat: (p) => fs.stat(p),
+  readFile: (p, enc) => fs.readFile(p, enc),
+};
+
+/**
+ * Read a transcript file only if it is stable across the read.
+ *
+ * A transcript being actively written (an agent still in-session) can be mutated mid-read,
+ * yielding a torn snapshot. To avoid ingesting a half-written revision we stat before and
+ * after reading; if size or mtime differ, the file changed under us — return null and let
+ * the caller retry on a later tick (the scan watermark still advances independently).
+ *
+ * `deps` is injectable so tests can simulate a write-in-progress without touching the real
+ * filesystem (node:fs/promises exports are non-configurable and cannot be spied directly).
+ */
+export async function readStableSnapshot(
+  filePath: string,
+  deps: SnapshotFs = defaultSnapshotFs,
+): Promise<StableSnapshot | null> {
+  try {
+    const before = await deps.stat(filePath);
+    const content = await deps.readFile(filePath, "utf-8");
+    const after = await deps.stat(filePath);
+    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
+      return null;
+    }
+    return {
+      content,
+      contentHash: createHash("sha256").update(content).digest("hex"),
+      byteSize: Buffer.byteLength(content, "utf-8"),
+      lineCount: content.split("\n").length,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export class AgentSessionCollector implements Collector {
   readonly id: string;
@@ -56,8 +111,10 @@ export class AgentSessionCollector implements Collector {
       let sessionMeta: SessionMeta | null = null;
       let currentSessionId = sessionIdFromPath;
 
-      const content = await fs.readFile(file.path, "utf-8");
-      const lines = content.split("\n");
+      // Stable snapshot read: skip files that are being written under us this tick.
+      const snapshot = await readStableSnapshot(file.path);
+      if (!snapshot) continue;
+      const lines = snapshot.content.split("\n");
 
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
         const line = lines[lineIndex].trim();
