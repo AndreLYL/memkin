@@ -13,14 +13,14 @@ export interface SetupServerOpts {
 }
 
 export async function startSetupServer(opts: SetupServerOpts = {}): Promise<void> {
-  const configPath = opts.configPath ?? resolve(process.cwd(), "memoark.yaml");
+  const configPath = opts.configPath ?? resolve(process.cwd(), "memkin.yaml");
 
   return new Promise((resolvePromise) => {
     const configRoutes = createConfigRoutes({
       configPath,
       larkBin: opts.larkBin,
       onSetupComplete: () => {
-        console.log("\n✓ Configuration saved. Run `memoark serve` to start Memoark.");
+        console.log("\n✓ Configuration saved. Run `memkin serve` to start Memkin.");
         // Delay stop so the {ok:true} response actually flushes to the browser
         // before the connection closes; otherwise the front-end sees TypeError:
         // Failed to fetch even though the YAML was written.
@@ -50,7 +50,7 @@ export async function startSetupServer(opts: SetupServerOpts = {}): Promise<void
     });
 
     const setupUrl = `http://localhost:${server.port}/setup`;
-    console.log(`Memoark setup UI running at ${setupUrl}`);
+    console.log(`Memkin setup UI running at ${setupUrl}`);
     console.log("Press Ctrl+C to cancel.\n");
 
     if (opts.open !== false) {

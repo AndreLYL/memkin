@@ -16,7 +16,7 @@ export function resolveDaemonArgv(rt: DaemonRuntime, serveTail: string[]): strin
     case "bun-src":
       return [rt.bunPath, rt.srcCli, ...serveTail];
     default:
-      throw new Error("Cannot resolve daemon runtime — build or install Memoark first.");
+      throw new Error("Cannot resolve daemon runtime — build or install Memkin first.");
   }
 }
 
@@ -33,8 +33,8 @@ export function detectDaemonRuntime(deps?: Partial<DetectDaemonRuntimeDeps>): Da
   const hasBun = deps?.hasBun ?? typeof Bun !== "undefined";
   const projectRoot = deps?.projectRoot ?? join(fileURLToPath(import.meta.url), "../../../../");
 
-  // 1. compiled: running as a Bun-compiled single binary named "memoark"
-  if (hasBun && execPath.endsWith("/memoark")) {
+  // 1. compiled: running as a Bun-compiled single binary named "memkin"
+  if (hasBun && execPath.endsWith("/memkin")) {
     return { kind: "compiled", binaryPath: execPath };
   }
 
@@ -50,5 +50,5 @@ export function detectDaemonRuntime(deps?: Partial<DetectDaemonRuntimeDeps>): Da
     return { kind: "bun-src", bunPath: execPath, srcCli };
   }
 
-  throw new Error("Cannot resolve daemon runtime — build or install Memoark first.");
+  throw new Error("Cannot resolve daemon runtime — build or install Memkin first.");
 }

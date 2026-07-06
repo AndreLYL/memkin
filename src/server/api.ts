@@ -72,15 +72,12 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
   }
 
   const configRoutes = createConfigRoutes({
-    configPath: resolve(process.cwd(), "memoark.yaml"),
+    configPath: resolve(process.cwd(), "memkin.yaml"),
     onConfigSaved: apiOpts.onConfigSaved,
   });
   app.route("/", configRoutes);
 
-  const backfillRoutes = createDefaultBackfillRoutes(
-    stores,
-    resolve(process.cwd(), "memoark.yaml"),
-  );
+  const backfillRoutes = createDefaultBackfillRoutes(stores, resolve(process.cwd(), "memkin.yaml"));
   app.route("/", backfillRoutes);
 
   // Data routes (health, pages, search, graph, etc.) are mounted under /api

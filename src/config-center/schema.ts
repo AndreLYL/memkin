@@ -430,9 +430,9 @@ const FIELD_DESCRIPTIONS: Record<string, string> = {
   "block_builder.block_gap_minutes": "Maximum time gap before messages start a new block.",
   "block_builder.max_block_tokens": "Maximum approximate token size for one conversation block.",
   "block_builder.max_block_messages": "Maximum number of messages allowed in one block.",
-  "store.data_dir": "Directory where Memoark stores its embedded database files.",
+  "store.data_dir": "Directory where Memkin stores its embedded database files.",
   "server.http_port": "Port used by the HTTP API server.",
-  "server.mcp_transport": "Transport mode used when serving Memoark over MCP.",
+  "server.mcp_transport": "Transport mode used when serving Memkin over MCP.",
   "mcp.expose_legacy_tools":
     "Exposes legacy/debug MCP tools in addition to the preferred tool surface.",
   "mcp.http.enabled":

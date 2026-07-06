@@ -110,7 +110,7 @@ describe("supervisor ensureCluster", () => {
     writeFileSync(join(paths.pgdata, "PG_VERSION"), "17\n", "utf8");
     // Pre-write a conf with an old managed block
     const oldConf =
-      "# user setting\nmax_connections = 100\n# >>> memoark managed >>>\nold stuff\n# <<< memoark managed <<<\n";
+      "# user setting\nmax_connections = 100\n# >>> memkin managed >>>\nold stuff\n# <<< memkin managed <<<\n";
     writeFileSync(join(paths.pgdata, "postgresql.conf"), oldConf, "utf8");
 
     const runner = makeFakeRunner([]);
@@ -255,7 +255,7 @@ describe("supervisor bootstrapRoles()", () => {
     const roleCall = runner.calls[0];
     expect(roleCall[0]).toBe("/rt/bin/psql");
     const roleCallStr = roleCall.join(" ");
-    expect(roleCallStr).toContain("CREATE ROLE memoark");
+    expect(roleCallStr).toContain("CREATE ROLE memkin");
     expect(roleCall).toContain("-d");
     expect(roleCall).toContain("postgres");
 
@@ -269,13 +269,13 @@ describe("supervisor bootstrapRoles()", () => {
     // Call 2: CREATE DATABASE (because check returned empty stdout)
     const createDbCall = runner.calls[2];
     expect(createDbCall[0]).toBe("/rt/bin/psql");
-    expect(createDbCall.join(" ")).toContain("CREATE DATABASE memoark OWNER memoark");
+    expect(createDbCall.join(" ")).toContain("CREATE DATABASE memkin OWNER memkin");
 
-    // Call 3: CREATE EXTENSION against memoark db
+    // Call 3: CREATE EXTENSION against memkin db
     const extCall = runner.calls[3];
     expect(extCall[0]).toBe("/rt/bin/psql");
     expect(extCall).toContain("-d");
-    expect(extCall).toContain("memoark");
+    expect(extCall).toContain("memkin");
     const extStr = extCall.join(" ");
     expect(extStr).toContain("CREATE EXTENSION IF NOT EXISTS vector");
     expect(extStr).toContain("pg_trgm");
@@ -350,7 +350,7 @@ describe("supervisor finalizeHba()", () => {
 
     // HBA content asserts
     const hba = readFileSync(join(paths.pgdata, "pg_hba.conf"), "utf8");
-    expect(hba).toContain("local   memoark   memoark   trust");
+    expect(hba).toContain("local   memkin   memkin   trust");
     expect(hba).toContain("reject");
     // Must NOT contain the old bootstrap-user trust line
     expect(hba).not.toContain("local all tester trust");
@@ -442,7 +442,7 @@ describe("supervisor ensureUp() — first run (no state, empty pgdata)", () => {
 
     // Final HBA must be in place (not the temp bootstrap HBA)
     const hba = readFileSync(join(paths.pgdata, "pg_hba.conf"), "utf8");
-    expect(hba).toContain("local   memoark   memoark   trust");
+    expect(hba).toContain("local   memkin   memkin   trust");
     expect(hba).not.toContain("local all tester trust");
 
     // All 9 commands must have been called
@@ -467,7 +467,7 @@ describe("supervisor ensureUp() — warm path (already bootstrapped, running)", 
 
     // Write a sentinel final HBA (must NOT be overwritten)
     const sentinelHba =
-      "# SENTINEL FINAL HBA — must not be overwritten\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
+      "# SENTINEL FINAL HBA — must not be overwritten\nlocal   memkin   memkin   trust\nlocal   all       all       reject\n";
     writeFileSync(join(paths.pgdata, "pg_hba.conf"), sentinelHba, "utf8");
 
     // Pre-write managed state (marks as bootstrapped)
@@ -511,7 +511,7 @@ describe("supervisor HBA security guard", () => {
 
     // Write final HBA sentinel
     const finalHba =
-      "# FINAL HBA\nlocal   memoark   memoark   trust\nlocal   all       all       reject\n";
+      "# FINAL HBA\nlocal   memkin   memkin   trust\nlocal   all       all       reject\n";
     writeFileSync(join(paths.pgdata, "pg_hba.conf"), finalHba, "utf8");
 
     // Write state (bootstrapped marker)

@@ -7,7 +7,7 @@ export interface EmbeddingFingerprint {
 }
 
 export async function readMeta(conn: SqlConn, key: string): Promise<string | null> {
-  const r = await conn.query<{ value: string }>("SELECT value FROM memoark_meta WHERE key = $1", [
+  const r = await conn.query<{ value: string }>("SELECT value FROM memkin_meta WHERE key = $1", [
     key,
   ]);
   return r.rows[0]?.value ?? null;
@@ -15,7 +15,7 @@ export async function readMeta(conn: SqlConn, key: string): Promise<string | nul
 
 export async function writeMeta(conn: SqlConn, key: string, value: string): Promise<void> {
   await conn.query(
-    "INSERT INTO memoark_meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+    "INSERT INTO memkin_meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
     [key, value],
   );
 }

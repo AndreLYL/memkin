@@ -1,4 +1,4 @@
-# Memoark web — color-sweep allowlist
+# Memkin web — color-sweep allowlist
 # Intentional non-token color utilities that survive the redesign grep gate.
 # All `neon-*` DOM usages are eliminated; these are deliberate exceptions.
 

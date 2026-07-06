@@ -45,7 +45,7 @@ function matchesAllowed(value: string | null, allowed: string[]): boolean {
 function bearerToken(request: Request): string | undefined {
   const auth = request.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) return auth.slice("Bearer ".length);
-  return request.headers.get("x-memoark-mcp-token") ?? undefined;
+  return request.headers.get("x-memkin-mcp-token") ?? undefined;
 }
 
 /** Delegates to the shared loopback definition in server-security.ts (single source of truth). */
@@ -64,7 +64,7 @@ export function authorizeMcpHttpRequest(
       status: 403,
       error: {
         code: "FORBIDDEN_ORIGIN",
-        message: "Origin is not allowed for Memoark MCP HTTP",
+        message: "Origin is not allowed for Memkin MCP HTTP",
         suggestion: "Use a configured local origin or add the trusted origin explicitly.",
       },
     };
@@ -77,7 +77,7 @@ export function authorizeMcpHttpRequest(
       status: 403,
       error: {
         code: "FORBIDDEN_HOST",
-        message: "Host is not allowed for Memoark MCP HTTP",
+        message: "Host is not allowed for Memkin MCP HTTP",
         suggestion: "Use a configured local host or add the trusted host explicitly.",
       },
     };
@@ -176,8 +176,8 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
         {
           error: {
             code: "MCP_CONNECT_FAILED",
-            message: `Failed to connect Memoark MCP HTTP transport: ${message}`,
-            suggestion: "Retry the request; if it persists, inspect Memoark server logs.",
+            message: `Failed to connect Memkin MCP HTTP transport: ${message}`,
+            suggestion: "Retry the request; if it persists, inspect Memkin server logs.",
           },
         },
         500,

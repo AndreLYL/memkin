@@ -6,7 +6,7 @@ use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-/// Holds the spawned `memoark serve` sidecar so we can kill it on app exit
+/// Holds the spawned `memkin serve` sidecar so we can kill it on app exit
 /// (releasing the data-dir lock cleanly).
 struct Sidecar(Mutex<Option<CommandChild>>);
 
@@ -36,7 +36,7 @@ pub fn run() {
         )?;
       }
 
-      // ---- Sidecar: spawn `memoark serve` with explicit resource paths ----
+      // ---- Sidecar: spawn `memkin serve` with explicit resource paths ----
       // Bundled PGLite assets live under <resource_dir>/assets (see tauri.conf.json
       // `resources`). The sidecar's exec dir is Contents/MacOS, NOT Contents/Resources,
       // so we MUST pass the resource dir explicitly — dirname(execPath)/assets is wrong.
@@ -44,17 +44,17 @@ pub fn run() {
       let assets = resource_dir.join("assets");
       let web_dist = resource_dir.join("web-dist");
 
-      // A Finder-launched app has cwd=/, so serve's default cwd/memoark.yaml lookup
+      // A Finder-launched app has cwd=/, so serve's default cwd/memkin.yaml lookup
       // can't find anything. Point it at the user-global config home (sibling of the
-      // CLI's ~/.memoark/data data_dir).
-      let config = app.path().home_dir()?.join(".memoark").join("memoark.yaml");
+      // CLI's ~/.memkin/data data_dir).
+      let config = app.path().home_dir()?.join(".memkin").join("memkin.yaml");
       let (mut rx, child) = app
         .shell()
-        .sidecar("memoark")?
+        .sidecar("memkin")?
         .args([
           "serve",
           "--no-open",
-          // Bind an OS-assigned free port so we never collide with a CLI `memoark serve`,
+          // Bind an OS-assigned free port so we never collide with a CLI `memkin serve`,
           // a stale instance, or anything else on 3927. The real URL comes back on stdout.
           "--port",
           "0",
@@ -77,10 +77,10 @@ pub fn run() {
           match event {
             CommandEvent::Stdout(line) => {
               let text = String::from_utf8_lossy(&line);
-              if let Some(idx) = text.find("MEMOARK_READY") {
+              if let Some(idx) = text.find("MEMKIN_READY") {
                 // The sidecar reports its real URL after the marker (the port is
-                // OS-assigned), e.g. "MEMOARK_READY http://localhost:54123".
-                let url_str = text[idx + "MEMOARK_READY".len()..]
+                // OS-assigned), e.g. "MEMKIN_READY http://localhost:54123".
+                let url_str = text[idx + "MEMKIN_READY".len()..]
                   .trim()
                   .lines()
                   .next()
@@ -151,10 +151,10 @@ pub fn run() {
       // ---- Native menu bar (Cmd+Q / clipboard shortcuts) ----
       let app_menu = Submenu::with_items(
         app,
-        "MemoArk",
+        "Memkin",
         true,
         &[
-          &PredefinedMenuItem::about(app, Some("MemoArk"), None)?,
+          &PredefinedMenuItem::about(app, Some("Memkin"), None)?,
           &PredefinedMenuItem::separator(app)?,
           &PredefinedMenuItem::hide(app, None)?,
           &PredefinedMenuItem::quit(app, None)?,
@@ -189,14 +189,14 @@ pub fn run() {
         }
       }
 
-      // ---- Tray: keep MemoArk resident so MCP/serve stay online ----
-      let show_i = MenuItem::with_id(app, "show", "显示 MemoArk", true, None::<&str>)?;
+      // ---- Tray: keep Memkin resident so MCP/serve stay online ----
+      let show_i = MenuItem::with_id(app, "show", "显示 Memkin", true, None::<&str>)?;
       // Read is_enabled() AFTER the first-run block above so the menu item reflects the
       // actual state (enabled on first launch, user-chosen thereafter).
       let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
       let autostart_i =
         CheckMenuItem::with_id(app, "autostart", "开机自启", true, autostart_enabled, None::<&str>)?;
-      let quit_i = MenuItem::with_id(app, "quit", "退出 MemoArk", true, None::<&str>)?;
+      let quit_i = MenuItem::with_id(app, "quit", "退出 Memkin", true, None::<&str>)?;
       let tray_menu = Menu::with_items(
         app,
         &[&show_i, &autostart_i, &PredefinedMenuItem::separator(app)?, &quit_i],
@@ -205,7 +205,7 @@ pub fn run() {
       let autostart_cb = autostart_i.clone();
       TrayIconBuilder::with_id("main-tray")
         .icon(app.default_window_icon().unwrap().clone())
-        .tooltip("MemoArk")
+        .tooltip("Memkin")
         .menu(&tray_menu)
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {

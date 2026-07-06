@@ -11,10 +11,10 @@ beforeEach(() => {
 afterEach(() => rmSync(home, { recursive: true, force: true }));
 
 describe("pg-paths", () => {
-  it("resolves runtime/pgdata/socket under home/.memoark", () => {
+  it("resolves runtime/pgdata/socket under home/.memkin", () => {
     const p = managedPaths(home, "17");
-    expect(p.pgdata).toBe(join(home, ".memoark", "pgdata"));
-    expect(p.socketDir).toBe(join(home, ".memoark", "run"));
+    expect(p.pgdata).toBe(join(home, ".memkin", "pgdata"));
+    expect(p.socketDir).toBe(join(home, ".memkin", "run"));
     expect(p.fixedPort).toBe(54329);
   });
 
@@ -23,7 +23,7 @@ describe("pg-paths", () => {
     const url = managedConnUrl(p);
     expect(url).toContain(`port=${p.fixedPort}`);
     expect(url).toContain("host=");
-    expect(url).toMatch(/^postgresql:\/\/memoark@\/memoark\?/);
+    expect(url).toMatch(/^postgresql:\/\/memkin@\/memkin\?/);
   });
 
   it("round-trips state json", () => {
@@ -40,13 +40,13 @@ describe("pg-paths", () => {
     expect(readManagedState(p)?.fixedPort).toBe(54329);
   });
 
-  it("honors MEMOARK_PG_RUNTIME_DIR override for runtimeRoot", () => {
-    process.env.MEMOARK_PG_RUNTIME_DIR = "/custom/rt";
+  it("honors MEMKIN_PG_RUNTIME_DIR override for runtimeRoot", () => {
+    process.env.MEMKIN_PG_RUNTIME_DIR = "/custom/rt";
     try {
       expect(managedPaths(home, "17").runtimeRoot).toBe("/custom/rt");
     } finally {
-      process.env.MEMOARK_PG_RUNTIME_DIR = undefined;
-      delete process.env.MEMOARK_PG_RUNTIME_DIR;
+      process.env.MEMKIN_PG_RUNTIME_DIR = undefined;
+      delete process.env.MEMKIN_PG_RUNTIME_DIR;
     }
   });
 });

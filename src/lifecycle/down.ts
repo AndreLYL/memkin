@@ -24,7 +24,7 @@ export async function down(deps: DownDeps): Promise<DownResult> {
     if (result.outcome === "bootoutFailed") {
       return {
         stopped: false,
-        note: "Daemon may still be running — managed Postgres left running and daemon state preserved. Investigate, then retry `memoark down`.",
+        note: "Daemon may still be running — managed Postgres left running and daemon state preserved. Investigate, then retry `memkin down`.",
       };
     }
 
@@ -35,7 +35,7 @@ export async function down(deps: DownDeps): Promise<DownResult> {
 
     return {
       stopped: true,
-      note: "Daemon stopped and autostart removed. Agent config left intact — run `memoark uninstall` to revert agents.",
+      note: "Daemon stopped and autostart removed. Agent config left intact — run `memkin uninstall` to revert agents.",
     };
   } finally {
     lock.release();

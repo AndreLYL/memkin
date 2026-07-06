@@ -45,7 +45,7 @@ describe("MCP contract", () => {
   async function connect(opts?: { exposeLegacyTools?: boolean }) {
     stores = await createStores();
     server = createMcpServer(stores, opts);
-    client = new Client({ name: "memoark-contract-test", version: "1.0.0" });
+    client = new Client({ name: "memkin-contract-test", version: "1.0.0" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     await client.connect(clientTransport);
@@ -62,7 +62,7 @@ describe("MCP contract", () => {
 
   it("reports the package version through MCP initialization", async () => {
     await connect();
-    expect(client.getServerVersion()).toEqual({ name: "memoark", version: packageVersion });
+    expect(client.getServerVersion()).toEqual({ name: "memkin", version: packageVersion });
   });
 
   it("defaults to preferred memory tools and hides legacy CRUD tools", async () => {

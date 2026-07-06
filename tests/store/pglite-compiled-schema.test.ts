@@ -5,9 +5,9 @@ import { loadSchemaSql } from "../../src/store/database.js";
 import { buildPGliteOptions } from "../../src/store/pglite-assets.js";
 
 // Risk-2 verification: exercise the explicit-blobs PGLite path (compiled-binary mode)
-// against the *real* Memoark schema, pointing assets at node_modules/.../dist so we can
+// against the *real* Memkin schema, pointing assets at node_modules/.../dist so we can
 // validate the custom vector extension + HNSW index without an actual `bun --compile`.
-describe("explicit-blobs PGLite runs full Memoark schema", () => {
+describe("explicit-blobs PGLite runs full Memkin schema", () => {
   it("creates HNSW index and a usable vector column via custom vector extension", async () => {
     const dist = join(process.cwd(), "node_modules/@electric-sql/pglite/dist");
     const pg = new PGlite(

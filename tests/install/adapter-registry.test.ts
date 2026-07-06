@@ -14,7 +14,7 @@ describe("mcpEntry(ctx)", () => {
     scope: "global",
     cwd: "/c",
     action: "upsert",
-    launch: { command: "memoark", args: ["serve", "--mcp"] },
+    launch: { command: "memkin", args: ["serve", "--mcp"] },
   };
   it("http transport → http entry", () => {
     expect(mcpEntry({ ...base, transport: "http", url: "http://127.0.0.1:3928/mcp" })).toEqual({
@@ -25,7 +25,7 @@ describe("mcpEntry(ctx)", () => {
   it("stdio transport → stdio entry from launch", () => {
     expect(mcpEntry({ ...base, transport: "stdio" })).toEqual({
       kind: "stdio",
-      command: "memoark",
+      command: "memkin",
       args: ["serve", "--mcp"],
     });
   });

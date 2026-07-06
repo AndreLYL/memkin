@@ -1,6 +1,6 @@
 # Spike A — PGLite explicit blobs in a compiled Bun binary
 
-Phase-0 go/no-go #1 for MemoArk desktop packaging.
+Phase-0 go/no-go #1 for Memkin desktop packaging.
 
 **Question:** Can a `bun build --compile` product open a PGLite database and run
 vector queries when PGLite's WASM/extension assets are placed *beside* the binary
@@ -18,9 +18,9 @@ because PGLite tries to read its data bundle from the read-only `$bunfs` virtual
 filesystem, where the asset is not embedded:
 
 ```
-$ bun run compile          # OK, produces dist-bin/memoark
-$ ./dist-bin/memoark --help    # OK
-$ ./dist-bin/memoark consolidate
+$ bun run compile          # OK, produces dist-bin/memkin
+$ ./dist-bin/memkin --help    # OK
+$ ./dist-bin/memkin consolidate
 Consolidate failed: ENOENT: no such file or directory, open '/$bunfs/root/pglite.data'
 ```
 
@@ -72,11 +72,11 @@ SPIKE_A_PASS
 ## Step 6 — Compiled binary run
 
 ```
-$ bun build --compile spike/pglite-explicit-blobs.ts --outfile spike/memoark-spike
+$ bun build --compile spike/pglite-explicit-blobs.ts --outfile spike/memkin-spike
 $ mkdir -p spike/dist-run/assets
-$ cp spike/memoark-spike spike/dist-run/
+$ cp spike/memkin-spike spike/dist-run/
 $ cp spike/assets/* spike/dist-run/assets/
-$ cd spike/dist-run && ./memoark-spike
+$ cd spike/dist-run && ./memkin-spike
 VECTOR_OK[memory]: [1,2,3]
 VECTOR_OK[dataDir]: [1,2,3]
 SPIKE_A_PASS
@@ -111,14 +111,14 @@ A `bun build --compile` product CAN open PGLite and run vector queries, provided
 - `pglite-explicit-blobs.ts` — the spike: builds explicit-blob opts + custom
   vector extension, runs vector query in memory and dataDir modes.
 
-> Binaries (`memoark-spike`, `dist-run/`) and `assets/` are gitignored — only the
+> Binaries (`memkin-spike`, `dist-run/`) and `assets/` are gitignored — only the
 > source scripts and this README are committed.
 
 ---
 
 # Spike B — react-force-graph-2d in Linux WebKitGTK (Tauri webview)
 
-Phase-0 go/no-go #2 for MemoArk desktop packaging.
+Phase-0 go/no-go #2 for Memkin desktop packaging.
 
 **Question:** Tauri uses the system webview. On Linux that is **WebKitGTK**, not
 Chromium. The knowledge-graph page renders with `react-force-graph`. Does
@@ -151,7 +151,7 @@ Two CI iterations, both green builds, both blank renders:
 | 2 (`b86d7ac`) | 1280×900 + colored nodes + DOM banner + `zoomToFit` | Window fills screen (config applied) but the **entire** frame is uniform off-white. No body bg, no DOM banner, no canvas. |
 
 CI logs (both runs), screenshot step:
-- Binary found and launched: `binary: spike/src-tauri/target/release/memoark-spike`.
+- Binary found and launched: `binary: spike/src-tauri/target/release/memkin-spike`.
 - `document.title = "RENDER_DONE"` **never** propagated — the `wmctrl -l | grep RENDER_DONE` loop timed out all 30 iterations in both runs (no `render done` printed). The screenshot was taken after the fixed `sleep`, ~32 s post-launch, so timing is not the cause.
 - `libEGL warning: DRI3 error: Could not get DRI3 device` / `Ensure your X server supports DRI3 to get accelerated rendering` — no GPU/WebGL accel under Xvfb. (ForceGraph2D uses the 2D canvas context, so this alone should not blank it.)
 
@@ -195,7 +195,7 @@ does **not** hold for Linux WebKitGTK as tested. The probe rendered nothing.
 - `webview-probe/{package.json,vite.config.ts,index.html,main.tsx}` — standalone
   React + Vite probe rendering a mock 4-node ring graph (no backend).
 - `src-tauri/` — minimal Tauri 2.x shell; `frontendDist` → `../webview-probe/dist`;
-  Cargo package renamed to `memoark-spike` so `cargo build` emits a binary the CI
+  Cargo package renamed to `memkin-spike` so `cargo build` emits a binary the CI
   `find` matches; window sized 1280×900 to match the Xvfb screen.
 - `../.github/workflows/spike-linux-webview.yml` — ubuntu CI: install WebKitGTK +
   Xvfb, build probe + Tauri, launch headless, screenshot, upload artifact.

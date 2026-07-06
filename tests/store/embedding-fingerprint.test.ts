@@ -3,7 +3,7 @@
  *
  * Strategy: use an in-memory PGLite DB (no data_dir) to avoid the ~4 GB
  * WASM heap cost of initialising a disk-backed cluster inside vitest's fork
- * worker. We seed memoark_meta directly, then verify the mismatch detection.
+ * worker. We seed memkin_meta directly, then verify the mismatch detection.
  *
  * "Reopening" semantics are achieved by:
  *   1. Database.create writes the fingerprint on first open.
@@ -25,7 +25,7 @@ describe("embedding fingerprint — unit (in-memory)", () => {
     ).toBe("openai:text-embedding-3-large:1536");
   });
 
-  it("Database.create writes the embedding fingerprint into memoark_meta", async () => {
+  it("Database.create writes the embedding fingerprint into memkin_meta", async () => {
     const db = await Database.create(
       {
         store: { engine: "pglite" },

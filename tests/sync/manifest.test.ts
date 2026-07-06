@@ -48,7 +48,7 @@ describe("Manifest I/O (T3)", () => {
       pages: {},
     };
     await saveManifest(dir, manifest);
-    const raw = await readFile(join(dir, ".memoark-sync.json"), "utf-8");
+    const raw = await readFile(join(dir, ".memkin-sync.json"), "utf-8");
     expect(raw).toContain("last_sync_at");
     expect(raw).toContain("last_sync_op");
     expect(raw).not.toContain("exported_at");
@@ -62,7 +62,7 @@ describe("Manifest I/O (T3)", () => {
       pages: {},
     };
     await saveManifest(dir, manifest);
-    const tmpPath = join(dir, ".memoark-sync.json.tmp");
+    const tmpPath = join(dir, ".memkin-sync.json.tmp");
     let tmpExists = false;
     try {
       await readFile(tmpPath);
@@ -74,14 +74,14 @@ describe("Manifest I/O (T3)", () => {
   });
 
   it("loadManifest returns null for malformed JSON (defensive)", async () => {
-    await writeFile(join(dir, ".memoark-sync.json"), "{not json", "utf-8");
+    await writeFile(join(dir, ".memkin-sync.json"), "{not json", "utf-8");
     const result = await loadManifest(dir);
     expect(result).toBeNull();
   });
 
   it("loadManifest returns null for wrong version (defensive)", async () => {
     await writeFile(
-      join(dir, ".memoark-sync.json"),
+      join(dir, ".memkin-sync.json"),
       JSON.stringify({ version: 999, pages: {} }),
       "utf-8",
     );

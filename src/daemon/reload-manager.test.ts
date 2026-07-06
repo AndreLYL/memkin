@@ -241,8 +241,8 @@ describe("runtimeSignature", () => {
 
 describe("storeSignature", () => {
   it("is stable for equal store configs", () => {
-    const a = storeSignature(cfg({ store: { engine: "pglite", data_dir: "~/.memoark/data" } }));
-    const b = storeSignature(cfg({ store: { engine: "pglite", data_dir: "~/.memoark/data" } }));
+    const a = storeSignature(cfg({ store: { engine: "pglite", data_dir: "~/.memkin/data" } }));
+    const b = storeSignature(cfg({ store: { engine: "pglite", data_dir: "~/.memkin/data" } }));
     expect(a).toBe(b);
   });
 
@@ -268,7 +268,7 @@ describe("storeSignature", () => {
 describe("ReloadManager store restart-required", () => {
   const baseConfig = {
     ...baseSigConfig,
-    store: { engine: "pglite", data_dir: "~/.memoark/data" },
+    store: { engine: "pglite", data_dir: "~/.memkin/data" },
   } as never;
 
   const managedConfig = {

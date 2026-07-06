@@ -14,4 +14,4 @@ export interface SqlExecutor extends SqlConn {
 }
 
 /** Postgres advisory lock 的固定 key（任意稳定 bigint）。 */
-export const MEMOARK_LOCK_KEY = 0x6d656d6f31n; // "memo1"
+export const MEMKIN_LOCK_KEY = 0x6d656d6f31n; // "memo1"

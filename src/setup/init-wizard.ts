@@ -114,7 +114,7 @@ function buildAutoConfig(keys: DetectedApiKeys, sources: DetectedSource[]): Part
     },
     sources: sourceConfigFromDetections(sources),
     store: {
-      data_dir: "~/.memoark/data",
+      data_dir: "~/.memkin/data",
     },
     embedding: {
       provider: useOpenAIEmbedding ? "openai" : "ollama",
@@ -363,7 +363,7 @@ async function buildInteractiveConfig(
       write(output, "  [ok] Embedding connection successful");
     } else {
       write(output, `  [xx] ${testOk.error}`);
-      write(output, "  Proceeding anyway — you can fix this in memoark.yaml later.");
+      write(output, "  Proceeding anyway — you can fix this in memkin.yaml later.");
     }
 
     embeddingConfig = {
@@ -421,7 +421,7 @@ async function buildInteractiveConfig(
     sources: sourceConfigFromDetections(sources),
     privacy,
     store: {
-      data_dir: "~/.memoark/data",
+      data_dir: "~/.memkin/data",
     },
     embedding: embeddingConfig,
     server: {
@@ -466,7 +466,7 @@ function registerCommand(output: Writable): boolean {
   // Try npm link first (works cross-platform)
   try {
     execSync("npm link", { stdio: "pipe", cwd: packageRoot });
-    write(output, "[ok] `memoark` command registered via npm link");
+    write(output, "[ok] `memkin` command registered via npm link");
     return true;
   } catch (err) {
     const reason = err instanceof Error ? err.message.split(/\r?\n/)[0] : String(err);
@@ -478,8 +478,8 @@ function registerCommand(output: Writable): boolean {
   if (process.platform === "win32") return false;
 
   // Resolve from this file's location so npx temp-dir runs produce the correct path
-  const binPath = resolve(__dirname, "../../bin/memoark.mjs");
-  const aliasLine = `alias memoark='node ${binPath}'`;
+  const binPath = resolve(__dirname, "../../bin/memkin.mjs");
+  const aliasLine = `alias memkin='node ${binPath}'`;
   const shellFiles = [".zshrc", ".bashrc", ".bash_profile"];
 
   for (const file of shellFiles) {
@@ -488,10 +488,10 @@ function registerCommand(output: Writable): boolean {
     try {
       let content = readFileSync(shellPath, "utf-8");
 
-      // Replace any stale memoark alias (covers both bin/memoark and bin/memoark.mjs variants)
-      const stalePattern = /alias memoark=(['"])[^'"]*\1/g;
+      // Replace any stale memkin alias (covers both bin/memkin and bin/memkin.mjs variants)
+      const stalePattern = /alias memkin=(['"])[^'"]*\1/g;
       if (stalePattern.test(content)) {
-        content = content.replace(/alias memoark=(['"])[^'"]*\1/g, aliasLine);
+        content = content.replace(/alias memkin=(['"])[^'"]*\1/g, aliasLine);
         writeFileSync(shellPath, content, "utf-8");
         write(output, `[ok] Updated stale alias in ~/${file} — run: source ~/${file}`);
         return true;
@@ -501,7 +501,7 @@ function registerCommand(output: Writable): boolean {
       if (content.includes(aliasLine)) return true;
 
       // Not yet registered
-      writeFileSync(shellPath, `${content.trimEnd()}\n\n# Memoark\n${aliasLine}\n`, "utf-8");
+      writeFileSync(shellPath, `${content.trimEnd()}\n\n# Memkin\n${aliasLine}\n`, "utf-8");
       write(output, `[ok] Alias added to ~/${file} — run: source ~/${file}`);
       return true;
     } catch {}
@@ -513,13 +513,13 @@ function registerCommand(output: Writable): boolean {
 function printNextSteps(output: Writable): void {
   write(output, "");
   write(output, "--- Next Steps ---");
-  write(output, "  memoark extract --source claude-code");
-  write(output, "  memoark serve");
-  write(output, '  memoark search "your query"');
+  write(output, "  memkin extract --source claude-code");
+  write(output, "  memkin serve");
+  write(output, '  memkin search "your query"');
 }
 
 function envDisablesTui(env: NodeJS.ProcessEnv): boolean {
-  const value = env.MEMOARK_NO_TUI?.toLowerCase();
+  const value = env.MEMKIN_NO_TUI?.toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
@@ -612,7 +612,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
     }
 
     write(output, "╔════════════════════════════════════════╗");
-    write(output, "║      Welcome to Memoark Setup         ║");
+    write(output, "║      Welcome to Memkin Setup         ║");
     write(output, "╚════════════════════════════════════════╝");
     printRuntime(output);
     printDetections(output, sources);
@@ -623,7 +623,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
     const yaml = generateConfigYaml(config, newInstallEngineOpt);
     write(output, "");
     write(output, "--- Preview ---");
-    write(output, `# memoark.yaml (${yaml.split(/\r?\n/).filter(Boolean).length} lines)`);
+    write(output, `# memkin.yaml (${yaml.split(/\r?\n/).filter(Boolean).length} lines)`);
     write(output, yaml);
 
     const confirmed = await prompt.confirm("Save this configuration?", true);
@@ -641,17 +641,17 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
       write(output, `[!!] Legacy dbe.yaml detected: ${legacyPath}`);
       write(
         output,
-        "      Rename or merge it into memoark.yaml if it contains settings you still need.",
+        "      Rename or merge it into memkin.yaml if it contains settings you still need.",
       );
     }
 
     if (options.registerCommand !== false) {
-      // Register memoark command
+      // Register memkin command
       write(output, "");
-      write(output, "--- Registering memoark command ---");
+      write(output, "--- Registering memkin command ---");
       const registered = registerCommand(output);
       if (registered) {
-        write(output, "[ok] memoark command is ready to use");
+        write(output, "[ok] memkin command is ready to use");
       } else {
         write(output, "[!!] Could not register automatically. Run manually:");
         write(output, "      npm link");

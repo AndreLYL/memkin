@@ -91,7 +91,7 @@ async function migrateEmbeddingDimensions(conn: SqlConn, targetDims: number): Pr
   if (currentDims === targetDims) return;
 
   console.log(
-    `[memoark] Embedding dimensions changed: ${currentDims} → ${targetDims}. ` +
+    `[memkin] Embedding dimensions changed: ${currentDims} → ${targetDims}. ` +
       "Clearing existing embeddings for re-indexing.",
   );
 

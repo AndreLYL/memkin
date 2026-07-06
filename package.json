@@ -1,10 +1,10 @@
 {
-  "name": "@andre.li/memoark",
+  "name": "memkin",
   "version": "0.3.2",
   "description": "Local-first personal memory system — extracts signals from Feishu/Lark chats and AI-agent sessions into a private knowledge graph, served to any agent via MCP",
   "type": "module",
   "bin": {
-    "memoark": "./bin/memoark.mjs"
+    "memkin": "./bin/memkin.mjs"
   },
   "main": "./dist/cli.js",
   "exports": {
@@ -17,9 +17,9 @@
     "README.en.md",
     "LICENSE"
   ],
-  "homepage": "https://github.com/AndreLYL/memoark#readme",
+  "homepage": "https://github.com/AndreLYL/memkin#readme",
   "bugs": {
-    "url": "https://github.com/AndreLYL/memoark/issues"
+    "url": "https://github.com/AndreLYL/memkin/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -31,7 +31,7 @@
     "test:watch": "vitest --watch",
     "gen:assets": "node scripts/gen-embedded-assets.mjs",
     "build": "node scripts/gen-embedded-assets.mjs && tsc && node scripts/post-build.mjs",
-    "compile": "node scripts/gen-embedded-assets.mjs && bun build --compile src/cli.ts --outfile dist-bin/memoark",
+    "compile": "node scripts/gen-embedded-assets.mjs && bun build --compile src/cli.ts --outfile dist-bin/memkin",
     "typecheck": "tsc --noEmit",
     "prepack": "mv README.md README.zh-CN.md && cp README.en.md README.md",
     "postpack": "mv README.zh-CN.md README.md",
@@ -90,7 +90,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AndreLYL/memoark.git"
+    "url": "https://github.com/AndreLYL/memkin.git"
   },
   "engines": {
     "node": ">=18.0.0"

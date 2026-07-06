@@ -11,12 +11,12 @@ let home: string;
 let cwd: string;
 const base = {
   platform: "linux" as NodeJS.Platform,
-  launch: { command: "memoark", args: ["serve", "--mcp"] },
+  launch: { command: "memkin", args: ["serve", "--mcp"] },
 };
 
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-home-"));
-  cwd = mkdtempSync(join(tmpdir(), "memoark-proj-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-home-"));
+  cwd = mkdtempSync(join(tmpdir(), "memkin-proj-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -48,7 +48,7 @@ describe("hermes adapter", () => {
     const ops = hermes.plan(ctx());
     expect(ops[0]).toMatchObject({ path: join(home, ".hermes", "config.yaml"), kind: "yaml-mcp" });
     expect(ops[1]).toMatchObject({
-      path: join(home, ".hermes", "skills", "memoark", "SKILL.md"),
+      path: join(home, ".hermes", "skills", "memkin", "SKILL.md"),
       kind: "managed-file",
     });
   });
@@ -57,12 +57,12 @@ describe("hermes adapter", () => {
     mkdirSync(join(home, ".hermes"));
     runInstall({ agent: ["hermes"], home, cwd, ...base });
     const cfg = parse(readFileSync(join(home, ".hermes", "config.yaml"), "utf8"));
-    expect(cfg.mcp_servers.memoark).toEqual({ command: "memoark", args: ["serve", "--mcp"] });
-    expect(existsSync(join(home, ".hermes", "skills", "memoark", "SKILL.md"))).toBe(true);
+    expect(cfg.mcp_servers.memkin).toEqual({ command: "memkin", args: ["serve", "--mcp"] });
+    expect(existsSync(join(home, ".hermes", "skills", "memkin", "SKILL.md"))).toBe(true);
 
     runUninstall({ agent: ["hermes"], home, cwd, ...base });
     const cfg2 = parse(readFileSync(join(home, ".hermes", "config.yaml"), "utf8"));
-    expect(cfg2.mcp_servers?.memoark).toBeUndefined();
-    expect(existsSync(join(home, ".hermes", "skills", "memoark", "SKILL.md"))).toBe(false);
+    expect(cfg2.mcp_servers?.memkin).toBeUndefined();
+    expect(existsSync(join(home, ".hermes", "skills", "memkin", "SKILL.md"))).toBe(false);
   });
 });

@@ -34,7 +34,7 @@ const SOURCE_DETECTIONS: DetectedSource[] = [
 
 describe("config-center reducer", () => {
   it("navigates sections and fields", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const nextSection = configCenterReducer(initial, { type: "nextSection" });
     const fields = configCenterReducer(nextSection, { type: "focusFields" });
     const nextField = configCenterReducer(fields, { type: "nextField" });
@@ -48,7 +48,7 @@ describe("config-center reducer", () => {
   });
 
   it("returns to section focus from field focus", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const llm = configCenterReducer(initial, { type: "selectSection", sectionId: "llm" });
     const fields = configCenterReducer(llm, { type: "focusFields" });
     const sections = configCenterReducer(fields, { type: "focusSections" });
@@ -59,7 +59,7 @@ describe("config-center reducer", () => {
   });
 
   it("resets the field cursor when entering field focus", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const llm = configCenterReducer(initial, { type: "selectSection", sectionId: "llm" });
     const fields = configCenterReducer(llm, { type: "focusFields" });
     const model = configCenterReducer(fields, { type: "nextField" });
@@ -72,7 +72,7 @@ describe("config-center reducer", () => {
   });
 
   it("keeps sidebar focus when the selected section has no configurable fields", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const overviewFields = configCenterReducer(initial, { type: "focusFields" });
     const feishu = configCenterReducer(initial, { type: "selectSection", sectionId: "feishu" });
     const feishuFields = configCenterReducer(feishu, { type: "focusFields" });
@@ -84,7 +84,7 @@ describe("config-center reducer", () => {
   });
 
   it("toggles boolean fields and marks state dirty", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const sources = configCenterReducer(initial, { type: "selectSection", sectionId: "sources" });
     const fields = configCenterReducer(sources, { type: "focusFields" });
     const toggled = configCenterReducer(fields, { type: "toggleCurrentField" });
@@ -94,7 +94,7 @@ describe("config-center reducer", () => {
   });
 
   it("does not toggle or edit fields while the sidebar is focused", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const sources = configCenterReducer(initial, { type: "selectSection", sectionId: "sources" });
     const toggled = configCenterReducer(sources, { type: "toggleCurrentField" });
     const editing = configCenterReducer(sources, { type: "startEditing" });
@@ -105,7 +105,7 @@ describe("config-center reducer", () => {
   });
 
   it("commits string edits to the current field", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const llm = configCenterReducer(initial, { type: "selectSection", sectionId: "llm" });
     const fields = configCenterReducer(llm, { type: "focusFields" });
     const model = configCenterReducer(fields, { type: "nextField" });
@@ -118,7 +118,7 @@ describe("config-center reducer", () => {
   });
 
   it("commits edits and switches fields when navigating during editing", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const llm = configCenterReducer(initial, { type: "selectSection", sectionId: "llm" });
     const fields = configCenterReducer(llm, { type: "focusFields" });
     const model = configCenterReducer(fields, { type: "nextField" });
@@ -136,7 +136,7 @@ describe("config-center reducer", () => {
   });
 
   it("filters embedding fields by the selected provider", () => {
-    const initial = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const initial = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const embedding = configCenterReducer(initial, {
       type: "selectSection",
       sectionId: "embedding",
@@ -157,7 +157,7 @@ describe("config-center reducer", () => {
 
   it("skips hidden embedding fields during field navigation", () => {
     const doc = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "embedding.provider",
       "ollama",
     );
@@ -178,7 +178,7 @@ describe("config-center reducer", () => {
 
   it("hydrates enabled source base dirs from detected source paths on initial load", () => {
     const initial = createInitialState(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       SOURCE_DETECTIONS,
     );
 
@@ -191,7 +191,7 @@ describe("config-center reducer", () => {
 
   it("writes a detected source base dir when enabling a source", () => {
     const doc = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "sources.claude-code.enabled",
       false,
     );
@@ -211,7 +211,7 @@ describe("config-center reducer", () => {
 
   it("clears a source base dir when disabling a source", () => {
     const withPath = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "sources.claude-code.base_dir",
       "/Users/test/.claude/projects",
     );
@@ -229,7 +229,7 @@ describe("config-center reducer", () => {
 
   it("leaves source base dir empty when enabling a source that cannot be detected", () => {
     const doc = updateDraft(
-      createDefaultConfigDocument("/tmp/memoark.yaml"),
+      createDefaultConfigDocument("/tmp/memkin.yaml"),
       "sources.codex.enabled",
       false,
     );

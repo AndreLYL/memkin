@@ -27,7 +27,7 @@ export interface ResolveServeHostInput {
 }
 
 /**
- * Resolve the effective bind host for `memoark serve`.
+ * Resolve the effective bind host for `memkin serve`.
  * Precedence: CLI `--host` > config `server.host` > loopback default.
  */
 export function resolveServeHost(input: ResolveServeHostInput): string {
@@ -37,15 +37,15 @@ export function resolveServeHost(input: ResolveServeHostInput): string {
 }
 
 export interface ResolveAuthTokenInput {
-  /** `MEMOARK_AUTH_TOKEN` env var (highest precedence). */
+  /** `MEMKIN_AUTH_TOKEN` env var (highest precedence). */
   envToken?: string;
   /** `server.auth_token` from config (fallback). */
   configToken?: string;
 }
 
 /**
- * Resolve the effective auth token for `memoark serve`.
- * Precedence: env `MEMOARK_AUTH_TOKEN` > config `server.auth_token`.
+ * Resolve the effective auth token for `memkin serve`.
+ * Precedence: env `MEMKIN_AUTH_TOKEN` > config `server.auth_token`.
  * Returns undefined when no token is configured (loopback-only, no auth).
  */
 export function resolveAuthToken(input: ResolveAuthTokenInput): string | undefined {
@@ -76,8 +76,8 @@ export function resolveServeSecurity(
     throw new Error(
       `Refusing to start: --host "${host}" binds a non-loopback interface but no auth token is configured. ` +
         `Anyone who can reach this host could read and write your entire memory. ` +
-        `Set an auth token first — either 'server.auth_token: <token>' in memoark.yaml ` +
-        `or export MEMOARK_AUTH_TOKEN=<token> — then retry.`,
+        `Set an auth token first — either 'server.auth_token: <token>' in memkin.yaml ` +
+        `or export MEMKIN_AUTH_TOKEN=<token> — then retry.`,
     );
   }
 

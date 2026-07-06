@@ -18,7 +18,7 @@ import { BackfillJob as BackfillJobClass } from "./backfill-job.js";
  * Using a dedicated "work" path avoids a pglite-specific data_dir leaking into
  * postgres/managed mode where store.data_dir is undefined.
  */
-const BACKFILL_WORK_DIR = join(homedir(), ".memoark", "work");
+const BACKFILL_WORK_DIR = join(homedir(), ".memkin", "work");
 
 const COVERAGE_SQL = `
 SELECT

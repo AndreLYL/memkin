@@ -32,10 +32,10 @@ if (existsSync(distCli)) {
     process.exit(result.status ?? 0);
   }
 
-  console.error("Error: No runtime found to execute Memoark from source.");
+  console.error("Error: No runtime found to execute Memkin from source.");
   console.error("Install Bun, install tsx, or run npm run build before using this binary.");
   process.exit(1);
 } else {
-  console.error("Error: Cannot find Memoark CLI entrypoint.");
+  console.error("Error: Cannot find Memkin CLI entrypoint.");
   process.exit(1);
 }

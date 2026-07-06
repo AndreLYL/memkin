@@ -11,9 +11,9 @@ export function Welcome({ onNext }: StepProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-serif text-2xl font-bold text-fg-default">Welcome to Memoark</h1>
+        <h1 className="font-serif text-2xl font-bold text-fg-default">Welcome to Memkin</h1>
         <p className="mt-2 text-fg-muted">
-          Memoark is a local-first AI memory layer. This wizard will help you configure
+          Memkin is a local-first AI memory layer. This wizard will help you configure
           your LLM, embedding model, data sources, and storage in a few steps.
         </p>
       </div>

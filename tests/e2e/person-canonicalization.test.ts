@@ -55,7 +55,7 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
       channel: "#product-team",
       timestamp: "2024-06-01T14:30:00Z",
       raw_hash: "feishu-regression-001",
-      quote: "Group chat about Memoark project",
+      quote: "Group chat about Memkin project",
     };
 
     const extractionResult: ExtractionResult = {
@@ -85,8 +85,8 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
         },
         // Non-person entity (should be untouched)
         {
-          slug: "project/memoark",
-          name: "Memoark",
+          slug: "project/memkin",
+          name: "Memkin",
           type: "project",
           context: "Knowledge management system",
           confidence: "direct",
@@ -96,7 +96,7 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
         {
           date: "2024-06-01",
           summary: "Project kickoff meeting",
-          entities: ["person/wang-jian-du", "person/yinglong-li", "project/memoark"],
+          entities: ["person/wang-jian-du", "person/yinglong-li", "project/memkin"],
           source: mockSource,
           confidence: "direct",
         },
@@ -104,15 +104,15 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
       links: [
         {
           from: "person/wang-jian-du",
-          to: "project/memoark",
+          to: "project/memkin",
           type: "works_on",
-          context: "王建都 leads Memoark project",
+          context: "王建都 leads Memkin project",
           confidence: "direct",
           source: mockSource,
         },
         {
           from: "person/yinglong-li",
-          to: "project/memoark",
+          to: "project/memkin",
           type: "contributes_to",
           context: "李应龙 develops core features",
           confidence: "direct",
@@ -123,7 +123,7 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
         {
           summary: "Adopt person canonicalization strategy",
           reasoning: "Prevent duplicate person pages with different slug variants",
-          entities: ["person/yinglong-li", "person/wang-jian-du", "project/memoark"],
+          entities: ["person/yinglong-li", "person/wang-jian-du", "project/memkin"],
           date: "2024-06-01",
           confidence: "direct",
           source: mockSource,
@@ -183,7 +183,7 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
 
     // Should have 1 project page (untouched)
     expect(projectPages).toHaveLength(1);
-    expect(projectPages[0].slug).toBe("project/memoark");
+    expect(projectPages[0].slug).toBe("project/memkin");
 
     // 5. Verify: Old slugs do NOT exist as pages
     const wangJianDuPage = await pageStore.getPage("person/wang-jian-du");
@@ -204,14 +204,14 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
     // 7. Verify: Links are rewritten to canonical slugs
     expect(canonicalized.links).toHaveLength(2);
     expect(canonicalized.links[0].from).toBe("person/wang-jiandu");
-    expect(canonicalized.links[0].to).toBe("project/memoark");
+    expect(canonicalized.links[0].to).toBe("project/memkin");
     expect(canonicalized.links[1].from).toBe("person/li-yinglong");
-    expect(canonicalized.links[1].to).toBe("project/memoark");
+    expect(canonicalized.links[1].to).toBe("project/memkin");
 
     // 8. Verify: Decision entities are rewritten
     expect(canonicalized.decisions[0].entities).toContain("person/li-yinglong");
     expect(canonicalized.decisions[0].entities).toContain("person/wang-jiandu");
-    expect(canonicalized.decisions[0].entities).toContain("project/memoark");
+    expect(canonicalized.decisions[0].entities).toContain("project/memkin");
     expect(canonicalized.decisions[0].entities).not.toContain("person/yinglong-li");
     expect(canonicalized.decisions[0].entities).not.toContain("person/wang-jian-du");
 
@@ -222,7 +222,7 @@ describe("Person Canonicalization E2E (Feishu Regression)", () => {
     // 10. Verify: Timeline entities are rewritten
     expect(canonicalized.timeline[0].entities).toContain("person/wang-jiandu");
     expect(canonicalized.timeline[0].entities).toContain("person/li-yinglong");
-    expect(canonicalized.timeline[0].entities).toContain("project/memoark");
+    expect(canonicalized.timeline[0].entities).toContain("project/memkin");
 
     // 11. Verify: Discovery entities are rewritten
     expect(canonicalized.discoveries[0].entities).toContain("person/wang-jiandu");

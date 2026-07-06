@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { Database } from "../../src/store/database.js";
 import { makeIsolatedPgUrl } from "../test-helpers/pg-harness.js";
 
-const BASE = process.env.MEMOARK_TEST_PG_URL;
+const BASE = process.env.MEMKIN_TEST_PG_URL;
 const d = BASE ? describe : describe.skip;
 
 d("concurrent bootstrap (advisory lock)", () => {
   it("two concurrent Database.create on same schema → no duplicate schema_migrations versions", async () => {
-    const url = await makeIsolatedPgUrl(BASE!, "memoark_race");
+    const url = await makeIsolatedPgUrl(BASE!, "memkin_race");
     const cfg = { store: { engine: "postgres", database_url: url } } as any;
     const [a, b] = await Promise.all([Database.create(cfg), Database.create(cfg)]);
     const dup = await a.executor.query<{ version: number; c: number }>(

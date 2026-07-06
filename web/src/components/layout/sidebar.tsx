@@ -56,7 +56,7 @@ export function Sidebar() {
         <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold text-fg-default bg-accent-muted">
           M
         </div>
-        <span className="text-sm font-semibold text-fg-default">Memoark</span>
+        <span className="text-sm font-semibold text-fg-default">Memkin</span>
       </div>
 
       <div className="px-2 space-y-0.5">
@@ -113,7 +113,7 @@ export function Sidebar() {
             const next =
               document.documentElement.dataset.theme === "dark" ? "light" : "dark";
             document.documentElement.dataset.theme = next;
-            localStorage.setItem("memoark-theme", next);
+            localStorage.setItem("memkin-theme", next);
             setIsDark(next === "dark");
           }}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-fg-subtle hover:text-fg-default rounded-md hover:bg-bg-overlay transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"

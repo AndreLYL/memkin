@@ -36,10 +36,10 @@ describe("managed-lock", () => {
   });
 
   it("breaks a stale lock whose owner pid is gone", async () => {
-    mkdirSync(join(home, ".memoark"), { recursive: true });
+    mkdirSync(join(home, ".memkin"), { recursive: true });
     // pid 2147483647 is effectively guaranteed not to exist
     writeFileSync(
-      join(home, ".memoark", "managed-pg.lock"),
+      join(home, ".memkin", "managed-pg.lock"),
       JSON.stringify({ pid: 2147483647, ts: 0 }),
       "utf8",
     );

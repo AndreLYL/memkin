@@ -19,20 +19,20 @@ describe("runUp integration (happy path)", () => {
 
   beforeEach(() => {
     // Create a fresh tmp home + config file
-    tmpHome = join(tmpdir(), `memoark-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tmpHome = join(tmpdir(), `memkin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpHome, { recursive: true });
     // Create Library/LaunchAgents on darwin (test always runs on darwin CI)
     mkdirSync(join(tmpHome, "Library", "LaunchAgents"), { recursive: true });
-    mkdirSync(join(tmpHome, ".memoark"), { recursive: true });
+    mkdirSync(join(tmpHome, ".memkin"), { recursive: true });
 
     // Minimal config file with postgres engine
-    configPath = join(tmpHome, "memoark.yaml");
+    configPath = join(tmpHome, "memkin.yaml");
     writeFileSync(
       configPath,
       [
         "store:",
         "  engine: postgres",
-        "  database_url: postgresql://localhost:5432/memoark",
+        "  database_url: postgresql://localhost:5432/memkin",
         "mcp:",
         "  http:",
         "    enabled: true",
@@ -62,7 +62,7 @@ describe("runUp integration (happy path)", () => {
     const fetchHealthImpl = async (_url: string) => {
       try {
         const daemonJson = JSON.parse(
-          readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"),
+          readFileSync(join(tmpHome, ".memkin", "daemon.json"), "utf8"),
         );
         return {
           status: 200,
@@ -95,14 +95,14 @@ describe("runUp integration (happy path)", () => {
     expect(result.engine).toBe("postgres");
 
     // 2. daemon.json was written
-    const daemonJson = JSON.parse(readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"));
+    const daemonJson = JSON.parse(readFileSync(join(tmpHome, ".memkin", "daemon.json"), "utf8"));
     expect(daemonJson.url).toBe(result.url);
     expect(daemonJson.instance_id).toBeTruthy();
 
     // 3. plist was written (darwin)
-    const plistPath = join(tmpHome, "Library", "LaunchAgents", "com.memoark.daemon.plist");
+    const plistPath = join(tmpHome, "Library", "LaunchAgents", "com.memkin.daemon.plist");
     const plistText = readFileSync(plistPath, "utf8");
-    expect(plistText).toContain("com.memoark.daemon");
+    expect(plistText).toContain("com.memkin.daemon");
 
     // 4. runner was called (launchctl bootstrap)
     expect(runner.calls.length).toBeGreaterThan(0);
@@ -113,7 +113,7 @@ describe("runUp integration (happy path)", () => {
     const fetchHealthImpl = async (_url: string) => {
       try {
         const daemonJson = JSON.parse(
-          readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"),
+          readFileSync(join(tmpHome, ".memkin", "daemon.json"), "utf8"),
         );
         return {
           status: 200,
@@ -152,18 +152,18 @@ describe("runUp integration (reconcile failure — FIX 2)", () => {
   const OLD_INSTANCE_ID = "prior-instance-id-abc123";
 
   beforeEach(() => {
-    tmpHome = join(tmpdir(), `memoark-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tmpHome = join(tmpdir(), `memkin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpHome, { recursive: true });
     mkdirSync(join(tmpHome, "Library", "LaunchAgents"), { recursive: true });
-    mkdirSync(join(tmpHome, ".memoark"), { recursive: true });
+    mkdirSync(join(tmpHome, ".memkin"), { recursive: true });
 
-    configPath = join(tmpHome, "memoark.yaml");
+    configPath = join(tmpHome, "memkin.yaml");
     writeFileSync(
       configPath,
       [
         "store:",
         "  engine: postgres",
-        "  database_url: postgresql://localhost:5432/memoark",
+        "  database_url: postgresql://localhost:5432/memkin",
         "mcp:",
         "  http:",
         "    enabled: true",
@@ -184,16 +184,16 @@ describe("runUp integration (reconcile failure — FIX 2)", () => {
       raw_yaml_hash: "oldhash",
       serving_subset_hash: "oldsubset",
       url: "http://127.0.0.1:3930/mcp",
-      argv: ["/old/memoark", "serve"],
+      argv: ["/old/memkin", "serve"],
     };
     writeFileSync(
-      join(tmpHome, ".memoark", "daemon.json"),
+      join(tmpHome, ".memkin", "daemon.json"),
       JSON.stringify(priorState, null, 2),
       "utf8",
     );
     // Pre-seed a prior plist (the "old service file")
     writeFileSync(
-      join(tmpHome, "Library", "LaunchAgents", "com.memoark.daemon.plist"),
+      join(tmpHome, "Library", "LaunchAgents", "com.memkin.daemon.plist"),
       "<?xml version='1.0'?><plist><!-- old plist --></plist>",
       "utf8",
     );
@@ -236,7 +236,7 @@ describe("runUp integration (reconcile failure — FIX 2)", () => {
     expect(launchctlCalls.some((c) => c.includes("bootout"))).toBe(true);
 
     // daemon.json must end up with the OLD instance_id (not the new one)
-    const finalState = JSON.parse(readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"));
+    const finalState = JSON.parse(readFileSync(join(tmpHome, ".memkin", "daemon.json"), "utf8"));
     expect(finalState.instance_id).toBe(OLD_INSTANCE_ID);
   }, 15_000);
 });
@@ -249,13 +249,13 @@ describe("runUp managed foreground provision ordering (P0-3/P0-4)", () => {
   let pgliteConfigPath: string;
 
   beforeEach(() => {
-    tmpHome = join(tmpdir(), `memoark-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tmpHome = join(tmpdir(), `memkin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpHome, { recursive: true });
     mkdirSync(join(tmpHome, "Library", "LaunchAgents"), { recursive: true });
-    mkdirSync(join(tmpHome, ".memoark"), { recursive: true });
+    mkdirSync(join(tmpHome, ".memkin"), { recursive: true });
 
     // Managed engine config
-    managedConfigPath = join(tmpHome, "memoark-managed.yaml");
+    managedConfigPath = join(tmpHome, "memkin-managed.yaml");
     writeFileSync(
       managedConfigPath,
       [
@@ -277,7 +277,7 @@ describe("runUp managed foreground provision ordering (P0-3/P0-4)", () => {
     );
 
     // PGlite engine config
-    pgliteConfigPath = join(tmpHome, "memoark-pglite.yaml");
+    pgliteConfigPath = join(tmpHome, "memkin-pglite.yaml");
     writeFileSync(
       pgliteConfigPath,
       [
@@ -317,7 +317,7 @@ describe("runUp managed foreground provision ordering (P0-3/P0-4)", () => {
     const fetchHealthImpl = async (_url: string) => {
       try {
         const daemonJson = JSON.parse(
-          readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"),
+          readFileSync(join(tmpHome, ".memkin", "daemon.json"), "utf8"),
         );
         // Record ordering point here — enableAutostart has already run by the time we poll
         order.push("enabled");
@@ -359,7 +359,7 @@ describe("runUp managed foreground provision ordering (P0-3/P0-4)", () => {
     const fetchHealthImpl = async (_url: string) => {
       try {
         const daemonJson = JSON.parse(
-          readFileSync(join(tmpHome, ".memoark", "daemon.json"), "utf8"),
+          readFileSync(join(tmpHome, ".memkin", "daemon.json"), "utf8"),
         );
         return {
           status: 200,

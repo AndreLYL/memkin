@@ -5,7 +5,7 @@ import { autosaveBeforeExit, type ConfigCenterDispatch } from "../../src/config-
 
 describe("config-center app exit", () => {
   it("exits immediately when there are no unsaved changes", async () => {
-    const state = createInitialState(createDefaultConfigDocument("/tmp/memoark.yaml"));
+    const state = createInitialState(createDefaultConfigDocument("/tmp/memkin.yaml"));
     const save = vi.fn();
     const onExit = vi.fn();
     const dispatch = vi.fn<ConfigCenterDispatch>();
@@ -18,7 +18,7 @@ describe("config-center app exit", () => {
   });
 
   it("saves dirty config before exiting", async () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const updated = updateDraft(doc, "llm.model", "gpt-test");
     const state = { ...createInitialState(updated), doc: updated, dirty: true };
     const save = vi.fn().mockResolvedValue(undefined);
@@ -33,7 +33,7 @@ describe("config-center app exit", () => {
   });
 
   it("keeps the app open and reports an error when autosave fails", async () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const updated = updateDraft(doc, "llm.model", "gpt-test");
     const state = { ...createInitialState(updated), doc: updated, dirty: true };
     const save = vi.fn().mockRejectedValue(new Error("disk full"));

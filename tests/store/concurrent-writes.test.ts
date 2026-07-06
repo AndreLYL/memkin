@@ -4,7 +4,7 @@
  * PGLite tests (always run): verify single-threaded correctness of the new
  * jsonb patchFrontmatter / setSynthCache implementations.
  *
- * Postgres-only tests (skipped without MEMOARK_TEST_PG_URL): real concurrency
+ * Postgres-only tests (skipped without MEMKIN_TEST_PG_URL): real concurrency
  * via a real connection pool.
  */
 
@@ -16,7 +16,7 @@ import { PageStore } from "../../src/store/pages.js";
 import { PersonBehaviorStore } from "../../src/store/person-behavior.js";
 import { makeIsolatedPgUrl } from "../test-helpers/pg-harness.js";
 
-const BASE = process.env.MEMOARK_TEST_PG_URL;
+const BASE = process.env.MEMKIN_TEST_PG_URL;
 const pg = BASE ? describe : describe.skip;
 
 // ── PGLite: single-threaded correctness of jsonb frontmatter ops ──────────

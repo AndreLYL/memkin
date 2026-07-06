@@ -14,7 +14,7 @@ import { dailyReportIntent } from "../../src/synth/intents/daily-report.js";
 const SEVEN_SECTIONS = [
   "## 今日概览\n忙碌的一天。[1]",
   "## 今日完成\n完成了部署。[1]",
-  "## 推进中\nMemoark 项目推进中。",
+  "## 推进中\nMemkin 项目推进中。",
   "## 我的待办\n写迁移文档。",
   "## 待回复与被@\n无",
   "## 人脉动态\n与张三对齐。",

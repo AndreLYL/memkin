@@ -1,7 +1,7 @@
 import { Pool, type PoolClient } from "pg";
 import { maskDatabaseUrl } from "../config-center/secrets.js";
 import type { Config } from "../core/config.js";
-import { MEMOARK_LOCK_KEY, type SqlConn, type SqlExecutor } from "./sql-executor.js";
+import { MEMKIN_LOCK_KEY, type SqlConn, type SqlExecutor } from "./sql-executor.js";
 
 function connAdapter(c: PoolClient): SqlConn {
   return {
@@ -18,7 +18,7 @@ export class PostgresExecutor implements SqlExecutor {
     private readonly maskedUrl: string = "",
   ) {
     pool.on("error", (e) =>
-      console.error("[memoark] pg pool error:", e.message, `(url: ${this.maskedUrl})`),
+      console.error("[memkin] pg pool error:", e.message, `(url: ${this.maskedUrl})`),
     );
   }
 
@@ -62,12 +62,12 @@ export class PostgresExecutor implements SqlExecutor {
   async bootstrap(fn: (conn: SqlConn) => Promise<void>): Promise<void> {
     const c = await this.pool.connect();
     try {
-      await c.query("SELECT pg_advisory_lock($1::bigint)", [MEMOARK_LOCK_KEY.toString()]);
+      await c.query("SELECT pg_advisory_lock($1::bigint)", [MEMKIN_LOCK_KEY.toString()]);
       try {
         await fn(connAdapter(c));
       } finally {
         await c
-          .query("SELECT pg_advisory_unlock($1::bigint)", [MEMOARK_LOCK_KEY.toString()])
+          .query("SELECT pg_advisory_unlock($1::bigint)", [MEMKIN_LOCK_KEY.toString()])
           .catch(() => {});
       }
     } finally {

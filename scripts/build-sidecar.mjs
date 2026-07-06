@@ -12,7 +12,7 @@ const triple = execSync("rustc -Vv")
 const ext = triple.includes("windows") ? ".exe" : "";
 mkdirSync(join(root, "src-tauri/binaries"), { recursive: true });
 mkdirSync(join(root, "src-tauri/assets"), { recursive: true });
-execSync(`bun build --compile src/cli.ts --outfile src-tauri/binaries/memoark-${triple}${ext}`, {
+execSync(`bun build --compile src/cli.ts --outfile src-tauri/binaries/memkin-${triple}${ext}`, {
   stdio: "inherit",
   env: process.env,
 });
@@ -29,4 +29,4 @@ if (!existsSync(join(webDist, "index.html"))) {
 }
 cpSync(webDist, join(root, "src-tauri/web-dist"), { recursive: true });
 
-console.log(`sidecar: src-tauri/binaries/memoark-${triple}${ext}; pglite assets + web-dist staged`);
+console.log(`sidecar: src-tauri/binaries/memkin-${triple}${ext}; pglite assets + web-dist staged`);

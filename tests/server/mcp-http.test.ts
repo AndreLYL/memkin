@@ -53,7 +53,7 @@ describe("MCP Streamable HTTP security", () => {
       status: 403,
       error: {
         code: "FORBIDDEN_ORIGIN",
-        message: "Origin is not allowed for Memoark MCP HTTP",
+        message: "Origin is not allowed for Memkin MCP HTTP",
         suggestion: "Use a configured local origin or add the trusted origin explicitly.",
       },
     });
@@ -111,7 +111,7 @@ describe("MCP Streamable HTTP security", () => {
   it("read-only MCP mode does not expose write tools", async () => {
     const stores = await createStores();
     const server = createMcpServer(stores, { readOnly: true });
-    const client = new Client({ name: "memoark-read-only-test", version: "1.0.0" });
+    const client = new Client({ name: "memkin-read-only-test", version: "1.0.0" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     await client.connect(clientTransport);

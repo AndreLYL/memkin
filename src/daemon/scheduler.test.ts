@@ -15,7 +15,7 @@ const baseConfig = (sources: SchedulerConfig["sources"]): SchedulerConfig => ({
 describe("Scheduler.reconcile", () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "memoark-sched-"));
+    dir = mkdtempSync(join(tmpdir(), "memkin-sched-"));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -48,7 +48,7 @@ describe("Scheduler.reconcile", () => {
 describe("Scheduler.drain + in-flight", () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "memoark-sched2-"));
+    dir = mkdtempSync(join(tmpdir(), "memkin-sched2-"));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

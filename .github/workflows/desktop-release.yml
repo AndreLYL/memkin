@@ -85,7 +85,7 @@ jobs:
         with:
           projectPath: .
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
-          releaseName: "MemoArk Desktop ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"
+          releaseName: "Memkin Desktop ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"
           releaseBody: "Automated desktop build. The in-app updater reads latest.json from this release."
           releaseDraft: true
           prerelease: false

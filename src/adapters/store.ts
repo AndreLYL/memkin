@@ -48,7 +48,7 @@ export interface StoreAdapterOpts {
 
 export class StoreAdapter implements Adapter {
   id = "store";
-  name = "Memoark Store Adapter";
+  name = "Memkin Store Adapter";
   description = "Writes extraction results directly to PGLite stores";
 
   private stores: StoreAdapterContext;

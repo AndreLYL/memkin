@@ -76,8 +76,8 @@ jobs:
       - name: Smoke test extracted tarball
         run: |
           set -euo pipefail
-          TARBALL="${OUT_DIR}/memoark-pg-darwin-${{ matrix.arch }}.tar.gz"
-          EXTRACT_DIR="$(mktemp -d /tmp/memoark-pg-smoke.XXXXXX)"
+          TARBALL="${OUT_DIR}/memkin-pg-darwin-${{ matrix.arch }}.tar.gz"
+          EXTRACT_DIR="$(mktemp -d /tmp/memkin-pg-smoke.XXXXXX)"
           PGDATA="${EXTRACT_DIR}/pgdata"
           SOCKET_DIR="${EXTRACT_DIR}/socket"
 
@@ -111,18 +111,18 @@ jobs:
             sleep 1
           done
 
-          echo "==> createdb memoark ..."
-          "$CREATEDB" -h "$SOCKET_DIR" memoark
+          echo "==> createdb memkin ..."
+          "$CREATEDB" -h "$SOCKET_DIR" memkin
 
           echo "==> CREATE EXTENSION vector; CREATE EXTENSION pg_trgm; ..."
-          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "CREATE EXTENSION vector;"
-          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "CREATE EXTENSION pg_trgm;"
+          "$PSQL" -h "$SOCKET_DIR" -d memkin -c "CREATE EXTENSION vector;"
+          "$PSQL" -h "$SOCKET_DIR" -d memkin -c "CREATE EXTENSION pg_trgm;"
 
           echo "==> Smoke query: vector cast ..."
-          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "SELECT '[1,2,3]'::vector;"
+          "$PSQL" -h "$SOCKET_DIR" -d memkin -c "SELECT '[1,2,3]'::vector;"
 
           echo "==> Smoke query: pg_trgm similarity ..."
-          "$PSQL" -h "$SOCKET_DIR" -d memoark -c "SELECT similarity('hello', 'helo');"
+          "$PSQL" -h "$SOCKET_DIR" -d memkin -c "SELECT similarity('hello', 'helo');"
 
           echo "==> Stopping postgres ..."
           "$PG_CTL" stop -D "$PGDATA" -m fast
@@ -135,10 +135,10 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: memoark-pg-darwin-${{ matrix.arch }}
+          name: memkin-pg-darwin-${{ matrix.arch }}
           path: |
-            ${{ env.OUT_DIR }}/memoark-pg-darwin-${{ matrix.arch }}.tar.gz
-            ${{ env.OUT_DIR }}/memoark-pg-darwin-${{ matrix.arch }}.tar.gz.sha256
+            ${{ env.OUT_DIR }}/memkin-pg-darwin-${{ matrix.arch }}.tar.gz
+            ${{ env.OUT_DIR }}/memkin-pg-darwin-${{ matrix.arch }}.tar.gz.sha256
           retention-days: 7
           if-no-files-found: error
 
@@ -172,13 +172,13 @@ jobs:
       - name: Download arm64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: memoark-pg-darwin-arm64
+          name: memkin-pg-darwin-arm64
           path: release-assets/
 
       - name: Download x64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: memoark-pg-darwin-x64
+          name: memkin-pg-darwin-x64
           path: release-assets/
 
       # -----------------------------------------------------------------------
@@ -187,8 +187,8 @@ jobs:
       - name: Verify both arch artifacts present
         run: |
           set -euo pipefail
-          ARM64="release-assets/memoark-pg-darwin-arm64.tar.gz"
-          X64="release-assets/memoark-pg-darwin-x64.tar.gz"
+          ARM64="release-assets/memkin-pg-darwin-arm64.tar.gz"
+          X64="release-assets/memkin-pg-darwin-x64.tar.gz"
           [[ -f "$ARM64" ]] || { echo "ERROR: arm64 tarball missing"; exit 1; }
           [[ -f "$X64"   ]] || { echo "ERROR: x64 tarball missing";   exit 1; }
           echo "Both arch artifacts present — proceeding to release."
@@ -211,10 +211,10 @@ jobs:
             **Do not publish the npm package** that references these binaries
             until both assets appear below.
           files: |
-            release-assets/memoark-pg-darwin-arm64.tar.gz
-            release-assets/memoark-pg-darwin-arm64.tar.gz.sha256
-            release-assets/memoark-pg-darwin-x64.tar.gz
-            release-assets/memoark-pg-darwin-x64.tar.gz.sha256
+            release-assets/memkin-pg-darwin-arm64.tar.gz
+            release-assets/memkin-pg-darwin-arm64.tar.gz.sha256
+            release-assets/memkin-pg-darwin-x64.tar.gz
+            release-assets/memkin-pg-darwin-x64.tar.gz.sha256
           draft: false
           prerelease: false
         env:

@@ -43,7 +43,7 @@ describe("MCP server instructions (L2 directive)", () => {
   it("sends the L2 memory directive as server instructions on initialize", async () => {
     stores = await createStores();
     server = createMcpServer(stores);
-    client = new Client({ name: "memoark-instructions-test", version: "1.0.0" });
+    client = new Client({ name: "memkin-instructions-test", version: "1.0.0" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     await client.connect(clientTransport);

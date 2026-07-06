@@ -13,8 +13,8 @@ let home: string;
 let cwd: string;
 
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-home-"));
-  cwd = mkdtempSync(join(tmpdir(), "memoark-proj-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-home-"));
+  cwd = mkdtempSync(join(tmpdir(), "memkin-proj-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -27,7 +27,7 @@ function ctx(over: Partial<PlanCtx> = {}): PlanCtx {
     platform: "linux",
     scope: "global",
     cwd,
-    launch: { command: "memoark", args: ["serve", "--mcp"] },
+    launch: { command: "memkin", args: ["serve", "--mcp"] },
     action: "upsert",
     transport: "stdio",
     ...over,
@@ -46,13 +46,13 @@ describe("client adapters", () => {
         path: join(home, ".claude.json"),
         kind: "json-mcp",
         action: "upsert",
-        entry: { kind: "stdio", command: "memoark", args: ["serve", "--mcp"] },
+        entry: { kind: "stdio", command: "memkin", args: ["serve", "--mcp"] },
       },
       {
         path: join(home, ".claude", "CLAUDE.md"),
         kind: "marked-block",
         action: "upsert",
-        content: expect.stringContaining("Memoark"),
+        content: expect.stringContaining("Memkin"),
       },
     ]);
   });
@@ -86,7 +86,7 @@ describe("client adapters", () => {
     const ops = cursor.plan(ctx());
     expect(ops[0].path).toBe(join(home, ".cursor", "mcp.json"));
     expect(ops[0].kind).toBe("json-mcp");
-    expect(ops[1].path).toBe(join(home, ".cursor", "rules", "memoark.mdc"));
+    expect(ops[1].path).toBe(join(home, ".cursor", "rules", "memkin.mdc"));
     expect(ops[1].kind).toBe("managed-file");
     expect(ops[1].content).toContain("alwaysApply: true");
   });

@@ -1,12 +1,12 @@
-# Releasing Memoark
+# Releasing Memkin
 
-Memoark is distributed as an npm package and runs via `npx memoark` or a global
+Memkin is distributed as an npm package and runs via `npx memkin` or a global
 install. Releases are automated by `.github/workflows/release.yml`.
 
 ## One-time setup
 
 1. Create an npm **automation** access token with publish rights for the
-   `memoark` package (npm → Account → Access Tokens → Generate → Automation).
+   `memkin` package (npm → Account → Access Tokens → Generate → Automation).
 2. Add it to the GitHub repo as a secret named **`NPM_TOKEN`**
    (Settings → Secrets and variables → Actions → New repository secret).
 
@@ -36,13 +36,13 @@ The `Release` workflow then:
 Users can install with:
 
 ```bash
-npx memoark@latest          # run without installing
-npm install -g memoark      # global install
+npx memkin@latest          # run without installing
+npm install -g memkin      # global install
 ```
 
 ## Standalone single-file binaries — status
 
-`bun run compile` produces a single executable (`dist-bin/memoark`) via
+`bun run compile` produces a single executable (`dist-bin/memkin`) via
 `bun build --compile`. Project-owned assets are already self-contained: schema,
 migrations, extractor prompts, and the version are embedded as constants, and
 `react-devtools-core` is bundled so the binary starts.
@@ -53,7 +53,7 @@ PGlite resolves its own WASM runtime and the pgvector extension bundle from the
 filesystem at runtime, and `bun build --compile` does not embed those transitive
 WASM assets (see [oven-sh/bun#6567](https://github.com/oven-sh/bun/issues/6567)).
 So today the binary runs only the non-DB commands (`--version`, `--help`,
-`doctor`). Because Memoark is database-centric, **npm/npx is the supported
+`doctor`). Because Memkin is database-centric, **npm/npx is the supported
 install path** and the release workflow ships that.
 
 Paths to a real "download-and-run" experience (pick one later):

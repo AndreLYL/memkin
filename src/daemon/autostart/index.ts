@@ -6,18 +6,18 @@ import { launchdBootout, launchdLoad, launchdStatus, renderLaunchdPlist } from "
 import type { CommandRunner } from "./runner.js";
 import { renderSystemdUnit, systemdDisable, systemdStatus } from "./systemd.js";
 
-const LABEL = "com.memoark.daemon";
+const LABEL = "com.memkin.daemon";
 
 function plistPath(home: string): string {
-  return join(home, "Library", "LaunchAgents", "com.memoark.daemon.plist");
+  return join(home, "Library", "LaunchAgents", "com.memkin.daemon.plist");
 }
 
 function systemdUnitPath(home: string): string {
-  return join(home, ".config", "systemd", "user", "memoark.service");
+  return join(home, ".config", "systemd", "user", "memkin.service");
 }
 
 function stateDir(home: string): string {
-  return join(home, ".memoark");
+  return join(home, ".memkin");
 }
 
 export interface EnableAutostartOptions {
@@ -57,7 +57,7 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
   const { platform, home, runner, state, env, linger } = opts;
 
   if (platform === "darwin") {
-    const logsDir = join(home, ".memoark", "logs");
+    const logsDir = join(home, ".memkin", "logs");
     const plist = renderLaunchdPlist({
       label: LABEL,
       argv: state.argv,
@@ -86,7 +86,7 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
     }
   } else if (platform === "linux") {
     const unit = renderSystemdUnit({
-      description: "Memoark Daemon",
+      description: "Memkin Daemon",
       argv: state.argv,
       env,
     });
@@ -113,7 +113,7 @@ export async function enableAutostart(opts: EnableAutostartOptions): Promise<voi
       "--user",
       "enable",
       "--now",
-      "memoark.service",
+      "memkin.service",
     ]);
     if (enableResult.code !== 0) {
       rmSync(systemdUnitPath(home), { force: true });

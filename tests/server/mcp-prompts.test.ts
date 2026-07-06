@@ -28,7 +28,7 @@ async function createStores() {
 async function connect() {
   const stores = await createStores();
   const server = createMcpServer(stores);
-  const client = new Client({ name: "memoark-prompt-test", version: "1.0.0" });
+  const client = new Client({ name: "memkin-prompt-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
@@ -74,7 +74,7 @@ describe("MCP prompts", () => {
     const recall = promptText(
       await current.client.getPrompt({
         name: "recall",
-        arguments: { topic: "Memoark deployment", platform: "wechat", participant: "张三" },
+        arguments: { topic: "Memkin deployment", platform: "wechat", participant: "张三" },
       }),
     );
     expect(recall).toContain("query");
@@ -84,7 +84,7 @@ describe("MCP prompts", () => {
     const handoff = promptText(
       await current.client.getPrompt({
         name: "handoff",
-        arguments: { project: "memoark" },
+        arguments: { project: "memkin" },
       }),
     );
     expect(handoff).toContain("get_page_context");
@@ -111,10 +111,10 @@ describe("MCP prompts", () => {
             : prompt.name === "weekly-digest"
               ? { days: "7" }
               : prompt.name === "decision-log"
-                ? { topic: "Memoark" }
+                ? { topic: "Memkin" }
                 : prompt.name === "handoff"
-                  ? { project: "Memoark" }
-                  : { topic: "Memoark" },
+                  ? { project: "Memkin" }
+                  : { topic: "Memkin" },
       });
       expect(promptText(result)).not.toMatch(
         /\b(query_wechat|search_feishu|get_feishu_message|get_wechat_chat)\b/,

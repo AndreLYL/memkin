@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS person_handles (
 CREATE INDEX IF NOT EXISTS idx_person_handles_slug ON person_handles (canonical_slug);
 
 -- Engine/embedding metadata (key-value). Used for embedding fingerprint consistency.
-CREATE TABLE IF NOT EXISTS memoark_meta (
+CREATE TABLE IF NOT EXISTS memkin_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );

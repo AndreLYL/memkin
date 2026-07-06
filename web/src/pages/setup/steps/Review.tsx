@@ -60,7 +60,7 @@ export function Review({ config, onBack }: StepProps) {
       <div className="flex flex-col items-center gap-4 py-8 text-center">
         <CheckCircle size={40} strokeWidth={1.75} className="text-green-600" />
         <h2 className="font-serif text-xl font-bold text-fg-default">Configuration Saved!</h2>
-        <p className="text-fg-muted">Run <code className="rounded bg-bg-subtle px-1">memoark serve</code> to start Memoark.</p>
+        <p className="text-fg-muted">Run <code className="rounded bg-bg-subtle px-1">memkin serve</code> to start Memkin.</p>
       </div>
     );
   }
@@ -91,7 +91,7 @@ export function Review({ config, onBack }: StepProps) {
         </div>
         <div className="grid grid-cols-2 gap-2 px-4 py-3">
           <span className="text-fg-muted">Database Path</span>
-          <span className="text-fg-default font-mono">{config.store?.data_dir || "~/.memoark/data (default)"}</span>
+          <span className="text-fg-default font-mono">{config.store?.data_dir || "~/.memkin/data (default)"}</span>
         </div>
       </div>
 
@@ -99,7 +99,7 @@ export function Review({ config, onBack }: StepProps) {
         <ToggleSwitch
           id="enable-autofetch"
           label="启用后台定时抓取(开机后自动运行)"
-          description="开启后，Memoark 将按计划自动从各数据源抓取内容。"
+          description="开启后，Memkin 将按计划自动从各数据源抓取内容。"
           checked={autoFetch}
           onChange={setAutoFetch}
         />

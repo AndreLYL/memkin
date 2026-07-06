@@ -6,7 +6,7 @@ describe("runSessionStart", () => {
   it("injects the session-context digest as SessionStart additionalContext", async () => {
     const out = (await runSessionStart(
       { source: "startup" },
-      { sessionContext: async () => "## 近期工作概览\n**活跃项目**：memoark" },
+      { sessionContext: async () => "## 近期工作概览\n**活跃项目**：memkin" },
     )) as HookOutput;
     expect(out.hookSpecificOutput.hookEventName).toBe("SessionStart");
     expect(out.hookSpecificOutput.additionalContext).toContain("活跃项目");

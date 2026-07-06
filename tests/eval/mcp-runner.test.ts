@@ -86,7 +86,7 @@ async function seedStores(stores: Awaited<ReturnType<typeof createStores>>) {
 
 async function listToolNames(stores: Awaited<ReturnType<typeof createStores>>, readOnly = false) {
   const server = createMcpServer(stores, { readOnly });
-  const client = new Client({ name: "memoark-eval-test", version: "1.0.0" });
+  const client = new Client({ name: "memkin-eval-test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   await client.connect(clientTransport);
@@ -148,7 +148,7 @@ describe("MCP contract eval runner", () => {
     const codex = await tools.timeline_feed({ platform: "codex" });
     expect(codex).toEqual([
       expect.objectContaining({
-        slug: "projects/memoark",
+        slug: "projects/memkin",
         provenance: expect.objectContaining({ platform: "codex" }),
       }),
     ]);

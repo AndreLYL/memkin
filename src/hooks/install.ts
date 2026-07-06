@@ -5,10 +5,10 @@ import { parseJsonConfig, stringifyJsonConfig } from "../install/json-config.js"
 import { type HookSpec, removeHooks, upsertHooks } from "./settings-edit.js";
 
 const READ_HOOKS: HookSpec[] = [
-  { event: "SessionStart", matcher: "startup|resume", command: "memoark hook session-start" },
-  { event: "UserPromptSubmit", command: "memoark hook user-prompt" },
+  { event: "SessionStart", matcher: "startup|resume", command: "memkin hook session-start" },
+  { event: "UserPromptSubmit", command: "memkin hook user-prompt" },
 ];
-const WRITE_HOOK: HookSpec = { event: "SessionEnd", command: "memoark hook session-end" };
+const WRITE_HOOK: HookSpec = { event: "SessionEnd", command: "memkin hook session-end" };
 
 export interface HooksInstallOptions {
   writeBack?: boolean;

@@ -13,7 +13,7 @@ export interface PgCheck {
 }
 
 /**
- * Checks Postgres connectivity and pgvector creatability for `memoark doctor`.
+ * Checks Postgres connectivity and pgvector creatability for `memkin doctor`.
  *
  * vectorReady is true if:
  *   - the vector extension is already installed (pg_extension), OR
@@ -162,7 +162,7 @@ export async function checkManagedPostgres(deps: CheckManagedDeps): Promise<Mana
     results.push({
       name: "managed-cluster",
       severity: runtimeOk ? "warn" : "fail",
-      message: `Cluster not initialized at ${paths.pgdata} — run \`memoark up\` to provision`,
+      message: `Cluster not initialized at ${paths.pgdata} — run \`memkin up\` to provision`,
     });
   }
 
@@ -178,7 +178,7 @@ export async function checkManagedPostgres(deps: CheckManagedDeps): Promise<Mana
     results.push({
       name: "managed-state",
       severity: "warn",
-      message: "Managed state not present — not provisioned, run `memoark up`",
+      message: "Managed state not present — not provisioned, run `memkin up`",
     });
   }
 

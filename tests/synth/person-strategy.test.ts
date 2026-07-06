@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockProvider } from "../../src/extractors/providers/mock.js";
 import type { StoreContext } from "../../src/server/api.js";
 import { ChunkStore } from "../../src/store/chunks.js";
 import { Database } from "../../src/store/database.js";

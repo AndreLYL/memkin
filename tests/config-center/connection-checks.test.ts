@@ -11,7 +11,7 @@ const OPENAI_API_KEY_PLACEHOLDER = "$" + "{OPENAI_API_KEY}";
 
 describe("config-center connection checks", () => {
   it("does not build an LLM check until provider, model, base URL, and API key are present", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const withBaseUrl = updateDraft(doc, "llm.base_url", "https://api.openai.com/v1");
 
     expect(buildConnectionCheckPlan(doc.draft).llm).toBeUndefined();
@@ -19,7 +19,7 @@ describe("config-center connection checks", () => {
   });
 
   it("builds an LLM check after all required LLM fields are present", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const withBaseUrl = updateDraft(doc, "llm.base_url", "https://api.openai.com/v1");
     const complete = updateDraft(withBaseUrl, "llm.api_key", OPENAI_API_KEY_PLACEHOLDER);
 
@@ -36,7 +36,7 @@ describe("config-center connection checks", () => {
   });
 
   it("does not build an OpenAI embedding check until model, dimensions, base URL, and API key are present", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const withoutDimensions = updateDraft(doc, "embedding.dimensions", 0);
     const withBaseUrl = updateDraft(
       withoutDimensions,
@@ -51,7 +51,7 @@ describe("config-center connection checks", () => {
   });
 
   it("builds OpenAI embedding checks from complete provider settings", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const withBaseUrl = updateDraft(doc, "embedding.base_url", "https://api.openai.com/v1");
     const complete = updateDraft(withBaseUrl, "embedding.api_key", "sk-embedding");
     const plan = buildConnectionCheckPlan(complete.draft);
@@ -68,7 +68,7 @@ describe("config-center connection checks", () => {
   });
 
   it("builds Ollama embedding checks without requiring an API key", () => {
-    const doc = createDefaultConfigDocument("/tmp/memoark.yaml");
+    const doc = createDefaultConfigDocument("/tmp/memkin.yaml");
     const provider = updateDraft(doc, "embedding.provider", "ollama");
     const model = updateDraft(provider, "embedding.model", "nomic-embed-text");
     const dimensions = updateDraft(model, "embedding.dimensions", 768);

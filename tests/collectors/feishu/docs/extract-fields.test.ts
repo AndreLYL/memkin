@@ -19,7 +19,7 @@ const cand: DocCandidate = {
 const llmJson = JSON.stringify({
   purpose: "Sprint review",
   topics: ["sprint", "roadmap"],
-  entities: [{ name: "Memoark", type_guess: "project" }],
+  entities: [{ name: "Memkin", type_guess: "project" }],
   overview: "Notes from the sprint review meeting.",
   decisions: [{ text: "Ship v2 next week", made_by: "Alice" }],
   action_items: [

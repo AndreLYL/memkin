@@ -149,7 +149,7 @@ describe("Signal Extraction Redesign E2E Tests", () => {
 
   beforeEach(async () => {
     llmCallCount = 0;
-    tempDir = await mkdtemp(join(tmpdir(), "memoark-redesign-e2e-"));
+    tempDir = await mkdtemp(join(tmpdir(), "memkin-redesign-e2e-"));
     config = {
       dedup_checkpoint: join(tempDir, "dedup.jsonl"),
       cursor_checkpoint: join(tempDir, "cursors.yaml"),

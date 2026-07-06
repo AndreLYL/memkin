@@ -1,16 +1,16 @@
-import { MEMOARK_BLOCK_END, MEMOARK_BLOCK_START } from "./directive.js";
+import { MEMKIN_BLOCK_END, MEMKIN_BLOCK_START } from "./directive.js";
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Matches a single memoark-delimited block (non-greedy, spans newlines).
+// Matches a single memkin-delimited block (non-greedy, spans newlines).
 const blockRegex = new RegExp(
-  `${escapeRegExp(MEMOARK_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MEMOARK_BLOCK_END)}`,
+  `${escapeRegExp(MEMKIN_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MEMKIN_BLOCK_END)}`,
 );
 
 /**
- * Insert or replace the memoark block in `existing`.
+ * Insert or replace the memkin block in `existing`.
  * `block` must already include the start/end markers (e.g. DIRECTIVE_L1).
  * Idempotent: re-running with changed content replaces in place, never appends a duplicate.
  */
@@ -22,7 +22,7 @@ export function upsertBlock(existing: string, block: string): string {
   return `${existing.replace(/\s*$/, "")}\n\n${block}\n`;
 }
 
-/** Remove the memoark block, tidying surrounding whitespace. No-op if absent. */
+/** Remove the memkin block, tidying surrounding whitespace. No-op if absent. */
 export function removeBlock(existing: string): string {
   if (!blockRegex.test(existing)) return existing;
   const tidied = existing
@@ -32,7 +32,7 @@ export function removeBlock(existing: string): string {
   return tidied === "" ? "" : `${tidied}\n`;
 }
 
-/** True if `existing` already contains a memoark block. */
+/** True if `existing` already contains a memkin block. */
 export function hasBlock(existing: string): boolean {
   return blockRegex.test(existing);
 }

@@ -1,7 +1,7 @@
 # Spike build products — large binaries and copied PGLite assets, do not commit.
 assets/
 dist-run/
-memoark-spike
+memkin-spike
 
 # Spike B — CI-downloaded screenshot artifact, reproducible per run, do not commit.
 linux-graph.png

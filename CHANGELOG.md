@@ -7,13 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed the product from `memoark` to `memkin`** (trademark/SEO collision). The npm package moves from `@andre.li/memoark` to `memkin`, the config file `memoark.yaml` becomes `memkin.yaml`, and the data/state directories `~/.memoark` / `.memoark/` become `~/.memkin` / `.memkin/`. Automatic migration is included in this release: on first run the CLI renames `~/.memoark`, `memoark.yaml` (found via the same parent-directory walk as config discovery), and `.memoark/` to their memkin equivalents. If both the old and new path exist, the new one is kept and a warning flags the stale legacy path (nothing is merged or deleted); if the rename fails — e.g. old and new on different volumes — nothing is copied and an actionable manual `mv` hint is printed. Legacy `MEMOARK_*` environment variables are no longer read; a startup warning lists any still set with their `MEMKIN_*` replacements.
+
 ### Added
 
 - SourceRef v2 core and extension fields with schema parity, compact provenance handling, participant metadata, and cross-source source type support.
 - Unified MemoryFilter support for MCP `query`, `search`, and `timeline_feed`, including platform, source type, channel, participant, date, type, exclude type, and bounded limit filters.
 - Preferred MCP memory tools: `get_page_context`, `timeline_feed`, `explore_graph`, `manage_links`, and `manage_tags`.
 - MCP contract tests using the SDK in-memory client transport to verify tool listing, tool descriptions, package version alignment, legacy tool gating, and structured errors.
-- MCP Resources for `memoark://health`, `memoark://pages`, page content, page context, and page timeline.
+- MCP Resources for `memkin://health`, `memkin://pages`, page content, page context, and page timeline.
 - MCP Prompts for recall, weekly digest, person brief, decision log, and project handoff workflows.
 - Structured MCP tool output schemas and `structuredContent` for core read/health tools while preserving stable JSON text responses.
 - Streamable HTTP MCP app with origin, host, bearer-token, and read-only tool gating.
@@ -28,13 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Timeline and graph upserts now keep latest provenance/source hash when new provenance is provided, while preserving existing provenance for provenance-less updates.
 - Date-only `to` filters now cover the full day, while datetime `to` filters use the exact timestamp bound.
 - Hybrid query chunk searches now use parameterized candidate limits instead of hard-coded SQL limits.
-- `memoark serve` can run MCP Streamable HTTP via `--mcp-http`, `mcp.http.enabled`, or `server.mcp_transport=streamable_http`; stdio remains the default MCP path.
+- `memkin serve` can run MCP Streamable HTTP via `--mcp-http`, `mcp.http.enabled`, or `server.mcp_transport=streamable_http`; stdio remains the default MCP path.
 
 ### Fixed
 
-- Configuration discovery now resolves `memoark.yaml` from `--config`, `MEMOARK_CONFIG`, or parent directories, and state files now anchor to the resolved config root to avoid cross-directory cursor/dedup splits.
+- Configuration discovery now resolves `memkin.yaml` from `--config`, `MEMKIN_CONFIG`, or parent directories, and state files now anchor to the resolved config root to avoid cross-directory cursor/dedup splits.
 - Missing environment variables referenced by `${VAR}` placeholders are preserved and reported per command instead of being silently replaced with empty strings.
-- The CLI binary now falls back to the current Node runtime when Bun is unavailable, while `memoark serve` can run through `@hono/node-server`.
+- The CLI binary now falls back to the current Node runtime when Bun is unavailable, while `memkin serve` can run through `@hono/node-server`.
 - Runtime resource loading for schema and prompt files now reports explicit build asset errors when packaged files are missing.
 - Setup command registration now reports `npm link` failures before falling back to a shell alias.
 - Store writes for timeline entries, graph links, and tags now fail when target page slugs are missing instead of silently reporting success after zero-row inserts.

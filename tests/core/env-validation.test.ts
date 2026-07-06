@@ -16,7 +16,7 @@ describe("env validation", () => {
   let originalAnthropic: string | undefined;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "memoark-env-"));
+    tempDir = mkdtempSync(join(tmpdir(), "memkin-env-"));
     originalOpenAI = process.env.OPENAI_API_KEY;
     originalAnthropic = process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
@@ -38,7 +38,7 @@ describe("env validation", () => {
   });
 
   it("throws for missing LLM placeholder used by extract", () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     writeFileSync(
       configPath,
       `llm:\n  provider: openai\n  api_key: ${OPENAI_API_KEY_PLACEHOLDER}\n`,
@@ -50,7 +50,7 @@ describe("env validation", () => {
   });
 
   it("throws when the selected LLM provider has no key in config or shell", () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     writeFileSync(configPath, "llm:\n  provider: anthropic\n  model: claude-3-haiku-20240307\n");
     const config = loadConfig(configPath);
 
@@ -58,7 +58,7 @@ describe("env validation", () => {
   });
 
   it("does not require OpenAI embedding env for fts-only search", () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     writeFileSync(
       configPath,
       `embedding:\n  provider: openai\n  api_key: ${OPENAI_API_KEY_PLACEHOLDER}\n`,
@@ -72,7 +72,7 @@ describe("env validation", () => {
   });
 
   it("returns diagnostics for doctor without throwing", () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     writeFileSync(configPath, `llm:\n  api_key: ${OPENAI_API_KEY_PLACEHOLDER}\n`);
     const config = loadConfig(configPath);
 

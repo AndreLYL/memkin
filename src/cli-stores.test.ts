@@ -69,7 +69,7 @@ function makeConfig(
       llm_rewrite: false,
     },
     __context: {
-      configPath: "/tmp/memoark.yaml",
+      configPath: "/tmp/memkin.yaml",
       projectRoot: "/tmp",
       missingEnvVars: [],
     },

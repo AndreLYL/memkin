@@ -46,13 +46,13 @@ beforeEach(() => {
 });
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
-  delete process.env.MEMOARK_PG_RUNTIME_DIR;
+  delete process.env.MEMKIN_PG_RUNTIME_DIR;
 });
 
 describe("PgRuntimeProvider override mode", () => {
   it("ensure() returns runtime paths from a valid override dir without download", async () => {
     const rt = makeValidRuntime(root);
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
     const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" });
     const paths = await provider.ensure();
     expect(paths.root).toBe(rt);
@@ -64,7 +64,7 @@ describe("PgRuntimeProvider override mode", () => {
   it("hard-fails when a required binary is missing", async () => {
     const rt = makeValidRuntime(root);
     rmSync(join(rt, "bin", "initdb"));
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
     const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" });
     await expect(provider.ensure()).rejects.toThrow(/initdb/);
   });
@@ -72,7 +72,7 @@ describe("PgRuntimeProvider override mode", () => {
   it("hard-fails when pg_trgm.control is missing", async () => {
     const rt = makeValidRuntime(root);
     rmSync(join(rt, "share", "postgresql", "extension", "pg_trgm.control"));
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
     const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" });
     await expect(provider.ensure()).rejects.toThrow(/pg_trgm/);
   });
@@ -80,7 +80,7 @@ describe("PgRuntimeProvider override mode", () => {
   it("download mode (no override) throws actionable error before network when sha is placeholder", async () => {
     // Default RUNTIME_MANIFEST has TODO_PIN_* shas → placeholder guard fires first.
     const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" });
-    await expect(provider.ensure()).rejects.toThrow(/memoark up|not pinned|checksum/i);
+    await expect(provider.ensure()).rejects.toThrow(/memkin up|not pinned|checksum/i);
   });
 });
 
@@ -127,7 +127,7 @@ describe("PgRuntimeProvider download path", () => {
     const paths = await provider.ensure();
 
     // Runtime landed at the expected runtimeRoot
-    const expectedRoot = join(root, ".memoark", "runtime", "17");
+    const expectedRoot = join(root, ".memkin", "runtime", "17");
     expect(paths.root).toBe(expectedRoot);
     expect(paths.pgMajor).toBe("17");
     expect(paths.postgres).toBe(join(expectedRoot, "bin", "postgres"));
@@ -226,7 +226,7 @@ describe("PgRuntimeProvider download path", () => {
 describe("PgRuntimeProvider verify()", () => {
   it("verify() on a valid override dir returns paths without calling fetchTarball", async () => {
     const rt = makeValidRuntime(root);
-    process.env.MEMOARK_PG_RUNTIME_DIR = rt;
+    process.env.MEMKIN_PG_RUNTIME_DIR = rt;
 
     const fetchTarball = vi.fn();
     const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" }, { fetchTarball });
@@ -241,13 +241,13 @@ describe("PgRuntimeProvider verify()", () => {
     const fetchTarball = vi.fn();
     const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" }, { fetchTarball });
 
-    await expect(provider.verify()).rejects.toThrow(/not provisioned|memoark up/i);
+    await expect(provider.verify()).rejects.toThrow(/not provisioned|memkin up/i);
     expect(fetchTarball).not.toHaveBeenCalled();
   });
 
   it("verify() on an already-downloaded runtimeRoot returns paths without fetch", async () => {
     // Simulate a previously downloaded runtime at the runtimeRoot location
-    const runtimeRoot = join(root, ".memoark", "runtime", "17");
+    const runtimeRoot = join(root, ".memkin", "runtime", "17");
     populateValidRuntime(runtimeRoot);
 
     const fetchTarball = vi.fn();

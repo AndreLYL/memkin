@@ -14,6 +14,6 @@ export function renderInjection(hits: ScoredHit[]): string | null {
     const title = h.title ? `${h.title}: ` : "";
     return `- [${h.slug}] ${title}${h.snippet}`.trimEnd();
   });
-  const body = `Relevant memory from Memoark (cite [slug] if used):\n${lines.join("\n")}`;
+  const body = `Relevant memory from Memkin (cite [slug] if used):\n${lines.join("\n")}`;
   return body.length > INJECT_MAX_CHARS ? body.slice(0, INJECT_MAX_CHARS) : body;
 }

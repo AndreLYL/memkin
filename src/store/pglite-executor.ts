@@ -20,8 +20,8 @@ export class PgliteExecutor implements SqlExecutor {
     );
     let lock: LockHandle | undefined;
     try {
-      if (dataDir && !process.env.MEMOARK_NO_LOCK) {
-        lock = acquireLock(dataDir, opts.lockLabel ?? "memoark");
+      if (dataDir && !process.env.MEMKIN_NO_LOCK) {
+        lock = acquireLock(dataDir, opts.lockLabel ?? "memkin");
       }
       return new PgliteExecutor(pg, lock);
     } catch (e) {

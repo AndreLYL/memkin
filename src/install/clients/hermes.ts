@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { MEMOARK_SKILL } from "../skill.js";
+import { MEMKIN_SKILL } from "../skill.js";
 import { type ClientAdapter, mcpEntry, type PlanCtx } from "../types.js";
 
 // OpenClaw / Hermes. MCP lives in config.yaml `mcp_servers`; the skill drops
@@ -28,10 +28,10 @@ export const hermes: ClientAdapter = {
         entry: ctx.action === "upsert" ? mcpEntry(ctx) : undefined,
       },
       {
-        path: join(root, "skills", "memoark", "SKILL.md"),
+        path: join(root, "skills", "memkin", "SKILL.md"),
         kind: "managed-file",
         action: ctx.action,
-        content: ctx.action === "upsert" ? MEMOARK_SKILL : undefined,
+        content: ctx.action === "upsert" ? MEMKIN_SKILL : undefined,
       },
     ];
   },

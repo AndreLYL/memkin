@@ -42,9 +42,7 @@ export async function createPipelineRuntime(
 ): Promise<PipelineRuntime> {
   const llmConfig = { ...config.llm };
   if (!llmConfig.api_key && !process.env.OPENAI_API_KEY) {
-    throw new Error(
-      "No API key configured. Set api_key in memoark.yaml or OPENAI_API_KEY env var.",
-    );
+    throw new Error("No API key configured. Set api_key in memkin.yaml or OPENAI_API_KEY env var.");
   }
   if (!llmConfig.api_key) {
     llmConfig.api_key = process.env.OPENAI_API_KEY;

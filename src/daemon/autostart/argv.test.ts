@@ -6,8 +6,8 @@ const tail = ["serve", "--mcp-http", "--no-open"];
 
 describe("resolveDaemonArgv", () => {
   it("compiled standalone → [binary, ...tail]", () => {
-    expect(resolveDaemonArgv({ kind: "compiled", binaryPath: "/abs/memoark" }, tail)).toEqual([
-      "/abs/memoark",
+    expect(resolveDaemonArgv({ kind: "compiled", binaryPath: "/abs/memkin" }, tail)).toEqual([
+      "/abs/memkin",
       ...tail,
     ]);
   });
@@ -34,14 +34,14 @@ describe("resolveDaemonArgv", () => {
 describe("detectDaemonRuntime", () => {
   const projectRoot = "/project";
 
-  it("compiled branch: Bun binary named memoark", () => {
+  it("compiled branch: Bun binary named memkin", () => {
     const result = detectDaemonRuntime({
-      execPath: "/usr/local/bin/memoark",
+      execPath: "/usr/local/bin/memkin",
       hasBun: true,
       existsSync: () => false,
       projectRoot,
     });
-    expect(result).toEqual({ kind: "compiled", binaryPath: "/usr/local/bin/memoark" });
+    expect(result).toEqual({ kind: "compiled", binaryPath: "/usr/local/bin/memkin" });
   });
 
   it("node-dist branch: node exec with dist/cli.js present", () => {
@@ -55,7 +55,7 @@ describe("detectDaemonRuntime", () => {
     expect(result).toEqual({ kind: "node-dist", execPath: "/usr/local/bin/node", distCli });
   });
 
-  it("bun-src branch: Bun exec (not memoark) with src/cli.ts present", () => {
+  it("bun-src branch: Bun exec (not memkin) with src/cli.ts present", () => {
     const srcCli = join(projectRoot, "src", "cli.ts");
     const result = detectDaemonRuntime({
       execPath: "/usr/local/bin/bun",

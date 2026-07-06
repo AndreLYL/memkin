@@ -15,7 +15,7 @@ describe("config-center document", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "memoark-config-center-"));
+    tempDir = mkdtempSync(join(tmpdir(), "memkin-config-center-"));
   });
 
   afterEach(() => {
@@ -23,7 +23,7 @@ describe("config-center document", () => {
   });
 
   it("creates a default draft for a missing config file", async () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     const doc = await loadConfigDocument(configPath);
 
     expect(doc.exists).toBe(false);
@@ -33,7 +33,7 @@ describe("config-center document", () => {
   });
 
   it("loads raw placeholders without interpolating them", async () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     writeFileSync(
       configPath,
       [
@@ -51,7 +51,7 @@ describe("config-center document", () => {
   });
 
   it("updates draft values immutably", () => {
-    const doc = createDefaultConfigDocument(join(tempDir, "memoark.yaml"));
+    const doc = createDefaultConfigDocument(join(tempDir, "memkin.yaml"));
     const updated = updateDraft(doc, "llm.model", "gpt-test");
 
     expect(updated.draft.llm?.model).toBe("gpt-test");
@@ -59,7 +59,7 @@ describe("config-center document", () => {
   });
 
   it("saves parseable YAML and preserves unknown top-level fields", async () => {
-    const configPath = join(tempDir, "memoark.yaml");
+    const configPath = join(tempDir, "memkin.yaml");
     writeFileSync(
       configPath,
       ["custom_section:", "  keep: true", "llm:", "  provider: mock", "  model: mock-model"].join(

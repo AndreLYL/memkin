@@ -17,7 +17,7 @@ interface AuthStatusResponse {
  *
  * Returning null means "p2p resolution unavailable for this session" — callers
  * should surface a clear error to the user (e.g. "run lark auth login or set
- * feishu.sources.dm.self_open_id in memoark.yaml").
+ * feishu.sources.dm.self_open_id in memkin.yaml").
  *
  * Empty string yamlOverride is treated as no override (falls through to lark-cli)
  * since an explicit empty string is more likely a config mistake than intent.

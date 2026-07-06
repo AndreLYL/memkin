@@ -203,7 +203,7 @@ describe("PrivacyProcessor", () => {
   });
 
   it("writes reversible redaction map under custom state base", () => {
-    const customBase = mkdtempSync(join(tmpdir(), "memoark-privacy-state-"));
+    const customBase = mkdtempSync(join(tmpdir(), "memkin-privacy-state-"));
     const customMapPath = statePath("redaction_map.jsonl", customBase);
     const config: PrivacyConfig = {
       enabled: true,

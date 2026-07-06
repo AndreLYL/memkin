@@ -79,10 +79,10 @@ jobs:
 
             ```bash
             # Run without installing
-            npx memoark@${{ github.ref_name }}
+            npx memkin@${{ github.ref_name }}
 
             # Or install globally
-            npm install -g memoark@${{ github.ref_name }}
+            npm install -g memkin@${{ github.ref_name }}
             ```
 
             Requires Node.js >= 18. See the README for setup and MCP integration.

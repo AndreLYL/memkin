@@ -8,12 +8,12 @@ let home: string;
 let cwd: string;
 const base = {
   platform: "linux" as NodeJS.Platform,
-  launch: { command: "memoark", args: ["serve", "--mcp"] },
+  launch: { command: "memkin", args: ["serve", "--mcp"] },
 };
 
 beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "memoark-home-"));
-  cwd = mkdtempSync(join(tmpdir(), "memoark-proj-"));
+  home = mkdtempSync(join(tmpdir(), "memkin-home-"));
+  cwd = mkdtempSync(join(tmpdir(), "memkin-proj-"));
 });
 afterEach(() => {
   rmSync(home, { recursive: true, force: true });
@@ -25,28 +25,28 @@ function read(path: string): string {
 }
 
 describe("install orchestrator", () => {
-  it("installs cursor: mcp.json gets memoark, rules .mdc written", () => {
+  it("installs cursor: mcp.json gets memkin, rules .mdc written", () => {
     runInstall({ agent: ["cursor"], home, cwd, ...base });
     const mcp = JSON.parse(read(join(home, ".cursor", "mcp.json")));
-    expect(mcp.mcpServers.memoark).toEqual({ command: "memoark", args: ["serve", "--mcp"] });
-    const mdc = read(join(home, ".cursor", "rules", "memoark.mdc"));
+    expect(mcp.mcpServers.memkin).toEqual({ command: "memkin", args: ["serve", "--mcp"] });
+    const mdc = read(join(home, ".cursor", "rules", "memkin.mdc"));
     expect(mdc).toContain("alwaysApply: true");
-    expect(mdc).toContain("Memoark");
+    expect(mdc).toContain("Memkin");
   });
 
-  it("is idempotent: second install adds no duplicate memoark entry", () => {
+  it("is idempotent: second install adds no duplicate memkin entry", () => {
     runInstall({ agent: ["cursor"], home, cwd, ...base });
     runInstall({ agent: ["cursor"], home, cwd, ...base });
     const mcp = JSON.parse(read(join(home, ".cursor", "mcp.json")));
-    expect(Object.keys(mcp.mcpServers)).toEqual(["memoark"]);
+    expect(Object.keys(mcp.mcpServers)).toEqual(["memkin"]);
   });
 
   it("uninstall removes mcp entry and deletes the managed rules file", () => {
     runInstall({ agent: ["cursor"], home, cwd, ...base });
     runUninstall({ agent: ["cursor"], home, cwd, ...base });
     const mcp = JSON.parse(read(join(home, ".cursor", "mcp.json")));
-    expect(mcp.mcpServers.memoark).toBeUndefined();
-    expect(existsSync(join(home, ".cursor", "rules", "memoark.mdc"))).toBe(false);
+    expect(mcp.mcpServers.memkin).toBeUndefined();
+    expect(existsSync(join(home, ".cursor", "rules", "memkin.mdc"))).toBe(false);
   });
 
   it("preserves an existing unrelated mcp server on install", () => {
@@ -58,7 +58,7 @@ describe("install orchestrator", () => {
     runInstall({ agent: ["cursor"], home, cwd, ...base });
     const mcp = JSON.parse(read(join(home, ".cursor", "mcp.json")));
     expect(mcp.mcpServers.other).toEqual({ command: "x", args: [] });
-    expect(mcp.mcpServers.memoark).toBeDefined();
+    expect(mcp.mcpServers.memkin).toBeDefined();
   });
 
   it("no --agent installs only to detected clients", () => {
