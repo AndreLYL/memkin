@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createStores, defaultManagedDeps, resolveDb } from "./cli-stores.js";
+import { createStores, defaultManagedDeps, openSessionLedger, resolveDb } from "./cli-stores.js";
 import type { LoadedConfig } from "./core/config.js";
 import type { ManagedSupervisor } from "./store/managed/managed-engine.js";
 import type { RuntimePaths } from "./store/managed/pg-runtime-provider.js";
@@ -188,6 +188,7 @@ describe("createStores — integration with resolveDb", () => {
     expect(stores.graph).toBeDefined();
     expect(stores.tags).toBeDefined();
     expect(stores.timeline).toBeDefined();
+    expect(stores.agentSessions).toBeDefined();
   });
 
   it("supervisor is undefined for pglite", async () => {
@@ -198,6 +199,22 @@ describe("createStores — integration with resolveDb", () => {
     const stores = await createStores(config, { dbCreate });
 
     expect(stores.supervisor).toBeUndefined();
+  });
+});
+
+describe("openSessionLedger — lightweight ledger store", () => {
+  it("wires agentSessions without constructing embedding/search", async () => {
+    const config = makeConfig("pglite");
+    const stub = makeDbStub();
+    const dbCreate = vi.fn().mockResolvedValue(stub);
+
+    const stores = await openSessionLedger(config, { dbCreate });
+
+    expect(stores.db).toBe(stub);
+    expect(stores.agentSessions).toBeDefined();
+    expect(typeof stores.agentSessions.listSessions).toBe("function");
+    // No embedding key required — proves it does not construct EmbeddingService.
+    expect(dbCreate).toHaveBeenCalledTimes(1);
   });
 });
 
