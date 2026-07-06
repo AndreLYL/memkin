@@ -129,9 +129,9 @@ describe("resolveScoreDecision", () => {
   });
 
   test("evaluate without provider → pass (fail-open)", async () => {
-    await expect(resolveScoreDecision({ decision: "evaluate" } as SignalScore, block())).resolves.toBe(
-      "pass",
-    );
+    await expect(
+      resolveScoreDecision({ decision: "evaluate" } as SignalScore, block()),
+    ).resolves.toBe("pass");
   });
 
   test("evaluate → LLM judges worth processing → pass", async () => {
