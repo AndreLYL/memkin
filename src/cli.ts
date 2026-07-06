@@ -54,6 +54,7 @@ import { runHookEvent } from "./hooks/run-event.js";
 import { type PlannedClient, runInstall, runUninstall } from "./install/index.js";
 import { scaffoldSkill } from "./install/skill.js";
 import { down } from "./lifecycle/down.js";
+import { migrateLegacyData } from "./lifecycle/legacy-migration.js";
 import { acquireLifecycleLock } from "./lifecycle/lifecycle-lock.js";
 import { runUp } from "./lifecycle/run-up.js";
 import { computeStatus, formatManagedStatus } from "./lifecycle/status.js";
@@ -117,6 +118,25 @@ program
   .name("memkin")
   .description("Local-first personal memory extraction and storage")
   .version(VERSION);
+
+// One-shot legacy auto-migration (memoark → memkin). Runs BEFORE every command's
+// action — i.e. before loadConfig reads memkin.yaml or any store opens — so
+// existing users' data/config/state are moved to the new paths seamlessly.
+// preAction fires for subcommands AND the default program action, covering
+// serve / extract / init / start (and the Tauri sidecar, which shells out to
+// `memkin serve`). All notices go to STDERR: in `serve --mcp` stdout is the
+// JSON-RPC channel and must stay byte-clean, so migration output can never use it.
+program.hook("preAction", () => {
+  try {
+    migrateLegacyData({ home: homedir(), cwd: process.cwd(), env: process.env });
+  } catch (err) {
+    // Migration is best-effort: a failure must never block the command. Report
+    // to stderr and continue (the command will fall through to fresh defaults).
+    console.error(
+      `[migration] legacy data migration skipped: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+});
 
 program
   .command("init")
