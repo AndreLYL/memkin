@@ -102,6 +102,15 @@ export class RawMessagePrivacyProcessor {
     return { text: result, entries };
   }
 
+  /**
+   * Redact a single free-text string (no restoration tracking exposed).
+   * Used by the second-pass payload privacy (payload-privacy.ts).
+   */
+  redactString(text: string): string {
+    if (!this.config.enabled) return text;
+    return this.redactText(text).text;
+  }
+
   /** Redact every message's text before it is sent to the LLM. */
   redactMessages(messages: ParsedMessage[]): RedactMessagesResult {
     if (!this.config.enabled) {
