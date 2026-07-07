@@ -31,7 +31,7 @@ describe("migration runner", () => {
     const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
   it("adds halflife_days column to pages", async () => {
@@ -40,6 +40,17 @@ describe("migration runner", () => {
        WHERE table_name = 'pages' AND column_name = 'halflife_days'`,
     );
     expect(cols.rows).toHaveLength(1);
+  });
+
+  it("migration 010 creates the distilled_payload outbox table", async () => {
+    const cols = await db.executor.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_name = 'distilled_payload'`,
+    );
+    const names = cols.rows.map((r) => r.column_name);
+    expect(names).toContain("revision_id");
+    expect(names).toContain("payload");
+    expect(names).toContain("ttl_expires_at");
   });
 
   it("adds provenance/source_hash columns to links and timeline_entries", async () => {
@@ -58,7 +69,7 @@ describe("migration runner", () => {
     const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
   it("migration 006 installs pg_trgm + trgm indexes and drops tsvector machinery", async () => {
