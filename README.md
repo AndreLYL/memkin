@@ -1,8 +1,10 @@
 <p align="center">
-  <h1 align="center">Memkin</h1>
-  <p align="center"><em>人是一切社会关系的总和。</em></p>
-  <p align="center"><strong>一个面向个人工作场景的、本地优先的记忆系统 —— 把你的私聊、群聊、邮件、文档、会议，沉淀成本地私有的个人记忆，让你的 AI Agent 最懂你。</strong></p>
+  <img src="docs/assets/memkin-cover.png" alt="Memkin — 让你的 AI，最懂你" width="100%">
 </p>
+
+<h1 align="center">让你的 AI，最懂你。</h1>
+
+<p align="center"><strong>你的 AI Agent 每天都在失忆。Memkin 把你的飞书聊天、会议、邮件和 AI 编程会话，沉淀成本地私有的记忆图谱——让任何 Agent 通过 MCP 秒懂你。</strong></p>
 
 <p align="center">
   简体中文 | <a href="README.en.md">English</a>
@@ -13,20 +15,59 @@
   <a href="https://www.npmjs.com/package/memkin"><img alt="npm" src="https://img.shields.io/npm/v/memkin?color=cb3837&logo=npm"></a>
   <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-black">
   <img alt="Language: TypeScript" src="https://img.shields.io/badge/lang-TypeScript-3178c6">
-  <img alt="Tests: 1000+" src="https://img.shields.io/badge/tests-1000%2B-success">
+  <img alt="Tests: 1700+" src="https://img.shields.io/badge/tests-1700%2B-success">
 </p>
 
 <p align="center">
-  <img src="docs/assets/web-ui-graph.jpeg" alt="Memkin 知识图谱 —— 实体、决策、任务、知识在你的工作中相互连接" width="850">
+  <img src="docs/assets/demo.gif" alt="在 Claude Code 里向 Memkin 提问：上周和 Alice 聊了什么？—— 得到带 [n] 引用的回答" width="850">
   <br>
-  <em>把你的工作变成一张活的知识图谱 —— 人、决策、任务、知识，全部连起来。</em>
+  <em>在 Claude Code 里问一句，Memkin 通过 MCP 给出带引用、可溯源的回答。</em>
 </p>
 
-<!-- TODO(demo): 在此处替换为一段 8~12 秒的演示 GIF —— 在 Claude Code 里向 Memkin 提问，
-     Agent 通过 MCP 召回一条飞书会议决策 + 关联任务。脚本见 docs（hero demo）。
-     研究表明，"展示产品真正在工作"的 GIF 是 README 转化率最高的单一要素。 -->
-
 ---
+
+## ⚡ 30 秒上手
+
+```bash
+npx memkin start
+```
+
+一条命令，全部搞定：没有配置时自动打开浏览器 setup 向导，配置完成后立即启动服务并打开 Web UI；已有配置则直接起服务。裸跑 `npx memkin` 等效。
+
+> 前置条件：[Node.js](https://nodejs.org) >= 18。npm 包名与命令名均为 `memkin`。
+
+## 三大支柱
+
+**🕸️ 人是一切社会关系的总和**
+记忆不是一堆向量分块。信号被锚定到实体（人、项目、工具）并以有向图相互链接——你得到的是有上下文的答案：谁、为什么、和什么相关。
+
+**🔒 数据不出你的机器**
+PGLite 嵌入式数据库本地存储一切，可选 Ollama 本地向量嵌入，零云依赖。双轨隐私脱敏（可逆 / 不可逆）在写入前清洗敏感信息。
+
+**🤖 Agent 既读又写**
+以 **15 个高意图 MCP 工具**为核心（`query` / `recall` / `synthesize` / `prep_for_person` / `daily_report`……），任何 Agent 都能查询你的历史、也把新的决策与发现写回来。Agent 用得越多，记忆越懂你。
+
+## 只用 Claude Code / Codex？
+
+不用飞书也能完整用起来——把你的 AI 编程会话变成跨会话、跨项目的持久记忆：
+
+```bash
+# 1. 初始化并启动（setup 向导里只启用 claude-code / codex 数据源即可）
+npx memkin start
+
+# 2. 把历史会话提取成记忆
+npx memkin extract --source claude-code
+npx memkin extract --source codex
+
+# 3. 一键接入你的 Agent（自动写 MCP 配置 + 记忆指令）
+npx memkin install --agent claude-code
+npx memkin install --agent codex
+
+# 4.（可选）Claude Code 自动召回 hooks：开新会话自动注入近期决策 / 待办
+npx memkin hooks install
+```
+
+装完重开客户端，问一句 *"这个项目上周决定了什么？"* —— Agent 直接从你的本地记忆作答，不用你再解释一遍。
 
 ## 痛点
 
@@ -68,16 +109,11 @@ Memkin 是一个**面向中国职场、本地优先的个人记忆系统**。中
 >
 > Memkin 自动把这三件事串起来 —— 跨平台、跨时间 —— 并在你需要时把完整脉络交给 Agent。
 
-## 三大支柱
-
-**🔒 本地优先，绝对私密**
-数据永远不离开你的机器。PGLite 嵌入式数据库存储一切，可选 Ollama 本地向量嵌入，无任何云依赖。双轨隐私脱敏（可逆 / 不可逆）在写入前清洗敏感信息。
-
-**🕸️ 实体知识图谱，而非一堆向量分块**
-信号被锚定到实体（人、项目、工具）并以有向图相互链接。你得到的是有上下文的答案 —— 谁、为什么、和什么相关 —— 而不是孤立的相似文本片段。
-
-**🤖 MCP 原生 + 飞书采集**
-**29 个内置 MCP 工具**让任何 Agent 既查询又写回你的记忆。飞书全量采集（7 个源）把你真实的工作 —— 需求、方案、团队决策 —— 变成一等数据源，这是纯 RAG 和笔记工具都做不到的。
+<p align="center">
+  <img src="docs/assets/web-ui-graph.jpeg" alt="Memkin 知识图谱 —— 实体、决策、任务、知识在你的工作中相互连接" width="850">
+  <br>
+  <em>把你的工作变成一张活的知识图谱 —— 人、决策、任务、知识，全部连起来。</em>
+</p>
 
 ## 核心特性
 
@@ -85,16 +121,16 @@ Memkin 是一个**面向中国职场、本地优先的个人记忆系统**。中
 你的工作在飞书里。Memkin 覆盖 **7 个源** —— 私信、群聊、邮件、日历、文档、任务、消息搜索 —— 把你的工作关系网变成结构化记忆。文档采集会生成可升级的"摘要卡片"（DocSource v2）。
 
 **🤖 让 Agent 懂你（MCP）**
-把 Memkin 作为任何 MCP Agent 的记忆层 —— Claude Code、Cursor、Claude Desktop、Windsurf。**29 个内置工具**让 Agent 查询历史、读取实体页面、写回新知识。Agent 既是记忆的生产者，也是消费者。
+把 Memkin 作为任何 MCP Agent 的记忆层 —— Claude Code、Cursor、Claude Desktop、Windsurf。以 **15 个高意图工具**为核心的 MCP 工具集，让 Agent 查询历史、读取实体画像、写回新知识。Agent 既是记忆的生产者，也是消费者。
 
 **🧠 AI 驱动信号提取**
-LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、时间线、决策、任务、发现、知识、关系。
+LLM 驱动的 Pipeline 从原始对话中提取 7 类核心结构化信号：实体、时间线、决策、任务、发现、知识、关系（另有 Preference / Reference 等衍生信号类型）。
 
 **🔍 混合语义搜索**
 全文搜索（tsvector，支持中文）+ 向量检索（pgvector），通过 RRF（Reciprocal Rank Fusion）融合排序。支持自然语言提问。
 
-**♻️ 记忆巩固（Dream Cycle）**
-后台巩固任务自动做分层轮转（hot → warm → cold）、死链修复、偏好推断 —— 让记忆随时间自我整理。
+**♻️ 记忆巩固（Memory Consolidation）**
+后台巩固任务自动做分层轮转（hot → warm → cold）、死链修复、偏好推断 —— 让记忆随时间自我整理（CLI：`memkin consolidate`）。
 
 **⏰ 常驻 Daemon + 定时采集**
 内置守护进程按计划自动采集各数据源，带运行历史与告警，让记忆持续保持新鲜。
@@ -164,14 +200,14 @@ LLM 驱动的 Pipeline 从原始对话中提取 7 类结构化信号：实体、
 - ✅ 重命名规范 slug（修正错误规范化）
 
 ### ♻️ 记忆生命周期 & 常驻服务
-- ✅ 记忆巩固（dream cycle）：hot → warm → cold 分层轮转
+- ✅ 记忆巩固（Memory Consolidation）：hot → warm → cold 分层轮转
 - ✅ 死链修复
 - ✅ 偏好推断（从历史中归纳 preference）
 - ✅ 常驻 Daemon：按源定时采集、调度、运行历史、告警
 
 ### 🔗 同步与互通
 - ✅ Obsidian 双向同步（导出 vault / 导入回库）
-- ✅ MCP stdio 服务器（29 个工具）
+- ✅ MCP 服务器（stdio + Streamable HTTP）：默认 15 个高意图工具 + 会话 / 实体 / 身份工具，含 legacy 共 36 个
 - ✅ REST API（Hono，覆盖页面 / 搜索 / 图谱 / 标签 / 时间线 / 嵌入 / 提取 / 溯源 / 事件流）
 
 ### 🖥️ Web UI（React + Vite）
@@ -221,7 +257,7 @@ Memkin 是标准 MCP stdio 服务器，可接入任何 MCP 客户端：
 |---|:---:|:---:|:---:|:---:|:---:|
 | 本地优先 & 私密 | ✅ | 视情况 | 视情况 | ✅ | ✅ |
 | 开源 | ✅ | 不一定 | 部分 | 部分 | ✅ |
-| 飞书工作采集（私信/群聊/邮件/会议/文档/任务） | ✅ | ❌ | 手动 | ❌ | ❌ |
+| 飞书工作采集（私信/群聊/邮件/日历/文档/任务） | ✅ | ❌ | 手动 | ❌ | ❌ |
 | 把 AI Agent 会话作为数据源 | ✅ | ❌ | ❌ | ✅ | ✅ |
 | Agent 原生：通过 MCP 既读**又**写 | ✅ | ❌ | ❌ | ✅ | 部分 |
 | 实体 + 关系知识图谱 | ✅ | ❌ | 手动 | ✅ | 部分 |
@@ -262,7 +298,7 @@ npx memkin
 >   auth_token: <你的令牌>   # 或 export MEMKIN_AUTH_TOKEN=<你的令牌>
 > ```
 
-### 30 秒上手（手动配置）
+### 手动配置（可选）
 
 ```bash
 # 只想先生成配置、不立即起服务 —— 启动交互式配置中心
@@ -544,7 +580,7 @@ flowchart TB
   end
   subgraph L5["⑤ 接口与消费层"]
     cli["CLI"]
-    mcp["MCP(29 工具)"]
+    mcp["MCP(15 高意图工具)"]
     rest["REST API"]
     web["Web UI(只读)"]
     obs["Obsidian 双向同步"]
@@ -554,7 +590,7 @@ flowchart TB
 
   subgraph X["横切关注点"]
     id["🧬 人物身份<br/>跨平台同一人归并"]
-    cons["♻️ 记忆巩固 Dream Cycle<br/>分层轮转 · 死链修复 · 偏好推断"]
+    cons["♻️ 记忆巩固 Memory Consolidation<br/>分层轮转 · 死链修复 · 偏好推断"]
     sched["⏰ 调度 / AutoFetch<br/>定时采集 · 运行历史 · 告警"]
   end
 
@@ -576,12 +612,12 @@ flowchart TB
 | **② 采集层** | 飞书(私聊 / 群聊 / 邮件 / 日历 / 任务 / 消息搜索 / 云文档)、AI Agent 会话(Claude Code / Codex / Hermes);增量采集(per-source cursor + 内容去重)、历史回溯 Backfill。**规划中**:钉钉、企业微信、本地文档 |
 | **③ 信号提取 Pipeline** | 分块 → 噪声过滤(L1 规则 + L2 LLM)→ 信号抽取(OpenAI / Anthropic)→ 实体抽取 → 打分 → 隐私脱敏;产出 7 类信号,经输出适配器(store / file / gbrain / stdout)落库 |
 | **④ 记忆存储层** | PGLite(进程内嵌入式 PostgreSQL)+ pgvector;Page / Chunk / Tag / Timeline / Graph 存储;混合检索(tsvector 全文 + 向量 + RRF) |
-| **⑤ 接口与消费层** | CLI、MCP Server(29 工具,Agent 读 / 写 / 维护)、REST API(Hono)、Web UI(检索 / 查看 / 图谱 / 时间线,**当前只读**)、Obsidian 双向同步 |
+| **⑤ 接口与消费层** | CLI、MCP Server(默认 15 个高意图工具,Agent 读 / 写 / 维护)、REST API(Hono)、Web UI(检索 / 查看 / 图谱 / 时间线,**当前只读**)、Obsidian 双向同步 |
 
 **横切关注点(贯穿多层,而非独立流水线层):**
 
 - **🧬 人物身份** — 贯穿「采集 ↔ 存储」:跨平台(飞书 open_id、邮箱、昵称)识别并归并同一个人,别名绑定、规范化。这是「社会关系总和」的地基。
-- **♻️ 记忆巩固(Dream Cycle)** — 后台旁路作用于存储层:hot → warm → cold 分层轮转、死链修复、偏好推断,让记忆自我整理。
+- **♻️ 记忆巩固(Memory Consolidation)** — 后台旁路作用于存储层:hot → warm → cold 分层轮转、死链修复、偏好推断,让记忆自我整理。
 - **⏰ 调度 / AutoFetch** — 后台驱动采集层:定时自动采集、运行历史、告警。*(当前运行于 `serve` 进程内;独立 daemon 服务化 + 开机自启见路线图。)*
 
 > 运行平台:macOS / Linux / Windows(默认内嵌 PGLite,开箱即用)· 一键安装(npm / npx)· 本地优先、自托管、零云依赖。自管理本地 Postgres 引擎(更快,可选)目前仅支持 macOS(arm64/x64)。
@@ -598,6 +634,8 @@ flowchart TB
 | **知识** | 可复用的事实性知识 | "PGLite 通过 WASM 在进程内运行完整 Postgres" |
 | **关系** | 实体间的依赖、引用、协作 | `project/memkin --[depends_on]--> tool/pglite` |
 
+> 以上为 7 类核心信号；此外还有 **Preference**（偏好推断产出）与 **Reference**（引用沉淀）等衍生信号类型。
+
 ### 存储层
 
 | 组件 | 说明 |
@@ -612,20 +650,18 @@ flowchart TB
 
 ## MCP 工具
 
-Memkin 的 MCP 服务器暴露 **29 个工具**，覆盖检索、合成、页面 CRUD、图谱、标签、时间线、身份管理与飞书文档采集。高层工具优先：
+Memkin 的 MCP 服务器**默认暴露 15 个高意图工具**为主力，外加会话上下文、实体画像与人物身份等辅助工具；12 个低层 legacy 工具默认隐藏（`memkin.yaml` 里设 `mcp.expose_legacy_tools: true` 开启），全量共 **36 个**。高意图工具优先：
 
 | 类别 | 工具 |
 |------|------|
-| **检索（高层）** | `query`、`get_session_context`、`get_entity_profile`、`list_signals_by_entity` |
-| **合成** | `synthesize`、`recall`（带 `[n]` 引用的成段答案 + gap 分析）、`prep_for_person`（人物沟通画像 → 目标条件化的沟通策略，被动推断·零问卷·本地优先·伦理护栏）、`daily_report`（跨渠道 7 段日报）、`troubleshoot`（沿 playbook 排查链一次性排查） |
-| **搜索** | `search` |
-| **页面 / 内容** | `get_page`、`put_page`、`list_pages`、`get_chunks` |
-| **图谱** | `add_link`、`remove_link`、`get_links`、`get_backlinks`、`traverse_graph` |
-| **标签** | `add_tag`、`remove_tag`、`get_tags` |
-| **时间线** | `add_timeline_entry`、`get_timeline` |
+| **检索（高意图）** | `query`、`search`、`get_page_context`、`timeline_feed`、`explore_graph` |
+| **合成（高意图）** | `synthesize`、`recall`（带 `[n]` 引用的成段答案 + gap 分析）、`prep_for_person`（人物沟通画像 → 目标条件化的沟通策略，被动推断·零问卷·本地优先·伦理护栏）、`daily_report`（跨渠道 7 段日报）、`troubleshoot`（沿 playbook 排查链一次性排查） |
+| **写入（高意图）** | `put_page`、`add_timeline_entry`、`manage_links`、`manage_tags` |
+| **健康（高意图）** | `get_health` |
+| **会话 / 实体** | `get_session_context`、`get_entity_profile`、`list_signals_by_entity` |
 | **身份（人物）** | `link_person_alias`、`list_person_handles`、`remove_person_alias`、`merge_persons`、`recanonicalize_person` |
 | **飞书文档** | `ingest_feishu_doc` |
-| **健康** | `get_health` |
+| **legacy（默认隐藏）** | `get_page`、`list_pages`、`get_chunks`、`add_link`、`remove_link`、`get_links`、`get_backlinks`、`traverse_graph`、`add_tag`、`remove_tag`、`get_tags`、`get_timeline` |
 
 ## CLI 命令
 
@@ -739,7 +775,7 @@ server:
 - [x] EmbeddingService（OpenAI / Ollama）
 - [x] StoreAdapter — Pipeline 直接写入 PGLite
 - [x] Hono REST API
-- [x] MCP 服务器（29 个 stdio 工具）
+- [x] MCP 服务器（stdio，高意图工具集）
 - [x] CLI serve、search、embed 命令
 
 ### Phase 3 — Web UI（已完成）
@@ -752,7 +788,7 @@ server:
 
 ### Phase 4 — 巩固与常驻服务（已完成）
 
-- [x] 记忆巩固（dream cycle）：分层轮转、死链修复、偏好推断
+- [x] 记忆巩固（Memory Consolidation）：分层轮转、死链修复、偏好推断
 - [x] 常驻 Daemon + 定时采集（调度、运行历史、告警）
 - [x] 人物身份管理（别名、合并、重命名）
 - [x] 飞书文档摘要卡片（DocSource v2）
@@ -800,7 +836,7 @@ server:
 | Web UI | React + Vite |
 | MCP | @modelcontextprotocol/sdk |
 | Linter | Biome |
-| 测试 | Vitest（1000+ 测试） |
+| 测试 | Vitest（1700+ 测试） |
 
 ## 开发
 
