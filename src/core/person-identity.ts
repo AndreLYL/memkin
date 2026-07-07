@@ -13,6 +13,17 @@
  *     only enter the table via an explicit `addAlias` / `link`, so an
  *     ambiguous nickname like "龙哥" can never silently merge two people.
  *   - Merging two existing person pages is always an explicit operation.
+ *
+ * Since M008 (extraction-quality-redesign PR-3, spec §9) the physical table is
+ * `entity_handles`, namespaced by (entity_type, scope) so project/tool entities
+ * share the same registry — one table, not a parallel one. All person
+ * operations here read/write the entity_type='person' namespace; a
+ * `person_handles` compat view remains for legacy readers. Strong-handle
+ * auto-binding is tiered BY ENTITY TYPE:
+ *   - person: open_id / email / exact name / slug bind (existing contract).
+ *   - project / tool: only "exact name AND unique among that type store-wide"
+ *     auto-binds; same-name-multiple-pages or cross-type name clashes only
+ *     produce entity_merge_suggestions (see IdentityResolver).
  */
 
 import { stringify as stringifyYaml } from "yaml";
@@ -23,11 +34,22 @@ import type { SqlConn, SqlExecutor } from "../store/sql-executor.js";
 export type HandleKind = "feishu_open_id" | "email" | "name" | "nickname" | "slug";
 export type HandleStrength = "strong" | "weak";
 
+/** Entity namespaces of the generalized handle registry (M008). */
+export type EntityHandleType = "person" | "project" | "organization" | "tool" | "concept";
+
+/** Default handle scope. Reserved for future narrower namespaces (e.g. per-tenant). */
+export const GLOBAL_SCOPE = "global";
+
 export interface PersonHandle {
   kind: HandleKind;
   value: string;
   canonical_slug: string;
   strength: HandleStrength;
+}
+
+export interface EntityHandle extends PersonHandle {
+  entity_type: EntityHandleType;
+  scope: string;
 }
 
 /** Default strength for a handle kind. Nicknames are weak; everything else strong. */
@@ -79,10 +101,21 @@ export class PersonIdentityStore {
 
   /** Resolve a single handle to its canonical person slug, or null. */
   async resolveHandle(kind: HandleKind, value: string): Promise<string | null> {
+    return this.resolveEntityHandle("person", kind, value);
+  }
+
+  /** Resolve a handle within an entity-type namespace to its canonical slug, or null. */
+  async resolveEntityHandle(
+    entityType: EntityHandleType,
+    kind: HandleKind,
+    value: string,
+    scope: string = GLOBAL_SCOPE,
+  ): Promise<string | null> {
     const v = canonicalizeHandleValue(kind, value);
     const r = await this.db.query<{ canonical_slug: string }>(
-      "SELECT canonical_slug FROM person_handles WHERE kind = $1 AND value = $2",
-      [kind, v],
+      `SELECT canonical_slug FROM entity_handles
+       WHERE entity_type = $1 AND scope = $2 AND kind = $3 AND value = $4`,
+      [entityType, scope, kind, v],
     );
     return r.rows[0]?.canonical_slug ?? null;
   }
@@ -127,6 +160,23 @@ export class PersonIdentityStore {
     if (openId) {
       await this.insertHandle("feishu_open_id", openId, canonicalSlug, "strong", true);
     }
+  }
+
+  /**
+   * Record the strong handles (name → slug, slug → slug) implied by a
+   * canonicalized non-person entity, in its own (entity_type, scope) namespace.
+   * Idempotent and non-destructive — existing rows are left untouched. Callers
+   * (IdentityResolver.canonicalizeEntitySlug) are responsible for enforcing the
+   * tiered auto-bind rules BEFORE recording: for project/tool a name is only
+   * strong when it is exactly unique among its type store-wide.
+   */
+  async recordEntityCanonical(
+    entityType: EntityHandleType,
+    name: string,
+    canonicalSlug: string,
+  ): Promise<void> {
+    await this.insertHandle("name", name, canonicalSlug, "strong", true, entityType);
+    await this.insertHandle("slug", canonicalSlug, canonicalSlug, "strong", true, entityType);
   }
 
   /**
@@ -205,19 +255,26 @@ export class PersonIdentityStore {
     }
   }
 
-  /** List all handles attached to a canonical person. */
-  async listHandles(canonicalSlug: string): Promise<PersonHandle[]> {
-    const r = await this.db.query<PersonHandle>(
-      "SELECT kind, value, canonical_slug, strength FROM person_handles WHERE canonical_slug = $1 ORDER BY kind, value",
+  /**
+   * List all handles attached to a canonical slug, across every entity-type
+   * namespace (a page has one slug; its handles all follow that slug).
+   */
+  async listHandles(canonicalSlug: string): Promise<EntityHandle[]> {
+    const r = await this.db.query<EntityHandle>(
+      `SELECT entity_type, scope, kind, value, canonical_slug, strength
+       FROM entity_handles WHERE canonical_slug = $1 ORDER BY entity_type, kind, value`,
       [canonicalSlug],
     );
     return r.rows;
   }
 
-  /** Remove a handle by (kind, value). */
+  /** Remove a person-namespace handle by (kind, value). */
   async removeHandle(kind: HandleKind, value: string): Promise<void> {
     const v = canonicalizeHandleValue(kind, value);
-    await this.db.query("DELETE FROM person_handles WHERE kind = $1 AND value = $2", [kind, v]);
+    await this.db.query(
+      "DELETE FROM entity_handles WHERE entity_type = 'person' AND kind = $1 AND value = $2",
+      [kind, v],
+    );
   }
 
   /**
@@ -238,7 +295,9 @@ export class PersonIdentityStore {
       newSlug,
       oldSlug,
     ]);
-    await this.db.query("UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
+    // Repoint handles in EVERY namespace — whatever pointed at the old page
+    // slug must follow the page.
+    await this.db.query("UPDATE entity_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
       newSlug,
       oldSlug,
     ]);
@@ -373,8 +432,9 @@ export class PersonIdentityStore {
       // Fold body + aliases into the target page.
       await this.writePageTx(tx, mergedPage, foldedBody, [...aliasValues]);
 
-      // Re-point handle + identity-cache mappings.
-      await tx.query("UPDATE person_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
+      // Re-point handle + identity-cache mappings (all namespaces — handles
+      // follow the page slug regardless of entity type).
+      await tx.query("UPDATE entity_handles SET canonical_slug = $1 WHERE canonical_slug = $2", [
         intoSlug,
         fromSlug,
       ]);
@@ -401,23 +461,46 @@ export class PersonIdentityStore {
     canonicalSlug: string,
     strength: HandleStrength,
     ignoreConflict: boolean,
+    entityType: EntityHandleType = "person",
+  ): Promise<void> {
+    await this.insertEntityHandleOn(
+      this.db,
+      entityType,
+      kind,
+      value,
+      canonicalSlug,
+      strength,
+      ignoreConflict,
+    );
+  }
+
+  /** Insert a handle into an entity-type namespace on the given connection. */
+  private async insertEntityHandleOn(
+    conn: SqlConn,
+    entityType: EntityHandleType,
+    kind: HandleKind,
+    value: string,
+    canonicalSlug: string,
+    strength: HandleStrength,
+    ignoreConflict: boolean,
+    scope: string = GLOBAL_SCOPE,
   ): Promise<void> {
     const v = canonicalizeHandleValue(kind, value);
     if (ignoreConflict) {
-      await this.db.query(
-        `INSERT INTO person_handles (kind, value, canonical_slug, strength)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (kind, value) DO NOTHING`,
-        [kind, v, canonicalSlug, strength],
+      await conn.query(
+        `INSERT INTO entity_handles (entity_type, scope, kind, value, canonical_slug, strength)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (entity_type, scope, kind, value) DO NOTHING`,
+        [entityType, scope, kind, v, canonicalSlug, strength],
       );
     } else {
-      await this.db.query(
-        `INSERT INTO person_handles (kind, value, canonical_slug, strength)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (kind, value) DO UPDATE SET
+      await conn.query(
+        `INSERT INTO entity_handles (entity_type, scope, kind, value, canonical_slug, strength)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (entity_type, scope, kind, value) DO UPDATE SET
            canonical_slug = EXCLUDED.canonical_slug,
            strength = EXCLUDED.strength`,
-        [kind, v, canonicalSlug, strength],
+        [entityType, scope, kind, v, canonicalSlug, strength],
       );
     }
   }
@@ -462,24 +545,15 @@ export class PersonIdentityStore {
     strength: HandleStrength,
     ignoreConflict: boolean,
   ): Promise<void> {
-    const v = canonicalizeHandleValue(kind, value);
-    if (ignoreConflict) {
-      await tx.query(
-        `INSERT INTO person_handles (kind, value, canonical_slug, strength)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (kind, value) DO NOTHING`,
-        [kind, v, canonicalSlug, strength],
-      );
-    } else {
-      await tx.query(
-        `INSERT INTO person_handles (kind, value, canonical_slug, strength)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (kind, value) DO UPDATE SET
-           canonical_slug = EXCLUDED.canonical_slug,
-           strength = EXCLUDED.strength`,
-        [kind, v, canonicalSlug, strength],
-      );
-    }
+    await this.insertEntityHandleOn(
+      tx,
+      "person",
+      kind,
+      value,
+      canonicalSlug,
+      strength,
+      ignoreConflict,
+    );
   }
 
   private frontmatterAliases(page: { frontmatter: Record<string, unknown> }): string[] {

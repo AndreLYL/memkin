@@ -1,11 +1,13 @@
 import type { ProfileConfig } from "../core/config.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { type ProfileSynthStores, synthesizeProfiles } from "../profile/profile-synth.js";
+import type { EntityMergeSuggestionStore } from "../store/entity-suggestions.js";
 import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
 import type { TagStore } from "../store/tags.js";
 import type { TimelineStore } from "../store/timeline.js";
 import { checkDeadLinks } from "./dead-link.js";
+import { sweepEntityMergeSuggestions } from "./entity-merge.js";
 import { consolidateHotToWarm } from "./hot-warm.js";
 import { inferPreferences } from "./infer-preferences.js";
 import { consolidateWarmToCold } from "./warm-cold.js";
@@ -15,6 +17,12 @@ export interface ConsolidatorStores {
   graph: GraphStore;
   tags: TagStore;
   timeline: TimelineStore;
+  /**
+   * Optional entity merge suggestion aggregation (spec §9). When present, the
+   * hot cycle sweeps entity pages for near-duplicates and records suggestions
+   * for user review — never merges automatically.
+   */
+  entitySuggestions?: EntityMergeSuggestionStore;
 }
 
 /**
@@ -32,6 +40,7 @@ export interface ConsolidateResult {
   deadLinksChecked: number;
   preferencesInferred: number;
   profilesSynthesized: number;
+  entityMergeSuggestions: number;
 }
 
 export type ConsolidateMode = "hot" | "warm" | "all";
@@ -65,9 +74,18 @@ export class Consolidator {
       deadLinksChecked: 0,
       preferencesInferred: 0,
       profilesSynthesized: 0,
+      entityMergeSuggestions: 0,
     };
     if (mode === "hot" || mode === "all") {
       result.hotToWarm = await this.consolidateHot(dryRun);
+      // Spec §9: aggregate near-duplicate entity pages into merge suggestions.
+      // Deterministic (no LLM), so it rides the daily hot cycle.
+      if (this.stores.entitySuggestions) {
+        result.entityMergeSuggestions = await sweepEntityMergeSuggestions(
+          this.stores.entitySuggestions,
+          dryRun,
+        );
+      }
     }
     if (mode === "warm" || mode === "all") {
       const warmResult = await this.consolidateWarm(dryRun);
@@ -83,7 +101,9 @@ export class Consolidator {
     return consolidateHotToWarm(this.stores, dryRun);
   }
 
-  async consolidateWarm(dryRun = false): Promise<Omit<ConsolidateResult, "hotToWarm">> {
+  async consolidateWarm(
+    dryRun = false,
+  ): Promise<Omit<ConsolidateResult, "hotToWarm" | "entityMergeSuggestions">> {
     if (!this.llm) {
       throw new Error("LLM provider required for warm→cold consolidation");
     }

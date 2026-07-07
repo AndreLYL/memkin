@@ -110,16 +110,27 @@ END $$;
 --   value    = canonicalized handle value (lowercased / whitespace-collapsed)
 --   strength = 'strong' (auto-resolvable: open_id/email/name/slug)
 --            | 'weak'   (nickname/花名 — only created via explicit link)
-CREATE TABLE IF NOT EXISTS person_handles (
-  kind            TEXT NOT NULL,
-  value           TEXT NOT NULL,
-  canonical_slug  TEXT NOT NULL,
-  strength        TEXT NOT NULL DEFAULT 'strong',
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (kind, value)
-);
-
-CREATE INDEX IF NOT EXISTS idx_person_handles_slug ON person_handles (canonical_slug);
+--
+-- M008 generalizes this table into `entity_handles` (rename + entity_type/scope
+-- columns) and leaves `person_handles` behind as a compat VIEW. schema.sql is
+-- re-applied on every boot BEFORE migrations, so this legacy block must be
+-- conditional: once entity_handles exists, creating the table would shadow the
+-- view (and CREATE INDEX ... ON a view errors regardless of IF NOT EXISTS).
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class WHERE relname = 'entity_handles' AND relkind = 'r'
+  ) THEN
+    CREATE TABLE IF NOT EXISTS person_handles (
+      kind            TEXT NOT NULL,
+      value           TEXT NOT NULL,
+      canonical_slug  TEXT NOT NULL,
+      strength        TEXT NOT NULL DEFAULT 'strong',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (kind, value)
+    );
+    CREATE INDEX IF NOT EXISTS idx_person_handles_slug ON person_handles (canonical_slug);
+  END IF;
+END $$;
 
 -- Engine/embedding metadata (key-value). Used for embedding fingerprint consistency.
 CREATE TABLE IF NOT EXISTS memkin_meta (

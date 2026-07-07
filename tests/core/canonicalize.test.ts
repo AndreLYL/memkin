@@ -61,6 +61,29 @@ describe("canonicalize — source type inference", () => {
     const block = makeBlock({ channel: "group/oc_abc", messages: [makeMsg("Hey")] });
     expect(canonicalize(block).source_type).toBe("chat");
   });
+
+  // Agent collectors set channel = bare sessionId (no prefix), so source type
+  // must key off the platform — otherwise agent blocks miscategorize as chat
+  // (spec §8 provenance audit).
+  test("claude-code platform with bare session-id channel → agent_session", () => {
+    const block = makeBlock({
+      platform: "claude-code",
+      channel: "7f3a2b1c-session",
+      messages: [makeMsg("Fixed the bug", { platform: "claude-code" })],
+    });
+    expect(canonicalize(block).source_type).toBe("agent_session");
+  });
+
+  test("codex and hermes platforms → agent_session", () => {
+    for (const platform of ["codex", "hermes"]) {
+      const block = makeBlock({
+        platform,
+        channel: "session-001",
+        messages: [makeMsg("done", { platform })],
+      });
+      expect(canonicalize(block).source_type).toBe("agent_session");
+    }
+  });
 });
 
 describe("canonicalize — interaction tags", () => {

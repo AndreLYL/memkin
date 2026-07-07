@@ -6,15 +6,25 @@ import type {
   SourceType,
 } from "./types.js";
 
+/**
+ * Platforms whose collectors read coding-agent session transcripts. Their
+ * blocks carry channel = bare sessionId (no routable prefix), so source-type
+ * inference must key off the platform — otherwise agent blocks miscategorize
+ * as `chat` (spec §8 provenance audit) and get scored with the wrong source
+ * weight (signal-scoring has a dedicated agent_session weight).
+ */
+export const AGENT_PLATFORMS: ReadonlySet<string> = new Set(["claude-code", "codex", "hermes"]);
+
 export function canonicalize(block: ConversationBlock): CanonicalisedBlock {
-  const source_type = inferSourceType(block.channel);
+  const source_type = inferSourceType(block.channel, block.platform);
   const interaction_tags = inferInteractionTags(block, source_type);
   const canonical_markdown = buildMarkdown(block, source_type);
 
   return { block, source_type, interaction_tags, canonical_markdown };
 }
 
-function inferSourceType(channel: string): SourceType {
+function inferSourceType(channel: string, platform: string): SourceType {
+  if (AGENT_PLATFORMS.has(platform)) return "agent_session";
   if (channel.startsWith("mail/")) return "email";
   if (channel.startsWith("dm/")) return "dm";
   if (channel.startsWith("docs/")) return "document";

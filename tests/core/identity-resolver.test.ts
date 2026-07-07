@@ -540,6 +540,249 @@ describe("IdentityResolver", () => {
   });
 });
 
+// ── Entity normalization: tiered strong-handle binding (spec §9, PR-3) ──────
+
+describe("IdentityResolver entity normalization (project/tool)", () => {
+  let database: Database;
+  let db: SqlExecutor;
+  let resolver: IdentityResolver;
+
+  beforeEach(async () => {
+    database = await Database.create();
+    db = database.executor;
+    resolver = new IdentityResolver(db);
+  });
+
+  afterEach(async () => {
+    await database.close();
+  });
+
+  async function insertPage(slug: string, type: string, title: string): Promise<void> {
+    await db.query("INSERT INTO pages (slug, type, title, compiled_truth) VALUES ($1,$2,$3,$4)", [
+      slug,
+      type,
+      title,
+      "body",
+    ]);
+  }
+
+  describe("canonicalizeEntitySlug", () => {
+    it("binds via an existing entity handle in the same namespace", async () => {
+      await db.query(
+        `INSERT INTO entity_handles (entity_type, scope, kind, value, canonical_slug)
+         VALUES ('project', 'global', 'name', 'Memkin', 'project/memkin')`,
+      );
+      const r = await resolver.canonicalizeEntitySlug("project", "Memkin", "project/memkin-v2");
+      expect(r.slug).toBe("project/memkin");
+      expect(r.isAlias).toBe(true);
+      expect(r.suggestions).toEqual([]);
+    });
+
+    it("auto-binds when exactly one same-type page has the exact name and no cross-type clash", async () => {
+      await insertPage("project/memkin", "project", "Memkin");
+      const r = await resolver.canonicalizeEntitySlug("project", "Memkin", "project/memkin-x");
+      expect(r.slug).toBe("project/memkin");
+      expect(r.isAlias).toBe(true);
+      expect(r.suggestions).toEqual([]);
+      // The bind is recorded as a strong name handle for future resolutions.
+      const handle = await db.query<{ canonical_slug: string }>(
+        `SELECT canonical_slug FROM entity_handles
+         WHERE entity_type = 'project' AND kind = 'name' AND value = 'Memkin'`,
+      );
+      expect(handle.rows).toEqual([{ canonical_slug: "project/memkin" }]);
+    });
+
+    it("does NOT bind when multiple same-type pages share the exact name — suggestion only", async () => {
+      await insertPage("tool/larkclihttpclient", "tool", "LarkCliHttpClient");
+      await insertPage("tool/lark-cli-http-client", "tool", "LarkCliHttpClient");
+      const r = await resolver.canonicalizeEntitySlug(
+        "tool",
+        "LarkCliHttpClient",
+        "tool/lark-cli-http",
+      );
+      expect(r.slug).toBe("tool/lark-cli-http"); // keeps model slug
+      expect(r.isAlias).toBe(false);
+      expect(r.suggestions.length).toBeGreaterThan(0);
+      for (const s of r.suggestions) {
+        expect(s.reason).toBe("same_name");
+        expect(s.entity_type).toBe("tool");
+      }
+      // No auto-created handle.
+      const handle = await db.query(
+        "SELECT 1 FROM entity_handles WHERE entity_type = 'tool' AND kind = 'name' AND value = 'LarkCliHttpClient'",
+      );
+      expect(handle.rows).toHaveLength(0);
+    });
+
+    it("does NOT bind on cross-type name clash (Codex the tool vs Codex the project) — suggestion only", async () => {
+      await insertPage("tool/codex", "tool", "Codex");
+      const r = await resolver.canonicalizeEntitySlug("project", "Codex", "project/codex");
+      expect(r.slug).toBe("project/codex"); // keeps model slug
+      expect(r.isAlias).toBe(false);
+      expect(r.suggestions).toEqual([
+        expect.objectContaining({
+          reason: "cross_type_name",
+          from_slug: "project/codex",
+          into_slug: "tool/codex",
+        }),
+      ]);
+      const handle = await db.query(
+        "SELECT 1 FROM entity_handles WHERE kind = 'name' AND value = 'Codex'",
+      );
+      expect(handle.rows).toHaveLength(0);
+    });
+
+    it("near-miss names (Levenshtein-close) never auto-bind", async () => {
+      await insertPage("tool/lark-cli-http-client", "tool", "LarkCliHttpClient");
+      // Case-different / near name is NOT an exact match — must not bind.
+      const r = await resolver.canonicalizeEntitySlug("tool", "LarkCLIHttpClient", "tool/lark-x");
+      expect(r.slug).toBe("tool/lark-x");
+      expect(r.isAlias).toBe(false);
+    });
+
+    it("records name handle for a brand-new entity so slug variants converge", async () => {
+      const first = await resolver.canonicalizeEntitySlug(
+        "project",
+        "记忆系统",
+        "project/memory-system",
+      );
+      expect(first.slug).toBe("project/memory-system");
+      expect(first.isAlias).toBe(false);
+
+      const second = await resolver.canonicalizeEntitySlug(
+        "project",
+        "记忆系统",
+        "project/jiyi-xitong",
+      );
+      expect(second.slug).toBe("project/memory-system"); // converges on first slug
+      expect(second.isAlias).toBe(true);
+    });
+  });
+
+  describe("canonicalizeExtractionResult with project/tool entities", () => {
+    const mockSource: SourceRef = {
+      platform: "test",
+      channel: "test-channel",
+      timestamp: "2024-01-01T00:00:00Z",
+      raw_hash: "test-hash",
+      quote: "test quote",
+    };
+
+    it("rewrites project/tool slugs to their canonical pages and dedupes", async () => {
+      await insertPage("project/memkin", "project", "Memkin");
+      const result: ExtractionResult = {
+        source: mockSource,
+        entities: [
+          {
+            slug: "project/memkin-v2",
+            name: "Memkin",
+            type: "project",
+            context: "ctx",
+            confidence: "direct",
+          },
+        ],
+        timeline: [],
+        links: [
+          {
+            from: "project/memkin-v2",
+            to: "person/alice",
+            type: "mentions",
+            context: "c",
+            confidence: "direct",
+            source: mockSource,
+          },
+        ],
+        decisions: [
+          {
+            summary: "d",
+            entities: ["project/memkin-v2"],
+            date: "2024-01-01",
+            confidence: "direct",
+            source: mockSource,
+          },
+        ],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      const { result: canonicalized, suggestions } =
+        await resolver.canonicalizeExtractionResult(result);
+      expect(canonicalized.entities[0].slug).toBe("project/memkin");
+      expect(canonicalized.links[0].from).toBe("project/memkin");
+      expect(canonicalized.decisions[0].entities).toEqual(["project/memkin"]);
+      expect(suggestions).toEqual([]);
+    });
+
+    it("surfaces merge suggestions for conflicting entity names without rewriting", async () => {
+      await insertPage("tool/codex", "tool", "Codex");
+      const result: ExtractionResult = {
+        source: mockSource,
+        entities: [
+          {
+            slug: "project/codex",
+            name: "Codex",
+            type: "project",
+            context: "ctx",
+            confidence: "direct",
+          },
+        ],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      const { result: canonicalized, suggestions } =
+        await resolver.canonicalizeExtractionResult(result);
+      expect(canonicalized.entities[0].slug).toBe("project/codex"); // unchanged
+      expect(suggestions).toEqual([
+        expect.objectContaining({
+          reason: "cross_type_name",
+          from_slug: "project/codex",
+          into_slug: "tool/codex",
+        }),
+      ]);
+    });
+
+    it("persists suggestions through the injected sink", async () => {
+      await insertPage("tool/codex", "tool", "Codex");
+      const record = vi.fn().mockResolvedValue(undefined);
+      const sinkResolver = new IdentityResolver(db, undefined, { record });
+
+      const result: ExtractionResult = {
+        source: mockSource,
+        entities: [
+          {
+            slug: "project/codex",
+            name: "Codex",
+            type: "project",
+            context: "ctx",
+            confidence: "direct",
+          },
+        ],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      await sinkResolver.canonicalizeExtractionResult(result);
+      expect(record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: "cross_type_name",
+          from_slug: "project/codex",
+          into_slug: "tool/codex",
+        }),
+      );
+    });
+  });
+});
+
 // ── Regression: null-guard semantics (commit 7fde24f fix) ────────────────────
 
 describe("IdentityResolver null-guard regressions (7fde24f fix)", () => {

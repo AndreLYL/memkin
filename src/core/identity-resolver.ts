@@ -1,5 +1,5 @@
 import type { SqlExecutor } from "../store/sql-executor.js";
-import { PersonIdentityStore } from "./person-identity.js";
+import { type EntityHandleType, PersonIdentityStore } from "./person-identity.js";
 import { toPersonCanonicalSlug } from "./person-slug.js";
 import type { ExtractionResult, RawMessage } from "./types.js";
 
@@ -17,12 +17,42 @@ interface CacheRow {
   slug_hint: string | null;
 }
 
+/** Entity types that go through tiered name-handle normalization (spec §9). */
+export type NormalizableEntityType = "project" | "tool";
+
+/**
+ * A merge candidate produced when entity normalization refuses to auto-bind
+ * (same-name-multiple-pages or cross-type name clash). Never acted on
+ * automatically — persisted as entity_merge_suggestions for user review.
+ */
+export interface EntityMergeCandidate {
+  entity_type: EntityHandleType;
+  from_slug: string;
+  into_slug: string;
+  reason: "same_name" | "cross_type_name";
+  detail?: Record<string, unknown>;
+}
+
+/**
+ * Where refused-bind suggestions get persisted (entity_merge_suggestions,
+ * spec §9). Structurally satisfied by EntityMergeSuggestionStore; optional so
+ * the resolver stays usable without a store (suggestions are still returned
+ * to the caller).
+ */
+export interface EntityMergeSuggestionSink {
+  record(candidate: EntityMergeCandidate): Promise<void>;
+}
+
+/** Entity page types considered when checking exact-name uniqueness store-wide. */
+const ENTITY_PAGE_TYPES = ["person", "project", "organization", "tool", "concept"] as const;
+
 export class IdentityResolver {
   private readonly identity: PersonIdentityStore;
 
   constructor(
     private db: SqlExecutor,
     private backend?: IdentityBackend,
+    private suggestionSink?: EntityMergeSuggestionSink,
   ) {
     this.identity = new PersonIdentityStore(db);
   }
@@ -192,37 +222,126 @@ export class IdentityResolver {
   }
 
   /**
-   * Canonicalize all person slugs in an ExtractionResult and rewrite references.
+   * Canonicalize a project/tool entity slug via the tiered strong-handle
+   * contract (spec §9):
+   *
+   *   1. A handle already recorded in the (entity_type, scope) namespace wins.
+   *   2. Exact name matching EXACTLY ONE page of the same type store-wide, with
+   *      no other entity page of another type sharing the name → auto-bind and
+   *      record the name handle.
+   *   3. Same-name-multiple-pages or a cross-type clash (Codex the tool vs
+   *      Codex the project) → NO bind; only `entity_merge_suggestions`
+   *      candidates are produced for user review.
+   *   4. Brand-new name → keep the model slug and record its name handle so
+   *      later slug variants of the same name converge deterministically.
+   *
+   * Near-miss names (Levenshtein / pinyin) NEVER bind here — fuzzy detection
+   * lives in the consolidator sweep and also only produces suggestions.
+   */
+  async canonicalizeEntitySlug(
+    type: NormalizableEntityType,
+    name: string,
+    modelSlug: string,
+  ): Promise<{ slug: string; isAlias: boolean; suggestions: EntityMergeCandidate[] }> {
+    // 1. Existing handle in this namespace pins the canonical slug.
+    const bySlug = await this.identity.resolveEntityHandle(type, "slug", modelSlug);
+    if (bySlug) return { slug: bySlug, isAlias: modelSlug !== bySlug, suggestions: [] };
+    const byName = await this.identity.resolveEntityHandle(type, "name", name);
+    if (byName) return { slug: byName, isAlias: modelSlug !== byName, suggestions: [] };
+
+    // 2. Exact-title candidates across all entity page types.
+    const collapsedName = name.trim().replace(/\s+/g, " ");
+    const candidates = await this.db.query<{ slug: string; type: string }>(
+      `SELECT slug, type FROM pages
+       WHERE title = $1 AND type = ANY($2)
+       ORDER BY slug`,
+      [collapsedName, [...ENTITY_PAGE_TYPES]],
+    );
+    const sameType = candidates.rows.filter((r) => r.type === type);
+    const crossType = candidates.rows.filter((r) => r.type !== type);
+
+    // 3a. Unique same-type page and no cross-type clash → strong bind.
+    if (sameType.length === 1 && crossType.length === 0) {
+      const canonicalSlug = sameType[0].slug;
+      await this.identity.recordEntityCanonical(type, collapsedName, canonicalSlug);
+      return { slug: canonicalSlug, isAlias: modelSlug !== canonicalSlug, suggestions: [] };
+    }
+
+    // 3b. Conflicts → suggestions only, keep the model slug, record nothing.
+    const suggestions: EntityMergeCandidate[] = [];
+    if (sameType.length > 1) {
+      // The same-type pages are duplicates of each other; suggest folding later
+      // slugs into the first (sorted) one.
+      const [first, ...rest] = sameType;
+      for (const dup of rest) {
+        suggestions.push({
+          entity_type: type,
+          from_slug: dup.slug,
+          into_slug: first.slug,
+          reason: "same_name",
+          detail: { name: collapsedName },
+        });
+      }
+    }
+    for (const clash of crossType) {
+      suggestions.push({
+        entity_type: type,
+        from_slug: modelSlug,
+        into_slug: clash.slug,
+        reason: "cross_type_name",
+        detail: { name: collapsedName, clash_type: clash.type },
+      });
+    }
+    if (suggestions.length > 0) {
+      return { slug: modelSlug, isAlias: false, suggestions };
+    }
+
+    // 4. Brand-new entity: keep the model slug, record its strong name handle
+    //    so future slug variants of this exact name converge.
+    await this.identity.recordEntityCanonical(type, collapsedName, modelSlug);
+    return { slug: modelSlug, isAlias: false, suggestions: [] };
+  }
+
+  /**
+   * Canonicalize all person + project/tool slugs in an ExtractionResult and
+   * rewrite references.
    *
    * @param result - The extraction result to canonicalize
-   * @returns Canonicalized result and alias map (canonical -> list of old slugs)
+   * @returns Canonicalized result, person alias map (canonical -> old slugs),
+   *          and entity merge suggestions produced by refused auto-binds.
    */
   async canonicalizeExtractionResult(result: ExtractionResult): Promise<{
     result: ExtractionResult;
     aliases: Map<string, string[]>;
+    suggestions: EntityMergeCandidate[];
   }> {
-    // 1. Build rewrite map for person entities
+    // 1. Build rewrite map for person + project/tool entities
     const rewriteMap = new Map<string, string>();
     const aliasesMap = new Map<string, string[]>();
+    const suggestions: EntityMergeCandidate[] = [];
 
     for (const entity of result.entities) {
-      if (entity.type !== "person") continue;
+      if (entity.type === "person") {
+        const { slug: canonicalSlug, isAlias } = await this.canonicalizePersonSlug(
+          entity.name,
+          entity.slug,
+        );
 
-      const { slug: canonicalSlug, isAlias } = await this.canonicalizePersonSlug(
-        entity.name,
-        entity.slug,
-      );
+        rewriteMap.set(entity.slug, canonicalSlug);
 
-      rewriteMap.set(entity.slug, canonicalSlug);
-
-      if (isAlias && entity.slug !== canonicalSlug) {
-        if (!aliasesMap.has(canonicalSlug)) {
-          aliasesMap.set(canonicalSlug, []);
+        if (isAlias && entity.slug !== canonicalSlug) {
+          if (!aliasesMap.has(canonicalSlug)) {
+            aliasesMap.set(canonicalSlug, []);
+          }
+          const aliases = aliasesMap.get(canonicalSlug);
+          if (aliases) {
+            aliases.push(entity.slug);
+          }
         }
-        const aliases = aliasesMap.get(canonicalSlug);
-        if (aliases) {
-          aliases.push(entity.slug);
-        }
+      } else if (entity.type === "project" || entity.type === "tool") {
+        const r = await this.canonicalizeEntitySlug(entity.type, entity.name, entity.slug);
+        rewriteMap.set(entity.slug, r.slug);
+        suggestions.push(...r.suggestions);
       }
     }
 
@@ -234,7 +353,7 @@ export class IdentityResolver {
     // 3. Rewrite entities and deduplicate
     const entityMap = new Map<string, (typeof result.entities)[0]>();
     for (const entity of result.entities) {
-      const slug = entity.type === "person" ? rewriteSlug(entity.slug) : entity.slug;
+      const slug = rewriteMap.has(entity.slug) ? rewriteSlug(entity.slug) : entity.slug;
 
       // Keep first entity for each canonical slug
       if (!entityMap.has(slug)) {
@@ -281,6 +400,18 @@ export class IdentityResolver {
       })),
     };
 
-    return { result: canonicalized, aliases: aliasesMap };
+    // Persist refused-bind suggestions for user review (best-effort — a sink
+    // failure must not break extraction).
+    if (this.suggestionSink) {
+      for (const s of suggestions) {
+        try {
+          await this.suggestionSink.record(s);
+        } catch (err) {
+          console.warn("[IdentityResolver] Failed to record merge suggestion:", err);
+        }
+      }
+    }
+
+    return { result: canonicalized, aliases: aliasesMap, suggestions };
   }
 }

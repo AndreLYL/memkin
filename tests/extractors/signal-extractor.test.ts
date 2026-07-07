@@ -771,3 +771,98 @@ describe("SignalExtractor — SourceRef v2 provenance", () => {
     }
   });
 });
+
+describe("SignalExtractor — PR-3 provenance fixes", () => {
+  it("stamps agent_session provenance for real agent blocks (bare session-id channel)", async () => {
+    // Production agent collectors set channel = bare sessionId with NO
+    // "agent/" prefix — source typing must key off the platform, not the
+    // channel shape (spec §8 provenance audit).
+    const validResult = createValidExtractionResult();
+    const mockProvider = {
+      async chat() {
+        return JSON.stringify(validResult);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const block: ConversationBlock = {
+      block_id: "agent-session-2",
+      platform: "claude-code",
+      channel: "7f3a2b1c-4d5e-6f70-8899-aabbccddeeff",
+      messages: [
+        {
+          platform: "claude-code",
+          channel: "7f3a2b1c-4d5e-6f70-8899-aabbccddeeff",
+          contact: "Claude",
+          timestamp: "2026-07-01T09:00:00Z",
+          content: "Fixed the cursor bug",
+          direction: "sent",
+        },
+      ],
+      start_time: "2026-07-01T09:00:00Z",
+      end_time: "2026-07-01T09:00:00Z",
+      participants: ["Claude", "User"],
+      token_count: 20,
+    };
+
+    const result = await extractor.extract(block);
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data.source.source_type).toBe("agent_session");
+    }
+  });
+
+  it("stamps canonical source refs on preferences and references", async () => {
+    const hallucinated = {
+      platform: "hallucinated",
+      channel: "made-up",
+      timestamp: "1999-01-01T00:00:00Z",
+      raw_hash: "fake",
+      quote: "quoted preference text",
+    };
+    const resultWithPrefRefs = {
+      ...createValidExtractionResult(),
+      preferences: [
+        {
+          summary: "Prefers conventional commits",
+          category: "workflow",
+          entities: [],
+          source: hallucinated,
+          confidence: "direct",
+        },
+      ],
+      references: [
+        {
+          title: "Vitest docs",
+          url: "https://vitest.dev",
+          summary: "Testing framework docs",
+          entities: [],
+          source: { ...hallucinated, quote: "see vitest.dev" },
+          confidence: "direct",
+        },
+      ],
+    };
+    const mockProvider = {
+      async chat() {
+        return JSON.stringify(resultWithPrefRefs);
+      },
+    };
+
+    const extractor = createSignalExtractor(mockProvider);
+    const result = await extractor.extract(createTestBlock());
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      const pref = result.data.preferences[0];
+      const ref = result.data.references[0];
+      // Canonical stamp overwrites LLM-fabricated provenance…
+      expect(pref.source.platform).toBe("slack");
+      expect(pref.source.channel).toBe("#general");
+      expect(pref.source.raw_hash).not.toBe("fake");
+      expect(ref.source.platform).toBe("slack");
+      expect(ref.source.raw_hash).not.toBe("fake");
+      // …but preserves the LLM-selected quote (same contract as AC-12).
+      expect(pref.source.quote).toBe("quoted preference text");
+      expect(ref.source.quote).toBe("see vitest.dev");
+    }
+  });
+});

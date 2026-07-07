@@ -67,6 +67,7 @@ import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { resolveServeSecurity } from "./server/server-security.js";
+import { EntityMergeSuggestionStore } from "./store/entity-suggestions.js";
 import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
 import { stopManagedFromState } from "./store/managed/stop-from-state.js";
@@ -1335,6 +1336,7 @@ program
           graph: stores.graph,
           tags: stores.tags,
           timeline: stores.timeline,
+          entitySuggestions: new EntityMergeSuggestionStore(stores.db.executor),
         },
         llmProvider,
         {
@@ -1367,6 +1369,7 @@ program
       console.log(`  dead links checked:       ${result.deadLinksChecked}`);
       console.log(`  preferences inferred:     ${result.preferencesInferred}`);
       console.log(`  profiles synthesized:     ${result.profilesSynthesized}`);
+      console.log(`  entity merge suggestions: ${result.entityMergeSuggestions}`);
 
       await stores.db.close();
     } catch (error) {

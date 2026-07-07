@@ -10,6 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { AGENT_PLATFORMS } from "../core/canonicalize.js";
 import { extractQuickEntities } from "../core/entity-extract.js";
 import { parseExtractionResult } from "../core/schemas.js";
 import { compactRecord, compactSourceRef } from "../core/source-ref.js";
@@ -155,7 +156,10 @@ function hashBlock(block: ConversationBlock): string {
   return createHash("sha256").update(data).digest("hex").slice(0, 16);
 }
 
-function inferSourceType(channel: string, fallback?: SourceType): SourceType {
+function inferSourceType(channel: string, fallback?: SourceType, platform?: string): SourceType {
+  // Agent platforms carry channel = bare sessionId, so the platform is the
+  // only reliable signal (spec §8 provenance audit) — it outranks fallback.
+  if (platform && AGENT_PLATFORMS.has(platform)) return "agent_session";
   if (fallback) return fallback;
   if (channel.startsWith("dm/")) return "dm";
   if (channel.startsWith("group/")) return "group";
@@ -198,6 +202,7 @@ export function buildSourceRef(input: ConversationBlock | CanonicalisedBlock): S
   const sourceType = inferSourceType(
     block.channel,
     "source_type" in input ? input.source_type : undefined,
+    block.platform,
   );
   const messageIds = collectMessageIds(block.messages);
   const firstMessage = block.messages[0];
@@ -273,6 +278,10 @@ function stampSourceRefs(result: ExtractionResult, canonical: SourceRef): void {
   for (const k of result.knowledge) k.source = stamp(k.source);
   for (const tl of result.timeline) tl.source = stamp(tl.source);
   for (const link of result.links) link.source = stamp(link.source);
+  // PR-3 provenance gap fix: preferences and references were the only signal
+  // types skipped by the canonical stamp (spec §8).
+  for (const pref of result.preferences ?? []) pref.source = stamp(pref.source);
+  for (const ref of result.references ?? []) ref.source = stamp(ref.source);
 }
 
 /**

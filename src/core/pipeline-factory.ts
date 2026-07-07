@@ -1,5 +1,6 @@
 import { createLLMProvider } from "../extractors/providers/index.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
+import { EntityMergeSuggestionStore } from "../store/entity-suggestions.js";
 import type { SqlExecutor } from "../store/sql-executor.js";
 import type { Config, LoadedConfig } from "./config.js";
 import { IdentityResolver } from "./identity-resolver.js";
@@ -49,7 +50,7 @@ export async function createPipelineRuntime(
   }
   const provider = createLLMProvider(llmConfig);
 
-  const identity_resolver = new IdentityResolver(pg);
+  const identity_resolver = new IdentityResolver(pg, undefined, new EntityMergeSuggestionStore(pg));
 
   return {
     config: buildPipelineConfig(config, output_dir),
