@@ -131,6 +131,60 @@ describe("DistilledPayloadStore", () => {
     }
   });
 
+  it("stampTtlForDoneSessions stamps TTL only for payloads of done sessions without one", async () => {
+    const { db, sessions, store } = await setup();
+    try {
+      // Session A reaches done; session B stays distilled.
+      const a = await sessions.recordRevision({
+        sourceInstance: "claude-code",
+        sessionId: "sess-done",
+        contentHash: "hash-e",
+        byteSize: 10,
+        lineCount: 1,
+      });
+      const b = await sessions.recordRevision({
+        sourceInstance: "claude-code",
+        sessionId: "sess-open",
+        contentHash: "hash-f",
+        byteSize: 10,
+        lineCount: 1,
+      });
+      const pa = await store.persist({
+        sourceInstance: "claude-code",
+        sessionId: "sess-done",
+        revisionId: a.revision.id,
+        contentHash: "hash-e",
+        payload: samplePayload(),
+        restorationMap: {},
+      });
+      await store.persist({
+        sourceInstance: "claude-code",
+        sessionId: "sess-open",
+        revisionId: b.revision.id,
+        contentHash: "hash-f",
+        payload: samplePayload(),
+        restorationMap: {},
+      });
+      // Drive session A to done through the legal state machine.
+      await sessions.markState(a.revision.id, "applying");
+      await sessions.markState(a.revision.id, "done");
+
+      const stamped = await store.stampTtlForDoneSessions(90);
+      expect(stamped).toBe(1);
+
+      const pAfter = await store.getById(pa.id);
+      expect(pAfter?.ttlExpiresAt).toBeTruthy();
+      const pOpen = await store.getByRevision(b.revision.id);
+      expect(pOpen?.ttlExpiresAt).toBeNull();
+
+      // Idempotent: second call stamps nothing new.
+      const again = await store.stampTtlForDoneSessions(90);
+      expect(again).toBe(0);
+    } finally {
+      await db.executor.close();
+    }
+  });
+
   it("does not sweep rows whose ttl is unset or in the future", async () => {
     const { db, sessions, store } = await setup();
     try {

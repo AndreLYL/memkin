@@ -1,6 +1,7 @@
 import type { ProfileConfig } from "../core/config.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { type ProfileSynthStores, synthesizeProfiles } from "../profile/profile-synth.js";
+import type { DistilledPayloadStore } from "../store/distilled-payload.js";
 import type { EntityMergeSuggestionStore } from "../store/entity-suggestions.js";
 import type { GraphStore } from "../store/graph.js";
 import type { PageStore } from "../store/pages.js";
@@ -34,6 +35,17 @@ export interface ConsolidatorProfileOpts {
   profileStores: ProfileSynthStores;
 }
 
+/**
+ * Optional distilled-payload outbox wiring (extraction-quality-redesign PR-2,
+ * spec §4.3). When provided, runOnce stamps ttl_expires_at for payloads of
+ * `done` sessions (ttlDays, default distiller.payload_ttl_days = 90) and sweeps
+ * payloads past their TTL — clearing the reversible restoration map with them.
+ */
+export interface ConsolidatorOutboxOpts {
+  payloads: DistilledPayloadStore;
+  ttlDays: number;
+}
+
 export interface ConsolidateResult {
   hotToWarm: number;
   warmToCold: number;
@@ -41,6 +53,7 @@ export interface ConsolidateResult {
   preferencesInferred: number;
   profilesSynthesized: number;
   entityMergeSuggestions: number;
+  payloadsSwept: number;
 }
 
 export type ConsolidateMode = "hot" | "warm" | "all";
@@ -53,6 +66,7 @@ export class Consolidator {
     private stores: ConsolidatorStores,
     private llm?: LLMProvider,
     private profileOpts?: ConsolidatorProfileOpts,
+    private outboxOpts?: ConsolidatorOutboxOpts,
   ) {}
 
   start(): void {
@@ -75,6 +89,7 @@ export class Consolidator {
       preferencesInferred: 0,
       profilesSynthesized: 0,
       entityMergeSuggestions: 0,
+      payloadsSwept: 0,
     };
     if (mode === "hot" || mode === "all") {
       result.hotToWarm = await this.consolidateHot(dryRun);
@@ -86,6 +101,7 @@ export class Consolidator {
           dryRun,
         );
       }
+      result.payloadsSwept = await this.sweepDistilledPayloads(dryRun);
     }
     if (mode === "warm" || mode === "all") {
       const warmResult = await this.consolidateWarm(dryRun);
@@ -101,9 +117,22 @@ export class Consolidator {
     return consolidateHotToWarm(this.stores, dryRun);
   }
 
+  /**
+   * Distilled-payload TTL cleanup (spec §4.3): stamp TTLs for payloads whose
+   * session reached `done`, then delete payloads past their TTL. No-op when the
+   * outbox is not wired or in dry-run mode.
+   */
+  private async sweepDistilledPayloads(dryRun: boolean): Promise<number> {
+    if (!this.outboxOpts || dryRun) return 0;
+    await this.outboxOpts.payloads.stampTtlForDoneSessions(this.outboxOpts.ttlDays);
+    return this.outboxOpts.payloads.sweepExpired();
+  }
+
   async consolidateWarm(
     dryRun = false,
-  ): Promise<Omit<ConsolidateResult, "hotToWarm" | "entityMergeSuggestions">> {
+  ): Promise<
+    Omit<ConsolidateResult, "hotToWarm" | "entityMergeSuggestions" | "payloadsSwept">
+  > {
     if (!this.llm) {
       throw new Error("LLM provider required for warm→cold consolidation");
     }

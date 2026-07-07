@@ -145,6 +145,24 @@ export class DistilledPayloadStore {
   }
 
   /**
+   * Stamp ttl_expires_at for every payload whose session revision has reached
+   * `done` and that has no TTL yet (spec §4.3: payload retained N days after
+   * done). Called by the consolidator's cleanup hook. Idempotent — already
+   * stamped rows are skipped. Returns the number of payloads stamped.
+   */
+  async stampTtlForDoneSessions(ttlDays: number): Promise<number> {
+    const r = await this.pg.query<{ id: number }>(
+      `UPDATE distilled_payload
+         SET ttl_expires_at = NOW() + ($1 || ' days')::interval
+       WHERE ttl_expires_at IS NULL
+         AND revision_id IN (SELECT id FROM agent_sessions WHERE state = 'done')
+       RETURNING id`,
+      [String(ttlDays)],
+    );
+    return r.rows.length;
+  }
+
+  /**
    * Delete payloads whose TTL has passed. The reversible restoration_map is a
    * column on the same row, so it is cleared together (spec §4.3). Returns the
    * number of rows swept.
