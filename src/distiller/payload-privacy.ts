@@ -27,7 +27,7 @@ export function redactPayload(payload: DistilledPayload, config: PrivacyConfig):
   const r = (text: string) => proc.redactString(text);
   const rOpt = (text: string | undefined) => (text === undefined ? undefined : r(text));
 
-  const signals = payload.signals.map((sig): DistilledSignal => {
+  const redactSignal = (sig: DistilledSignal): DistilledSignal => {
     const common = {
       topic: r(sig.topic),
       what: r(sig.what),
@@ -40,20 +40,17 @@ export function redactPayload(payload: DistilledPayload, config: PrivacyConfig):
       persistence_reason: r(sig.persistence_reason),
     };
     switch (sig.type) {
-      case "decision":
-        return { ...sig, ...common };
       case "task":
         return { ...sig, ...common, owner: rOpt(sig.owner) };
       case "reference":
         return { ...sig, ...common, trigger: rOpt(sig.trigger) };
       case "preference":
         return { ...sig, ...common, subject: r(sig.subject) };
-      case "knowledge":
-        return { ...sig, ...common };
-      case "discovery":
+      default:
+        // decision / knowledge / discovery carry no extra free-text fields.
         return { ...sig, ...common };
     }
-  });
+  };
 
-  return { signals };
+  return { signals: payload.signals.map(redactSignal) };
 }

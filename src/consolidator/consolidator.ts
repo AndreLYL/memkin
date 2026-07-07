@@ -130,9 +130,7 @@ export class Consolidator {
 
   async consolidateWarm(
     dryRun = false,
-  ): Promise<
-    Omit<ConsolidateResult, "hotToWarm" | "entityMergeSuggestions" | "payloadsSwept">
-  > {
+  ): Promise<Omit<ConsolidateResult, "hotToWarm" | "entityMergeSuggestions" | "payloadsSwept">> {
     if (!this.llm) {
       throw new Error("LLM provider required for warm→cold consolidation");
     }
