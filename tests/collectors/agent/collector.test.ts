@@ -140,6 +140,90 @@ describe("AgentSessionCollector", () => {
     expect(messages).toHaveLength(2);
   });
 
+  it("should not abort on bad JSON and non-object lines; count them as warnings with line numbers", async () => {
+    const filePath = path.join(tempDir, "test.jsonl");
+    const content = [
+      '{"type":"msg","role":"user","ts":"2024-01-01T10:00:00Z","text":"before"}',
+      "{broken json", // line 2: invalid JSON
+      "42", // line 3: valid JSON but not an object
+      "null", // line 4: null — property access would throw without a guard
+      "[1,2,3]", // line 5: array — not a record
+      '{"type":"msg","role":"user","ts":"2024-01-01T10:00:01Z","text":"after"}',
+    ].join("\n");
+    await fs.writeFile(filePath, content);
+
+    const collector = new AgentSessionCollector(testLayout(tempDir), new TestParser());
+    const messages: RawMessage[] = [];
+    for await (const msg of collector.fetch({})) {
+      messages.push(msg);
+    }
+
+    // Run did not abort: both valid records around the bad lines are produced.
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).toBe("before");
+    expect(messages[1].content).toBe("after");
+
+    // Every bad line is a warning carrying its 1-based line number.
+    expect(collector.warnings).toHaveLength(4);
+    expect(collector.warnings[0]).toContain(`${filePath}:2`);
+    expect(collector.warnings[1]).toContain(`${filePath}:3`);
+    expect(collector.warnings[2]).toContain(`${filePath}:4`);
+    expect(collector.warnings[3]).toContain(`${filePath}:5`);
+  });
+
+  it("should not abort when the parser throws on a single record", async () => {
+    class ThrowingParser extends TestParser {
+      parseRecord(line: Record<string, unknown>, context: SessionParseContext): RawMessage | null {
+        if (line.text === "poison") throw new Error("parser blew up");
+        return super.parseRecord(line, context);
+      }
+    }
+
+    const filePath = path.join(tempDir, "test.jsonl");
+    const content = [
+      '{"type":"msg","role":"user","ts":"2024-01-01T10:00:00Z","text":"ok"}',
+      '{"type":"msg","role":"user","ts":"2024-01-01T10:00:01Z","text":"poison"}',
+      '{"type":"msg","role":"user","ts":"2024-01-01T10:00:02Z","text":"still ok"}',
+    ].join("\n");
+    await fs.writeFile(filePath, content);
+
+    const collector = new AgentSessionCollector(testLayout(tempDir), new ThrowingParser());
+    const messages: RawMessage[] = [];
+    for await (const msg of collector.fetch({})) {
+      messages.push(msg);
+    }
+
+    expect(messages).toHaveLength(2);
+    expect(collector.warnings).toHaveLength(1);
+    expect(collector.warnings[0]).toContain(`${filePath}:2`);
+    expect(collector.warnings[0]).toContain("parser blew up");
+  });
+
+  it("should reset warnings between fetch runs", async () => {
+    const filePath = path.join(tempDir, "test.jsonl");
+    await fs.writeFile(
+      filePath,
+      ["{broken json", '{"type":"msg","role":"user","ts":"2024-01-01T10:00:00Z","text":"ok"}'].join(
+        "\n",
+      ),
+    );
+
+    const collector = new AgentSessionCollector(testLayout(tempDir), new TestParser());
+    for await (const _ of collector.fetch({})) {
+      /* drain */
+    }
+    expect(collector.warnings).toHaveLength(1);
+
+    await fs.writeFile(
+      filePath,
+      '{"type":"msg","role":"user","ts":"2024-01-01T10:00:00Z","text":"ok"}',
+    );
+    for await (const _ of collector.fetch({})) {
+      /* drain */
+    }
+    expect(collector.warnings).toHaveLength(0);
+  });
+
   it("should not process same sessionId twice in one run", async () => {
     const content =
       '{"type":"meta","id":"same-session","ts":"2024-01-01T10:00:00Z"}\n{"type":"msg","role":"user","ts":"2024-01-01T10:00:01Z","text":"msg"}';

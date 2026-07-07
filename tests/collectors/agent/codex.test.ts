@@ -160,3 +160,49 @@ describe("createCodexCollector integration", () => {
     expect(users.every((u) => !u.content.includes("<environment_context"))).toBe(true);
   });
 });
+
+describe("CodexParser malformed record tolerance", () => {
+  const parser = new CodexParser();
+  const context: SessionParseContext = {
+    sessionId: "test",
+    filePath: "/test.jsonl",
+    channel: "test",
+    lineIndex: 0,
+    sessionMeta: null,
+  };
+
+  it("isConversationRecord returns false for response_item without payload", () => {
+    expect(parser.isConversationRecord({ type: "response_item" })).toBe(false);
+  });
+
+  it("isConversationRecord returns false for event_msg without payload", () => {
+    expect(parser.isConversationRecord({ type: "event_msg" })).toBe(false);
+  });
+
+  it("isConversationRecord returns false for response_item with null payload", () => {
+    expect(parser.isConversationRecord({ type: "response_item", payload: null })).toBe(false);
+  });
+
+  it("parseSessionMeta returns null for session_meta without payload", () => {
+    expect(parser.parseSessionMeta({ type: "session_meta", timestamp: "t" })).toBeNull();
+  });
+
+  it("parseRecord returns null when response_item content is not an array", () => {
+    const line = {
+      type: "response_item",
+      payload: { role: "user", content: "not-an-array" },
+      timestamp: "2024-01-15T09:00:00Z",
+    };
+    expect(parser.parseRecord(line, context)).toBeNull();
+  });
+
+  it("parseRecord returns null when response_item payload is missing", () => {
+    const line = { type: "response_item", timestamp: "2024-01-15T09:00:00Z" };
+    expect(parser.parseRecord(line, context)).toBeNull();
+  });
+
+  it("parseRecord returns null when event_msg payload is missing", () => {
+    const line = { type: "event_msg", timestamp: "2024-01-15T09:00:00Z" };
+    expect(parser.parseRecord(line, context)).toBeNull();
+  });
+});

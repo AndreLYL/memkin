@@ -26,6 +26,10 @@ const defaultSnapshotFs: SnapshotFs = {
   readFile: (p, enc) => fs.readFile(p, enc),
 };
 
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Read a transcript file only if it is stable across the read.
  *
@@ -64,6 +68,18 @@ export class AgentSessionCollector implements Collector {
   readonly name: string;
   readonly description: string;
 
+  /**
+   * Non-fatal issues from the most recent fetch() run. Malformed JSONL lines
+   * (invalid JSON, non-object values, records the parser chokes on) are skipped
+   * and recorded here as `<file>:<1-based line>: <reason>` instead of aborting
+   * the whole collection run.
+   */
+  private runWarnings: string[] = [];
+
+  get warnings(): readonly string[] {
+    return this.runWarnings;
+  }
+
   constructor(
     private readonly layout: SessionLayout,
     private readonly parser: SessionParser,
@@ -84,6 +100,7 @@ export class AgentSessionCollector implements Collector {
   }
 
   async *fetch(_opts: FetchOpts): AsyncGenerator<RawMessage> {
+    this.runWarnings = [];
     const processedSessions = new Set<string>();
 
     const files = await this.discoverFiles();
@@ -120,37 +137,54 @@ export class AgentSessionCollector implements Collector {
         const line = lines[lineIndex].trim();
         if (!line) continue;
 
-        let parsed: Record<string, unknown>;
+        // Tolerate malformed lines: a single corrupt line (invalid JSON, a bare
+        // scalar/array/null, or a record the parser throws on) must not abort
+        // the whole run — skip it and record a warning with its 1-based line number.
+        let raw: unknown;
         try {
-          parsed = JSON.parse(line);
-        } catch {
+          raw = JSON.parse(line);
+        } catch (err) {
+          this.warnLine(file.path, lineIndex, `invalid JSON (${errMessage(err)})`);
           continue;
         }
 
-        const meta = this.parser.parseSessionMeta(parsed);
-        if (meta) {
-          sessionMeta = meta;
-          currentSessionId = meta.sessionId;
+        if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+          this.warnLine(file.path, lineIndex, "not a JSON object record");
+          continue;
+        }
+        const parsed = raw as Record<string, unknown>;
+
+        let message: RawMessage | null = null;
+        try {
+          const meta = this.parser.parseSessionMeta(parsed);
+          if (meta) {
+            sessionMeta = meta;
+            currentSessionId = meta.sessionId;
+            continue;
+          }
+
+          if (processedSessions.has(currentSessionId)) {
+            continue;
+          }
+
+          if (!this.parser.isConversationRecord(parsed)) {
+            continue;
+          }
+
+          const context: SessionParseContext = {
+            sessionId: currentSessionId,
+            filePath: file.path,
+            channel,
+            lineIndex,
+            sessionMeta,
+          };
+
+          message = this.parser.parseRecord(parsed, context);
+        } catch (err) {
+          this.warnLine(file.path, lineIndex, `record parse failed (${errMessage(err)})`);
           continue;
         }
 
-        if (processedSessions.has(currentSessionId)) {
-          continue;
-        }
-
-        if (!this.parser.isConversationRecord(parsed)) {
-          continue;
-        }
-
-        const context: SessionParseContext = {
-          sessionId: currentSessionId,
-          filePath: file.path,
-          channel,
-          lineIndex,
-          sessionMeta,
-        };
-
-        const message = this.parser.parseRecord(parsed, context);
         if (message) {
           message.metadata = {
             ...message.metadata,
@@ -163,6 +197,10 @@ export class AgentSessionCollector implements Collector {
 
       processedSessions.add(currentSessionId);
     }
+  }
+
+  private warnLine(filePath: string, lineIndex: number, reason: string): void {
+    this.runWarnings.push(`${filePath}:${lineIndex + 1}: ${reason}, line skipped`);
   }
 
   private async discoverFiles(): Promise<string[]> {

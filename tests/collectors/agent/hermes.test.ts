@@ -205,3 +205,37 @@ describe("createHermesCollector integration", () => {
     expect(messages[0].content).toBe("should appear");
   });
 });
+
+describe("HermesParser malformed record tolerance", () => {
+  const parser = new HermesParser();
+  const context: SessionParseContext = {
+    sessionId: "test",
+    filePath: "/agents/main/sessions/test.jsonl",
+    channel: "main/test",
+    lineIndex: 0,
+    sessionMeta: null,
+  };
+
+  it("parseRecord returns null when message.content is not an array", () => {
+    const line = {
+      type: "message",
+      message: { role: "user", content: "not-an-array" },
+      timestamp: "2024-02-01T14:00:00Z",
+    };
+    expect(parser.parseRecord(line, context)).toBeNull();
+  });
+
+  it("parseRecord returns null when message.content is missing", () => {
+    const line = {
+      type: "message",
+      message: { role: "user" },
+      timestamp: "2024-02-01T14:00:00Z",
+    };
+    expect(parser.parseRecord(line, context)).toBeNull();
+  });
+
+  it("parseRecord returns null when message is not an object", () => {
+    const line = { type: "message", message: 42, timestamp: "2024-02-01T14:00:00Z" };
+    expect(parser.parseRecord(line, context)).toBeNull();
+  });
+});
