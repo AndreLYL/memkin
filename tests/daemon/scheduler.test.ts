@@ -199,6 +199,89 @@ describe("Scheduler tick", () => {
   });
 });
 
+describe("Scheduler per-source timeout", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    tmpDir = mkdtempSync(join(tmpdir(), "sched-timeout-"));
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("records a wedged source as failed and continues with the next source", async () => {
+    const config = makeSchedulerConfig({
+      source_timeout_ms: 5000,
+      sources: {
+        wedged: { interval_secs: 600 },
+        healthy: { interval_secs: 600 },
+      },
+    });
+    const sched = new Scheduler(config, tmpDir);
+    const runs: string[] = [];
+
+    sched.setRunSource((sourceId) => {
+      runs.push(sourceId);
+      if (sourceId === "wedged") return new Promise<PipelineResult>(() => {}); // never settles
+      return Promise.resolve(okResult);
+    });
+
+    const tick = sched.tick();
+    await vi.advanceTimersByTimeAsync(5000);
+    await tick;
+
+    expect(runs).toEqual(["wedged", "healthy"]);
+    expect(sched.getSourceState("wedged")?.last_result).toBe("failed");
+    expect(sched.getSourceState("wedged")?.consecutive_failures).toBe(1);
+    expect(sched.getSourceState("wedged")?.last_error).toMatch(/timed out/i);
+    expect(sched.getSourceState("healthy")?.last_result).toBe("ok");
+  });
+
+  it("defaults the timeout to 10 minutes when not configured", async () => {
+    const config = makeSchedulerConfig({
+      sources: { wedged: { interval_secs: 600 } },
+    });
+    const sched = new Scheduler(config, tmpDir);
+    sched.setRunSource(() => new Promise<PipelineResult>(() => {}));
+
+    const tick = sched.tick();
+    await vi.advanceTimersByTimeAsync(600_000 - 1);
+    expect(sched.getSourceState("wedged")?.last_result).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    await tick;
+
+    expect(sched.getSourceState("wedged")?.last_result).toBe("failed");
+    expect(sched.getSourceState("wedged")?.last_error).toMatch(/timed out/i);
+  });
+
+  it("does not fail a source that finishes before the timeout", async () => {
+    const config = makeSchedulerConfig({
+      source_timeout_ms: 5000,
+      sources: { slowish: { interval_secs: 600 } },
+    });
+    const sched = new Scheduler(config, tmpDir);
+    sched.setRunSource(async () => {
+      await new Promise((r) => setTimeout(r, 4000));
+      return okResult;
+    });
+
+    const tick = sched.tick();
+    await vi.advanceTimersByTimeAsync(4000);
+    await tick;
+
+    expect(sched.getSourceState("slowish")?.last_result).toBe("ok");
+    expect(sched.getSourceState("slowish")?.consecutive_failures).toBe(0);
+
+    // Advancing past the (cleared) timeout must not flip the result to failed.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sched.getSourceState("slowish")?.last_result).toBe("ok");
+  });
+});
+
 describe("Scheduler persistence", () => {
   let tmpDir: string;
 
