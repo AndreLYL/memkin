@@ -147,6 +147,69 @@ describe("CalendarSource", () => {
     );
   });
 
+  it("paginates through all pages when has_more is true", async () => {
+    const [event1, event2] = fixtureData.data.items;
+    const page1 = {
+      items: [event1],
+      has_more: true,
+      page_token: "page_token_p2",
+    };
+    const page2 = {
+      items: [event2],
+      has_more: false,
+      sync_token: "sync_token_final",
+    };
+    const requestMock = vi
+      .fn()
+      .mockResolvedValueOnce({ code: 0, data: page1 })
+      .mockResolvedValueOnce({ code: 0, data: page2 });
+    const client = { request: requestMock, paginate: vi.fn() } as unknown as FeishuHttpClient;
+    const source = new CalendarSource(client, ["cal_001"]);
+    const staging = new CursorStaging();
+
+    const messages: Array<{ metadata?: { event_id?: string } }> = [];
+    for await (const msg of source.fetch(null, staging)) {
+      messages.push(msg as { metadata?: { event_id?: string } });
+    }
+
+    // Both pages' events must be produced — page 2 was previously dropped.
+    expect(messages).toHaveLength(2);
+    expect(messages[0]?.metadata?.event_id).toBe("evt_001");
+    expect(messages[1]?.metadata?.event_id).toBe("evt_002");
+
+    // Second request must carry the page_token from page 1.
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    const secondCallOpts = requestMock.mock.calls[1]?.[2] as { params: Record<string, string> };
+    expect(secondCallOpts.params.page_token).toBe("page_token_p2");
+
+    // sync_token arrives on the final page and must be committed.
+    const committable = staging.getCommittable();
+    expect(committable.calendar.cal_001).toEqual({ sync_token: "sync_token_final" });
+  });
+
+  it("stops paginating when has_more is false even if page_token present", async () => {
+    const requestMock = vi.fn().mockResolvedValue({
+      code: 0,
+      data: {
+        items: fixtureData.data.items,
+        has_more: false,
+        page_token: "stale_token",
+        sync_token: "sync_token_v2_abc123",
+      },
+    });
+    const client = { request: requestMock, paginate: vi.fn() } as unknown as FeishuHttpClient;
+    const source = new CalendarSource(client, ["cal_001"]);
+    const staging = new CursorStaging();
+
+    const messages: unknown[] = [];
+    for await (const msg of source.fetch(null, staging)) {
+      messages.push(msg);
+    }
+
+    expect(messages).toHaveLength(2);
+    expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
   it("commits cursor even with 0 events", async () => {
     const emptyResponse = {
       items: [],
