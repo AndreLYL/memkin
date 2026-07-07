@@ -40,6 +40,7 @@ import { ensureStateDir, statePath } from "./core/state.js";
 import {
   rawYamlHash,
   readDaemonState,
+  recoverServeConfigPath,
   servingSubsetHash,
 } from "./daemon/autostart/daemon-state.js";
 import { disableAutostart, statusAutostart } from "./daemon/autostart/index.js";
@@ -703,15 +704,37 @@ async function runServe(options: {
   daemonInstanceId?: string;
 }): Promise<void> {
   {
+    let serveConfigOverride = options.config;
     const serveConfigPath = options.config ?? resolve(process.cwd(), "memkin.yaml");
     if (!existsSync(serveConfigPath)) {
+      // F1 self-heal: a daemon relaunch can carry a stale --config frozen into
+      // the plist/unit argv (memoark → memkin rename), and daemon.json may hold
+      // the same stale path. Recover via daemon.json (daemon-launched only) or
+      // normal discovery, and write the fix back to daemon.json when it was
+      // stale. All output on stderr — `serve --mcp` owns stdout for JSON-RPC.
+      const recovered = recoverServeConfigPath({
+        requestedPath: serveConfigPath,
+        stateDir: join(homedir(), ".memkin"),
+        trustDaemonState: Boolean(options.daemonInstanceId),
+        discover: () => resolveConfigPath(),
+      });
+      if (!recovered) {
+        console.error(
+          "No configuration file found.\n" +
+            "Run `memkin start` for one-step setup + launch, or `memkin init --web` to configure first.",
+        );
+        process.exit(1);
+      }
       console.error(
-        "No configuration file found.\n" +
-          "Run `memkin start` for one-step setup + launch, or `memkin init --web` to configure first.",
+        `[serve] Config file ${serveConfigPath} not found — using ${recovered.configPath} ` +
+          `(${recovered.source === "daemon-state" ? "from daemon.json" : "discovered"}).`,
       );
-      process.exit(1);
+      if (recovered.healedDaemonState) {
+        console.error(`[serve] Updated daemon.json config_path → ${recovered.configPath}`);
+      }
+      serveConfigOverride = recovered.configPath;
     }
-    const config = loadConfig(options.config);
+    const config = loadConfig(serveConfigOverride);
     // Anchor the .memkin state dir to the config's project root, not process.cwd().
     // A Finder-launched sidecar has cwd=/, so the default would try to mkdir /.memkin
     // (EROFS on macOS). projectRoot = dirname(configPath), so it lives beside the config.

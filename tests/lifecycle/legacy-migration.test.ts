@@ -2,11 +2,13 @@
  * Tests for legacy memoark → memkin auto-migration (R2).
  *
  * The migration runs ONCE at CLI startup, before config load / store open.
- * It covers three moves, all with the same rules:
+ * It covers three moves plus one rewrite, all with the same rules:
  *   1. user data dir   ~/.memoark      → ~/.memkin
  *   2. config file      memoark.yaml   → memkin.yaml   (nearest ancestor from
  *      cwd, mirroring resolveConfigPath's upward walk)
  *   3. project state    .memoark/      → .memkin/      (config anchor dir + cwd)
+ *   4. daemon.json      config_path rewritten when it still references a legacy
+ *      memoark path that steps 1–2 renamed out from under it
  *
  * Rules: rename-only (never copy-recursive), never merge, never delete when both
  * exist (use new, warn once), silent no-op when neither exists, idempotent, and
@@ -277,6 +279,111 @@ describe("migrateLegacyData — rename failure (EXDEV / cross-volume)", () => {
     const w = warnings.join("\n");
     expect(w).toContain("different volumes");
     expect(w).toContain(`mv "${oldDir}" "${join(home, ".memkin")}"`);
+  });
+});
+
+describe("migrateLegacyData — daemon.json config_path (step 4)", () => {
+  function writeDaemon(dir: string, state: Record<string, unknown>): void {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "daemon.json"), JSON.stringify(state, null, 2), "utf8");
+  }
+  function readDaemon(dir: string): Record<string, unknown> {
+    return JSON.parse(readFileSync(join(dir, "daemon.json"), "utf8")) as Record<string, unknown>;
+  }
+
+  it("rewrites config_path pointing into the old data dir after the dir rename", () => {
+    // The step-1 dir rename moves daemon.json to ~/.memkin/daemon.json, but its
+    // persisted config_path still says ~/.memoark/memoark.yaml — a path that no
+    // longer exists. The migrated file kept its old NAME inside the moved dir.
+    const oldDir = join(home, ".memoark");
+    mkdirSync(oldDir, { recursive: true });
+    writeFileSync(join(oldDir, "memoark.yaml"), "llm: {}\n");
+    writeDaemon(oldDir, {
+      instance_id: "i-1",
+      config_path: join(oldDir, "memoark.yaml"),
+      raw_yaml_hash: "h",
+      url: "http://127.0.0.1:3928/mcp",
+      argv: ["memkin", "serve"],
+    });
+
+    const { notices } = run();
+
+    const migrated = join(home, ".memkin", "memoark.yaml");
+    expect(existsSync(migrated)).toBe(true);
+    const state = readDaemon(join(home, ".memkin"));
+    expect(state.config_path).toBe(migrated);
+    // every other field survives the rewrite untouched
+    expect(state.instance_id).toBe("i-1");
+    expect(state.raw_yaml_hash).toBe("h");
+    expect(state.argv).toEqual(["memkin", "serve"]);
+    expect(notices.some((n) => n.includes("daemon.json"))).toBe(true);
+  });
+
+  it("rewrites config_path when the project config was renamed memoark.yaml → memkin.yaml", () => {
+    // daemon.json already lives under ~/.memkin; config_path still points at the
+    // project-level memoark.yaml that step 2 renames in place.
+    writeFileSync(join(cwd, "memoark.yaml"), "root: true\n");
+    writeDaemon(join(home, ".memkin"), { config_path: join(cwd, "memoark.yaml") });
+
+    run();
+
+    expect(readDaemon(join(home, ".memkin")).config_path).toBe(join(cwd, "memkin.yaml"));
+  });
+
+  it("leaves config_path alone when it still points at an existing file", () => {
+    // both-exist case: the old dir (and the config inside it) is kept, so the
+    // stored path is still valid — nothing to fix.
+    mkdirSync(join(home, ".memoark"), { recursive: true });
+    writeFileSync(join(home, ".memoark", "memoark.yaml"), "old: true\n");
+    writeDaemon(join(home, ".memkin"), { config_path: join(home, ".memoark", "memoark.yaml") });
+
+    run();
+
+    expect(readDaemon(join(home, ".memkin")).config_path).toBe(
+      join(home, ".memoark", "memoark.yaml"),
+    );
+  });
+
+  it("leaves config_path alone when no migrated counterpart exists", () => {
+    // Nothing on disk matches any mapped candidate — rewriting would just point
+    // at a different nonexistent file. Serve's read-time self-heal covers this.
+    writeDaemon(join(home, ".memkin"), { config_path: join(home, ".memoark", "memoark.yaml") });
+
+    run();
+
+    expect(readDaemon(join(home, ".memkin")).config_path).toBe(
+      join(home, ".memoark", "memoark.yaml"),
+    );
+  });
+
+  it("leaves a non-legacy config_path alone even when the file is missing", () => {
+    // Only paths that reference the legacy names are migration's business.
+    writeDaemon(join(home, ".memkin"), { config_path: join(cwd, "custom.yaml") });
+
+    run();
+
+    expect(readDaemon(join(home, ".memkin")).config_path).toBe(join(cwd, "custom.yaml"));
+  });
+
+  it("tolerates a corrupt daemon.json without crashing or rewriting it", () => {
+    mkdirSync(join(home, ".memkin"), { recursive: true });
+    writeFileSync(join(home, ".memkin", "daemon.json"), "{not json", "utf8");
+
+    expect(() => run()).not.toThrow();
+    expect(readFileSync(join(home, ".memkin", "daemon.json"), "utf8")).toBe("{not json");
+  });
+
+  it("is idempotent: a second run after the rewrite is silent", () => {
+    const oldDir = join(home, ".memoark");
+    mkdirSync(oldDir, { recursive: true });
+    writeFileSync(join(oldDir, "memoark.yaml"), "llm: {}\n");
+    writeDaemon(oldDir, { config_path: join(oldDir, "memoark.yaml") });
+
+    run(); // first: migrates dir + rewrites config_path
+    const { notices, warnings } = run(); // second
+
+    expect(notices).toHaveLength(0);
+    expect(warnings).toHaveLength(0);
   });
 });
 
