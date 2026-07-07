@@ -152,6 +152,83 @@ describe("REST API", () => {
     expect((await app.request("/api/chunks?slug=entities/alice")).status).toBe(200);
     expect((await app.request("/api/embed", { method: "POST" })).status).toBe(200);
   });
+
+  describe("timeline feed pagination", () => {
+    /** Seeds one signal per day at the given day-offsets from now (UTC). */
+    async function seedDays(offsets: number[]): Promise<string[]> {
+      const days: string[] = [];
+      for (const offset of offsets) {
+        const ts = new Date(Date.now() - offset * 86400000).toISOString();
+        days.push(ts.slice(0, 10));
+        const content = [
+          "---",
+          `title: Signal day ${offset}`,
+          "type: knowledge",
+          "source:",
+          "  platform: feishu",
+          "  channel: group/feishu/test",
+          `  timestamp: ${ts}`,
+          "---",
+          `Body for day offset ${offset}.`,
+        ].join("\n");
+        const res = await app.request(`/api/pages/by-slug?slug=notes/day-${offset}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        expect(res.status).toBe(200);
+      }
+      return [...days].sort((a, b) => b.localeCompare(a));
+    }
+
+    it("treats cursor as an upper bound: pages walk backwards without overlap or gaps", async () => {
+      // Sparse activity: 8 active days, every other calendar day.
+      const seededDays = await seedDays([0, 2, 4, 6, 8, 10, 12, 14]);
+
+      const page1 = (await (await app.request("/api/timeline/feed?limit=3")).json()) as {
+        days: Array<{ date: string }>;
+        next_cursor: string | null;
+      };
+      const page1Dates = page1.days.map((d) => d.date);
+      expect(page1Dates).toEqual(seededDays.slice(0, 3));
+      expect(page1.next_cursor).toBe(seededDays[3]);
+
+      const page2 = (await (
+        await app.request(`/api/timeline/feed?limit=3&cursor=${page1.next_cursor}`)
+      ).json()) as { days: Array<{ date: string }>; next_cursor: string | null };
+      const page2Dates = page2.days.map((d) => d.date);
+
+      // Every entry on page 2 is strictly earlier than every entry on page 1.
+      const oldestOnPage1 = page1Dates[page1Dates.length - 1];
+      for (const date of page2Dates) {
+        expect(date < oldestOnPage1).toBe(true);
+      }
+      expect(page2Dates).toEqual(seededDays.slice(3, 6));
+
+      // Walking the cursor to the end covers all seeded days exactly once.
+      const seen = [...page1Dates, ...page2Dates];
+      let cursor = page2.next_cursor;
+      while (cursor) {
+        const page = (await (
+          await app.request(`/api/timeline/feed?limit=3&cursor=${cursor}`)
+        ).json()) as { days: Array<{ date: string }>; next_cursor: string | null };
+        seen.push(...page.days.map((d) => d.date));
+        cursor = page.next_cursor;
+      }
+      expect(seen).toEqual(seededDays);
+      expect(new Set(seen).size).toBe(seededDays.length);
+    });
+
+    it("returns null next_cursor when all activity fits in one page", async () => {
+      await seedDays([0, 1]);
+      const feed = (await (await app.request("/api/timeline/feed?limit=7")).json()) as {
+        days: Array<{ date: string }>;
+        next_cursor: string | null;
+      };
+      expect(feed.days).toHaveLength(2);
+      expect(feed.next_cursor).toBeNull();
+    });
+  });
 });
 
 describe("REST API auth middleware", () => {

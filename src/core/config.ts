@@ -200,6 +200,12 @@ export interface SchedulerConfig {
   tick_interval_secs: number;
   defaults: { interval_secs: number };
   sources: Record<string, SchedulerSourceConfig>;
+  /**
+   * Hard per-source run timeout in milliseconds. A source that exceeds it is
+   * recorded as failed and the tick moves on to the next source, so one wedged
+   * source cannot stall the whole scheduler. Default: 10 minutes.
+   */
+  source_timeout_ms?: number;
 }
 
 export interface PipelineOptsConfig {

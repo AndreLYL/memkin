@@ -12,6 +12,9 @@ interface SchedulerPersistence {
 
 export type RunSourceFn = (sourceId: string) => Promise<PipelineResult>;
 
+/** Default hard cap on a single source run (10 minutes). */
+export const DEFAULT_SOURCE_TIMEOUT_MS = 600_000;
+
 export class Scheduler {
   private schedules: Map<string, SourceSchedule> = new Map();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -19,6 +22,7 @@ export class Scheduler {
   private daemon_started_at: number;
   private last_heartbeat_at: number;
   private tick_interval_ms: number;
+  private source_timeout_ms: number;
   private readonly state_path: string;
   private onTick?: (sourceId: string, result: PipelineResult, duration_ms: number) => void;
   private runSource?: RunSourceFn;
@@ -29,6 +33,7 @@ export class Scheduler {
 
   constructor(config: SchedulerConfig, stateDir: string) {
     this.tick_interval_ms = config.tick_interval_secs * 1000;
+    this.source_timeout_ms = config.source_timeout_ms ?? DEFAULT_SOURCE_TIMEOUT_MS;
     this.state_path = join(stateDir, "scheduler-state.json");
     this.daemon_started_at = Date.now();
     this.last_heartbeat_at = Date.now();
@@ -108,7 +113,7 @@ export class Scheduler {
           this.last_heartbeat_at = Date.now();
           const start = Date.now();
           try {
-            const result = await this.runSource(sourceId);
+            const result = await this.runSourceWithTimeout(this.runSource, sourceId);
             const duration_ms = Date.now() - start;
             schedule.recordResult(classifyResult(result), Date.now(), result.error);
             this.onTick?.(sourceId, result, duration_ms);
@@ -131,6 +136,22 @@ export class Scheduler {
     this.tickPromise = run;
     await run;
     this.tickPromise = null;
+  }
+
+  /**
+   * Races a source run against the configured hard timeout so one wedged
+   * source cannot stall the tick loop forever. On timeout the returned promise
+   * rejects; the caller's catch records the source as failed and the loop
+   * moves on to the next source.
+   */
+  private runSourceWithTimeout(runSource: RunSourceFn, sourceId: string): Promise<PipelineResult> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`Source "${sourceId}" timed out after ${this.source_timeout_ms}ms`));
+      }, this.source_timeout_ms);
+    });
+    return Promise.race([runSource(sourceId), timeout]).finally(() => clearTimeout(timer));
   }
 
   private fatalResult(err: unknown): PipelineResult {

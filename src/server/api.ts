@@ -333,16 +333,22 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
     const cursor = c.req.query("cursor");
     const limitDays = Math.min(Number(c.req.query("limit")) || 7, 31);
 
-    const now = new Date();
-    const to = toParam ?? now.toISOString().slice(0, 10);
-    const defaultFrom = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
-    const from = cursor ?? fromParam ?? defaultFrom;
+    // The feed pages BACKWARDS in time: the cursor is the newest day (inclusive
+    // upper bound) of the requested page, and next_cursor points at the first
+    // active day older than the current page. Day volume is bounded by an
+    // active-day LIMIT in SQL, so no lower bound is needed while paginating.
+    const to = cursor ?? toParam ?? new Date().toISOString().slice(0, 10);
 
-    const params: unknown[] = [from, to];
+    const params: unknown[] = [to];
     const conditions: string[] = [
-      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz >= $1::timestamptz`,
-      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz <= ($2::date + interval '1 day')::timestamptz`,
+      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz <= ($1::date + interval '1 day')::timestamptz`,
     ];
+    if (fromParam) {
+      params.push(fromParam);
+      conditions.push(
+        `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz >= $${params.length}::timestamptz`,
+      );
+    }
 
     if (typeParam) {
       const types = typeParam.split(",");
@@ -382,6 +388,12 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
            ) AS channel
     FROM pages
     WHERE ${conditions.join(" AND ")}
+  ),
+  active_days AS (
+    SELECT DISTINCT LEFT(signal_time, 10) AS day
+    FROM page_signals
+    ORDER BY day DESC
+    LIMIT ${limitDays + 1}
   )
   SELECT ps.*,
          ic.display_name AS channel_name,
@@ -392,6 +404,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
            ELSE 'unresolved'
          END AS channel_name_status
   FROM page_signals ps
+  JOIN active_days ad ON LEFT(ps.signal_time, 10) = ad.day
   LEFT JOIN identity_cache ic
     ON ic.platform = 'feishu:chat' AND ic.external_id = ps.channel
   ORDER BY ps.signal_time DESC
