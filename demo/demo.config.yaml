@@ -1,0 +1,18 @@
+# Memkin demo library configuration.
+#
+# Points at a dedicated PGLite directory so the demo dataset never mixes with
+# your real memory library. Seed it with:
+#
+#   bun scripts/demo-seed.ts
+#
+# Then serve it (MCP/web) against this config:
+#
+#   bun src/cli.ts serve --config demo/demo.config.yaml
+
+store:
+  engine: pglite
+  data_dir: ~/.memkin-demo/data
+
+server:
+  # Offset from the default 3927 so the demo can run next to a real daemon.
+  http_port: 3937
