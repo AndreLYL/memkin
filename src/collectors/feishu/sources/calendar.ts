@@ -49,20 +49,32 @@ export class CalendarSource implements FeishuSource {
       params.end_time = endTime.toISOString();
     }
 
-    const res = await this.client.request<{ code: number; data: FeishuCalendarSyncData }>(
-      "GET",
-      path,
-      { params },
-    );
+    let pageToken = "";
+    let syncToken: string | undefined;
 
-    const data = res.data;
+    do {
+      const pageParams = pageToken ? { ...params, page_token: pageToken } : params;
+      const res = await this.client.request<{ code: number; data: FeishuCalendarSyncData }>(
+        "GET",
+        path,
+        { params: pageParams },
+      );
 
-    for (const event of data.items) {
-      yield this.eventToRawMessage(event, calendarId);
-    }
+      const data = res.data;
 
-    if (data.sync_token) {
-      cursorStaging.stage(this.name, calendarId, { sync_token: data.sync_token });
+      for (const event of data.items) {
+        yield this.eventToRawMessage(event, calendarId);
+      }
+
+      // sync_token arrives on the final page; keep the latest one seen.
+      if (data.sync_token) syncToken = data.sync_token;
+
+      pageToken = data.page_token ?? "";
+      if (!data.has_more) break;
+    } while (pageToken);
+
+    if (syncToken) {
+      cursorStaging.stage(this.name, calendarId, { sync_token: syncToken });
       cursorStaging.commit(this.name, calendarId);
     }
   }
