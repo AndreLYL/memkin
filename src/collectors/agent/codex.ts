@@ -11,13 +11,20 @@ const SYSTEM_TAG_PREFIXES = [
   "<skills_instructions",
 ];
 
+/** Malformed record guard: payload fields in the wild can be missing/null/scalar. */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
 export class CodexParser implements SessionParser {
   readonly platformId = "codex";
   private seenUserTexts = new Set<string>();
 
   parseSessionMeta(line: Record<string, unknown>): SessionMeta | null {
     if (line.type !== "session_meta") return null;
-    const payload = line.payload as Record<string, unknown>;
+    const payload = asRecord(line.payload);
+    if (!payload) return null;
     return {
       sessionId: payload.id as string,
       timestamp: line.timestamp as string,
@@ -27,13 +34,14 @@ export class CodexParser implements SessionParser {
 
   isConversationRecord(line: Record<string, unknown>): boolean {
     if (line.type === "response_item") {
-      const payload = line.payload as Record<string, unknown>;
+      const payload = asRecord(line.payload);
+      if (!payload) return false;
       const role = payload.role as string;
       return role === "user" || role === "assistant";
     }
     if (line.type === "event_msg") {
-      const payload = line.payload as Record<string, unknown>;
-      return payload.type === "user_message";
+      const payload = asRecord(line.payload);
+      return payload?.type === "user_message";
     }
     return false;
   }
@@ -45,8 +53,10 @@ export class CodexParser implements SessionParser {
       return this.parseEventMsg(line, context, timestamp);
     }
 
-    const payload = line.payload as Record<string, unknown>;
+    const payload = asRecord(line.payload);
+    if (!payload) return null;
     const role = payload.role as string;
+    if (!Array.isArray(payload.content)) return null;
     const content = payload.content as Array<{ type: string; text?: string }>;
 
     if (role === "user") {
@@ -128,8 +138,8 @@ export class CodexParser implements SessionParser {
     context: SessionParseContext,
     timestamp: string,
   ): RawMessage | null {
-    const payload = line.payload as Record<string, unknown>;
-    if (payload.type !== "user_message") return null;
+    const payload = asRecord(line.payload);
+    if (payload?.type !== "user_message") return null;
 
     const text = payload.message as string;
     if (!text?.trim()) return null;

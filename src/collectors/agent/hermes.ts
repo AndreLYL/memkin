@@ -28,8 +28,13 @@ export class HermesParser implements SessionParser {
     const message = line.message as {
       role: string;
       content: Array<{ type: string; text?: string }>;
-    };
+    } | null;
     const timestamp = line.timestamp as string;
+
+    // Malformed record guard: message must be an object with a content array.
+    if (typeof message !== "object" || message === null || !Array.isArray(message.content)) {
+      return null;
+    }
 
     const textParts = message.content
       .filter((c) => c.type === "text" && c.text)
