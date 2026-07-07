@@ -152,13 +152,20 @@ export async function createStores(
   const { db, supervisor } = await resolveDb(config, deps);
   const pages = new PageStore(db.executor);
   const chunks = new ChunkStore(db.executor);
-  const embedding = new EmbeddingService(db.executor, {
-    provider: config.embedding.provider as "openai" | "ollama",
-    model: config.embedding.model,
-    dimensions: config.embedding.dimensions,
-    apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
-    baseUrl: config.embedding.base_url,
-  });
+  const embedding = new EmbeddingService(
+    db.executor,
+    {
+      provider: config.embedding.provider as "openai" | "ollama",
+      model: config.embedding.model,
+      dimensions: config.embedding.dimensions,
+      apiKey: config.embedding.api_key ?? process.env.OPENAI_API_KEY,
+      baseUrl: config.embedding.base_url,
+    },
+    // Defer the embedding-fingerprint gate to first actual embedding use, so
+    // read-only commands (search --mode fts, export) can open a mismatched
+    // database without being blocked and without embedding credentials.
+    { beforeFirstUse: () => db.assertEmbeddingConsistent() },
+  );
   const search = new SearchEngine(db.executor, {
     embedText: (q) => embedding.embedText(q),
     search: {

@@ -25,11 +25,46 @@ export interface DatabaseOptions {
   lockLabel?: string;
 }
 
+/** Recorded when the database was embedded with a different provider/model/dims than the config asks for. */
+export interface EmbeddingMismatch {
+  /** Fingerprint stored in the database (provider:model:dimensions). */
+  have: string;
+  /** Fingerprint the current config would produce. */
+  want: string;
+}
+
+/**
+ * Build the actionable error thrown when an embedding operation runs against
+ * a database whose stored fingerprint differs from the current config.
+ */
+export function embeddingMismatchError(mismatch: EmbeddingMismatch): Error {
+  return new Error(
+    `Embedding fingerprint mismatch: database has "${mismatch.have}" but config wants "${mismatch.want}". ` +
+      "Refusing to run embedding operations against a mismatched index (mixing models silently corrupts search results).\n" +
+      "Fix one of two ways:\n" +
+      `  1. Revert the embedding settings in your config to match the database: provider:model:dimensions = "${mismatch.have}".\n` +
+      "  2. Fully re-embed with the new model: clear the stored vectors and fingerprint —\n" +
+      "       UPDATE content_chunks SET embedding = NULL, embedded_at = NULL;\n" +
+      "       DELETE FROM memkin_meta WHERE key = 'embedding_fingerprint';\n" +
+      "     then reopen and run `memkin embed` to rebuild all embeddings.",
+  );
+}
+
 export class Database {
   private constructor(
     readonly executor: SqlExecutor,
     readonly embeddingDimensions: number,
+    private readonly embeddingMismatch: EmbeddingMismatch | null = null,
   ) {}
+
+  /**
+   * Throw if the database's embedding fingerprint diverges from the config
+   * this Database was opened with. Called lazily — from EmbeddingService's
+   * first-use guard — so read-only commands are never blocked by a mismatch.
+   */
+  assertEmbeddingConsistent(): void {
+    if (this.embeddingMismatch) throw embeddingMismatchError(this.embeddingMismatch);
+  }
 
   static async create(
     dataDirOrConfig?: string | Config,
@@ -43,6 +78,7 @@ export class Database {
     const dims = opts?.embeddingDimensions ?? DEFAULT_EMBEDDING_DIMENSIONS;
 
     let executor: SqlExecutor | undefined;
+    let mismatch: EmbeddingMismatch | null = null;
     try {
       executor = await createEngine(config);
       const e = executor;
@@ -59,9 +95,9 @@ export class Database {
               repaired.map((r) => `${r.table} → next id ${r.maxId + 1}`).join(", "),
           );
         }
-        await ensureEmbeddingConsistency(conn, dims, config);
+        mismatch = await ensureEmbeddingConsistency(conn, dims, config);
       });
-      return new Database(e, dims);
+      return new Database(e, dims, mismatch);
     } catch (err) {
       await executor?.close().catch(() => {});
       throw err;
@@ -104,11 +140,19 @@ async function migrateEmbeddingDimensions(conn: SqlConn, targetDims: number): Pr
   `);
 }
 
+/**
+ * Reconcile the database's stored embedding fingerprint with the current config.
+ *
+ * Returns the mismatch (never throws, never rewrites the stored fingerprint)
+ * so read-only commands — `search --mode fts`, `export` — can still open the
+ * database. Embedding paths surface the mismatch lazily on first use via
+ * Database.assertEmbeddingConsistent().
+ */
 async function ensureEmbeddingConsistency(
   conn: SqlConn,
   targetDims: number,
   config: Config,
-): Promise<void> {
+): Promise<EmbeddingMismatch | null> {
   const fp = {
     provider: config.embedding?.provider ?? "openai",
     model: config.embedding?.model ?? "text-embedding-3-large",
@@ -121,18 +165,20 @@ async function ensureEmbeddingConsistency(
     // Fresh database — migrate dimensions if needed, then record fingerprint.
     await migrateEmbeddingDimensions(conn, targetDims);
     await writeMeta(conn, "embedding_fingerprint", want);
-    return;
+    return null;
   }
 
   if (have !== want) {
-    throw new Error(
-      `Embedding fingerprint mismatch: db="${have}" config="${want}". ` +
-        "不静默改写共享库。改回原 embedding 配置或跑显式 reindex。",
-    );
+    // Do NOT silently rewrite the shared library's fingerprint, and do NOT
+    // run the dimension migration (it would wipe embeddings that are still
+    // valid for the recorded model). Record the divergence; embedding
+    // operations will refuse to run until the user resolves it.
+    return { have, want };
   }
 
   // Fingerprint matches — still run dimension migration guard (idempotent).
   await migrateEmbeddingDimensions(conn, targetDims);
+  return null;
 }
 
 /**
@@ -145,6 +191,6 @@ export async function ensureEmbeddingConsistencyForTest(
   conn: SqlConn,
   targetDims: number,
   config: Config,
-): Promise<void> {
+): Promise<EmbeddingMismatch | null> {
   return ensureEmbeddingConsistency(conn, targetDims, config);
 }
