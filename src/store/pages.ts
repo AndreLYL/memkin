@@ -48,10 +48,23 @@ interface PageRow {
   content_hash: string;
   halflife_days: number | null;
   tier: string;
-  expires_at: string | null;
+  // Timestamp columns arrive as Date from PGLite/pg drivers, or as strings
+  // from drivers/configs that skip type parsing. rowToPage normalizes both
+  // to ISO strings per the Page contract.
+  expires_at: string | Date | null;
   consolidated_into: number | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | Date;
+  updated_at: string | Date;
+}
+
+/**
+ * Normalize a driver timestamp value (Date from PGLite/pg, or already a
+ * string) to the ISO-8601 string the Page interface declares. Without this,
+ * Date objects leak through rowToPage and break consumers that rely on the
+ * declared string type (e.g. MCP `put_page` output schema validation).
+ */
+function toIsoTimestamp(value: string | Date): string {
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
 function parseMarkdownWithFrontmatter(content: string): ParsedContent {
@@ -389,10 +402,10 @@ export class PageStore {
       content_hash: row.content_hash,
       halflife_days: row.halflife_days,
       tier: row.tier ?? "hot",
-      expires_at: row.expires_at ?? null,
+      expires_at: row.expires_at == null ? null : toIsoTimestamp(row.expires_at),
       consolidated_into: row.consolidated_into ?? null,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      created_at: toIsoTimestamp(row.created_at),
+      updated_at: toIsoTimestamp(row.updated_at),
     };
   }
 }

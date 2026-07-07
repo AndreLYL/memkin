@@ -194,6 +194,56 @@ describe("PageStore", () => {
     expect(updated.halflife_days).toBeNull();
   });
 
+  describe("timestamp string contract", () => {
+    const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+    it("putPage returns created_at/updated_at as ISO strings per the Page contract", async () => {
+      const page = await store.putPage(
+        "notes/ts-contract",
+        "---\ntitle: T\ntype: test\n---\nBody.",
+      );
+      expect(typeof page.created_at).toBe("string");
+      expect(typeof page.updated_at).toBe("string");
+      expect(page.created_at).toMatch(ISO);
+      expect(page.updated_at).toMatch(ISO);
+    });
+
+    it("putPage returns expires_at as an ISO string when halflife_days is set", async () => {
+      const page = await store.putPage(
+        "notes/ts-expires",
+        "---\ntitle: T\ntype: test\n---\nBody.",
+        { halflife_days: 7 },
+      );
+      expect(typeof page.expires_at).toBe("string");
+      expect(page.expires_at).toMatch(ISO);
+    });
+
+    it("getPage and listPages return string timestamps", async () => {
+      await store.putPage("notes/ts-read", "---\ntitle: T\ntype: test\n---\nBody.");
+
+      const got = await store.getPage("notes/ts-read");
+      expect(typeof got?.created_at).toBe("string");
+      expect(typeof got?.updated_at).toBe("string");
+
+      const listed = await store.listPages();
+      for (const p of listed) {
+        expect(typeof p.created_at).toBe("string");
+        expect(typeof p.updated_at).toBe("string");
+      }
+    });
+
+    it("putPageWithChunks returns string timestamps", async () => {
+      const page = await store.putPageWithChunks(
+        db.executor,
+        "notes/ts-chunked",
+        "---\ntitle: T\ntype: test\n---\nBody.",
+      );
+      expect(typeof page.created_at).toBe("string");
+      expect(typeof page.updated_at).toBe("string");
+      expect(page.updated_at).toMatch(ISO);
+    });
+  });
+
   describe("lifecycle columns", () => {
     it("putPage sets tier=hot and expires_at from halflife_days on insert", async () => {
       const content = "---\ntitle: D1\ntype: decision\n---\nDecision body.";

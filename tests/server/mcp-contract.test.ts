@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { createMcpServer } from "../../src/server/mcp.js";
 import { ChunkStore } from "../../src/store/chunks.js";
 import { Database } from "../../src/store/database.js";
@@ -162,6 +163,41 @@ describe("MCP contract", () => {
       legacy_tools_exposed: false,
     });
     expect(parseTextResult(result)).toEqual(result.structuredContent);
+  });
+
+  it("put_page returns ISO string timestamps that satisfy the declared output schema", async () => {
+    await connect();
+    const content = "---\ntitle: Timestamp Contract\ntype: knowledge\n---\nBody.";
+
+    // Mirror of outputSchemas.putPage (src/server/mcp.ts) — the declared MCP contract.
+    const putPageOutput = z.object({
+      ok: z.boolean(),
+      slug: z.string(),
+      changed: z.boolean(),
+      content_hash: z.string(),
+      previous_hash: z.string().optional(),
+      updated_at: z.string(),
+    });
+
+    // Fresh write path: updated_at comes from PageStore.putPageWithChunks (rowToPage).
+    const first = await client.callTool({
+      name: "put_page",
+      arguments: { slug: "notes/timestamp-contract", content },
+    });
+    expect("isError" in first ? first.isError : false).toBeFalsy();
+    const firstStructured = putPageOutput.parse(first.structuredContent);
+    expect(firstStructured.changed).toBe(true);
+    expect(firstStructured.updated_at).toBe(new Date(firstStructured.updated_at).toISOString());
+
+    // Idempotent path: updated_at comes from PageStore.getPage (rowToPage).
+    const second = await client.callTool({
+      name: "put_page",
+      arguments: { slug: "notes/timestamp-contract", content },
+    });
+    expect("isError" in second ? second.isError : false).toBeFalsy();
+    const secondStructured = putPageOutput.parse(second.structuredContent);
+    expect(secondStructured.changed).toBe(false);
+    expect(secondStructured.updated_at).toBe(new Date(secondStructured.updated_at).toISOString());
   });
 
   it("returns structured recoverable errors from tool calls", async () => {
