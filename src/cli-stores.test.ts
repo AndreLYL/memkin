@@ -40,6 +40,7 @@ function makeDbStub(overrides?: object) {
   return {
     executor: makeExecutorStub(),
     embeddingDimensions: 1536,
+    assertEmbeddingConsistent: () => {},
     close: async () => {},
     ...overrides,
   } as unknown as import("./store/database.js").Database;
@@ -199,6 +200,75 @@ describe("createStores — integration with resolveDb", () => {
     const stores = await createStores(config, { dbCreate });
 
     expect(stores.supervisor).toBeUndefined();
+  });
+});
+
+describe("createStores — lazy embedding + fingerprint gate (F2)", () => {
+  const MISMATCH_MSG =
+    'Embedding fingerprint mismatch: database has "ollama:nomic-embed-text:768" but config wants "openai:text-embedding-3-large:1536"';
+
+  /** Db stub whose fingerprint gate trips — as Database.create records on a mismatched reopen. */
+  function makeMismatchedDb() {
+    const assertSpy = vi.fn(() => {
+      throw new Error(MISMATCH_MSG);
+    });
+    const db = makeDbStub({ assertEmbeddingConsistent: assertSpy });
+    return { db, assertSpy };
+  }
+
+  /** Config WITHOUT an embedding api_key — read-only paths must not need one. */
+  function makeKeylessConfig(): LoadedConfig {
+    const config = makeConfig("pglite");
+    (config.embedding as { api_key?: string }).api_key = undefined;
+    return config;
+  }
+
+  it("factory + FTS search (read-only path) never trip the gate and need no API key", async () => {
+    const { db, assertSpy } = makeMismatchedDb();
+    const dbCreate = vi.fn().mockResolvedValue(db);
+
+    // Must not throw even though the db has a fingerprint mismatch.
+    const stores = await createStores(makeKeylessConfig(), { dbCreate });
+    expect(assertSpy).not.toHaveBeenCalled();
+
+    // FTS keyword search — the `memkin search --mode fts` path — works fine.
+    await expect(stores.search.search("hello")).resolves.toEqual([]);
+
+    // `serve` spreads the stores object (`{ ...stores }`) — that must not
+    // trigger the gate or construct the embedding client either.
+    const spread = { ...stores };
+    expect(spread.embedding).toBeDefined();
+    expect(assertSpy).not.toHaveBeenCalled();
+  });
+
+  it("embedStale (embed command path) trips the gate with the actionable error", async () => {
+    const { db, assertSpy } = makeMismatchedDb();
+    const dbCreate = vi.fn().mockResolvedValue(db);
+    const stores = await createStores(makeKeylessConfig(), { dbCreate });
+
+    await expect(stores.embedding.embedStale()).rejects.toThrow(/fingerprint mismatch/i);
+    expect(assertSpy).toHaveBeenCalled();
+  });
+
+  it("semantic query (vector path) trips the gate; embedText goes through the guard", async () => {
+    const { db } = makeMismatchedDb();
+    const dbCreate = vi.fn().mockResolvedValue(db);
+    const stores = await createStores(makeKeylessConfig(), { dbCreate });
+
+    // SearchEngine.query embeds the query text for the vector leg → guard throws.
+    await expect(stores.search.query("hello")).rejects.toThrow(/fingerprint mismatch/i);
+    await expect(stores.embedding.embedText("hello")).rejects.toThrow(/fingerprint mismatch/i);
+  });
+
+  it("consistent db: embedding gate passes through to the service", async () => {
+    const assertSpy = vi.fn();
+    const db = makeDbStub({ assertEmbeddingConsistent: assertSpy });
+    const dbCreate = vi.fn().mockResolvedValue(db);
+    const stores = await createStores(makeConfig("pglite"), { dbCreate });
+
+    // Stub executor returns no stale chunks → embedStale resolves without network.
+    await expect(stores.embedding.embedStale()).resolves.toEqual({ embedded: 0, errors: 0 });
+    expect(assertSpy).toHaveBeenCalled();
   });
 });
 

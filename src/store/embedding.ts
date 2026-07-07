@@ -9,27 +9,52 @@ export interface EmbeddingConfig {
   baseUrl?: string;
 }
 
+export interface EmbeddingServiceDeps {
+  /**
+   * Guard invoked before every real embedding operation, ahead of any client
+   * construction or database access. Used to defer embedding-fingerprint
+   * validation (Database.assertEmbeddingConsistent) to first actual use, so
+   * read-only commands (search FTS, export) can open a mismatched database
+   * without being blocked and without embedding credentials.
+   */
+  beforeFirstUse?: () => void;
+}
+
 const BATCH_SIZE = 100;
 
 export class EmbeddingService {
-  private client: OpenAI;
+  /**
+   * Lazily constructed on first use — building the OpenAI client eagerly
+   * would demand credentials even on code paths that never embed anything.
+   */
+  private client?: OpenAI;
+  private clientOptions: { apiKey: string; baseURL?: string };
   private model: string;
   private dimensions: number;
 
   constructor(
     private pg: SqlConn,
     config: EmbeddingConfig,
+    private deps: EmbeddingServiceDeps = {},
   ) {
     this.model = config.model ?? "text-embedding-3-large";
     this.dimensions = config.dimensions ?? 1536;
     const isOllama = config.provider === "ollama";
-    this.client = new OpenAI({
+    this.clientOptions = {
       apiKey: isOllama ? (config.apiKey ?? "ollama") : (config.apiKey ?? ""),
       baseURL: isOllama ? (config.baseUrl ?? "http://localhost:11434/v1") : config.baseUrl,
-    });
+    };
+  }
+
+  /** Run the consistency guard, then build (or reuse) the OpenAI client. */
+  private ensureClient(): OpenAI {
+    this.deps.beforeFirstUse?.();
+    this.client ??= new OpenAI(this.clientOptions);
+    return this.client;
   }
 
   async embedStale(opts?: { limit?: number }): Promise<{ embedded: number; errors: number }> {
+    const client = this.ensureClient();
     const limit = opts?.limit;
     let sql = "SELECT id, chunk_text FROM content_chunks WHERE embedded_at IS NULL ORDER BY id";
     const params: unknown[] = [];
@@ -50,7 +75,7 @@ export class EmbeddingService {
       }>;
       const texts = batch.map((r) => r.chunk_text);
       try {
-        const response = await this.client.embeddings.create({
+        const response = await client.embeddings.create({
           model: this.model,
           input: texts,
           dimensions: this.dimensions,
@@ -72,7 +97,8 @@ export class EmbeddingService {
   }
 
   async embedText(text: string): Promise<number[]> {
-    const response = await this.client.embeddings.create({
+    const client = this.ensureClient();
+    const response = await client.embeddings.create({
       model: this.model,
       input: text,
       dimensions: this.dimensions,
