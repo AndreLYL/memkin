@@ -170,6 +170,35 @@ CREATE VIEW person_handles AS
   WHERE entity_type = 'person';
 `;
 
+// Migration 009: entity_merge_suggestions (extraction-quality-redesign PR-3, spec §9).
+// Near-duplicate entity pages (exact same name, Levenshtein-close titles, pinyin-equivalent
+// person names, cross-type name clashes) are NEVER merged automatically — detection only
+// produces suggestion rows here, the consolidator aggregates them, and merges happen only
+// after explicit user confirmation via the existing merge machinery. A dismissed suggestion
+// must stay dismissed even though the sweep keeps re-detecting the same pair, hence status
+// lives on the unique (entity_type, from_slug, into_slug, reason) row. Migration-only table
+// (M005/M007 precedent) — runMigrations runs on both fresh and upgraded databases.
+const M009_ENTITY_MERGE_SUGGESTIONS = `
+CREATE TABLE IF NOT EXISTS entity_merge_suggestions (
+  id          SERIAL PRIMARY KEY,
+  entity_type TEXT NOT NULL
+                CHECK (entity_type IN ('person','project','organization','tool','concept')),
+  from_slug   TEXT NOT NULL,
+  into_slug   TEXT NOT NULL,
+  reason      TEXT NOT NULL
+                CHECK (reason IN ('same_name','cross_type_name','levenshtein','pinyin')),
+  detail      JSONB,
+  status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','accepted','dismissed')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  UNIQUE (entity_type, from_slug, into_slug, reason)
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_merge_suggestions_status
+  ON entity_merge_suggestions (status);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
@@ -179,6 +208,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 6, name: "trgm_fts", sql: M006_TRGM_FTS },
   { version: 7, name: "agent_sessions", sql: M007_AGENT_SESSIONS },
   { version: 8, name: "entity_handles", sql: M008_ENTITY_HANDLES },
+  { version: 9, name: "entity_merge_suggestions", sql: M009_ENTITY_MERGE_SUGGESTIONS },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {

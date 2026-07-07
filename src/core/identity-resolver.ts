@@ -33,6 +33,16 @@ export interface EntityMergeCandidate {
   detail?: Record<string, unknown>;
 }
 
+/**
+ * Where refused-bind suggestions get persisted (entity_merge_suggestions,
+ * spec §9). Structurally satisfied by EntityMergeSuggestionStore; optional so
+ * the resolver stays usable without a store (suggestions are still returned
+ * to the caller).
+ */
+export interface EntityMergeSuggestionSink {
+  record(candidate: EntityMergeCandidate): Promise<void>;
+}
+
 /** Entity page types considered when checking exact-name uniqueness store-wide. */
 const ENTITY_PAGE_TYPES = ["person", "project", "organization", "tool", "concept"] as const;
 
@@ -42,6 +52,7 @@ export class IdentityResolver {
   constructor(
     private db: SqlExecutor,
     private backend?: IdentityBackend,
+    private suggestionSink?: EntityMergeSuggestionSink,
   ) {
     this.identity = new PersonIdentityStore(db);
   }
@@ -388,6 +399,18 @@ export class IdentityResolver {
         entities: r.entities.map(rewriteSlug),
       })),
     };
+
+    // Persist refused-bind suggestions for user review (best-effort — a sink
+    // failure must not break extraction).
+    if (this.suggestionSink) {
+      for (const s of suggestions) {
+        try {
+          await this.suggestionSink.record(s);
+        } catch (err) {
+          console.warn("[IdentityResolver] Failed to record merge suggestion:", err);
+        }
+      }
+    }
 
     return { result: canonicalized, aliases: aliasesMap, suggestions };
   }

@@ -7,6 +7,7 @@ import { IdentityResolver } from "../core/identity-resolver.js";
 import { runPipeline } from "../core/pipeline.js";
 import { buildPipelineConfig } from "../core/pipeline-factory.js";
 import { createLLMProvider } from "../extractors/providers/index.js";
+import { EntityMergeSuggestionStore } from "../store/entity-suggestions.js";
 import type { StoreContext } from "./api.js";
 import type { BackfillJob, BackfillSourceType, RunForSourceFn } from "./backfill-job.js";
 import { BackfillJob as BackfillJobClass } from "./backfill-job.js";
@@ -148,7 +149,11 @@ export function buildRunForSource(stores: StoreContext, configPath: string): Run
 
     const provider = createLLMProvider(llmConfig);
 
-    const identityResolver = new IdentityResolver(stores.db.executor);
+    const identityResolver = new IdentityResolver(
+      stores.db.executor,
+      undefined,
+      new EntityMergeSuggestionStore(stores.db.executor),
+    );
 
     const result = await runPipeline(pipelineConfig, {
       source: collector,

@@ -746,6 +746,40 @@ describe("IdentityResolver entity normalization (project/tool)", () => {
         }),
       ]);
     });
+
+    it("persists suggestions through the injected sink", async () => {
+      await insertPage("tool/codex", "tool", "Codex");
+      const record = vi.fn().mockResolvedValue(undefined);
+      const sinkResolver = new IdentityResolver(db, undefined, { record });
+
+      const result: ExtractionResult = {
+        source: mockSource,
+        entities: [
+          {
+            slug: "project/codex",
+            name: "Codex",
+            type: "project",
+            context: "ctx",
+            confidence: "direct",
+          },
+        ],
+        timeline: [],
+        links: [],
+        decisions: [],
+        tasks: [],
+        discoveries: [],
+        knowledge: [],
+      };
+
+      await sinkResolver.canonicalizeExtractionResult(result);
+      expect(record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: "cross_type_name",
+          from_slug: "project/codex",
+          into_slug: "tool/codex",
+        }),
+      );
+    });
   });
 });
 
