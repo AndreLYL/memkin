@@ -65,8 +65,10 @@ interface AgentSessionRow {
 }
 
 // Allowed state transitions. Enforced by markState; an unlisted edge throws.
+// discovered → retrying: distillation failed validation twice for this revision
+// (spec §4.2 / PR-2); a later successful retry lands back as distilled.
 const ALLOWED_TRANSITIONS: Record<SessionState, SessionState[]> = {
-  discovered: ["distilled"],
+  discovered: ["distilled", "retrying"],
   distilled: ["applying", "retrying"],
   applying: ["done", "retrying"],
   retrying: ["distilled", "dead_letter"],
