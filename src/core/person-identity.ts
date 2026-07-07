@@ -163,6 +163,23 @@ export class PersonIdentityStore {
   }
 
   /**
+   * Record the strong handles (name → slug, slug → slug) implied by a
+   * canonicalized non-person entity, in its own (entity_type, scope) namespace.
+   * Idempotent and non-destructive — existing rows are left untouched. Callers
+   * (IdentityResolver.canonicalizeEntitySlug) are responsible for enforcing the
+   * tiered auto-bind rules BEFORE recording: for project/tool a name is only
+   * strong when it is exactly unique among its type store-wide.
+   */
+  async recordEntityCanonical(
+    entityType: EntityHandleType,
+    name: string,
+    canonicalSlug: string,
+  ): Promise<void> {
+    await this.insertHandle("name", name, canonicalSlug, "strong", true, entityType);
+    await this.insertHandle("slug", canonicalSlug, canonicalSlug, "strong", true, entityType);
+  }
+
+  /**
    * Ensure the special `entities/me` self-identity page exists (Spec 9 §4.1).
    * Idempotent — returns the canonical slug; creates a minimal person page the
    * user can hand-edit (role / company / team / handles) when absent.
