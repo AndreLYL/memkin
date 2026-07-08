@@ -231,6 +231,84 @@ CREATE INDEX IF NOT EXISTS idx_distilled_payload_ttl
   ON distilled_payload (ttl_expires_at) WHERE ttl_expires_at IS NOT NULL;
 `;
 
+// Migration 011: apply-engine backbone (extraction-quality-redesign PR-4).
+// The three-layer apply data structure (spec §6.2) plus the two-layer ID
+// provenance table (spec §6.1, §8):
+//   - memory_contributions: source-signal → canonical-page contribution ledger.
+//     Two-layer ID: contribution_id = hash(revision_id, type, normalized_topic)
+//     is the PK (one raw material per distillation); signal_family_key =
+//     hash(source_instance, session_id, type, normalized_topic) is the
+//     cross-revision family, unique per (signal_family_key, revision_id). Every
+//     canonical-page derivative (system-managed body, primary source, links,
+//     tags, timeline) is rematerialized from the ACTIVE rows here. This table
+//     doubles as the normalized provenance table (spec §8) via source_ref.
+//   - apply_plan(payload_id, target): the candidate-selection result, one per
+//     (payload, target). staging and production plans are independent.
+//   - apply_attempt(plan_id, status): one row per apply of a plan.
+//   - apply_mutation_journal: inverse records for NON-derived writes only
+//     (spec §3.1 / §6.2) — a rollback safety net; derived writes are rebuilt by
+//     rematerialize, so they are not journaled.
+// Numbered M011 (M008/M009 = PR-3, M010 = PR-2). Migration-only, runs on both
+// fresh and upgraded databases.
+const M011_APPLY_ENGINE = `
+CREATE TABLE IF NOT EXISTS memory_contributions (
+  contribution_id   TEXT PRIMARY KEY,
+  signal_family_key TEXT NOT NULL,
+  canonical_page_id INTEGER REFERENCES pages(id) ON DELETE CASCADE,
+  session_ref       TEXT NOT NULL,
+  revision_id       INTEGER NOT NULL,
+  authority         TEXT NOT NULL,
+  signal_type       TEXT NOT NULL,
+  normalized_topic  TEXT NOT NULL,
+  signal            JSONB NOT NULL,
+  source_ref        JSONB,
+  evidence          JSONB,
+  active            BOOLEAN NOT NULL DEFAULT TRUE,
+  apply_attempt_id  INTEGER,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (signal_family_key, revision_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_contributions_page
+  ON memory_contributions (canonical_page_id) WHERE active;
+CREATE INDEX IF NOT EXISTS idx_memory_contributions_family
+  ON memory_contributions (signal_family_key);
+CREATE INDEX IF NOT EXISTS idx_memory_contributions_attempt
+  ON memory_contributions (apply_attempt_id);
+
+CREATE TABLE IF NOT EXISTS apply_plan (
+  id          SERIAL PRIMARY KEY,
+  payload_id  INTEGER NOT NULL REFERENCES distilled_payload(id) ON DELETE CASCADE,
+  target      TEXT NOT NULL CHECK (target IN ('staging','production')),
+  plan        JSONB NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (payload_id, target)
+);
+
+CREATE TABLE IF NOT EXISTS apply_attempt (
+  id           SERIAL PRIMARY KEY,
+  plan_id      INTEGER NOT NULL REFERENCES apply_plan(id) ON DELETE CASCADE,
+  target       TEXT NOT NULL CHECK (target IN ('staging','production')),
+  status       TEXT NOT NULL DEFAULT 'pending'
+                 CHECK (status IN ('pending','applied','failed','dead_letter')),
+  detail       JSONB,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_apply_attempt_plan ON apply_attempt (plan_id);
+
+CREATE TABLE IF NOT EXISTS apply_mutation_journal (
+  id               SERIAL PRIMARY KEY,
+  apply_attempt_id INTEGER NOT NULL REFERENCES apply_attempt(id) ON DELETE CASCADE,
+  seq              INTEGER NOT NULL,
+  kind             TEXT NOT NULL,
+  inverse          JSONB NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (apply_attempt_id, seq)
+);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
@@ -242,6 +320,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 8, name: "entity_handles", sql: M008_ENTITY_HANDLES },
   { version: 9, name: "entity_merge_suggestions", sql: M009_ENTITY_MERGE_SUGGESTIONS },
   { version: 10, name: "distilled_payload", sql: M010_DISTILLED_PAYLOAD },
+  { version: 11, name: "apply_engine", sql: M011_APPLY_ENGINE },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {
