@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-07-07
+
+### Fixed
+
+- **`npx memkin` / global install no longer crashes with `Cannot find package 'fast-glob'`**:
+  `fast-glob` is imported by runtime code (`collectors/agent/collector.ts`,
+  `core/agent-session-scanner.ts`) but was declared under `devDependencies`, so a clean install
+  (which omits dev dependencies) shipped without it. Moved to `dependencies`. This latent packaging
+  bug predates 0.4.1; it surfaced on any command that loads the agent collector (the release
+  `--help` smoke test never imported that path).
+
 ## [0.4.1] - 2026-07-07
 
 Post-rename hardening + launch polish. Data-integrity and collector fixes, a self-healing
