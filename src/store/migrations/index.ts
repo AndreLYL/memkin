@@ -309,6 +309,35 @@ CREATE TABLE IF NOT EXISTS apply_mutation_journal (
 );
 `;
 
+// Migration 012: staging schema for shadow apply (extraction-quality-redesign
+// PR-4, spec §3.1). A physically isolated `staging` schema holds tables
+// isomorphic to production, so the SINGLE target-agnostic apply engine can run
+// with target=staging (shadow) writing here without touching production. The
+// engine selects the target by SET LOCAL search_path within its transaction, so
+// the same unqualified store SQL (pages, content_chunks, …) writes to whichever
+// schema is first on the path. Search / consolidator / stats keep the default
+// search_path ("$user", public) and therefore only ever read production —
+// staging rows cannot pollute retrieval. Isomorphism is guaranteed by
+// LIKE ... INCLUDING ALL against the just-migrated production tables (this runs
+// after M001–M011), so any column added upstream is mirrored automatically.
+// Migration-only; runs on both fresh and upgraded databases.
+const M012_STAGING_SCHEMA = `
+CREATE SCHEMA IF NOT EXISTS staging;
+
+CREATE TABLE IF NOT EXISTS staging.pages
+  (LIKE public.pages INCLUDING ALL);
+CREATE TABLE IF NOT EXISTS staging.content_chunks
+  (LIKE public.content_chunks INCLUDING ALL);
+CREATE TABLE IF NOT EXISTS staging.links
+  (LIKE public.links INCLUDING ALL);
+CREATE TABLE IF NOT EXISTS staging.tags
+  (LIKE public.tags INCLUDING ALL);
+CREATE TABLE IF NOT EXISTS staging.timeline_entries
+  (LIKE public.timeline_entries INCLUDING ALL);
+CREATE TABLE IF NOT EXISTS staging.memory_contributions
+  (LIKE public.memory_contributions INCLUDING ALL);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
@@ -321,6 +350,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 9, name: "entity_merge_suggestions", sql: M009_ENTITY_MERGE_SUGGESTIONS },
   { version: 10, name: "distilled_payload", sql: M010_DISTILLED_PAYLOAD },
   { version: 11, name: "apply_engine", sql: M011_APPLY_ENGINE },
+  { version: 12, name: "staging_schema", sql: M012_STAGING_SCHEMA },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {
