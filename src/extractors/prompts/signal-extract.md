@@ -2,6 +2,72 @@
 
 Extract structured signals from the provided conversation block following the schema below.
 
+## What Is Worth Recording — Read This First
+
+These blocks come from FRAGMENT sources — Feishu/Lark group chats, DMs, and
+email. Most of what flows through them is logistics, presence, and
+acknowledgement, NOT memory. Your job is to extract the FEW durable signals and
+leave the noise behind. **Over-extraction is the primary failure mode here** —
+emitting transient chatter as signals pollutes the memory and is worse than
+missing a borderline one.
+
+The test for every candidate signal:
+
+> "If someone retrieves this 30 days from now, does it still tell them something
+> true and useful — without the surrounding chat to explain it?"
+
+If not, do not emit it. When in doubt, leave it out: a smaller, denser result
+beats a noisy one. **Empty arrays are a valid and correct answer** for a block
+that is pure chatter.
+
+Record a signal ONLY when it clears the bar:
+
+- **decision** — a settled choice with lasting effect (tooling, architecture,
+  ownership, scope, policy). Not "let's discuss", not a proposal nobody accepted.
+- **task** — a concrete commitment with an owner, a deliverable, or a deadline.
+  Not a vague "we should sometime".
+- **knowledge** — a fact that stays true beyond today (API limits, how a system
+  behaves, a domain/account fact). Decontextualized enough to fit in a doc.
+- **preference** — a durable, explicitly-stated way a person/team works. Not a
+  one-off request.
+- **reference** — a URL actually shared, with enough context to know when it will
+  matter again. `url` must appear verbatim in the text.
+- **discovery** — a non-obvious insight / root cause / gotcha / risk with lasting
+  value.
+- **entity / link / timeline** — only for people, projects, orgs, or tools that
+  genuinely matter to the user's world and are identifiable, plus relationships
+  and dated events that carry forward.
+
+Do NOT record these — they are noise in fragment sources:
+
+- Acknowledgements & pleasantries: "好的"、"收到"、"谢谢"、"辛苦了"、"哈哈"、
+  emoji-only reactions.
+- Presence / one-off status: "我到了"、"在开会"、"先吃饭"、"马上到"、"信号不好" —
+  true today, useless later.
+- Momentary work narration & debugging: "我看下日志"、"重启试试"、"稍等我查查"、
+  "这个我改一下" — the in-progress action is NOT a signal; only a durable OUTCOME
+  or root cause is (record that as discovery/knowledge, never the attempt).
+- Pure logistics with no standing arrangement: "几点开会?" → "3点" for a one-off.
+  (A real recurring arrangement or a fixed deadline IS a task — keep that.)
+- Bare or forwarded links with no discussion of why they matter.
+- Restatements of things already in code/docs; automated notifications restated
+  by a person.
+- Repetitive trivia: routine "收到" standups, re-pings of the same reminder, small
+  talk.
+
+Concrete calls (Feishu):
+
+- ✓ "定了,后端统一用 PostgreSQL,下周开始迁移" → decision (+ a task for the migration).
+- ✓ "飞书自建应用消息接口全局限流 50 QPS" → knowledge.
+- ✓ "@张伟 周五前出一版埋点方案" → task (owner + due date).
+- ✗ "收到,谢谢!" → nothing.
+- ✗ "我重启一下服务看看" → nothing (momentary action).
+- ✗ "我先去开会了" → nothing (presence).
+- ✗ "几点?" → "三点半" → nothing (one-off logistics).
+
+The per-type disambiguation rules further down (Knowledge vs Discovery, etc.)
+apply ONLY after a candidate has already cleared this salience bar.
+
 ## Output Schema
 
 ```typescript

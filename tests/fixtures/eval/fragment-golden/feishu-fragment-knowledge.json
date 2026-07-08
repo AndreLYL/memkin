@@ -1,0 +1,27 @@
+{
+  "session_ref": "fragment-fixture:feishu-knowledge-1",
+  "should_record": [
+    {
+      "type": "knowledge",
+      "authority": "assistant_claimed",
+      "topic": "feishu-im-api-rate-limit",
+      "what": "飞书自建应用的消息接口全局限流是 50 QPS。"
+    },
+    {
+      "type": "reference",
+      "authority": "user_confirmed",
+      "topic": "jwt-rotation-guide",
+      "what": "JWT 轮转实践文档 https://example.com/jwt-rotation,排查 token 过期问题时参考。"
+    }
+  ],
+  "should_not_record": [
+    {
+      "what": "哈哈哈这个表情包绝了。",
+      "reason": "闲聊,无信号"
+    },
+    {
+      "what": "在吗?",
+      "reason": "在场探询,非内容信号"
+    }
+  ]
+}
