@@ -129,6 +129,15 @@ describe("AgentSessionStore state machine + queries", () => {
     expect(back.state).toBe("distilled");
   });
 
+  it("markState allows discovered → retrying (distillation failure, PR-2)", async () => {
+    const id = await seed();
+    const retrying = await store.markState(id, "retrying");
+    expect(retrying.state).toBe("retrying");
+    // A later successful retry lands as distilled.
+    const distilled = await store.markState(id, "distilled");
+    expect(distilled.state).toBe("distilled");
+  });
+
   it("markState allows retrying → dead_letter", async () => {
     const id = await seed();
     await store.markState(id, "distilled");

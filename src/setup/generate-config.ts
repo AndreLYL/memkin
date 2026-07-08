@@ -181,6 +181,9 @@ export function buildConfigObject(config: PartialConfig, opts?: BuildConfigOpts)
       pool_by_page: config.search?.pool_by_page ?? true,
       llm_rewrite: config.search?.llm_rewrite ?? false,
     },
+    distiller: {
+      payload_ttl_days: config.distiller?.payload_ttl_days ?? 90,
+    },
   };
 }
 

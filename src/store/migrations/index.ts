@@ -199,6 +199,38 @@ CREATE INDEX IF NOT EXISTS idx_entity_merge_suggestions_status
   ON entity_merge_suggestions (status);
 `;
 
+// Migration 010: distilled_payload outbox (extraction-quality-redesign PR-2).
+// Numbered M010 because PR-3 (entity normalization) merged to main first and
+// took M008 (entity_handles) + M009 (entity_merge_suggestions).
+// One row per session revision, holding the target-agnostic, immutable distilled
+// payload (spec §5, §6.2). PR-2 produces and persists this; the apply engine
+// (PR-4) later consumes it to build target-specific apply plans. Never mutated
+// after insert — hence the unique(revision_id). ttl_expires_at drives the
+// consolidator's payload-TTL sweep (spec §4.3, distiller.payload_ttl_days,
+// default 90 days after the session reaches `done`). restoration_map holds the
+// reversible pre-LLM redaction mapping keyed by msg_id (spec §4.3), cleared on
+// TTL alongside the payload. Migration-only (like M005/M007) — runMigrations
+// runs on both fresh and upgraded databases.
+const M010_DISTILLED_PAYLOAD = `
+CREATE TABLE IF NOT EXISTS distilled_payload (
+  id               SERIAL PRIMARY KEY,
+  source_instance  TEXT NOT NULL,
+  session_id       TEXT NOT NULL,
+  revision_id      INTEGER NOT NULL,
+  content_hash     TEXT NOT NULL,
+  payload          JSONB NOT NULL,
+  restoration_map  JSONB,
+  ttl_expires_at   TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (revision_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_distilled_payload_lookup
+  ON distilled_payload (source_instance, session_id);
+CREATE INDEX IF NOT EXISTS idx_distilled_payload_ttl
+  ON distilled_payload (ttl_expires_at) WHERE ttl_expires_at IS NOT NULL;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "lifecycle_columns", sql: M001_LIFECYCLE_COLUMNS },
   { version: 2, name: "provenance_columns", sql: M002_PROVENANCE_COLUMNS },
@@ -209,6 +241,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 7, name: "agent_sessions", sql: M007_AGENT_SESSIONS },
   { version: 8, name: "entity_handles", sql: M008_ENTITY_HANDLES },
   { version: 9, name: "entity_merge_suggestions", sql: M009_ENTITY_MERGE_SUGGESTIONS },
+  { version: 10, name: "distilled_payload", sql: M010_DISTILLED_PAYLOAD },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {
