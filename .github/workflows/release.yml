@@ -62,8 +62,19 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Smoke-test built CLI on plain Node
-        run: node dist/cli.js --help
+      # Smoke-test the PACKAGED artifact in a production-only install (no dev
+      # dependencies), and run `--version` rather than `--help` so the CLI
+      # entrypoint actually loads the agent collector. This catches a runtime
+      # dependency wrongly declared under devDependencies (which a clean
+      # `npx memkin` omits) — the exact class of bug that shipped in 0.4.1.
+      - name: Smoke-test packaged CLI in a prod-only install
+        run: |
+          npm pack
+          TGZ="$(ls memkin-*.tgz)"
+          rm -rf /tmp/memkin-smoke && mkdir -p /tmp/memkin-smoke && cd /tmp/memkin-smoke
+          npm init -y >/dev/null 2>&1
+          npm install "${GITHUB_WORKSPACE}/${TGZ}" --omit=dev
+          node node_modules/memkin/dist/cli.js --version
 
       - name: Publish to npm
         run: npm publish --provenance --access public
