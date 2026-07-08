@@ -14,6 +14,8 @@ graphify-out/
 .dbe/
 .memkin/
 .memkin.bak.*/
+.memoark/
+.memoark.bak.*/
 
 # Environment variables
 .env
