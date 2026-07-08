@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-07-07
+
+Post-rename hardening + launch polish. Data-integrity and collector fixes, a self-healing
+upgrade path for daemons carried over from the rename, a demo dataset with a recorded GIF,
+and a rewritten README.
+
+### Added
+
+- Synthetic demo dataset (`demo/seed/`) and a one-command seed script (`scripts/demo-seed.ts`)
+  that populates an isolated demo library, plus an offline, deterministic recall renderer
+  (`demo/demo-query.ts`) and a VHS tape (`demo/demo.tape`) used to record `docs/assets/demo.gif`.
+- Entity normalization and provenance backfill for extraction quality, an agent session ledger,
+  and an evaluation harness for measuring extraction quality (extraction-quality-redesign PR-0/1/3).
+
+### Fixed
+
+- **A write that fails on disk no longer reports phantom success/failure**: `rowToPage` returns
+  ISO-string timestamps per the `Page` contract, so MCP write tools (e.g. `put_page`) no longer
+  land on disk while failing output-schema validation — agent clients previously saw an error on a
+  write that had actually succeeded and could retry it.
+- **Read-only commands no longer blocked by an embedding fingerprint mismatch**: `EmbeddingService`
+  is now constructed lazily, so FTS `search` and `export` run without an embedding provider or API
+  key even when the stored fingerprint differs from config; the mismatch error now spells out both
+  recovery paths (revert config, or clear vectors + re-embed).
+- **Daemons survive the memoark→memkin rename**: startup now migrates and self-heals the
+  `config_path` persisted in `daemon.json` (missed by the initial rename migration), and a
+  daemon-launched serve that reads a stale path falls back to normal config discovery and writes
+  the corrected path back.
+- **Feishu calendar events are no longer dropped past the first page**: the calendar source now
+  paginates through `page_token`.
+- **A single malformed JSONL line no longer aborts an agent-collection run**: bad or non-object
+  lines are skipped and counted as warnings instead of failing the whole run.
+- **Timeline feed pagination** now treats the cursor as an upper bound so pages don't repeat or
+  skip, and **the scheduler enforces a per-source timeout** (`scheduler.source_timeout_ms`) so one
+  wedged source can't stall the whole scheduler.
+- Middle-band (0.15–0.85) blocks from the significance score gate now get a final L2 LLM
+  significance judgment instead of being admitted unconditionally — the single largest source of
+  extracted noise.
+
+### Changed
+
+- README (both 中文 and English) rewritten for launch: new hero (banner, tagline, demo GIF),
+  a 30-second quick start, a Claude Code / Codex-only path for users without Feishu, and factual
+  corrections (default MCP tool count, memory consolidation naming, source list).
+
 ## [0.4.0] - 2026-07-06
 
 ### Changed
