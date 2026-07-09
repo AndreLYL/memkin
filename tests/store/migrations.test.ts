@@ -31,13 +31,13 @@ describe("migration runner", () => {
     const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
   it("adds halflife_days column to pages", async () => {
     const cols = await db.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
-       WHERE table_name = 'pages' AND column_name = 'halflife_days'`,
+       WHERE table_schema = 'public' AND table_name = 'pages' AND column_name = 'halflife_days'`,
     );
     expect(cols.rows).toHaveLength(1);
   });
@@ -56,8 +56,9 @@ describe("migration runner", () => {
   it("adds provenance/source_hash columns to links and timeline_entries", async () => {
     const cols = await db.executor.query<{ table_name: string; column_name: string }>(
       `SELECT table_name, column_name FROM information_schema.columns
-       WHERE (table_name = 'links' AND column_name IN ('provenance', 'source_hash'))
-          OR (table_name = 'timeline_entries' AND column_name = 'provenance')`,
+       WHERE table_schema = 'public'
+         AND ((table_name = 'links' AND column_name IN ('provenance', 'source_hash'))
+          OR (table_name = 'timeline_entries' AND column_name = 'provenance'))`,
     );
     const found = cols.rows.map((r) => `${r.table_name}.${r.column_name}`).sort();
     expect(found).toEqual(["links.provenance", "links.source_hash", "timeline_entries.provenance"]);
@@ -69,7 +70,7 @@ describe("migration runner", () => {
     const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
   it("migration 006 installs pg_trgm + trgm indexes and drops tsvector machinery", async () => {
@@ -163,7 +164,7 @@ describe("migration runner", () => {
   it("adds tier/expires_at/consolidated_into columns to pages", async () => {
     const cols = await db.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
-       WHERE table_name = 'pages'
+       WHERE table_schema = 'public' AND table_name = 'pages'
          AND column_name IN ('tier', 'expires_at', 'consolidated_into')
        ORDER BY column_name`,
     );
@@ -177,7 +178,7 @@ describe("migration runner", () => {
   it("adds tier/expires_at columns to timeline_entries", async () => {
     const cols = await db.executor.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
-       WHERE table_name = 'timeline_entries'
+       WHERE table_schema = 'public' AND table_name = 'timeline_entries'
          AND column_name IN ('tier', 'expires_at')
        ORDER BY column_name`,
     );

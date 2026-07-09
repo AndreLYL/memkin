@@ -1,5 +1,6 @@
 import { compactSourceRef } from "../core/source-ref.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
+import { sourceFilterCondition } from "./source-filter.js";
 import type { SqlConn } from "./sql-executor.js";
 
 export interface TimelineEntry {
@@ -90,11 +91,21 @@ function addFeedFilters(
     );
   }
 
+  const pageId = "p.id";
+
   const addArrayCondition = (field: "platform" | "source_type") => {
     const values = asArray(opts?.[field]);
     if (!values || values.length === 0) return;
     params.push(values);
-    conditions.push(`${sourceField(field)} = ANY($${params.length}::text[])`);
+    const p = `$${params.length}`;
+    // Spec §8: match active contributions, timeline-entry/frontmatter primary as fallback.
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'${field}' = ANY(${p}::text[])`,
+        `${sourceField(field)} = ANY(${p}::text[])`,
+      ),
+    );
   };
 
   addArrayCondition("platform");
@@ -102,26 +113,47 @@ function addFeedFilters(
 
   if (opts?.channel) {
     params.push(opts.channel);
-    conditions.push(`${sourceField("channel")} = $${params.length}`);
+    const p = `$${params.length}`;
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'channel' = ${p}`,
+        `${sourceField("channel")} = ${p}`,
+      ),
+    );
   }
 
   if (opts?.channel_name) {
     params.push(opts.channel_name);
-    conditions.push(`${sourceField("channel_name")} = $${params.length}`);
+    const p = `$${params.length}`;
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'channel_name' = ${p}`,
+        `${sourceField("channel_name")} = ${p}`,
+      ),
+    );
   }
 
   if (opts?.participant) {
     params.push(opts.participant);
     const param = `$${params.length}`;
-    conditions.push(`(
+    const participantMatch = (json: string) => `(
       EXISTS (
         SELECT 1
-        FROM jsonb_array_elements(COALESCE(${sourceJson()}->'participants', '[]'::jsonb)) AS participant
+        FROM jsonb_array_elements(COALESCE(${json}->'participants', '[]'::jsonb)) AS participant
         WHERE participant->>'name' = ${param} OR participant->>'id' = ${param}
       )
-      OR ${sourceJson()}->'author'->>'name' = ${param}
-      OR ${sourceJson()}->'author'->>'id' = ${param}
-    )`);
+      OR ${json}->'author'->>'name' = ${param}
+      OR ${json}->'author'->>'id' = ${param}
+    )`;
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        participantMatch("mc.source_ref"),
+        participantMatch(sourceJson()),
+      ),
+    );
   }
 
   if (opts?.type && opts.type.length > 0) {

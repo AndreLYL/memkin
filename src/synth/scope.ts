@@ -1,5 +1,6 @@
 import type { SourceRef } from "../core/types.js";
 import type { StoreContext } from "../server/api.js";
+import { primaryContribSourceExpr } from "../store/source-filter.js";
 import type { AssembledCandidate, SynthScope } from "./types.js";
 
 /** A retrieved candidate before ref numbering (assigned in context.assemble). */
@@ -145,10 +146,15 @@ async function retrieveByTime(
   stores: StoreContext,
 ): Promise<RawCandidate[]> {
   const time = scope.time as { from: string; to: string };
+  // Spec §8: derive the signal source/time from the primary ACTIVE contribution,
+  // falling back to the frontmatter primary (legacy pages) then created_at.
+  const primarySource = primaryContribSourceExpr("pages.id");
+  const signalTimeExpr = `COALESCE(${primarySource}->>'timestamp', frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)`;
+  const sourceExpr = `COALESCE(${primarySource}, frontmatter->'source', frontmatter->'first_seen')`;
   const params: unknown[] = [time.from, time.to];
   const conditions = [
-    `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz >= $1::timestamptz`,
-    `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz < ($2::date + interval '1 day')`,
+    `${signalTimeExpr}::timestamptz >= $1::timestamptz`,
+    `${signalTimeExpr}::timestamptz < ($2::date + interval '1 day')`,
   ];
   if (scope.types && scope.types.length > 0) {
     params.push(scope.types);
@@ -158,8 +164,8 @@ async function retrieveByTime(
 
   const result = await stores.db.executor.query<TimePageRow>(
     `SELECT slug, title, type, compiled_truth,
-       COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text) AS signal_time,
-       COALESCE(frontmatter->'source', frontmatter->'first_seen') AS source,
+       ${signalTimeExpr} AS signal_time,
+       ${sourceExpr} AS source,
        frontmatter->>'source_hash' AS source_hash
      FROM pages
      WHERE ${conditions.join(" AND ")}
