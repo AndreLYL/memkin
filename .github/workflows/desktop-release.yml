@@ -75,13 +75,12 @@ jobs:
           # Updater signing (REQUIRED — createUpdaterArtifacts is on):
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS code signing + notarization (OPTIONAL — unsigned build if unset):
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS code signing + notarization is intentionally OMITTED: we ship an
+          # unsigned build. Do NOT add `APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}`
+          # unless the secret actually exists — GitHub exports a missing secret as an
+          # EMPTY string, and tauri-action then runs `security import` on an empty cert
+          # and fails ("SecKeychainItemImport ... parameters ... not valid"). To enable
+          # signing later, add the APPLE_* secrets first, then re-introduce these env vars.
         with:
           projectPath: .
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
