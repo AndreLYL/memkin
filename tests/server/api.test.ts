@@ -154,6 +154,20 @@ describe("REST API", () => {
   });
 
   describe("timeline feed pagination", () => {
+    // Freeze the clock so the feed's default `to` and the seeded signals share a
+    // single "now", making the assertions independent of the real run day. The
+    // instant is late in the UTC day on purpose: under an east-of-UTC session
+    // timezone this is exactly when a session-TZ upper-bound comparison would
+    // wrongly drop "today", so this doubles as a regression guard for that bug.
+    // Fake only `Date` — leaving timers real keeps async DB calls working.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-06-15T23:30:00.000Z"));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     /** Seeds one signal per day at the given day-offsets from now (UTC). */
     async function seedDays(offsets: number[]): Promise<string[]> {
       const days: string[] = [];

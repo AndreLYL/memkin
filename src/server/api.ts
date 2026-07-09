@@ -341,7 +341,12 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
 
     const params: unknown[] = [to];
     const conditions: string[] = [
-      `COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text)::timestamptz <= ($1::date + interval '1 day')::timestamptz`,
+      // Upper bound on the calendar day, compared as a UTC date-string prefix so
+      // the filter matches how days are grouped (`LEFT(signal_time, 10)`) and how
+      // the cursor is emitted. Casting `$1::date + interval` to timestamptz would
+      // resolve midnight in the *session* timezone (PGlite inherits the process
+      // TZ), silently dropping "today"'s signals for any east-of-UTC deployment.
+      `LEFT(COALESCE(frontmatter->'source'->>'timestamp', frontmatter->'first_seen'->>'timestamp', created_at::text), 10) <= $1`,
     ];
     if (fromParam) {
       params.push(fromParam);
