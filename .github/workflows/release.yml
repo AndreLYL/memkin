@@ -86,6 +86,27 @@ jobs:
           node node_modules/memkin/dist/cli.js --version
           test -f node_modules/memkin/web/dist/index.html \
             || { echo "::error::web/dist/index.html missing from the published package"; exit 1; }
+          # Actually start `serve` under Node (not Bun) in the prod-only install and hit
+          # it over HTTP. This catches Bun-only APIs on the served path (Bun.serve /
+          # Bun.file), which crash `npx memkin serve|start` with "Bun is not defined" —
+          # the bug that shipped in 0.4.x — plus any served-path dependency missing from
+          # `dependencies`.
+          node node_modules/memkin/dist/cli.js serve --host 127.0.0.1 --port 0 --no-open \
+            > serve.log 2>&1 &
+          SERVE_PID=$!
+          for i in $(seq 1 30); do
+            grep -q MEMKIN_READY serve.log && break
+            kill -0 "$SERVE_PID" 2>/dev/null || { echo "::error::serve exited early"; cat serve.log; exit 1; }
+            sleep 1
+          done
+          URL="$(sed -n 's/.*MEMKIN_READY \(http[^ ]*\).*/\1/p' serve.log | head -1)"
+          test -n "$URL" || { echo "::error::serve never printed MEMKIN_READY"; cat serve.log; exit 1; }
+          curl -fsS "$URL/api/health" > /dev/null \
+            || { echo "::error::/api/health failed under Node"; cat serve.log; kill "$SERVE_PID"; exit 1; }
+          curl -fsS "$URL/" | grep -q "<title>Memkin</title>" \
+            || { echo "::error::web UI not served under Node"; cat serve.log; kill "$SERVE_PID"; exit 1; }
+          kill "$SERVE_PID" 2>/dev/null || true
+          echo "serve smoke OK under Node: $URL"
 
       - name: Publish to npm
         run: npm publish --provenance --access public
