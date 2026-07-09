@@ -66,6 +66,7 @@ import { createMcpHttpApp } from "./server/mcp-http.js";
 import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-runtime.js";
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
+import { serveHttp, serveStaticSpa } from "./server/serve.js";
 import { resolveServeSecurity } from "./server/server-security.js";
 import { DistilledPayloadStore } from "./store/distilled-payload.js";
 import { EntityMergeSuggestionStore } from "./store/entity-suggestions.js";
@@ -928,7 +929,7 @@ async function runServe(options: {
     // on the default port. The actual port is reported below for the webview to read.
     const requestedPort =
       options.port !== undefined ? Number(options.port) : config.server.http_port;
-    const server = Bun.serve({
+    const server = await serveHttp({
       port: requestedPort,
       // Loopback by default; `--host` / `server.host` can widen this, but only
       // when an auth token is configured (enforced by resolveServeSecurity above).
@@ -939,10 +940,7 @@ async function runServe(options: {
         // /api/* middleware. Web UI static assets below stay unauthenticated —
         // they are the app shell, not data.
         if (url.pathname.startsWith("/api")) return app.fetch(req);
-        const filePath = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
-        const candidate = Bun.file(join(webDist, filePath));
-        if (await candidate.exists()) return new Response(candidate);
-        return new Response(Bun.file(join(webDist, "index.html")));
+        return serveStaticSpa(webDist, url.pathname);
       },
     });
     console.log(`Memkin HTTP API listening on http://localhost:${server.port}`);
