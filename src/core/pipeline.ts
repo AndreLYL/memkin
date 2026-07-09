@@ -20,7 +20,7 @@ import { PrivacyProcessor } from "../processors/privacy.js";
 import { type AccumulateDeps, accumulateBehavior } from "../profile/accumulate.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
-import type { PrivacyConfig } from "./config.js";
+import type { AgentPipelineMode, PrivacyConfig } from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
 import type { IdentityResolver } from "./identity-resolver.js";
@@ -92,6 +92,37 @@ export interface PipelineResult {
   failedMessages: RawMessage[];
   lastSuccessMessage?: RawMessage;
   warnings: string[];
+}
+
+/**
+ * One handler per apply-pipeline mode (spec §3.1, PR-6). The router picks exactly
+ * one based on the source's `agent_pipeline` flag; the unselected handlers are
+ * never invoked. Handlers are injected so `pipeline.ts` stays free of a direct
+ * dependency on the apply engine (shadow-runner / cutover live in `src/apply`).
+ */
+export interface AgentPipelineHandlers<T> {
+  legacy: () => Promise<T>;
+  shadow: () => Promise<T>;
+  new: () => Promise<T>;
+}
+
+/**
+ * Dispatch to the handler for `mode`. `legacy` is the default arm, so any value
+ * that is not `shadow` or `new` runs the legacy path — production is never
+ * touched by the new engine unless the flag explicitly says so (spec §3.1).
+ */
+export function routeAgentPipeline<T>(
+  mode: AgentPipelineMode,
+  handlers: AgentPipelineHandlers<T>,
+): Promise<T> {
+  switch (mode) {
+    case "shadow":
+      return handlers.shadow();
+    case "new":
+      return handlers.new();
+    default:
+      return handlers.legacy();
+  }
 }
 
 /**
