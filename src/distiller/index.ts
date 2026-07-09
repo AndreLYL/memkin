@@ -88,8 +88,14 @@ export class SessionDistiller {
     return typeof v === "number" ? v : DEFAULTS[key];
   }
 
-  /** Process one tick over pending revisions. */
-  async runTick(): Promise<TickResult> {
+  /**
+   * Process one tick over pending revisions.
+   *
+   * `opts.limit` caps how many pending revisions are considered this tick — the
+   * cost lever for backfill: process a small batch first before burning LLM on
+   * the full historical backlog (spec §11 押后 backfill / task cost-awareness).
+   */
+  async runTick(opts?: { limit?: number }): Promise<TickResult> {
     const result: TickResult = {
       considered: 0,
       distilled: 0,
@@ -99,10 +105,13 @@ export class SessionDistiller {
       replayed: 0,
     };
 
-    const pending = [
+    let pending = [
       ...(await this.deps.sessions.listSessions({ state: "discovered" })),
       ...(await this.deps.sessions.listSessions({ state: "retrying" })),
     ];
+    if (opts?.limit != null && opts.limit >= 0) {
+      pending = pending.slice(0, opts.limit);
+    }
 
     for (const rev of pending) {
       result.considered++;
