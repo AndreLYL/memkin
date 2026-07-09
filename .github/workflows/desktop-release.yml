@@ -41,7 +41,8 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libfuse2
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -72,6 +73,10 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Linux AppImage bundling runs linuxdeploy (itself an AppImage) which needs
+          # FUSE. GitHub's ubuntu runners lack it, so run AppImage tools in extract mode
+          # to avoid `failed to run linuxdeploy`. No-op on macOS/Windows.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
           # Updater signing (REQUIRED — createUpdaterArtifacts is on):
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
