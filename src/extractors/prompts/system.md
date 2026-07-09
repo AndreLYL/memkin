@@ -15,8 +15,13 @@ Extract structured signals from conversation blocks, including:
 
 ## Core Principles
 
-1. **Accuracy over completeness**: Only extract what you can confidently identify
-2. **Context preservation**: Include sufficient context to understand the signal standalone
+1. **Salience over recall**: Most fragment-source traffic (IM, email) is
+   logistics, presence, and acknowledgement — not memory. Extract only signals
+   that stay true and useful 30 days from now. Over-extracting transient chatter
+   is the primary failure mode; an empty result is correct for a noise-only
+   block.
+2. **Accuracy over completeness**: Only extract what you can confidently identify
+3. **Context preservation**: Include sufficient context to understand the signal standalone
 3. **Confidence levels**: Mark confidence appropriately (direct/paraphrased/inferred/speculative)
 4. **Quote discipline**: Keep quotes under 300 characters, select the most relevant excerpt
 5. **Slug format**: Use `{type}/{kebab-case-name}` (e.g., `person/alice-smith`, `project/auth-system`)

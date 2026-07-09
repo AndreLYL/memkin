@@ -1,0 +1,35 @@
+{
+  "session_ref": "fragment-fixture:feishu-mixed-1",
+  "should_record": [
+    {
+      "type": "decision",
+      "authority": "user_confirmed",
+      "topic": "backend-postgres-migration",
+      "what": "后端统一改用 PostgreSQL,下周开始从 MySQL 迁移。"
+    },
+    {
+      "type": "task",
+      "authority": "user_confirmed",
+      "topic": "tracking-plan-v1",
+      "what": "张伟负责在周五前出一版埋点方案。"
+    }
+  ],
+  "should_not_record": [
+    {
+      "what": "收到,谢谢!",
+      "reason": "纯确认/寒暄,30 天后无检索价值"
+    },
+    {
+      "what": "我先去开个会,回头聊。",
+      "reason": "一次性在场状态,非决策/任务"
+    },
+    {
+      "what": "我重启一下服务看看还报不报错。",
+      "reason": "瞬间调试动作,无持久结论/根因"
+    },
+    {
+      "what": "几点开会? 三点半。",
+      "reason": "一次性事务性沟通,无长期安排"
+    }
+  ]
+}

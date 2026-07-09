@@ -1,0 +1,22 @@
+{
+  "session_ref": "fragment-fixture:feishu-noise-only-1",
+  "should_record": [],
+  "should_not_record": [
+    {
+      "what": "好的好的,辛苦了。",
+      "reason": "纯寒暄"
+    },
+    {
+      "what": "我到公司了。",
+      "reason": "一次性在场状态"
+    },
+    {
+      "what": "[红包] 恭喜发财",
+      "reason": "红包/表情,零内容"
+    },
+    {
+      "what": "收到。",
+      "reason": "确认,无信号"
+    }
+  ]
+}
