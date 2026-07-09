@@ -15,7 +15,11 @@ async function addContribution(
        (contribution_id, signal_family_key, canonical_page_id, session_ref, revision_id,
         authority, signal_type, normalized_topic, signal, source_ref, active)
      VALUES ($1, $1, $2, 'ref', 1, 'user_confirmed', 'decision', $1, '{}'::jsonb, $3::jsonb, true)`,
-    [cid, pageId, JSON.stringify({ platform, channel: "c", timestamp: "2026-07-01T00:00:00.000Z" })],
+    [
+      cid,
+      pageId,
+      JSON.stringify({ platform, channel: "c", timestamp: "2026-07-01T00:00:00.000Z" }),
+    ],
   );
 }
 

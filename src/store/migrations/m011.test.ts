@@ -9,9 +9,7 @@ describe("M011 — apply engine tables (contributions + apply_plan + apply_attem
         `INSERT INTO pages (slug, type, title) VALUES ('decisions/foo', 'decision', 'Foo')`,
       );
       const pageId = (
-        await db.executor.query<{ id: number }>(
-          "SELECT id FROM pages WHERE slug = 'decisions/foo'",
-        )
+        await db.executor.query<{ id: number }>("SELECT id FROM pages WHERE slug = 'decisions/foo'")
       ).rows[0].id;
 
       await db.executor.query(
