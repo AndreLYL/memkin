@@ -90,9 +90,14 @@ jobs:
           # it over HTTP. This catches Bun-only APIs on the served path (Bun.serve /
           # Bun.file), which crash `npx memkin serve|start` with "Bun is not defined" —
           # the bug that shipped in 0.4.x — plus any served-path dependency missing from
-          # `dependencies`.
-          node node_modules/memkin/dist/cli.js serve --host 127.0.0.1 --port 0 --no-open \
-            > serve.log 2>&1 &
+          # `dependencies`. `serve` refuses to run without a config, so write a minimal one.
+          cat > memkin.yaml <<'YAML'
+          store:
+            engine: pglite
+            data_dir: /tmp/memkin-smoke/data
+          YAML
+          node node_modules/memkin/dist/cli.js serve --config memkin.yaml \
+            --host 127.0.0.1 --port 0 --no-open > serve.log 2>&1 &
           SERVE_PID=$!
           for i in $(seq 1 30); do
             grep -q MEMKIN_READY serve.log && break
