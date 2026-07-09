@@ -1,6 +1,7 @@
 import type { MemoryFilter, SourceRef } from "../core/types.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { rewriteQuery } from "./query-rewrite.js";
+import { sourceFilterCondition } from "./source-filter.js";
 import type { SqlConn } from "./sql-executor.js";
 import { buildSnippet, buildTrgmConditions, splitTerms } from "./trgm-search.js";
 
@@ -110,11 +111,21 @@ function addMemoryFilterConditions(
   opts: SearchFilterOpts | undefined,
   pageAlias = "p",
 ): void {
+  const pageId = `${pageAlias}.id`;
+
   const addArrayCondition = (field: "platform" | "source_type") => {
     const values = asArray(opts?.[field]);
     if (!values || values.length === 0) return;
     params.push(values);
-    conditions.push(`${sourceField(pageAlias, field)} = ANY($${params.length}::text[])`);
+    const p = `$${params.length}`;
+    // Spec §8: match active contributions (multi-source truth), frontmatter primary as fallback.
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'${field}' = ANY(${p}::text[])`,
+        `${sourceField(pageAlias, field)} = ANY(${p}::text[])`,
+      ),
+    );
   };
 
   addArrayCondition("platform");
@@ -122,26 +133,47 @@ function addMemoryFilterConditions(
 
   if (opts?.channel) {
     params.push(opts.channel);
-    conditions.push(`${sourceField(pageAlias, "channel")} = $${params.length}`);
+    const p = `$${params.length}`;
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'channel' = ${p}`,
+        `${sourceField(pageAlias, "channel")} = ${p}`,
+      ),
+    );
   }
 
   if (opts?.channel_name) {
     params.push(opts.channel_name);
-    conditions.push(`${sourceField(pageAlias, "channel_name")} = $${params.length}`);
+    const p = `$${params.length}`;
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'channel_name' = ${p}`,
+        `${sourceField(pageAlias, "channel_name")} = ${p}`,
+      ),
+    );
   }
 
   if (opts?.participant) {
     params.push(opts.participant);
     const param = `$${params.length}`;
-    conditions.push(`(
+    const participantMatch = (json: string) => `(
       EXISTS (
         SELECT 1
-        FROM jsonb_array_elements(COALESCE(${sourceJson(pageAlias)}->'participants', '[]'::jsonb)) AS participant
+        FROM jsonb_array_elements(COALESCE(${json}->'participants', '[]'::jsonb)) AS participant
         WHERE participant->>'name' = ${param} OR participant->>'id' = ${param}
       )
-      OR ${sourceJson(pageAlias)}->'author'->>'name' = ${param}
-      OR ${sourceJson(pageAlias)}->'author'->>'id' = ${param}
-    )`);
+      OR ${json}->'author'->>'name' = ${param}
+      OR ${json}->'author'->>'id' = ${param}
+    )`;
+    conditions.push(
+      sourceFilterCondition(
+        pageId,
+        participantMatch("mc.source_ref"),
+        participantMatch(sourceJson(pageAlias)),
+      ),
+    );
   }
 
   if (opts?.type && opts.type.length > 0) {
