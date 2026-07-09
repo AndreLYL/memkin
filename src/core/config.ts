@@ -236,6 +236,16 @@ export interface SearchConfig {
 }
 
 /**
+ * Session distiller configuration (extraction-quality-redesign PR-2, spec §4.3).
+ * payload_ttl_days: how long a distilled payload (and its reversible restoration
+ * map) is retained after the session reaches `done` before the consolidator
+ * sweeps it. Default 90.
+ */
+export interface DistillerConfig {
+  payload_ttl_days: number;
+}
+
+/**
  * Complete configuration interface
  */
 export interface Config {
@@ -252,6 +262,7 @@ export interface Config {
   pipeline?: PipelineOptsConfig;
   profile: ProfileConfig;
   search: SearchConfig;
+  distiller: DistillerConfig;
 }
 
 /**
@@ -388,6 +399,9 @@ const DEFAULT_CONFIG: Config = {
   search: {
     pool_by_page: true,
     llm_rewrite: false,
+  },
+  distiller: {
+    payload_ttl_days: 90,
   },
 };
 

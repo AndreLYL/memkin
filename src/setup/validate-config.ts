@@ -1,4 +1,5 @@
 import type {
+  DistillerConfig,
   EmbeddingConfig,
   FeishuSourceConfig,
   LLMConfig,
@@ -35,6 +36,7 @@ export interface PartialConfig {
   scheduler?: SchedulerConfig;
   profile?: Partial<ProfileConfig>;
   search?: Partial<SearchConfig>;
+  distiller?: Partial<DistillerConfig>;
 }
 
 export interface ValidationResult {

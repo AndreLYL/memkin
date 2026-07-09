@@ -56,4 +56,18 @@ describe("loadConfig", () => {
       expect(config.sources.feishu?.auto_include_new_groups).toBeUndefined();
     });
   });
+
+  describe("distiller config (extraction-quality-redesign PR-2)", () => {
+    it("defaults distiller.payload_ttl_days to 90", () => {
+      writeFileSync(configPath, "privacy:\n  enabled: true\n");
+      const config = loadConfig(configPath);
+      expect(config.distiller.payload_ttl_days).toBe(90);
+    });
+
+    it("honours an explicit distiller.payload_ttl_days override", () => {
+      writeFileSync(configPath, ["distiller:", "  payload_ttl_days: 30"].join("\n"));
+      const config = loadConfig(configPath);
+      expect(config.distiller.payload_ttl_days).toBe(30);
+    });
+  });
 });

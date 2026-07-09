@@ -12,6 +12,7 @@
   },
   "files": [
     "dist/",
+    "web/dist/",
     "bin/",
     "README.md",
     "README.en.md",

@@ -67,6 +67,7 @@ import { assertLoopbackOrThrow, resolveMcpHttpRuntime } from "./server/mcp-http-
 import { openBrowser } from "./server/open-browser.js";
 import { startServer } from "./server/runtime.js";
 import { resolveServeSecurity } from "./server/server-security.js";
+import { DistilledPayloadStore } from "./store/distilled-payload.js";
 import { EntityMergeSuggestionStore } from "./store/entity-suggestions.js";
 import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
@@ -1348,6 +1349,10 @@ program
             behavior: new PersonBehaviorStore(stores.db.executor),
           },
         },
+        {
+          payloads: new DistilledPayloadStore(stores.db.executor),
+          ttlDays: config.distiller.payload_ttl_days,
+        },
       );
 
       const mode: ConsolidateMode = options.hot
@@ -1370,6 +1375,7 @@ program
       console.log(`  preferences inferred:     ${result.preferencesInferred}`);
       console.log(`  profiles synthesized:     ${result.profilesSynthesized}`);
       console.log(`  entity merge suggestions: ${result.entityMergeSuggestions}`);
+      console.log(`  distilled payloads swept: ${result.payloadsSwept}`);
 
       await stores.db.close();
     } catch (error) {
