@@ -24,6 +24,7 @@ import {
   type ScanSummary,
   type StageApplyStep,
 } from "./driver.js";
+import { backfillTranscriptParser } from "./transcript-parse.js";
 import { LayoutTranscriptSource } from "./transcript-source.js";
 
 /** Resolve which agent sources to backfill + their on-disk layouts. */
@@ -97,6 +98,7 @@ export function buildBackfillDriver(deps: BuildBackfillDriverDeps): BackfillDriv
     provider,
     privacy: config.privacy,
     transcripts: new LayoutTranscriptSource(layouts),
+    parse: backfillTranscriptParser(),
   });
   const distillStep: DistillStep = {
     runTick: (opts) => distiller.runTick(opts),

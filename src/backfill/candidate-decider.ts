@@ -16,6 +16,7 @@
 
 import type { CandidateDecider, CandidateDecision } from "../apply/candidate-selection.js";
 import type { ApplyAction, ApplyTarget, Candidate } from "../apply/types.js";
+import { extractJsonText } from "../core/llm-json.js";
 import type { DistilledSignal } from "../distiller/contract.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 
@@ -107,7 +108,7 @@ function buildUserPrompt(signal: DistilledSignal, candidates: Candidate[]): stri
 
 /** Parse the model's JSON decision, tolerating code fences and stray prose. */
 export function parseDecision(raw: string): CandidateDecision {
-  const json = extractJson(raw);
+  const json = extractJsonText(raw);
   if (!json) return { action: "NEW", target_slug: null, reason: "unparseable decision → NEW" };
 
   let obj: Record<string, unknown>;
@@ -123,14 +124,4 @@ export function parseDecision(raw: string): CandidateDecision {
     typeof obj.target_slug === "string" && obj.target_slug.length > 0 ? obj.target_slug : null;
   const reason = typeof obj.reason === "string" ? obj.reason : "";
   return { action, target_slug: targetSlug, reason };
-}
-
-/** Pull the first JSON object out of a possibly fenced / chatty response. */
-function extractJson(raw: string): string | null {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = fenced ? fenced[1] : raw;
-  const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) return null;
-  return body.slice(start, end + 1);
 }
