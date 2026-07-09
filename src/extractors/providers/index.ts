@@ -9,8 +9,26 @@ import { createMockProvider } from "./mock.js";
 import { createOpenAIProvider } from "./openai.js";
 import type { LLMProvider } from "./types.js";
 
+/**
+ * Maps UI-facing provider labels to the canonical provider the factory knows.
+ * "Custom / Proxy" (Web UI) and "openai-compatible" (CLI) are both just the
+ * OpenAI-compatible protocol with a custom base URL, so they resolve to "openai".
+ * Normalizing here — the single choke point every caller funnels through —
+ * keeps the alias map authoritative for all entry points (web, CLI, hand-edited
+ * config, future clients) instead of scattering it across each UI.
+ */
+const PROVIDER_ALIASES: Record<string, string> = {
+  custom: "openai",
+  "openai-compatible": "openai",
+};
+
+export function normalizeProvider(raw: string): string {
+  return PROVIDER_ALIASES[raw] ?? raw;
+}
+
 export function createLLMProvider(config: LLMConfig): LLMProvider {
-  const { provider, model, api_key, base_url } = config;
+  const { model, api_key, base_url } = config;
+  const provider = normalizeProvider(config.provider);
 
   switch (provider) {
     case "openai": {
