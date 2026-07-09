@@ -82,9 +82,7 @@ function renderAutoBody(pageType: string, contribs: ActiveContribution[]): strin
     // Project tracker (spec §6.1): current state + recent changes, both derived.
     const recent = [...contribs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     const state = contribs.map(line).join("\n");
-    const changes = recent
-      .map((c) => `- ${c.createdAt.slice(0, 10)} · ${c.what}`)
-      .join("\n");
+    const changes = recent.map((c) => `- ${c.createdAt.slice(0, 10)} · ${c.what}`).join("\n");
     return `## 当前状态\n${state}\n\n## 最近变更\n${changes}`;
   }
 
@@ -153,11 +151,7 @@ async function rebuildLinks(
   const targets = await tx.query<{ id: number }>(
     `SELECT DISTINCT id FROM pages
       WHERE (slug = ANY($2::text[]) OR lower(title) = ANY($3::text[])) AND id <> $1`,
-    [
-      pageId,
-      [...names],
-      [...names].map((n) => n.toLowerCase()),
-    ],
+    [pageId, [...names], [...names].map((n) => n.toLowerCase())],
   );
   for (const t of targets.rows) {
     await tx.query(

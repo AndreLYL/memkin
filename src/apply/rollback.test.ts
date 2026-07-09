@@ -81,7 +81,7 @@ describe("ApplyRollback — contributions-based, reverse-order", () => {
   it("keeps a page alive when another apply's contribution still supports it", async () => {
     const db = await Database.create(undefined, { embeddingDimensions: 768 });
     try {
-      const a1 = await applyOne(db, 1, signal("Use Postgres", "Adopt Postgres"), "NEW");
+      await applyOne(db, 1, signal("Use Postgres", "Adopt Postgres"), "NEW");
       const page = await new PageStore(db.executor).getPage("decisions/use-postgres");
       // Second apply adds a distinct contribution (different topic) to the same page.
       const a2 = await applyOne(db, 2, signal("Backup strategy", "Nightly backups"), "UPDATE", {

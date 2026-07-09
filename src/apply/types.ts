@@ -11,13 +11,7 @@ export type ApplyTarget = "staging" | "production";
 export type ApplyAction = "NEW" | "UPDATE" | "SUPERSEDE" | "LINK_EXISTING" | "NOOP";
 
 /** Entity page types that are always eligible candidates (identity pages). */
-export const ENTITY_PAGE_TYPES = [
-  "person",
-  "project",
-  "organization",
-  "tool",
-  "concept",
-] as const;
+export const ENTITY_PAGE_TYPES = ["person", "project", "organization", "tool", "concept"] as const;
 
 /**
  * Frontmatter marker stamped on every page the v2 apply engine writes. The

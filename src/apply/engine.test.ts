@@ -26,7 +26,11 @@ function signal(over: Partial<DistilledSignal> = {}): DistilledSignal {
   } as DistilledSignal;
 }
 
-function plannedAction(sig: DistilledSignal, action: ApplyAction, over: Partial<PlannedAction> = {}): PlannedAction {
+function plannedAction(
+  sig: DistilledSignal,
+  action: ApplyAction,
+  over: Partial<PlannedAction> = {},
+): PlannedAction {
   const norm = normalizeTopic(sig.topic);
   return {
     signal_index: 0,

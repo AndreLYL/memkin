@@ -114,7 +114,11 @@ describe("rematerializeCanonicalPage", () => {
       await addContribution(db, pageId, "u", "fu", {
         what: "user confirmed",
         authority: "user_confirmed",
-        sourceRef: { platform: "claude-code", channel: "c2", timestamp: "2026-07-02T00:00:00.000Z" },
+        sourceRef: {
+          platform: "claude-code",
+          channel: "c2",
+          timestamp: "2026-07-02T00:00:00.000Z",
+        },
       });
       await db.executor.transaction((tx) => rematerializeCanonicalPage(tx, pageId));
 
@@ -145,7 +149,10 @@ describe("rematerializeCanonicalPage", () => {
       expect(rows.rows[0].auto).toBe("contribution");
 
       // Withdraw → rematerialize clears the derived timeline entry.
-      await db.executor.query("UPDATE memory_contributions SET active = false WHERE canonical_page_id = $1", [pageId]);
+      await db.executor.query(
+        "UPDATE memory_contributions SET active = false WHERE canonical_page_id = $1",
+        [pageId],
+      );
       await db.executor.transaction((tx) => rematerializeCanonicalPage(tx, pageId));
       const after = await db.executor.query<{ n: number }>(
         `SELECT COUNT(*)::int AS n FROM timeline_entries WHERE page_id = $1`,
@@ -163,7 +170,10 @@ describe("rematerializeCanonicalPage", () => {
       const pageId = await seedPage(db, "decisions/o", "---\ntitle: O\ntype: decision\n---\nintro");
       await addContribution(db, pageId, "only", "fo", { what: "sole conclusion" });
       await db.executor.transaction((tx) => rematerializeCanonicalPage(tx, pageId));
-      await db.executor.query("UPDATE memory_contributions SET active = false WHERE canonical_page_id = $1", [pageId]);
+      await db.executor.query(
+        "UPDATE memory_contributions SET active = false WHERE canonical_page_id = $1",
+        [pageId],
+      );
 
       const result = await db.executor.transaction((tx) => rematerializeCanonicalPage(tx, pageId));
       expect(result.orphaned).toBe(true);

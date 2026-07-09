@@ -41,7 +41,10 @@ function knowledgeSignal(over: Partial<DistilledSignal> = {}): DistilledSignal {
   } as DistilledSignal;
 }
 
-function storedPayload(signals: DistilledSignal[], over: Partial<StoredPayload> = {}): StoredPayload {
+function storedPayload(
+  signals: DistilledSignal[],
+  over: Partial<StoredPayload> = {},
+): StoredPayload {
   const payload: DistilledPayload = { signals };
   return {
     id: 1,
@@ -177,7 +180,11 @@ describe("ApplyPlanStore + SchemaCandidateRepository (DB-backed)", () => {
       expect(prodId).not.toBe(stagingId);
 
       // upsert: saving production again returns the same row id.
-      const prodId2 = await store.save({ payload_id: payloadId, target: "production", actions: [] });
+      const prodId2 = await store.save({
+        payload_id: payloadId,
+        target: "production",
+        actions: [],
+      });
       expect(prodId2).toBe(prodId);
 
       const got = await store.getByPayloadTarget(payloadId, "production");
@@ -209,7 +216,10 @@ describe("ApplyPlanStore + SchemaCandidateRepository (DB-backed)", () => {
       );
 
       const repo = new SchemaCandidateRepository(db.executor, "production");
-      const cands = await repo.findCandidates(knowledgeSignal({ topic: "Postgres", what: "Postgres" }), 5);
+      const cands = await repo.findCandidates(
+        knowledgeSignal({ topic: "Postgres", what: "Postgres" }),
+        5,
+      );
       const slugs = cands.map((c) => c.slug);
       expect(slugs).toContain("decisions/postgres-choice");
       expect(slugs).toContain("entities/postgres");

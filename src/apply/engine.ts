@@ -23,9 +23,9 @@
 
 import type { SourceRef } from "../core/types.js";
 import type { SqlConn, SqlExecutor } from "../store/sql-executor.js";
+import type { StoredApplyPlan } from "./candidate-selection.js";
 import { rematerializeCanonicalPage } from "./rematerialize.js";
 import type { ApplyAction, ApplyTarget, PlannedAction } from "./types.js";
-import type { StoredApplyPlan } from "./candidate-selection.js";
 
 const TYPE_FOLDER: Record<string, string> = {
   decision: "decisions",
@@ -137,7 +137,14 @@ export class ApplyEngine {
       }
     }
     // Unreachable, but satisfies the type checker.
-    return { attemptId, status: "failed", target: plan.target, applied: [], retried, replay: false };
+    return {
+      attemptId,
+      status: "failed",
+      target: plan.target,
+      applied: [],
+      retried,
+      replay: false,
+    };
   }
 
   private async loadPayloadMeta(payloadId: number): Promise<PayloadMeta> {

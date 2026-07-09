@@ -115,7 +115,11 @@ function addFeedFilters(
     params.push(opts.channel);
     const p = `$${params.length}`;
     conditions.push(
-      sourceFilterCondition(pageId, `mc.source_ref->>'channel' = ${p}`, `${sourceField("channel")} = ${p}`),
+      sourceFilterCondition(
+        pageId,
+        `mc.source_ref->>'channel' = ${p}`,
+        `${sourceField("channel")} = ${p}`,
+      ),
     );
   }
 
@@ -144,7 +148,11 @@ function addFeedFilters(
       OR ${json}->'author'->>'id' = ${param}
     )`;
     conditions.push(
-      sourceFilterCondition(pageId, participantMatch("mc.source_ref"), participantMatch(sourceJson())),
+      sourceFilterCondition(
+        pageId,
+        participantMatch("mc.source_ref"),
+        participantMatch(sourceJson()),
+      ),
     );
   }
 

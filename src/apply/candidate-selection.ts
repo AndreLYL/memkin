@@ -239,7 +239,10 @@ export class ApplyPlanStore {
     return r.rows[0] ? parsePlan(r.rows[0]) : null;
   }
 
-  async getByPayloadTarget(payloadId: number, target: ApplyTarget): Promise<StoredApplyPlan | null> {
+  async getByPayloadTarget(
+    payloadId: number,
+    target: ApplyTarget,
+  ): Promise<StoredApplyPlan | null> {
     const r = await this.pg.query<PlanRow>(
       "SELECT * FROM apply_plan WHERE payload_id = $1 AND target = $2",
       [payloadId, target],
