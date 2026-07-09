@@ -62,11 +62,28 @@ export interface AdaptersConfig {
 }
 
 /**
+ * Per-source agent apply-pipeline selector (extraction-quality-redesign PR-6,
+ * spec §3.1). Chooses which apply path an AGENT source runs through:
+ *   - `legacy` — the current block-extraction runPipeline (writes production
+ *     directly). This is the default so merging PR-6 never auto-flips production.
+ *   - `shadow` — the PR-4 apply engine with target=staging (physically isolated
+ *     staging schema; production search/embedding/stats untouched).
+ *   - `new`    — the PR-4 apply engine with target=production (post-cutover).
+ */
+export type AgentPipelineMode = "legacy" | "shadow" | "new";
+
+/**
  * Source configuration for each data source
  */
 export interface SourceConfig {
   enabled: boolean;
   base_dir?: string;
+  /**
+   * Which apply pipeline this agent source runs (spec §3.1, PR-6). Defaults to
+   * `legacy`. Only meaningful for agent sources (claude-code/codex/hermes);
+   * fragment sources (feishu) always use the block pipeline.
+   */
+  agent_pipeline?: AgentPipelineMode;
 }
 
 /**
@@ -553,4 +570,29 @@ export function loadConfig(filePath?: string): LoadedConfig {
     projectRoot,
     missingEnvVars: interpolated.missing,
   });
+}
+
+/**
+ * The three agent transcript sources subject to the apply-pipeline flag (PR-6).
+ * Fragment sources (feishu) are intentionally excluded — they run the block
+ * pipeline (PR-5), never the target-parameterized apply engine.
+ */
+export const AGENT_SOURCE_IDS = ["claude-code", "codex", "hermes"] as const;
+export type AgentSourceId = (typeof AGENT_SOURCE_IDS)[number];
+
+/** True only for the agent sources governed by `agent_pipeline` (spec §3.1). */
+export function isAgentSource(sourceId: string): sourceId is AgentSourceId {
+  return (AGENT_SOURCE_IDS as readonly string[]).includes(sourceId);
+}
+
+/**
+ * Resolve the effective apply-pipeline mode for a source (spec §3.1, PR-6).
+ * Non-agent sources and unset config both fall back to `legacy`, so production
+ * is only ever driven by the new engine after a deliberate cutover config
+ * change — merging PR-6 alone leaves every source on legacy.
+ */
+export function resolveAgentPipelineMode(config: Config, sourceId: string): AgentPipelineMode {
+  if (!isAgentSource(sourceId)) return "legacy";
+  const source = config.sources[sourceId] as SourceConfig | undefined;
+  return source?.agent_pipeline ?? "legacy";
 }

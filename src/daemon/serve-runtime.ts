@@ -15,10 +15,15 @@ import {
   registerCollector,
   resetRegistry,
 } from "../collectors/index.js";
-import type { LoadedConfig, SourcesConfig } from "../core/config.js";
+import { type LoadedConfig, resolveAgentPipelineMode, type SourcesConfig } from "../core/config.js";
 import { CursorStore } from "../core/cursors.js";
 import { PersonIdentityStore } from "../core/person-identity.js";
-import { type PipelineConfig, type PipelineResult, runPipeline } from "../core/pipeline.js";
+import {
+  isLegacyExtractionRetired,
+  type PipelineConfig,
+  type PipelineResult,
+  runPipeline,
+} from "../core/pipeline.js";
 import { statePath } from "../core/state.js";
 import { createLLMProvider, createMockProvider } from "../extractors/providers/index.js";
 import type { AccumulateDeps } from "../profile/accumulate.js";
@@ -48,6 +53,23 @@ export class ServeRuntimeHolder {
 }
 
 // ── Helpers (replicated from cli.ts; factored here for rebuildability) ───────
+
+/** A benign no-op pipeline result for a source the scheduler intentionally skips. */
+function emptyPipelineResult(): PipelineResult {
+  return {
+    fatal: false,
+    error: undefined,
+    totalMessages: 0,
+    totalBlocks: 0,
+    okBlocks: 0,
+    skippedBlocks: 0,
+    failedBlocks: 0,
+    okMessages: [],
+    skippedMessages: [],
+    failedMessages: [],
+    warnings: [],
+  };
+}
 
 function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
   if (!path) return undefined;
@@ -195,6 +217,16 @@ export async function buildServeRuntime(
       scheduler.setRunSource(async (sourceId) => {
         if (sourceId === "feishu.docs") {
           return runDocsAsPipelineResult();
+        }
+        // Legacy retirement (spec §3.1, PR-6): an agent source flipped to
+        // shadow / new no longer runs the legacy block-extraction pipeline — the
+        // new apply engine handles it. Flag-gated, so the default (legacy) is
+        // unchanged and merging PR-6 never stops legacy on its own.
+        if (isLegacyExtractionRetired(config, sourceId)) {
+          console.log(
+            `[scheduler] ${sourceId}: legacy extraction retired (agent_pipeline=${resolveAgentPipelineMode(config, sourceId)}); handled by the new pipeline`,
+          );
+          return emptyPipelineResult();
         }
         const collector = getCollector(sourceId);
         if (!collector) throw new Error(`Unknown source: ${sourceId}`);
