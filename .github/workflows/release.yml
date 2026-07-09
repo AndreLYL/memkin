@@ -54,6 +54,15 @@ jobs:
       - name: Build
         run: bun run build
 
+      # The web UI is a separate Vite app with its own dependencies. Build it so
+      # its static assets ship inside the npm package — `memkin serve` resolves
+      # them from <package>/web/dist, so without this step npx users get no UI.
+      - name: Build web UI
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+        working-directory: web
+
       # Use Node's npm (with provenance support) for publishing, and prove the
       # built artifact actually runs on plain Node — this gate catches packaging
       # regressions (missing assets / unresolved imports) before they ship.
@@ -75,6 +84,8 @@ jobs:
           npm init -y >/dev/null 2>&1
           npm install "${GITHUB_WORKSPACE}/${TGZ}" --omit=dev
           node node_modules/memkin/dist/cli.js --version
+          test -f node_modules/memkin/web/dist/index.html \
+            || { echo "::error::web/dist/index.html missing from the published package"; exit 1; }
 
       - name: Publish to npm
         run: npm publish --provenance --access public
