@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { resolveConfigPath } from "../core/config.js";
+import { normalizeProvider } from "../extractors/providers/index.js";
 import { resolveDefaultEngineForNewInstall } from "../store/managed/new-install.js";
 import { runEmbeddingAssessment } from "./assess-hardware.js";
 import {
@@ -150,7 +151,7 @@ async function collectLLMConfig(prompt: Prompt, keys: DetectedApiKeys): Promise<
     providerDefault,
   );
 
-  const provider = providerChoice === "openai-compatible" ? "openai" : providerChoice;
+  const provider = normalizeProvider(providerChoice);
   const defaultModel =
     providerChoice === "anthropic"
       ? LLM_MODELS.anthropic
