@@ -20,7 +20,13 @@ import { PrivacyProcessor } from "../processors/privacy.js";
 import { type AccumulateDeps, accumulateBehavior } from "../profile/accumulate.js";
 import { BlockBuilder } from "./block-builder.js";
 import { canonicalize } from "./canonicalize.js";
-import type { AgentPipelineMode, PrivacyConfig } from "./config.js";
+import {
+  type AgentPipelineMode,
+  type Config,
+  isAgentSource,
+  type PrivacyConfig,
+  resolveAgentPipelineMode,
+} from "./config.js";
 import { CursorStore } from "./cursors.js";
 import { DedupStore } from "./dedup.js";
 import type { IdentityResolver } from "./identity-resolver.js";
@@ -123,6 +129,17 @@ export function routeAgentPipeline<T>(
     default:
       return handlers.legacy();
   }
+}
+
+/**
+ * True when the legacy block-extraction path is retired for this source (spec
+ * §3.1, PR-6). Retirement is flag-gated: only agent sources flipped off legacy
+ * (agent_pipeline = shadow | new) are retired, so the scheduler keeps running
+ * the legacy pipeline until an operator deliberately cuts over. Fragment sources
+ * (feishu) are never retired — they always use the block pipeline.
+ */
+export function isLegacyExtractionRetired(config: Config, sourceId: string): boolean {
+  return isAgentSource(sourceId) && resolveAgentPipelineMode(config, sourceId) !== "legacy";
 }
 
 /**
