@@ -65,4 +65,38 @@ describe("hermes adapter", () => {
     expect(cfg2.mcp_servers?.memkin).toBeUndefined();
     expect(existsSync(join(home, ".hermes", "skills", "memkin", "SKILL.md"))).toBe(false);
   });
+
+  // HTTP transport is wired so hermes/openclaw get auto-configured on pglite
+  // (single-writer) too, instead of being skipped like stdio-only clients.
+  // Hermes's own config.yaml mcp_servers schema natively supports remote/HTTP
+  // servers via a `url` (+ optional `headers`) field, verified against the
+  // official docs: https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp
+  it("supports http transport", () => {
+    expect(hermes.supportsHttp).toBe(true);
+  });
+
+  it("plans an HTTP mcp entry (url-based) when transport is http", () => {
+    mkdirSync(join(home, ".hermes"));
+    const ops = hermes.plan(ctx({ transport: "http", url: "http://127.0.0.1:3928/mcp" }));
+    expect(ops[0]).toMatchObject({
+      path: join(home, ".hermes", "config.yaml"),
+      kind: "yaml-mcp",
+      entry: { kind: "http", url: "http://127.0.0.1:3928/mcp" },
+    });
+  });
+
+  it("install with http transport writes a url-based mcp_servers entry", () => {
+    mkdirSync(join(home, ".hermes"));
+    runInstall({
+      agent: ["hermes"],
+      home,
+      cwd,
+      platform: base.platform,
+      launch: base.launch,
+      http: true,
+      url: "http://127.0.0.1:3928/mcp",
+    });
+    const cfg = parse(readFileSync(join(home, ".hermes", "config.yaml"), "utf8"));
+    expect(cfg.mcp_servers.memkin).toEqual({ url: "http://127.0.0.1:3928/mcp" });
+  });
 });

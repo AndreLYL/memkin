@@ -13,8 +13,10 @@ function hermesRoot(home: string): string {
 export const hermes: ClientAdapter = {
   id: "hermes",
   displayName: "OpenClaw / Hermes",
-  // TODO(SP4 T6b): verify HTTP support
-  supportsHttp: false,
+  // Verified: Hermes config.yaml mcp_servers natively supports remote/HTTP
+  // servers via a `url` field (https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp),
+  // which matches upsertMcpServerYaml's http branch — safe to wire on pglite.
+  supportsHttp: true,
   detect(home) {
     return existsSync(join(home, ".hermes")) || existsSync(join(home, ".openclaw"));
   },

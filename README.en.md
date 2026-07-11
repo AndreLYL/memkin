@@ -29,12 +29,29 @@
 ## ⚡ 30-Second Quick Start
 
 ```bash
-npx memkin start
+curl -fsSL https://raw.githubusercontent.com/AndreLYL/memkin/main/scripts/install.sh | sh
 ```
 
-One command does it all: with no config it opens a browser setup wizard, then starts the server and opens the web UI; with an existing config it just starts. Bare `npx memkin` is equivalent.
+One command does it all: auto-installs a runtime → installs `memkin` globally → opens a browser setup wizard so you can drop in your LLM API key → on Save it runs as an **auto-starting background service** and automatically wires memory into whatever AI agents you already have installed (Claude Code, Codex, Hermes/OpenClaw).
 
-> Prerequisite: [Node.js](https://nodejs.org) >= 18. The npm package and the command are both `memkin`.
+> Just want to try it without a background service? `npx memkin start` is a one-command path too — with no config it opens the setup wizard, then starts the server and opens the web UI; with an existing config it just starts. Bare `npx memkin` is equivalent.
+
+> Prerequisite: [Node.js](https://nodejs.org) >= 18 (the installer script installs it for you). The npm package and the command are both `memkin`.
+
+## Run as a Background Service
+
+The one-command installer ends by running `memkin up`, which registers Memkin as an auto-starting background daemon:
+
+```bash
+memkin status     # check whether the background service is running
+memkin down       # stop the service and disable autostart
+```
+
+To uninstall completely:
+
+```bash
+memkin down && memkin uninstall && npm rm -g memkin
+```
 
 ## Three Pillars
 

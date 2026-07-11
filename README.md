@@ -29,12 +29,14 @@
 ## ⚡ 30 秒上手
 
 ```bash
-npx memkin start
+curl -fsSL https://raw.githubusercontent.com/AndreLYL/memkin/main/scripts/install.sh | sh
 ```
 
-一条命令，全部搞定：没有配置时自动打开浏览器 setup 向导，配置完成后立即启动服务并打开 Web UI；已有配置则直接起服务。裸跑 `npx memkin` 等效。
+一条命令，全部搞定：自动装运行时 → 全局安装 `memkin` → 浏览器打开 setup 向导让你填 LLM API Key → 保存后自动作为**开机自启的后台常驻服务**运行，并把记忆自动接入已安装的 AI agent（Claude Code、Codex、Hermes/OpenClaw）。
 
-> 前置条件：[Node.js](https://nodejs.org) >= 18。npm 包名与命令名均为 `memkin`。
+> 只想临时试一下、不装后台服务？`npx memkin start` 同样一条命令跑起来 —— 没有配置会自动引导 setup 向导，配置完成后立即启动服务并打开 Web UI；已有配置则直接起服务。裸跑 `npx memkin` 等效。
+
+> 前置条件：[Node.js](https://nodejs.org) >= 18（一键安装脚本会自动装）。npm 包名与命令名均为 `memkin`。
 
 ## 三大支柱
 
@@ -268,7 +270,15 @@ Memkin 是标准 MCP stdio 服务器，可接入任何 MCP 客户端：
 
 ## 快速开始
 
-### 一键启动（推荐）
+### 一键安装（推荐，后台常驻）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AndreLYL/memkin/main/scripts/install.sh | sh
+```
+
+脚本会依次完成：自动装 Node 运行时 → `npm i -g memkin@latest` 全局安装 → 打开浏览器 setup 向导让你填 LLM API Key → 保存后自动执行 `memkin up`，作为**开机自启的后台服务**跑起来，并自动把记忆接入已安装的 AI agent（Claude Code、Codex、Hermes/OpenClaw）。
+
+### 临时试一下（npx，不装后台服务）
 
 ```bash
 # 免安装直接运行 —— 没有配置会自动引导 setup 向导，完成后自动起服务并打开浏览器
@@ -278,9 +288,24 @@ npx memkin start
 npx memkin
 ```
 
-`memkin start` 是单步上手路径：检测到没有 `memkin.yaml` 时先拉起浏览器 setup 向导，配置完成后立即启动 HTTP 服务并自动打开浏览器。
+`memkin start` 是单步上手路径：检测到没有 `memkin.yaml` 时先拉起浏览器 setup 向导，配置完成后立即启动 HTTP 服务并自动打开浏览器；这条路径不会常驻后台，退出终端 / 关机后服务不会自启。
 
 > npm 包名与命令名均为 `memkin`。
+
+### 作为后台常驻服务
+
+一键安装脚本最后会跑 `memkin up`，把 Memkin 注册为开机自启的后台守护进程（daemon）：
+
+```bash
+memkin status     # 查看后台服务状态
+memkin down       # 停止服务并取消开机自启
+```
+
+彻底卸载：
+
+```bash
+memkin down && memkin uninstall && npm rm -g memkin
+```
 
 ### 端口一览
 

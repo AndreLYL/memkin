@@ -18,6 +18,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      - name: Shellcheck install script
+        run: shellcheck scripts/install.sh
 
   typecheck:
     name: Typecheck
