@@ -10,24 +10,58 @@ on:
       - "pg-runtime-*"
 
 # ---------------------------------------------------------------------------
-# Build job — runs on both arm64 and x64 macOS 15 runners in parallel.
+# Build job — runs on 4 GitHub-hosted runners in parallel (2 macOS + 2 Linux),
+# one per platform/arch combination the managed Postgres provider ships:
+# darwin-arm64, darwin-x64, linux-x64, linux-arm64.
 #
-# Runner note: as of 2026-06, macOS 15 (Sequoia) runners:
-#   arm64 → macos-15           (Apple Silicon, generally available)
-#   x64   → macos-15-intel     (Intel, current x64 label for macOS 15)
-#   macos-13 is retired; macos-14 deprecating 2026-07-06.
+# Runner notes (as of 2026-06):
+#   macOS 15 (Sequoia):
+#     arm64 → macos-15           (Apple Silicon, generally available)
+#     x64   → macos-15-intel     (Intel, current x64 label for macOS 15)
+#     macos-13 is retired; macos-14 deprecating 2026-07-06.
+#   Linux (Ubuntu 24.04), GitHub-hosted ARM64 runners are GA:
+#     x64   → ubuntu-24.04
+#     arm64 → ubuntu-24.04-arm
+#
+# Relocatability approach (see scripts/build-pg-runtime.sh and
+# scripts/build-pg-runtime-linux.sh headers for the platform-specific
+# rewrite/audit details): both platforms build PostgreSQL + pgvector FROM
+# SOURCE (not repackaging a distro build), then rewrite every binary's
+# shared-library search path to be relative to its own location
+# (@rpath/@loader_path on macOS via install_name_tool, $ORIGIN on Linux via
+# patchelf), then audit for any remaining absolute build-host path before
+# packaging. Building from source (vs. e.g. repackaging Homebrew/apt
+# postgresql-17 + pgvector packages) was chosen because:
+#   - distro packages assume distro-managed dependency versions/paths and are
+#     NOT relocatable out of the box (they hardcode /usr, /opt/homebrew, etc.)
+#   - building from source lets us disable OpenSSL/readline, which are the
+#     two dependencies hardest to make portable across host OS versions, since
+#     the managed cluster only ever talks over a Unix socket non-interactively
+#   - it keeps full control over exactly which contrib modules + pgvector
+#     version ship, matching what pg-runtime-provider.ts validates
+# If a from-source build ever proves too slow/fragile in CI, the fallback
+# would be repackaging distro binaries with a NEEDED/RPATH rewrite pass, but
+# that trades build simplicity for a much bigger audit surface — not chosen.
 # ---------------------------------------------------------------------------
 jobs:
   build:
-    name: "Build PG runtime (${{ matrix.arch }})"
+    name: "Build PG runtime (${{ matrix.platform }}-${{ matrix.arch }})"
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: macos-15
+            platform: darwin
             arch: arm64
           - runner: macos-15-intel
+            platform: darwin
             arch: x64
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
 
     runs-on: ${{ matrix.runner }}
 
@@ -37,7 +71,7 @@ jobs:
       PG_VERSION: "17.5"
       # pgvector release tag — must match PGVECTOR_SHA below
       PGVECTOR_REF: "v0.8.0"
-      # Official sha256 for postgresql-17.5.tar.bz2
+      # Official sha256 for postgresql-17.5.tar.bz2 (source tarball, same on every platform)
       # Source: https://ftp.postgresql.org/pub/source/v17.5/postgresql-17.5.tar.bz2.sha256
       PG_SHA256: "fcb7ab38e23b264d1902cb25e6adafb4525a6ebcbd015434aeef9eda80f528d8"
       # sha256 of the pgvector v0.8.0 source archive (commit 2627c5ff775ae6d7aef0c430121ccf857842d2f2)
@@ -55,18 +89,40 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # -----------------------------------------------------------------------
-      # Install build dependencies not present on the macOS runner by default.
-      # e2fsprogs provides the e2fs uuid library required by --with-uuid=e2fs.
+      # Install build dependencies not present on the runner by default.
+      # macOS: e2fsprogs provides the e2fs uuid library required by --with-uuid=e2fs.
       # -----------------------------------------------------------------------
-      - name: Install build dependencies (e2fsprogs)
+      - name: Install build dependencies (macOS)
+        if: matrix.platform == 'darwin'
         run: brew install e2fsprogs
 
       # -----------------------------------------------------------------------
-      # Build PostgreSQL + pgvector (OPTFLAGS="" inside the script to avoid
-      # -march=native; otool audit also runs inside the script).
+      # Linux: build-essential/bison/flex for the PG build itself, uuid-dev for
+      # --with-uuid=e2fs (libuuid, part of util-linux — same flag name as
+      # macOS's e2fsprogs, different package, same API), zlib1g-dev for
+      # pg_dump's compressed format, patchelf for the relocatability rewrite.
       # -----------------------------------------------------------------------
-      - name: Build PG runtime
+      - name: Install build dependencies (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bison flex uuid-dev zlib1g-dev patchelf
+
+      # -----------------------------------------------------------------------
+      # Build PostgreSQL + pgvector.
+      #   macOS: OPTFLAGS="" inside the script to avoid -march=native; otool
+      #          audit also runs inside the script.
+      #   Linux: RPATH rewritten post-build via patchelf; patchelf audit also
+      #          runs inside the script.
+      # -----------------------------------------------------------------------
+      - name: Build PG runtime (macOS)
+        if: matrix.platform == 'darwin'
         run: bash scripts/build-pg-runtime.sh
+
+      - name: Build PG runtime (Linux)
+        if: matrix.platform == 'linux'
+        run: bash scripts/build-pg-runtime-linux.sh
 
       # -----------------------------------------------------------------------
       # Smoke test — gated step that validates the built tarball on THIS runner
@@ -76,7 +132,7 @@ jobs:
       - name: Smoke test extracted tarball
         run: |
           set -euo pipefail
-          TARBALL="${OUT_DIR}/memkin-pg-darwin-${{ matrix.arch }}.tar.gz"
+          TARBALL="${OUT_DIR}/memkin-pg-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz"
           EXTRACT_DIR="$(mktemp -d /tmp/memkin-pg-smoke.XXXXXX)"
           PGDATA="${EXTRACT_DIR}/pgdata"
           SOCKET_DIR="${EXTRACT_DIR}/socket"
@@ -130,24 +186,43 @@ jobs:
           echo "==> Smoke test PASSED."
 
       # -----------------------------------------------------------------------
+      # Print this asset's sha256 to the job log so it can be copy-pasted into
+      # RUNTIME_MANIFEST in src/store/managed/pg-runtime-provider.ts. The
+      # release job below also concatenates every asset's sidecar into one
+      # SHA256SUMS file and uploads it as a release asset (belt-and-suspenders
+      # — use whichever is more convenient when pinning).
+      # -----------------------------------------------------------------------
+      - name: Print sha256
+        run: |
+          TARBALL="${OUT_DIR}/memkin-pg-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz"
+          {
+            echo "### memkin-pg-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz"
+            echo '```'
+            cat "${TARBALL}.sha256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # -----------------------------------------------------------------------
       # Upload build artifacts (tarball + sha256 sidecar) for the release job.
       # -----------------------------------------------------------------------
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: memkin-pg-darwin-${{ matrix.arch }}
+          name: memkin-pg-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            ${{ env.OUT_DIR }}/memkin-pg-darwin-${{ matrix.arch }}.tar.gz
-            ${{ env.OUT_DIR }}/memkin-pg-darwin-${{ matrix.arch }}.tar.gz.sha256
+            ${{ env.OUT_DIR }}/memkin-pg-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+            ${{ env.OUT_DIR }}/memkin-pg-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz.sha256
           retention-days: 7
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Release job — runs ONLY on tag push, ONLY after BOTH arch builds succeed.
+  # Release job — runs ONLY on tag push, ONLY after ALL FOUR platform/arch
+  # builds succeed.
   #
-  # Release atomicity: both arches must be built and smoke-tested before the
-  # GitHub Release is created and before any npm version referencing these
-  # binaries is published. The `needs: build` + tag trigger enforces this.
+  # Release atomicity: all four combinations must be built and smoke-tested
+  # before the GitHub Release is created and before any npm version
+  # referencing these binaries is published. The `needs: build` + tag trigger
+  # enforces this.
   # ---------------------------------------------------------------------------
   release:
     name: "Attach artifacts to GitHub Release"
@@ -167,35 +242,81 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # -----------------------------------------------------------------------
-      # Download BOTH arch artifacts (fail if either is missing).
+      # Download all four platform/arch artifacts (fail if any is missing).
       # -----------------------------------------------------------------------
-      - name: Download arm64 artifact
+      - name: Download darwin-arm64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: memkin-pg-darwin-arm64
           path: release-assets/
 
-      - name: Download x64 artifact
+      - name: Download darwin-x64 artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: memkin-pg-darwin-x64
           path: release-assets/
 
+      - name: Download linux-x64 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: memkin-pg-linux-x64
+          path: release-assets/
+
+      - name: Download linux-arm64 artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: memkin-pg-linux-arm64
+          path: release-assets/
+
       # -----------------------------------------------------------------------
-      # Verify both tarballs are present before touching the release.
+      # Verify all four tarballs are present before touching the release.
       # -----------------------------------------------------------------------
-      - name: Verify both arch artifacts present
+      - name: Verify all four platform/arch artifacts present
         run: |
           set -euo pipefail
-          ARM64="release-assets/memkin-pg-darwin-arm64.tar.gz"
-          X64="release-assets/memkin-pg-darwin-x64.tar.gz"
-          [[ -f "$ARM64" ]] || { echo "ERROR: arm64 tarball missing"; exit 1; }
-          [[ -f "$X64"   ]] || { echo "ERROR: x64 tarball missing";   exit 1; }
-          echo "Both arch artifacts present — proceeding to release."
+          MISSING=0
+          for f in \
+            release-assets/memkin-pg-darwin-arm64.tar.gz \
+            release-assets/memkin-pg-darwin-x64.tar.gz \
+            release-assets/memkin-pg-linux-x64.tar.gz \
+            release-assets/memkin-pg-linux-arm64.tar.gz
+          do
+            if [[ ! -f "$f" ]]; then
+              echo "ERROR: $f missing"
+              MISSING=1
+            fi
+          done
+          [[ "$MISSING" -eq 0 ]] || exit 1
+          echo "All four platform/arch artifacts present — proceeding to release."
           ls -lh release-assets/
 
       # -----------------------------------------------------------------------
-      # Create or update the GitHub Release and attach all four files.
+      # Build one consolidated SHA256SUMS file from the per-asset sidecars and
+      # print it to the job summary. This is the "handoff" artifact: after a
+      # real run of this workflow, paste these values into RUNTIME_MANIFEST in
+      # src/store/managed/pg-runtime-provider.ts (replacing the TODO_PIN_*
+      # placeholders) and commit.
+      # -----------------------------------------------------------------------
+      - name: Build and print SHA256SUMS
+        run: |
+          set -euo pipefail
+          cd release-assets
+          : > SHA256SUMS
+          for f in memkin-pg-darwin-arm64.tar.gz memkin-pg-darwin-x64.tar.gz \
+                   memkin-pg-linux-x64.tar.gz memkin-pg-linux-arm64.tar.gz; do
+            cat "${f}.sha256" | awk -v name="$f" '{print $1"  "name}' >> SHA256SUMS
+          done
+          {
+            echo "### SHA256SUMS"
+            echo '```'
+            cat SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat SHA256SUMS
+
+      # -----------------------------------------------------------------------
+      # Create or update the GitHub Release and attach all nine files (4
+      # tarballs + 4 sidecars + 1 consolidated SHA256SUMS).
       # -----------------------------------------------------------------------
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
@@ -203,18 +324,25 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "PG Runtime ${{ github.ref_name }}"
           body: |
-            Relocatable PostgreSQL 17 + pgvector + pg_trgm runtime for macOS.
+            Relocatable PostgreSQL 17 + pgvector + pg_trgm runtime for macOS and Linux.
 
-            Both `arm64` (Apple Silicon) and `x64` (Intel) tarballs have been
-            built on macOS 15 runners and smoke-tested before this release.
+            All four platform/arch combinations (darwin-arm64, darwin-x64,
+            linux-x64, linux-arm64) have been built and smoke-tested before
+            this release. See `SHA256SUMS` for the pinned checksums to copy
+            into `RUNTIME_MANIFEST` (src/store/managed/pg-runtime-provider.ts).
 
             **Do not publish the npm package** that references these binaries
-            until both assets appear below.
+            until all assets below are pinned and verified.
           files: |
             release-assets/memkin-pg-darwin-arm64.tar.gz
             release-assets/memkin-pg-darwin-arm64.tar.gz.sha256
             release-assets/memkin-pg-darwin-x64.tar.gz
             release-assets/memkin-pg-darwin-x64.tar.gz.sha256
+            release-assets/memkin-pg-linux-x64.tar.gz
+            release-assets/memkin-pg-linux-x64.tar.gz.sha256
+            release-assets/memkin-pg-linux-arm64.tar.gz
+            release-assets/memkin-pg-linux-arm64.tar.gz.sha256
+            release-assets/SHA256SUMS
           draft: false
           prerelease: false
         env:
