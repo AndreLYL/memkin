@@ -24,6 +24,9 @@ const STEP_LABELS = [
 
 export function SetupWizard() {
   const [step, setStep] = useState(0);
+  // Quick-start ("AI memory only") skips the Feishu and Storage steps and uses defaults,
+  // jumping LLM → Embedding → Review. Chosen on the Welcome screen.
+  const [express, setExpress] = useState(false);
   const [config, setConfig] = useState<WizardConfig>({
     sources: { "claude-code": { enabled: true } },
   });
@@ -36,6 +39,7 @@ export function SetupWizard() {
 
   const next = () => {
     setStep((s) => {
+      if (express && s === 2) return 7; // Embedding → Review (skip Feishu + Storage)
       if (s === 3 && !feishuEnabled) return 6;
       if (s === 4 && !messagesEnabled) return 6;
       return Math.min(s + 1, TOTAL_STEPS - 1);
@@ -44,6 +48,7 @@ export function SetupWizard() {
 
   const back = () => {
     setStep((s) => {
+      if (express && s === 7) return 2; // Review → Embedding
       if (s === 6 && !feishuEnabled) return 3;
       if (s === 6 && !messagesEnabled) return 4;
       return Math.max(s - 1, 0);
@@ -52,7 +57,17 @@ export function SetupWizard() {
 
   const stepProps = { config, onUpdate: update, onNext: next, onBack: step > 0 ? back : undefined };
   const steps = [
-    <Welcome {...stepProps} />,
+    <Welcome
+      onExpress={() => {
+        setExpress(true);
+        update({ sources: { ...config.sources, feishu: { enabled: false } } });
+        setStep(1);
+      }}
+      onFull={() => {
+        setExpress(false);
+        setStep(1);
+      }}
+    />,
     <LLMConfig {...stepProps} />,
     <EmbeddingConfig {...stepProps} />,
     <FeishuConfig {...stepProps} />,

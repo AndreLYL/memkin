@@ -962,6 +962,17 @@ async function runServe(options: {
         `Scheduler running — tick every ${config.scheduler.tick_interval_secs}s, sources: ${activeScheduler.getSourceIds().join(", ")}`,
       );
     }
+    // Interactive terminals get a clear "what now?" banner so a running server doesn't
+    // look frozen. Skipped when stdout is piped (e.g. the Tauri desktop sidecar), which
+    // reads the MEMKIN_READY marker above instead.
+    if (process.stdout.isTTY) {
+      const u = `http://localhost:${server.port}`;
+      console.log(
+        `\n  ✅ Memkin is running — this window stays open to keep it live.\n` +
+          `     • Open the app:  ${u}\n` +
+          `     • Stop Memkin:   press Ctrl+C\n`,
+      );
+    }
   }
 }
 

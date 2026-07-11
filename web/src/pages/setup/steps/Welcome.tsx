@@ -1,29 +1,37 @@
-import type { WizardConfig } from "../../../api/config";
-
-interface StepProps {
-  config: WizardConfig;
-  onUpdate: (patch: Partial<WizardConfig>) => void;
-  onNext: () => void;
-  onBack?: () => void;
+interface WelcomeProps {
+  onExpress: () => void;
+  onFull: () => void;
 }
 
-export function Welcome({ onNext }: StepProps) {
+export function Welcome({ onExpress, onFull }: WelcomeProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-serif text-2xl font-bold text-fg-default">Welcome to Memkin</h1>
         <p className="mt-2 text-fg-muted">
-          Memkin is a local-first AI memory layer. This wizard will help you configure
-          your LLM, embedding model, data sources, and storage in a few steps.
+          Memkin is a local-first AI memory layer. Pick how you'd like to start.
         </p>
       </div>
-      <p className="text-sm text-fg-muted">This takes about 5 minutes.</p>
-      <div className="flex justify-end">
+
+      <div className="flex flex-col gap-3">
         <button
-          onClick={onNext}
-          className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          onClick={onExpress}
+          className="flex flex-col items-start gap-1 rounded-lg border border-accent bg-accent/5 p-4 text-left hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
         >
-          Get Started →
+          <span className="text-sm font-semibold text-fg-default">Quick start · AI memory only</span>
+          <span className="text-xs text-fg-muted">
+            Just set your LLM + embedding model. Feishu and storage use sensible defaults. ~1 minute.
+          </span>
+        </button>
+
+        <button
+          onClick={onFull}
+          className="flex flex-col items-start gap-1 rounded-lg border border-border-default p-4 text-left hover:bg-bg-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          <span className="text-sm font-semibold text-fg-default">Full setup</span>
+          <span className="text-xs text-fg-muted">
+            Configure everything — Feishu/Lark sources, group chats, storage paths. ~5 minutes.
+          </span>
         </button>
       </div>
     </div>
