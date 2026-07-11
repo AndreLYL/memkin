@@ -136,6 +136,28 @@ export const configApi = {
   feishuHealth: (): Promise<{ ok: boolean; message: string }> =>
     fetchJSON("/feishu/health"),
 
+  // In-wizard Feishu device-flow authorization. start/complete use raw fetch so a
+  // non-2xx JSON error body (e.g. lark not installed) survives instead of throwing.
+  feishuAuthStatus: (): Promise<{
+    ready: boolean;
+    notInstalled: boolean;
+    userName?: string;
+  }> => fetchJSON("/feishu/auth/status"),
+
+  feishuAuthStart: (): Promise<{
+    verification_url?: string;
+    device_code?: string;
+    error?: string;
+    notInstalled?: boolean;
+  }> => fetch(`${BASE}/feishu/auth/start`, { method: "POST" }).then((r) => r.json()),
+
+  feishuAuthComplete: (deviceCode: string): Promise<{ ok: boolean; error?: string }> =>
+    fetch(`${BASE}/feishu/auth/complete`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_code: deviceCode }),
+    }).then((r) => r.json()),
+
   feishuGroups: (): Promise<{ groups?: FeishuGroup[]; error?: string }> =>
     fetchJSON("/feishu/groups"),
 

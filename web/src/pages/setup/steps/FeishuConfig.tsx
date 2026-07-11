@@ -1,6 +1,5 @@
 import type { WizardConfig } from "../../../api/config";
-import { configApi } from "../../../api/config";
-import { ConnectionTest } from "../../../components/config/ConnectionTest";
+import { FeishuAuth } from "../../../components/config/FeishuAuth";
 import { SecretInput } from "../../../components/config/SecretInput";
 import { ToggleSwitch } from "../../../components/config/ToggleSwitch";
 
@@ -31,28 +30,25 @@ export function FeishuConfig({ config, onUpdate, onNext, onBack }: StepProps) {
 
       {enabled && (
         <>
-          <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            <strong>Prerequisite:</strong> Feishu data access requires the <code>lark</code> CLI
-            binary to be installed and authenticated. Run the lark CLI login command (see lark-cli
-            documentation) in your terminal before proceeding.
-          </div>
+          <p className="text-sm text-fg-muted">
+            Authorize Feishu below — no terminal needed. This opens a Feishu approval page; once you
+            approve, memkin can read your group chats and docs.
+          </p>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-fg-default">App ID</label>
-            <input type="text" value={feishu.app_id ?? ""} onChange={(e) => updateFeishu({ app_id: e.target.value })}
-              placeholder="cli_..." className="rounded border border-border-default bg-bg-default px-3 py-1.5 text-sm text-fg-default" />
-          </div>
+          <FeishuAuth />
 
-          <SecretInput id="feishu-secret" label="App Secret" value={feishu.app_secret ?? ""}
-            onChange={(v) => updateFeishu({ app_secret: v })} />
-
-          <div>
-            <p className="text-sm font-medium text-fg-default mb-2">lark auth status</p>
-            <ConnectionTest
-              label="Check lark auth"
-              onTest={() => configApi.feishuHealth()}
-            />
-          </div>
+          <details className="text-sm text-fg-muted">
+            <summary className="cursor-pointer">Advanced: app credentials (optional)</summary>
+            <div className="mt-2 flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-fg-default">App ID</label>
+                <input type="text" value={feishu.app_id ?? ""} onChange={(e) => updateFeishu({ app_id: e.target.value })}
+                  placeholder="cli_..." className="rounded border border-border-default bg-bg-default px-3 py-1.5 text-sm text-fg-default" />
+              </div>
+              <SecretInput id="feishu-secret" label="App Secret" value={feishu.app_secret ?? ""}
+                onChange={(v) => updateFeishu({ app_secret: v })} />
+            </div>
+          </details>
         </>
       )}
 

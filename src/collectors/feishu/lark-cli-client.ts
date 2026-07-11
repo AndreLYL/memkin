@@ -165,16 +165,18 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
   /** Compact user-identity state for the setup UI. */
   async userAuthState(): Promise<{ ready: boolean; userName?: string; openId?: string }> {
     try {
-      const stdout = await execLark(this.bin, ["auth", "status", "--format", "json"]);
+      // `auth status` takes `--json` (NOT `--format json`, which errors with unknown flag).
+      const stdout = await execLark(this.bin, ["auth", "status", "--json"]);
       const parsed = JSON.parse(stdout) as {
-        identities?: { user?: { status?: string; available?: boolean } };
-        // status --verify enriches the user node with these:
-        userName?: string;
-        userName_?: string;
+        identities?: {
+          user?: { status?: string; available?: boolean; userName?: string; openId?: string };
+        };
       };
       const user = parsed.identities?.user;
       return {
         ready: user?.status === "ready" && user?.available === true,
+        userName: user?.userName,
+        openId: user?.openId,
       };
     } catch {
       return { ready: false };
