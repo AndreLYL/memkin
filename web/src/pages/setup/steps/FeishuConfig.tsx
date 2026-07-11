@@ -40,6 +40,11 @@ export function FeishuConfig({ config, onUpdate, onNext, onBack }: StepProps) {
           <details className="text-sm text-fg-muted">
             <summary className="cursor-pointer">Advanced: app credentials (optional)</summary>
             <div className="mt-2 flex flex-col gap-3">
+              <p className="text-sm text-fg-muted">
+                Leave these blank if you only extract email, message search, or docs — the
+                authorization above covers them. App ID / Secret are only required to read group
+                messages, direct messages, calendar, or tasks (these use a Feishu bot token).
+              </p>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-fg-default">App ID</label>
                 <input type="text" value={feishu.app_id ?? ""} onChange={(e) => updateFeishu({ app_id: e.target.value })}
