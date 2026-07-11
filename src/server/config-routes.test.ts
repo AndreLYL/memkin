@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createConfigRoutes } from "./config-routes.js";
+import { createConfigRoutes, friendlyLarkError } from "./config-routes.js";
 
 vi.mock("../setup/connection-tests.js", () => ({
   testLLMConnection: vi.fn().mockResolvedValue({ ok: true }),
@@ -235,5 +235,30 @@ describe("createConfigRoutes", () => {
     });
     expect(res.status).toBe(422);
     expect(onConfigSaved).not.toHaveBeenCalled();
+  });
+});
+
+describe("friendlyLarkError", () => {
+  it("maps missing user authorization to an actionable, auth-flagged message", () => {
+    const raw =
+      'lark-cli failed: {"error":{"type":"authentication","subtype":"token_missing","message":"need_user_authorization (user: ou_x)"}}';
+    const r = friendlyLarkError(raw);
+    expect(r.needsAuth).toBe(true);
+    expect(r.notInstalled).toBe(false);
+    expect(r.message).toMatch(/Authorize Feishu/i);
+  });
+
+  it("flags a missing lark binary so the UI can offer to skip or install", () => {
+    const r = friendlyLarkError("lark-cli failed: spawn lark ENOENT");
+    expect(r.notInstalled).toBe(true);
+    expect(r.needsAuth).toBe(false);
+    expect(r.message).toMatch(/isn't installed/i);
+  });
+
+  it("passes an unknown error through as a trimmed snippet", () => {
+    const r = friendlyLarkError("some unexpected failure happened");
+    expect(r.needsAuth).toBe(false);
+    expect(r.notInstalled).toBe(false);
+    expect(r.message).toBe("some unexpected failure happened");
   });
 });
