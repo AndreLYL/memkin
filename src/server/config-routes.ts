@@ -2,12 +2,42 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { Hono } from "hono";
 import { parse } from "yaml";
-import { LarkCliHttpClient } from "../collectors/feishu/lark-cli-client.js";
+import { LarkCliHttpClient, MEMKIN_LARK_DOMAINS } from "../collectors/feishu/lark-cli-client.js";
 import { maskDatabaseUrl, maskSecret } from "../config-center/secrets.js";
 import { validateDraft } from "../config-center/validation.js";
 import { testEmbeddingConnection, testLLMConnection } from "../setup/connection-tests.js";
 import { generateConfigYaml } from "../setup/generate-config.js";
 import type { PartialConfig } from "../setup/validate-config.js";
+
+/**
+ * Turn a raw lark-cli failure into an actionable message + flags the setup UI can act
+ * on, instead of dumping the raw JSON error at the user (a barrier for non-technical
+ * users). `needsAuth` drives the in-wizard "Authorize Feishu" flow; `notInstalled`
+ * tells the UI the lark binary is missing so the user can skip or install it.
+ */
+export function friendlyLarkError(raw: string): {
+  message: string;
+  needsAuth: boolean;
+  notInstalled: boolean;
+} {
+  if (/ENOENT|no such file|not found|spawn\b/i.test(raw)) {
+    return {
+      message:
+        "The Feishu CLI (lark) isn't installed on this machine. Install lark-cli to connect Feishu, or skip this step and use AI-agent sessions only.",
+      needsAuth: false,
+      notInstalled: true,
+    };
+  }
+  if (/need_user_authorization|token_missing|need_authorization|user_authorization/i.test(raw)) {
+    return {
+      message:
+        'Feishu isn\'t authorized yet. Click "Authorize Feishu" to sign in, then your group chats will load automatically.',
+      needsAuth: true,
+      notInstalled: false,
+    };
+  }
+  return { message: raw.slice(0, 300).trim(), needsAuth: false, notInstalled: false };
+}
 
 export interface ConfigRoutesOpts {
   configPath: string;
@@ -143,8 +173,49 @@ export function createConfigRoutes(opts: ConfigRoutesOpts): Hono {
       const items = result.data?.items ?? [];
       return c.json({ groups: items.map((i) => ({ id: i.chat_id, name: i.name })) });
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
+      const raw = err instanceof Error ? err.message : String(err);
+      const friendly = friendlyLarkError(raw);
+      return c.json({ error: friendly.message, ...friendly, raw }, 500);
     }
+  });
+
+  // --- In-wizard Feishu authorization (device flow) ------------------------------
+  // Lets the user authorize Feishu from the setup UI instead of running
+  // `lark auth login` in a terminal — the biggest onboarding barrier.
+  app.get("/api/feishu/auth/status", async (c) => {
+    const client = new LarkCliHttpClient(opts.larkBin);
+    if (!client.isInstalled()) {
+      return c.json({ ready: false, notInstalled: true });
+    }
+    const state = await client.userAuthState();
+    return c.json({ ...state, notInstalled: false });
+  });
+
+  app.post("/api/feishu/auth/start", async (c) => {
+    const client = new LarkCliHttpClient(opts.larkBin);
+    if (!client.isInstalled()) {
+      return c.json(
+        { error: friendlyLarkError("spawn lark ENOENT").message, notInstalled: true },
+        400,
+      );
+    }
+    try {
+      const { verificationUrl, deviceCode } = await client.authStart(MEMKIN_LARK_DOMAINS);
+      return c.json({ verification_url: verificationUrl, device_code: deviceCode });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      return c.json({ error: friendlyLarkError(raw).message, raw }, 500);
+    }
+  });
+
+  app.post("/api/feishu/auth/complete", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { device_code?: string };
+    if (!body.device_code) {
+      return c.json({ ok: false, error: "device_code is required" }, 400);
+    }
+    const client = new LarkCliHttpClient(opts.larkBin);
+    const result = await client.authComplete(body.device_code);
+    return c.json(result, result.ok ? 200 : 400);
   });
 
   app.post("/api/setup/complete", (c) => {

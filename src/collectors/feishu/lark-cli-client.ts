@@ -119,4 +119,68 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
       };
     }
   }
+
+  /** Is the lark-cli binary present on this machine? */
+  isInstalled(): boolean {
+    return findLarkBin() !== undefined;
+  }
+
+  /**
+   * Kick off the device-flow login (in-wizard Feishu authorization). Returns a
+   * verification URL for the user to open plus a device code to poll with later.
+   */
+  async authStart(domains: string): Promise<{ verificationUrl: string; deviceCode: string }> {
+    const stdout = await execLark(this.bin, [
+      "auth",
+      "login",
+      "--no-wait",
+      "--json",
+      "--domain",
+      domains,
+    ]);
+    const parsed = JSON.parse(stdout) as { verification_url?: string; device_code?: string };
+    if (!parsed.verification_url || !parsed.device_code) {
+      throw new FeishuApiError("lark-cli auth start returned no verification_url/device_code", 0);
+    }
+    return { verificationUrl: parsed.verification_url, deviceCode: parsed.device_code };
+  }
+
+  /** Complete the device-flow login once the user has authorized in the browser. */
+  async authComplete(deviceCode: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const stdout = await execLark(this.bin, [
+        "auth",
+        "login",
+        "--device-code",
+        deviceCode,
+        "--json",
+      ]);
+      const parsed = JSON.parse(stdout) as { event?: string };
+      return { ok: parsed.event === "authorization_complete" };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /** Compact user-identity state for the setup UI. */
+  async userAuthState(): Promise<{ ready: boolean; userName?: string; openId?: string }> {
+    try {
+      const stdout = await execLark(this.bin, ["auth", "status", "--format", "json"]);
+      const parsed = JSON.parse(stdout) as {
+        identities?: { user?: { status?: string; available?: boolean } };
+        // status --verify enriches the user node with these:
+        userName?: string;
+        userName_?: string;
+      };
+      const user = parsed.identities?.user;
+      return {
+        ready: user?.status === "ready" && user?.available === true,
+      };
+    } catch {
+      return { ready: false };
+    }
+  }
 }
+
+/** Domains the Feishu collector needs — requested together so the user authorizes once. */
+export const MEMKIN_LARK_DOMAINS = "im,contact,docs,drive,wiki";
