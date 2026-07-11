@@ -39,23 +39,62 @@ export interface ProviderOptions {
 
 // ---------------------------------------------------------------------------
 // Pinned manifest — bump when republishing the runtime tarball
+//
+// Keyed by `${platform}-${arch}` (NOT arch alone) because the tarball layout
+// and shared-library extension differ by platform (darwin → .dylib via
+// install_name_tool/@rpath, linux → .so via patchelf/$ORIGIN); arch-only
+// keying would silently conflate the two.
+//
+// The `.github/workflows/build-pg-runtime.yml` workflow (workflow_dispatch)
+// builds all four platform/arch combinations, smoke-tests each tarball, and
+// publishes them + a SHA256SUMS file to a `pg-runtime-17.5-1` GitHub release.
+// After a real CI run of that workflow, paste the printed sha256 values into
+// the placeholders below (see the workflow's "Print SHA256SUMS" step) and
+// commit — the `TODO_PIN_*` guard below throws before any network fetch until
+// every sha for a given platform/arch is pinned.
 // ---------------------------------------------------------------------------
 
 export const RUNTIME_MANIFEST = {
   version: "17.5-1", // pinned; bump when republishing runtime
-  // TODO: confirm release URL once the GitHub release is published
   baseUrl: "https://github.com/AndreLYL/memkin/releases/download/pg-runtime-17.5-1",
   assets: {
-    arm64: {
+    "darwin-arm64": {
       file: "memkin-pg-darwin-arm64.tar.gz",
-      sha256: "TODO_PIN_ARM64_SHA256", // TODO: fill in after building the release asset
+      sha256: "TODO_PIN_DARWIN_ARM64_SHA256", // filled in by CI after the release is built
     },
-    x64: {
+    "darwin-x64": {
       file: "memkin-pg-darwin-x64.tar.gz",
-      sha256: "TODO_PIN_X64_SHA256", // TODO: fill in after building the release asset
+      sha256: "TODO_PIN_DARWIN_X64_SHA256", // filled in by CI after the release is built
+    },
+    "linux-x64": {
+      file: "memkin-pg-linux-x64.tar.gz",
+      sha256: "TODO_PIN_LINUX_X64_SHA256", // filled in by CI after the release is built
+    },
+    "linux-arm64": {
+      file: "memkin-pg-linux-arm64.tar.gz",
+      sha256: "TODO_PIN_LINUX_ARM64_SHA256", // filled in by CI after the release is built
     },
   },
 } as const;
+
+/** Platform/arch combinations the managed runtime ships a prebuilt tarball for. */
+export type SupportedAssetKey = keyof typeof RUNTIME_MANIFEST.assets;
+
+const SUPPORTED_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(["darwin", "linux"]);
+const SUPPORTED_ARCHES: ReadonlySet<NodeJS.Architecture> = new Set(["arm64", "x64"]);
+
+/**
+ * Resolve the manifest asset key for a given platform+arch, or `undefined`
+ * if unsupported. Exported for tests.
+ */
+export function resolveAssetKey(
+  platform: NodeJS.Platform,
+  arch: NodeJS.Architecture,
+): SupportedAssetKey | undefined {
+  if (!SUPPORTED_PLATFORMS.has(platform) || !SUPPORTED_ARCHES.has(arch)) return undefined;
+  const key = `${platform}-${arch}`;
+  return key in RUNTIME_MANIFEST.assets ? (key as SupportedAssetKey) : undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Injectable download deps (for testing without network/tar)
@@ -70,6 +109,8 @@ export interface ProviderDownloadDeps {
   extract?: (tarPath: string, destDir: string) => Promise<void>;
   /** Process architecture — defaults to process.arch. */
   arch?: NodeJS.Architecture;
+  /** Process platform — defaults to process.platform. */
+  platform?: NodeJS.Platform;
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +267,7 @@ export function createPgRuntimeProvider(
     fetchTarball = defaultFetchTarball,
     extract = defaultExtract,
     arch = process.arch as NodeJS.Architecture,
+    platform = process.platform,
   } = deps;
 
   /** Resolve override dir (explicit runtimeDir > env var > already-present runtimeRoot). */
@@ -275,15 +317,12 @@ export function createPgRuntimeProvider(
       // Download path — no runtime present yet
       // -----------------------------------------------------------------------
 
-      // 1. Pick asset by arch
-      let assetKey: "arm64" | "x64";
-      if (arch === "arm64") {
-        assetKey = "arm64";
-      } else if (arch === "x64") {
-        assetKey = "x64";
-      } else {
+      // 1. Pick asset by platform+arch (NOT arch alone — see RUNTIME_MANIFEST comment).
+      const assetKey = resolveAssetKey(platform, arch);
+      if (assetKey === undefined) {
         throw new Error(
-          `The self-managed Postgres engine is currently macOS-only (arm64/x64); your platform (${process.platform}/${arch}) is not supported yet. ` +
+          `The self-managed Postgres engine currently supports macOS and Linux only ` +
+            `(darwin/linux, arm64/x64); your platform (${platform}/${arch}) is not supported yet. ` +
             `Use the default PGLite backend instead — it works everywhere. ` +
             `Set \`store.engine: pglite\` in memkin.yaml (or remove \`store.engine\` to use the default).`,
         );
@@ -342,7 +381,7 @@ export function createPgRuntimeProvider(
         writeFileSync(
           join(runtimeRoot, "manifest.json"),
           JSON.stringify(
-            { version: manifest.version, sha256: asset.sha256, arch: assetKey },
+            { version: manifest.version, sha256: asset.sha256, platformArch: assetKey },
             null,
             2,
           ),
