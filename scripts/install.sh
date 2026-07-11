@@ -3,7 +3,6 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/AndreLYL/memkin/main/scripts/install.sh | sh
 set -eu
 
-# shellcheck disable=SC2034 # consumed by main() added in Task 2
 STABLE_CONFIG="${MEMKIN_CONFIG:-$HOME/.memkin/memkin.yaml}"
 MIN_NODE_MAJOR=18
 
@@ -39,3 +38,46 @@ ensure_node() {
   fi
   [ "$(node_major)" -ge "$MIN_NODE_MAJOR" ] || fail "Node install did not produce a usable node >= $MIN_NODE_MAJOR."
 }
+
+ensure_memkin() {
+  log "Installing memkin globally (npm i -g memkin@latest)…"
+  if ! run npm install -g memkin@latest; then
+    fail "Global install failed. If this is a permissions (EACCES) error, set an npm prefix you own (npm config set prefix ~/.npm-global) or re-run with sudo."
+  fi
+}
+
+run_wizard_if_needed() {
+  if [ -f "$STABLE_CONFIG" ]; then
+    log "Existing config found at $STABLE_CONFIG — skipping setup wizard."
+    return
+  fi
+  mkdir -p "$(dirname "$STABLE_CONFIG")"
+  log "Launching setup wizard in your browser…"
+  run memkin init --web -c "$STABLE_CONFIG" &
+  WIZARD_PID=$!
+  log "Waiting for you to finish the wizard (fill your LLM API key and Save)…"
+  i=0
+  while [ ! -f "$STABLE_CONFIG" ]; do
+    i=$((i + 1))
+    [ "$i" -gt 600 ] && { kill "$WIZARD_PID" 2>/dev/null || true; fail "Timed out waiting for setup. Finish the wizard, then re-run this installer."; }
+    sleep 1
+  done
+  log "Config saved. Stopping the wizard…"
+  kill "$WIZARD_PID" 2>/dev/null || true
+  wait "$WIZARD_PID" 2>/dev/null || true
+}
+
+start_service() {
+  log "Starting the always-on background service + wiring your AI agents…"
+  run memkin up -c "$STABLE_CONFIG"
+  log "Done. Manage it with:  memkin status  |  memkin down"
+}
+
+main() {
+  ensure_node
+  ensure_memkin
+  run_wizard_if_needed
+  start_service
+  log "✅ memkin is installed and running as a background service."
+}
+main "$@"
