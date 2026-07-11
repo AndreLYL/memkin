@@ -50,6 +50,27 @@ function isPublicBindHost(host: string | undefined): boolean {
   return !["localhost", "127.0.0.1", "::1", "[::1]"].includes(normalized);
 }
 
+/**
+ * Whether an enabled Feishu config needs bot credentials (app_id + app_secret).
+ *
+ * Feishu sources split by which client they read through:
+ *   - Bot / tenant token (FeishuHttpClient → needs app_id/app_secret): messages, calendar, tasks, dm
+ *   - lark-cli user authorization (LarkCliHttpClient → no app credentials): mail, message_search, docs
+ *
+ * So a user who authorizes only via the in-wizard lark-cli device flow and enables just the
+ * user-scoped sources can save a valid config without ever entering App ID / App Secret.
+ */
+export function feishuNeedsBotCredentials(
+  feishu: Partial<FeishuSourceConfig> | undefined,
+): boolean {
+  if (!feishu?.enabled) return false;
+  const s = feishu.sources;
+  if (!s) return false;
+  return Boolean(s.messages?.enabled || s.calendar?.enabled || s.tasks?.enabled || s.dm?.enabled);
+}
+
+export const FEISHU_BOT_CREDENTIALS_HINT = "bot-scoped sources (messages, calendar, tasks, dm)";
+
 export function validateConfig(config: PartialConfig): ValidationResult {
   const errors: string[] = [];
 
@@ -69,12 +90,12 @@ export function validateConfig(config: PartialConfig): ValidationResult {
   }
 
   const feishu = config.sources?.feishu;
-  if (feishu?.enabled) {
-    if (!feishu.app_id) {
-      errors.push("Feishu App ID is required when Feishu is enabled");
+  if (feishuNeedsBotCredentials(feishu)) {
+    if (!feishu?.app_id) {
+      errors.push(`Feishu App ID is required for ${FEISHU_BOT_CREDENTIALS_HINT}`);
     }
-    if (!feishu.app_secret) {
-      errors.push("Feishu App Secret is required when Feishu is enabled");
+    if (!feishu?.app_secret) {
+      errors.push(`Feishu App Secret is required for ${FEISHU_BOT_CREDENTIALS_HINT}`);
     }
   }
 

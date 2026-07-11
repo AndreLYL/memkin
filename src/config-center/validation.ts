@@ -1,5 +1,9 @@
 import { existsSync } from "node:fs";
-import type { PartialConfig } from "../setup/validate-config.js";
+import {
+  FEISHU_BOT_CREDENTIALS_HINT,
+  feishuNeedsBotCredentials,
+  type PartialConfig,
+} from "../setup/validate-config.js";
 
 export type DiagnosticSeverity = "error" | "warning" | "info";
 
@@ -53,21 +57,21 @@ export function validateDraft(config: PartialConfig): ConfigDiagnostic[] {
   }
 
   const feishu = config.sources?.feishu;
-  if (feishu?.enabled) {
-    if (!feishu.app_id) {
+  if (feishuNeedsBotCredentials(feishu)) {
+    if (!feishu?.app_id) {
       add(
         diagnostics,
         "sources.feishu.app_id",
         "error",
-        "Feishu App ID is required when Feishu is enabled",
+        `Feishu App ID is required for ${FEISHU_BOT_CREDENTIALS_HINT}`,
       );
     }
-    if (!feishu.app_secret) {
+    if (!feishu?.app_secret) {
       add(
         diagnostics,
         "sources.feishu.app_secret",
         "error",
-        "Feishu App Secret is required when Feishu is enabled",
+        `Feishu App Secret is required for ${FEISHU_BOT_CREDENTIALS_HINT}`,
       );
     }
   }
