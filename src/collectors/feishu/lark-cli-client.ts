@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { IFeishuHttpClient, PagedResult } from "./http-client.js";
 import { FeishuApiError } from "./types.js";
 
@@ -25,15 +25,38 @@ function findLarkBin(): string | undefined {
   return undefined;
 }
 
+// lark-cli scripts start with `#!/usr/bin/env node`, so `node` must be resolvable
+// on PATH when we spawn them. Non-interactive launchers (launchd, systemd, cron)
+// commonly expose only /usr/bin:/bin, which omits Homebrew/nvm/volta node installs —
+// the subprocess then dies with "env: node: No such file or directory". Prepend the
+// usual node locations (and the current runtime's own dir) so ingestion works no
+// matter how the daemon was started. Mirrors findLarkBin()'s PATH-gap defensiveness.
+export function larkExecEnv(): NodeJS.ProcessEnv {
+  const extra = ["/usr/local/bin", "/opt/homebrew/bin", dirname(process.execPath)];
+  const home = process.env.HOME;
+  if (home) extra.push(join(home, ".local", "bin"), join(home, ".bun", "bin"));
+
+  const merged: string[] = [];
+  for (const dir of [...extra, ...(process.env.PATH ?? "").split(":")]) {
+    if (dir && !merged.includes(dir)) merged.push(dir);
+  }
+  return { ...process.env, PATH: merged.join(":") };
+}
+
 function execLark(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(bin, args, { timeout: EXEC_TIMEOUT, maxBuffer: MAX_BUFFER }, (err, stdout) => {
-      if (err) {
-        reject(new FeishuApiError(`lark-cli failed: ${err.message}`, 0));
-        return;
-      }
-      resolve(stdout);
-    });
+    execFile(
+      bin,
+      args,
+      { timeout: EXEC_TIMEOUT, maxBuffer: MAX_BUFFER, env: larkExecEnv() },
+      (err, stdout) => {
+        if (err) {
+          reject(new FeishuApiError(`lark-cli failed: ${err.message}`, 0));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
   });
 }
 
