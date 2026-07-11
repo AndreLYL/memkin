@@ -60,13 +60,30 @@ export function createAnthropicProvider(config: AnthropicConfig): LLMProvider {
         clearTimeout(timeout);
       }
 
-      const data = (await response.json()) as {
+      // Read the body as text first so a non-JSON response (gateway HTML, an empty
+      // body, an SSE stream, a plain-text 404/5xx) yields an actionable error instead
+      // of a bare "Failed to parse JSON" that hides the real HTTP status.
+      const raw = await response.text();
+      let data: {
         error?: { message: string };
         content?: Array<{ type: string; text?: string }>;
       };
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(
+          `Anthropic API returned a non-JSON response (HTTP ${response.status} ${response.statusText}) from ${url}: ${
+            raw.slice(0, 300).trim() || "<empty body>"
+          }`,
+        );
+      }
 
-      if (data.error) {
-        throw new Error(`Anthropic API error: ${data.error.message}`);
+      if (!response.ok || data.error) {
+        throw new Error(
+          `Anthropic API error (HTTP ${response.status}): ${
+            data.error?.message ?? (raw.slice(0, 200).trim() || response.statusText)
+          }`,
+        );
       }
 
       if (!data.content || data.content.length === 0) {

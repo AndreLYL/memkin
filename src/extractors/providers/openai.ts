@@ -39,7 +39,19 @@ export function createOpenAIProvider(config: OpenAIConfig): LLMProvider {
       },
       body: JSON.stringify(body),
     });
-    return (await response.json()) as ApiResponse;
+    // Read as text first so a non-JSON response (gateway HTML, empty body, plain-text
+    // 404/5xx) surfaces the real HTTP status instead of a bare "Failed to parse JSON".
+    // JSON error bodies (e.g. 400 with {error}) still flow through for the retry logic.
+    const raw = await response.text();
+    try {
+      return JSON.parse(raw) as ApiResponse;
+    } catch {
+      throw new Error(
+        `API returned a non-JSON response (HTTP ${response.status} ${response.statusText}) from ${url}: ${
+          raw.slice(0, 300).trim() || "<empty body>"
+        }`,
+      );
+    }
   }
 
   function buildBody(messages: ChatMessage[], opts?: LLMOpts): Record<string, unknown> {

@@ -20,10 +20,19 @@ export async function testLLMConnection(
       base_url: cfg.baseUrl,
       api_key: cfg.apiKey,
     });
-    await llmProvider.chat([{ role: "user", content: "hi" }], { maxTokens: 5 });
+    // Give reasoning models (e.g. MiniMax M2) enough budget to emit visible text — a
+    // tiny cap makes them spend it all on hidden "thinking" and return no text block.
+    await llmProvider.chat([{ role: "user", content: "hi" }], { maxTokens: 256 });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const msg = err instanceof Error ? err.message : String(err);
+    // Reaching a "no content" / "empty text content" error means auth, endpoint and a
+    // valid response all succeeded — the connection works even if the model emitted no
+    // text (e.g. a reasoning model that spent the budget thinking). Treat it as OK.
+    if (/returned no content|returned empty text content/i.test(msg)) {
+      return { ok: true };
+    }
+    return { ok: false, error: msg };
   }
 }
 
