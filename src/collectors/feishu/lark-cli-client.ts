@@ -93,18 +93,23 @@ export class LarkCliHttpClient implements IFeishuHttpClient {
   }
 
   /**
-   * Fetch the lark-cli auth state. Returns parsed JSON output from
-   * `lark auth status --verify --format json`. Throws if the subprocess
-   * fails or output is unparseable.
+   * Fetch the lark-cli auth state. Returns parsed JSON from
+   * `lark auth status --verify --json`. Throws if the subprocess fails or
+   * output is unparseable.
+   *
+   * NOTE: `auth status` takes `--json` (NOT `--format json`, which errors with
+   * `unknown flag "--format" for "lark-cli auth status"`). Mirrors
+   * userAuthState() below.
    *
    * Used by chat-name resolution to discover the current user's open_id
    * (needed for distinguishing self from counterparty in p2p chats).
    *
-   * Returned shape (subset of fields):
-   *   { userOpenId: string, tokenStatus: "valid" | ..., scope: string, userName: string, ... }
+   * Returned shape (subset of fields — user identity lives under identities.user):
+   *   { identities: { user: { status, available, openId, userName, tokenStatus, scope, ... } },
+   *     identity: "user", ... }
    */
   async getAuthStatus<T = unknown>(): Promise<T> {
-    const stdout = await execLark(this.bin, ["auth", "status", "--verify", "--format", "json"]);
+    const stdout = await execLark(this.bin, ["auth", "status", "--verify", "--json"]);
     return JSON.parse(stdout) as T;
   }
 

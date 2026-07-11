@@ -1,8 +1,14 @@
 import type { LarkCliHttpClient } from "./lark-cli-client.js";
 
 interface AuthStatusResponse {
-  userOpenId?: string;
-  tokenStatus?: string;
+  // `lark auth status --json` nests the user identity under identities.user;
+  // there is no top-level userOpenId/tokenStatus.
+  identities?: {
+    user?: {
+      openId?: string;
+      tokenStatus?: string;
+    };
+  };
 }
 
 /**
@@ -11,9 +17,9 @@ interface AuthStatusResponse {
  * Strategy:
  *   1. If `yamlOverride` is provided AND truthy, use it. Operator explicit choice wins,
  *      no lark-cli call made.
- *   2. Otherwise call `client.getAuthStatus()` and parse the `userOpenId` field.
- *      Returns null if tokenStatus is not "valid", the call throws, or the field
- *      is missing.
+ *   2. Otherwise call `client.getAuthStatus()` and read `identities.user.openId`.
+ *      Returns null if identities.user.tokenStatus is not "valid", the call
+ *      throws, or the field is missing.
  *
  * Returning null means "p2p resolution unavailable for this session" — callers
  * should surface a clear error to the user (e.g. "run lark auth login or set
@@ -29,8 +35,9 @@ export async function resolveSelfOpenId(
   if (yamlOverride) return yamlOverride;
   try {
     const status = await client.getAuthStatus<AuthStatusResponse>();
-    if (status.tokenStatus !== "valid") return null;
-    return status.userOpenId ?? null;
+    const user = status.identities?.user;
+    if (user?.tokenStatus !== "valid") return null;
+    return user.openId ?? null;
   } catch {
     return null;
   }

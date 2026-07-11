@@ -12,21 +12,29 @@ function clientReturning(value: unknown | Error): LarkCliHttpClient {
 }
 
 describe("resolveSelfOpenId", () => {
+  // `lark auth status --json` nests the user identity under identities.user —
+  // there is no top-level userOpenId/tokenStatus.
   it("returns yaml override when provided (without calling lark-cli)", async () => {
-    const client = clientReturning({ userOpenId: "ou_should_not_be_used", tokenStatus: "valid" });
+    const client = clientReturning({
+      identities: { user: { openId: "ou_should_not_be_used", tokenStatus: "valid" } },
+    });
     const id = await resolveSelfOpenId(client, "ou_from_yaml");
     expect(id).toBe("ou_from_yaml");
     expect(client.getAuthStatus).not.toHaveBeenCalled();
   });
 
-  it("parses userOpenId from lark auth status when no override", async () => {
-    const client = clientReturning({ userOpenId: "ou_from_lark", tokenStatus: "valid" });
+  it("parses identities.user.openId from lark auth status when no override", async () => {
+    const client = clientReturning({
+      identities: { user: { openId: "ou_from_lark", tokenStatus: "valid" } },
+    });
     const id = await resolveSelfOpenId(client, undefined);
     expect(id).toBe("ou_from_lark");
   });
 
   it("returns null when tokenStatus is not valid", async () => {
-    const client = clientReturning({ userOpenId: "ou_expired", tokenStatus: "no_token" });
+    const client = clientReturning({
+      identities: { user: { openId: "ou_expired", tokenStatus: "no_token" } },
+    });
     const id = await resolveSelfOpenId(client, undefined);
     expect(id).toBeNull();
   });
@@ -37,8 +45,14 @@ describe("resolveSelfOpenId", () => {
     expect(id).toBeNull();
   });
 
-  it("returns null when userOpenId field is missing", async () => {
-    const client = clientReturning({ tokenStatus: "valid" });
+  it("returns null when openId field is missing", async () => {
+    const client = clientReturning({ identities: { user: { tokenStatus: "valid" } } });
+    const id = await resolveSelfOpenId(client, undefined);
+    expect(id).toBeNull();
+  });
+
+  it("returns null when identities.user is absent", async () => {
+    const client = clientReturning({ identities: {} });
     const id = await resolveSelfOpenId(client, undefined);
     expect(id).toBeNull();
   });
@@ -47,7 +61,9 @@ describe("resolveSelfOpenId", () => {
     // An explicit `self_open_id: ""` in yaml is more likely a user mistake than
     // intentional disable, so we treat the falsy empty string the same as the
     // field being absent and fall back to lark-cli.
-    const client = clientReturning({ userOpenId: "ou_from_lark", tokenStatus: "valid" });
+    const client = clientReturning({
+      identities: { user: { openId: "ou_from_lark", tokenStatus: "valid" } },
+    });
     const id = await resolveSelfOpenId(client, "");
     expect(id).toBe("ou_from_lark");
     expect(client.getAuthStatus).toHaveBeenCalled();
