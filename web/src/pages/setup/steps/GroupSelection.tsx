@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FeishuGroup, WizardConfig } from "../../../api/config";
 import { configApi } from "../../../api/config";
+import { FeishuAuth } from "../../../components/config/FeishuAuth";
 
 interface StepProps {
   config: WizardConfig;
@@ -15,6 +16,7 @@ export function GroupSelection({ config, onUpdate, onNext, onBack }: StepProps) 
   const [error, setError] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [manualInput, setManualInput] = useState("");
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   const feishu = config.sources?.feishu ?? {};
   const selectedIds = feishu.chat_ids ?? [];
@@ -22,12 +24,14 @@ export function GroupSelection({ config, onUpdate, onNext, onBack }: StepProps) 
   const fetchGroups = async () => {
     setLoading(true);
     setError(null);
+    setNeedsAuth(false);
     try {
       const result = await configApi.feishuGroups();
-      if ("error" in result && result.error) {
+      if (result.error) {
         setError(result.error);
+        setNeedsAuth(Boolean(result.needsAuth));
         setManualMode(true);
-      } else if ("groups" in result && result.groups) {
+      } else if (result.groups) {
         setGroups(result.groups);
       }
     } catch (err) {
@@ -66,8 +70,12 @@ export function GroupSelection({ config, onUpdate, onNext, onBack }: StepProps) 
       )}
 
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Failed to fetch groups: {error}
+        <div className="flex flex-col gap-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <span>{error}</span>
+          {needsAuth && <FeishuAuth />}
+          <span className="text-xs text-amber-700">
+            You can also enter group IDs by hand below, or just click Next to skip Feishu for now.
+          </span>
         </div>
       )}
 

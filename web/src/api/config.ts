@@ -158,8 +158,14 @@ export const configApi = {
       body: JSON.stringify({ device_code: deviceCode }),
     }).then((r) => r.json()),
 
-  feishuGroups: (): Promise<{ groups?: FeishuGroup[]; error?: string }> =>
-    fetchJSON("/feishu/groups"),
+  // Raw fetch so the backend's friendly error body (message + needsAuth/notInstalled)
+  // survives a 500 instead of being swallowed by fetchJSON's throw-on-non-ok.
+  feishuGroups: (): Promise<{
+    groups?: FeishuGroup[];
+    error?: string;
+    needsAuth?: boolean;
+    notInstalled?: boolean;
+  }> => fetch(`${BASE}/feishu/groups`).then((r) => r.json()),
 
   refreshChatNames: (): Promise<{ jobId?: string; error?: string }> =>
     fetch(`${BASE}/feishu/refresh-chat-names`, { method: "POST" }).then((r) => r.json()),
