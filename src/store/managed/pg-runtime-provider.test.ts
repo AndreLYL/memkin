@@ -82,8 +82,11 @@ describe("PgRuntimeProvider override mode", () => {
   });
 
   it("download mode (no override) throws actionable error before network when sha is placeholder", async () => {
-    // Default RUNTIME_MANIFEST has TODO_PIN_* shas → placeholder guard fires first.
-    const provider = createPgRuntimeProvider({ home: root, pgMajor: "17" });
+    // Inject a placeholder-sha manifest so the guard fires regardless of the shipped (now pinned) manifest.
+    const provider = createPgRuntimeProvider(
+      { home: root, pgMajor: "17" },
+      { manifest: pinnedManifest("TODO_PIN_TEST_SHA"), arch: "arm64", platform: "darwin" },
+    );
     await expect(provider.ensure()).rejects.toThrow(/memkin up|not pinned|checksum/i);
   });
 });
@@ -217,13 +220,13 @@ describe("PgRuntimeProvider download path", () => {
   });
 
   it("placeholder sha not pinned: throws /not pinned|checksum/i before hitting network", async () => {
-    // Default RUNTIME_MANIFEST has TODO_PIN_* shas
+    // Inject a placeholder-sha manifest so the guard fires regardless of the shipped (now pinned) manifest.
     const fetchTarball = vi.fn();
     const extract = vi.fn();
 
     const provider = createPgRuntimeProvider(
       { home: root, pgMajor: "17" },
-      { fetchTarball, extract, arch: "arm64", platform: "darwin" },
+      { manifest: pinnedManifest("TODO_PIN_TEST_SHA"), fetchTarball, extract, arch: "arm64", platform: "darwin" },
     );
 
     await expect(provider.ensure()).rejects.toThrow(/not pinned|checksum/i);

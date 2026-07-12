@@ -60,19 +60,19 @@ export const RUNTIME_MANIFEST = {
   assets: {
     "darwin-arm64": {
       file: "memkin-pg-darwin-arm64.tar.gz",
-      sha256: "TODO_PIN_DARWIN_ARM64_SHA256", // filled in by CI after the release is built
+      sha256: "ba21cb8e9f37e4b9808efba809fadfa5f0466478474a37ba420d1dc2af3de9da",
     },
     "darwin-x64": {
       file: "memkin-pg-darwin-x64.tar.gz",
-      sha256: "TODO_PIN_DARWIN_X64_SHA256", // filled in by CI after the release is built
+      sha256: "58654b6658d29e1105ef63679df484d331c32c3e6fbd0b11b3eca0294cc6c4ca",
     },
     "linux-x64": {
       file: "memkin-pg-linux-x64.tar.gz",
-      sha256: "TODO_PIN_LINUX_X64_SHA256", // filled in by CI after the release is built
+      sha256: "b80a1ba87c9c4a56f462fda6c2647e73a5f4a486d988608e110bc0333a6a112d",
     },
     "linux-arm64": {
       file: "memkin-pg-linux-arm64.tar.gz",
-      sha256: "TODO_PIN_LINUX_ARM64_SHA256", // filled in by CI after the release is built
+      sha256: "b3c61aaccb9ad435b72dbaaad0bd4c97bfca935e5c5b08f0835ac33bc0f8abd7",
     },
   },
 } as const;
