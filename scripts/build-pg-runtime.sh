@@ -117,6 +117,7 @@ cd "$PG_SRC_DIR"
   --prefix="$STAGE" \
   --without-openssl \
   --without-readline \
+  --without-icu \
   --with-uuid=e2fs \
   CFLAGS="-O2 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}" \
   LDFLAGS="-Wl,-rpath,@loader_path/../lib -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
@@ -129,6 +130,16 @@ cd "$PG_SRC_DIR"
 # Note on --without-openssl: the managed cluster uses Unix domain sockets only
 # (listen_addresses=''), so TLS is not needed. This removes the OpenSSL bundling
 # problem entirely.
+
+# Note on --without-icu: PostgreSQL 17 defaults --with-icu=yes, and GitHub's
+# macos-15/macos-15-intel runners do NOT ship ICU, so configure fails with
+# "ICU library not found" unless ICU is provided. Rather than brew-installing
+# icu4c and threading its (large, versioned, Homebrew-prefix-dependent)
+# dylibs through the relocatability rewrite/audit below, we drop ICU
+# entirely: the managed cluster only needs UTF8/libc collation (initdb is
+# never called with --locale-provider=icu — see pg-runtime-provider.ts), and
+# bundling ICU would face the exact same non-portability problem that
+# --without-openssl/--without-readline exist to avoid.
 
 # ---------------------------------------------------------------------------
 # Step 3: Build PostgreSQL (world-bin includes all contrib extensions)
@@ -190,12 +201,23 @@ make PG_CONFIG="${STAGE}/bin/pg_config" OPTFLAGS="" install
 
 log "Rewriting Mach-O install names for relocatability ..."
 
-# Collect all dylibs under $STAGE/lib
+# Collect all dylibs under $STAGE/lib.
+#
+# IMPORTANT: filter by Mach-O type (via `file`), not by *.dylib filename —
+# the audit below (5b) scans ALL files under $STAGE/lib recursively. Any
+# Mach-O file installed under lib/ with a non-".dylib" name (e.g. a
+# pgxs-installed tool) would be skipped here, left with its build-host
+# install name/rpath intact, then still get caught and fail the audit. Using
+# the same ELF/Mach-O-type detection in both steps keeps their file sets
+# identical so nothing can slip through unpatched (see the analogous fix in
+# build-pg-runtime-linux.sh for the same class of bug).
 while IFS= read -r -d '' dylib; do
-  # Set the dylib's own install name to @rpath/<basename>
-  basename_dylib="$(basename "$dylib")"
-  install_name_tool -id "@rpath/${basename_dylib}" "$dylib"
-done < <(find "$STAGE/lib" -name "*.dylib" -print0 2>/dev/null)
+  if file "$dylib" | grep -q "Mach-O"; then
+    # Set the dylib's own install name to @rpath/<basename>
+    basename_dylib="$(basename "$dylib")"
+    install_name_tool -id "@rpath/${basename_dylib}" "$dylib"
+  fi
+done < <(find "$STAGE/lib" -type f -print0 2>/dev/null)
 
 # For each Mach-O binary AND dylib, rewrite load commands pointing to $STAGE
 rewrite_load_cmds() {
@@ -223,12 +245,13 @@ while IFS= read -r -d '' bin_file; do
   fi
 done < <(find "$STAGE/bin" -type f -print0 2>/dev/null)
 
-# Walk dylibs (they also have load commands for inter-dylib deps)
+# Walk lib/ (any Mach-O file, not just *.dylib — see note above 5a) — these
+# also have load commands for inter-dylib deps.
 while IFS= read -r -d '' dylib; do
   if file "$dylib" | grep -q "Mach-O"; then
     rewrite_load_cmds "$dylib"
   fi
-done < <(find "$STAGE/lib" -name "*.dylib" -print0 2>/dev/null)
+done < <(find "$STAGE/lib" -type f -print0 2>/dev/null)
 
 # 5b: Audit — fail if any Mach-O references an external/host path.
 #

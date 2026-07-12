@@ -132,6 +132,7 @@ cd "$PG_SRC_DIR"
   --prefix="$STAGE" \
   --without-openssl \
   --without-readline \
+  --without-icu \
   --with-uuid=e2fs \
   CFLAGS="-O2"
 
@@ -144,6 +145,21 @@ cd "$PG_SRC_DIR"
 # Note on --without-openssl: the managed cluster uses Unix domain sockets only
 # (listen_addresses=''), so TLS is not needed. This removes the OpenSSL
 # bundling problem entirely (OpenSSL's ABI/soname varies a lot across distros).
+
+# Note on --without-icu: PostgreSQL 17 defaults --with-icu=yes, and
+# GitHub-hosted Ubuntu runners ship libicu-dev preinstalled, so configure
+# silently succeeds and links postgres/psql against the runner's system ICU
+# libraries. Those ICU libs are NOT built from source and NOT bundled into
+# $STAGE — they're referenced by bare soname (e.g. libicuuc.so.74) resolved
+# via the *target* machine's default library search path at runtime. If the
+# machine running `memkin up` doesn't have a matching ICU package installed
+# (or has an incompatible version), the runtime fails to start. That's the
+# same relocatability problem --without-openssl/--without-readline exist to
+# avoid — a "successful" audit here would still ship a non-self-contained
+# binary, since the audit only checks RPATH, not unresolvable NEEDED entries.
+# The managed cluster only needs UTF8/libc collation (initdb is never called
+# with --locale-provider=icu — see pg-runtime-provider.ts), so ICU brings no
+# functional benefit here.
 
 # Note on --with-uuid=e2fs: on Linux this resolves against libuuid (uuid-dev
 # package, part of util-linux) — same flag name as macOS's e2fsprogs-provided
@@ -205,13 +221,21 @@ make PG_CONFIG="${STAGE}/bin/pg_config" OPTFLAGS="" install
 # 5a: Set RPATH on every ELF binary/library so they resolve their shared-lib
 # dependencies relative to their own location instead of $STAGE (a build-host
 # temp path that won't exist on the machine running `memkin up`).
-#   - bin/*                       → $ORIGIN/../lib      (executables)
-#   - lib/postgresql/*.so         → $ORIGIN              (extension modules)
-#   - lib/*.so* (e.g. libpq.so)   → $ORIGIN               (shared libs)
+#   - bin/*   (any ELF file, executables)         → $ORIGIN/../lib
+#   - lib/*   (any ELF file, recursively — .so,   → $ORIGIN
+#              .so.N, extension modules, and any
+#              other ELF binary install-world-bin
+#              may drop under lib/, e.g. pgxs
+#              test-support tools)
 #
-# NOTE: the exact set of directories may need adjustment on the first real CI
-# run — inspect `find $STAGE -type f -exec file {} \; | grep ELF` to confirm
-# nothing was missed.
+# IMPORTANT: this must scan lib/ by ELF-type (via `file`), not by filename
+# pattern (*.so / *.so.*). An earlier version filtered lib/ to *.so* names
+# only, which missed ELF files installed under lib/ with other names (e.g.
+# pg_regress under lib/postgresql/pgxs/.../regress/) — those were left with
+# their build-host RPATH intact and never rewritten, so they passed straight
+# through to the audit below and failed it ("Fix RPATH before shipping").
+# Scanning by ELF-type keeps this loop's file set identical to the audit's,
+# so nothing can slip through unpatched.
 
 log "Setting RPATH on ELF binaries/libraries for relocatability ..."
 
@@ -237,7 +261,7 @@ while IFS= read -r -d '' lib_file; do
   if is_elf "$lib_file"; then
     set_rpath "$lib_file" '$ORIGIN'
   fi
-done < <(find "$STAGE/lib" -type f \( -name "*.so" -o -name "*.so.*" \) -print0 2>/dev/null)
+done < <(find "$STAGE/lib" -type f -print0 2>/dev/null)
 
 # 5b: Audit — fail if any ELF binary's RPATH/RUNPATH references an absolute
 # build-host path (the STAGE dir or WORK_DIR) instead of $ORIGIN.
