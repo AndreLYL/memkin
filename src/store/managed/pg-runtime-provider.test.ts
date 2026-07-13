@@ -226,7 +226,13 @@ describe("PgRuntimeProvider download path", () => {
 
     const provider = createPgRuntimeProvider(
       { home: root, pgMajor: "17" },
-      { manifest: pinnedManifest("TODO_PIN_TEST_SHA"), fetchTarball, extract, arch: "arm64", platform: "darwin" },
+      {
+        manifest: pinnedManifest("TODO_PIN_TEST_SHA"),
+        fetchTarball,
+        extract,
+        arch: "arm64",
+        platform: "darwin",
+      },
     );
 
     await expect(provider.ensure()).rejects.toThrow(/not pinned|checksum/i);
