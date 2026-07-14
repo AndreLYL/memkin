@@ -74,7 +74,7 @@ Memkin extracts those conversations into structured signals (entities, decisions
 > Memkin connects all three — across platforms and time — and hands the full thread to your agent when you need it.
 
 <p align="center">
-  <img src="docs/assets/web-ui-graph.jpeg" alt="Memkin knowledge graph — entities, decisions, tasks, and knowledge interconnected across your work" width="850">
+  <img src="docs/assets/web-ui-graph.png" alt="Memkin knowledge graph — entities, decisions, tasks, and knowledge interconnected across your work" width="850">
   <br>
   <em>Your work as a living knowledge graph — people, decisions, tasks, knowledge, all connected.</em>
 </p>
