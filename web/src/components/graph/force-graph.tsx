@@ -1,15 +1,66 @@
-import { useRef, useCallback, useState, useMemo, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import ForceGraph3D from "react-force-graph-3d";
-import type { Page, LinkRow } from "../../api/client";
+import type { LinkRow, Page } from "../../api/client";
 
-const TYPE_COLORS: Record<string, string> = {
-  person: "#00d4ff",
-  project: "#7b68ee",
-  decision: "#00ffa3",
-  session: "#f97316",
-};
-const DEFAULT_COLOR = "#ec4899";
+// Entity colors come from the theme tokens in styles/theme.css so the graph
+// matches the legend chips and flips automatically with light/dark mode.
+const TYPE_TOKENS = [
+  "person",
+  "project",
+  "decision",
+  "knowledge",
+  "task",
+  "session",
+  "tool",
+  "concept",
+  "organization",
+] as const;
+
+interface ThemeTokens {
+  background: string;
+  labelStrong: string;
+  labelMuted: string;
+  link: string;
+  linkDim: string;
+  linkHover: string;
+  typeColors: Record<string, string>;
+  defaultColor: string;
+}
+
+function readThemeTokens(): ThemeTokens {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+  const isDark = document.documentElement.dataset.theme === "dark";
+  const typeColors: Record<string, string> = {};
+  for (const t of TYPE_TOKENS) {
+    typeColors[t] = token(`--color-${t}`, isDark ? "#d2879c" : "#b5677e");
+  }
+  return {
+    background: token("--color-bg-canvas", isDark ? "#1a1714" : "#faf8f5"),
+    labelStrong: token("--color-fg-default", isDark ? "#f1ece4" : "#2b2620"),
+    labelMuted: token("--color-fg-muted", isDark ? "#a89e92" : "#6f675d"),
+    link: isDark ? "rgba(168,158,146,0.25)" : "rgba(111,103,93,0.22)",
+    linkDim: isDark ? "rgba(168,158,146,0.06)" : "rgba(111,103,93,0.06)",
+    linkHover: isDark ? "rgba(212,117,79,0.6)" : "rgba(194,97,61,0.55)",
+    typeColors,
+    defaultColor: token("--color-fg-subtle", isDark ? "#6f655b" : "#a59b8e"),
+  };
+}
+
+// Re-read tokens whenever the data-theme attribute flips (sidebar toggle).
+function useThemeTokens(): ThemeTokens {
+  const [tokens, setTokens] = useState<ThemeTokens>(() => readThemeTokens());
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTokens(readThemeTokens()));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+  return tokens;
+}
 
 interface GraphNode {
   id: string;
@@ -35,7 +86,12 @@ interface ForceGraphProps {
   onBackgroundClick: () => void;
 }
 
-function buildGraph(pages: Page[], links: LinkRow[]) {
+function buildGraph(
+  pages: Page[],
+  links: LinkRow[],
+  typeColors: Record<string, string>,
+  defaultColor: string,
+) {
   const connectionCount: Record<string, number> = {};
   for (const link of links) {
     connectionCount[link.from_slug] = (connectionCount[link.from_slug] ?? 0) + 1;
@@ -46,7 +102,7 @@ function buildGraph(pages: Page[], links: LinkRow[]) {
     id: p.slug,
     name: p.title || p.slug,
     type: p.type,
-    color: TYPE_COLORS[p.type] ?? DEFAULT_COLOR,
+    color: typeColors[p.type] ?? defaultColor,
     connections: connectionCount[p.slug] ?? 0,
   }));
 
@@ -58,7 +114,12 @@ function buildGraph(pages: Page[], links: LinkRow[]) {
   return { nodes, links: graphLinks };
 }
 
-function bfsFilter(nodes: GraphNode[], links: GraphLink[], center: string, maxDepth: number): Set<string> {
+function bfsFilter(
+  nodes: GraphNode[],
+  links: GraphLink[],
+  center: string,
+  maxDepth: number,
+): Set<string> {
   const adj = new Map<string, string[]>();
   for (const l of links) {
     const s = typeof l.source === "object" ? (l.source as any).id : l.source;
@@ -82,11 +143,23 @@ function bfsFilter(nodes: GraphNode[], links: GraphLink[], center: string, maxDe
   return visited;
 }
 
-export function ForceGraphView({ pages, links, mode, selectedNode, depth, onNodeClick, onBackgroundClick }: ForceGraphProps) {
+export function ForceGraphView({
+  pages,
+  links,
+  mode,
+  selectedNode,
+  depth,
+  onNodeClick,
+  onBackgroundClick,
+}: ForceGraphProps) {
   const fgRef = useRef<any>(null);
   const [hoverNode, setHoverNode] = useState<string | null>(null);
+  const theme = useThemeTokens();
 
-  const graphData = useMemo(() => buildGraph(pages, links), [pages, links]);
+  const graphData = useMemo(
+    () => buildGraph(pages, links, theme.typeColors, theme.defaultColor),
+    [pages, links, theme],
+  );
 
   // Precomputed neighbor sets: O(1) hover-highlight lookup instead of scanning every
   // link for every node on every frame (was O(nodes × links) ≈ millions/frame).
@@ -118,48 +191,80 @@ export function ForceGraphView({ pages, links, mode, selectedNode, depth, onNode
     return { nodes, links: filteredLinks };
   }, [graphData, visibleNodes]);
 
-  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const size = 3 + Math.sqrt(node.connections) * 2;
-    // O(1) neighbor lookup (see `adjacency`). Short-circuits when nothing is hovered.
-    const isHighlighted = !hoverNode || hoverNode === node.id || (adjacency.get(hoverNode)?.has(node.id) ?? false);
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
-    ctx.fillStyle = node.color;
-    ctx.globalAlpha = isHighlighted ? 0.8 : 0.1;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    if (node.id === selectedNode) {
-      ctx.strokeStyle = node.color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    // Label culling: drawing 3000+ fillText every frame is the other hot path and
-    // visually clutters. Only label hubs (large nodes), the hovered neighborhood, or
-    // when zoomed in enough to read them.
-    const showLabel = size > 8 || globalScale > 1.4 || (!!hoverNode && isHighlighted);
-    if (showLabel) {
-      ctx.font = `${isHighlighted ? 3 : 2}px Sans-Serif`;
-      ctx.fillStyle = isHighlighted ? "#e2e8f0" : "#4a5568";
-      ctx.textAlign = "center";
-      ctx.fillText(node.name, node.x, node.y + size + 4);
-    }
-  }, [hoverNode, selectedNode, adjacency]);
+  // Fit the layout into view once the simulation settles, and again whenever the
+  // visible node set changes (mode / filter / focus switches).
+  const didFitRef = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: filteredData/mode are intentional reset triggers, not read in the body
+  useEffect(() => {
+    didFitRef.current = false;
+  }, [filteredData, mode]);
+  const filteredDataRef = useRef(filteredData);
+  filteredDataRef.current = filteredData;
+  const handleEngineStop = useCallback(() => {
+    if (didFitRef.current) return;
+    // The engine also "stops" on the initial empty render — don't consume the
+    // one-shot fit before real data has arrived.
+    if (filteredDataRef.current.nodes.length === 0) return;
+    didFitRef.current = true;
+    fgRef.current?.zoomToFit?.(400, 60);
+    // zoomToFit zooms IN aggressively on small graphs (nodes fill the screen);
+    // cap the settled zoom so the default view stays readable.
+    setTimeout(() => {
+      const zoom = fgRef.current?.zoom?.();
+      if (typeof zoom === "number" && zoom > 1.6) fgRef.current.zoom(1.6, 200);
+    }, 450);
+  }, []);
 
-  const linkColor = useCallback((link: any) => {
-    if (!hoverNode) return "rgba(100,100,150,0.2)";
-    const s = typeof link.source === "object" ? link.source.id : link.source;
-    const t = typeof link.target === "object" ? link.target.id : link.target;
-    return s === hoverNode || t === hoverNode ? "rgba(123,104,238,0.5)" : "rgba(100,100,150,0.05)";
-  }, [hoverNode]);
+  const nodeCanvasObject = useCallback(
+    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const size = 3 + Math.sqrt(node.connections) * 2;
+      // O(1) neighbor lookup (see `adjacency`). Short-circuits when nothing is hovered.
+      const isHighlighted =
+        !hoverNode || hoverNode === node.id || (adjacency.get(hoverNode)?.has(node.id) ?? false);
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+      ctx.fillStyle = node.color;
+      ctx.globalAlpha = isHighlighted ? 0.85 : 0.12;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (node.id === selectedNode) {
+        ctx.strokeStyle = node.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      // Label culling: drawing 3000+ fillText every frame is the other hot path and
+      // visually clutters. Only label hubs (large nodes), the hovered neighborhood, or
+      // when zoomed in enough to read them.
+      const showLabel = size > 8 || globalScale > 1.4 || (!!hoverNode && isHighlighted);
+      if (showLabel) {
+        ctx.font = `${isHighlighted ? 3 : 2}px Sans-Serif`;
+        ctx.fillStyle = isHighlighted ? theme.labelStrong : theme.labelMuted;
+        ctx.textAlign = "center";
+        ctx.fillText(node.name, node.x, node.y + size + 4);
+      }
+    },
+    [hoverNode, selectedNode, adjacency, theme],
+  );
+
+  const linkColor = useCallback(
+    (link: any) => {
+      if (!hoverNode) return theme.link;
+      const s = typeof link.source === "object" ? link.source.id : link.source;
+      const t = typeof link.target === "object" ? link.target.id : link.target;
+      return s === hoverNode || t === hoverNode ? theme.linkHover : theme.linkDim;
+    },
+    [hoverNode, theme],
+  );
 
   const commonProps = {
     ref: fgRef,
     graphData: filteredData,
     nodeId: "id",
-    backgroundColor: "#030308",
+    backgroundColor: theme.background,
     onNodeClick: (node: any) => onNodeClick(node.id),
     onBackgroundClick,
     onNodeHover: (node: any) => setHoverNode(node?.id ?? null),
+    onEngineStop: handleEngineStop,
     linkColor,
     linkWidth: 0.5,
     nodeLabel: (node: any) => `${node.name} (${node.type})`,

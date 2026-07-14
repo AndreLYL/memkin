@@ -1,18 +1,20 @@
-import { useState, useMemo, useCallback } from "react";
-import { useSearchParams, useNavigate } from "react-router";
-import { useAllPages, useAllLinks, useTraverse } from "../hooks/use-graph";
+import { useCallback, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import type { LinkRow, Page } from "../api/client";
 import { ForceGraphView } from "../components/graph/force-graph";
-import type { Page, LinkRow } from "../api/client";
+import { useAllLinks, useAllPages, useTraverse } from "../hooks/use-graph";
 
+// Colors come from the theme tokens (styles/theme.css) so the legend chips match
+// the graph nodes and flip automatically with light/dark mode.
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
-  person: { color: "#58a6ff", label: "Person" },
-  project: { color: "#3fb950", label: "Project" },
-  decision: { color: "#79c0ff", label: "Decision" },
-  task: { color: "#f778ba", label: "Task" },
-  knowledge: { color: "#56d4dd", label: "Knowledge" },
-  tool: { color: "#d2a8ff", label: "Tool" },
-  concept: { color: "#e3b341", label: "Concept" },
-  organization: { color: "#f0883e", label: "Organization" },
+  person: { color: "var(--color-person)", label: "Person" },
+  project: { color: "var(--color-project)", label: "Project" },
+  decision: { color: "var(--color-decision)", label: "Decision" },
+  task: { color: "var(--color-task)", label: "Task" },
+  knowledge: { color: "var(--color-knowledge)", label: "Knowledge" },
+  tool: { color: "var(--color-tool)", label: "Tool" },
+  concept: { color: "var(--color-concept)", label: "Concept" },
+  organization: { color: "var(--color-organization)", label: "Organization" },
 };
 
 type GraphMode = "global" | "focus";
@@ -66,22 +68,29 @@ export function GraphPage() {
     const focus = traverseData.focus as TraverseNode | null;
     const nodes = (traverseData.nodes as TraverseNode[]) ?? [];
     const all: Page[] = [
-      ...(focus ? [{
-        slug: focus.slug,
-        title: focus.title ?? focus.slug,
-        type: focus.type,
-        compiled_truth: "",
-        created_at: "",
-        updated_at: "",
-      } as Page] : []),
-      ...nodes.map((n) => ({
-        slug: n.slug,
-        title: n.title ?? n.slug,
-        type: n.type,
-        compiled_truth: "",
-        created_at: "",
-        updated_at: "",
-      } as Page)),
+      ...(focus
+        ? [
+            {
+              slug: focus.slug,
+              title: focus.title ?? focus.slug,
+              type: focus.type,
+              compiled_truth: "",
+              created_at: "",
+              updated_at: "",
+            } as Page,
+          ]
+        : []),
+      ...nodes.map(
+        (n) =>
+          ({
+            slug: n.slug,
+            title: n.title ?? n.slug,
+            type: n.type,
+            compiled_truth: "",
+            created_at: "",
+            updated_at: "",
+          }) as Page,
+      ),
     ];
     return all.filter((n) => typeFilter.size === 0 || typeFilter.has(n.type));
   }, [mode, pages, links, traverseData, typeFilter, minConnections]);
@@ -93,12 +102,15 @@ export function GraphPage() {
       return links.filter((l) => validSlugs.has(l.from_slug) && validSlugs.has(l.to_slug));
     }
     const edges = (traverseData?.edges as TraverseEdge[]) ?? [];
-    return edges.map((e) => ({
-      from_slug: e.from_slug,
-      to_slug: e.to_slug,
-      link_type: e.link_type,
-      context: "",
-    } as LinkRow));
+    return edges.map(
+      (e) =>
+        ({
+          from_slug: e.from_slug,
+          to_slug: e.to_slug,
+          link_type: e.link_type,
+          context: "",
+        }) as LinkRow,
+    );
   }, [mode, links, traverseData, graphPages]);
 
   const handleNodeClick = useCallback(
@@ -148,15 +160,23 @@ export function GraphPage() {
             <button
               onClick={switchToGlobal}
               className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                mode === "global" ? "bg-bg-overlay text-fg-default font-medium" : "text-fg-subtle hover:text-fg-default"
+                mode === "global"
+                  ? "bg-bg-overlay text-fg-default font-medium"
+                  : "text-fg-subtle hover:text-fg-default"
               }`}
-            >Global</button>
+            >
+              Global
+            </button>
             <button
               onClick={() => switchToFocus()}
               className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                mode === "focus" ? "bg-bg-overlay text-fg-default font-medium" : "text-fg-subtle hover:text-fg-default"
+                mode === "focus"
+                  ? "bg-bg-overlay text-fg-default font-medium"
+                  : "text-fg-subtle hover:text-fg-default"
               }`}
-            >Focus</button>
+            >
+              Focus
+            </button>
           </div>
         </div>
 
@@ -199,8 +219,18 @@ export function GraphPage() {
             </div>
           )}
           <div className="flex gap-1 bg-bg-surface border border-border-default rounded-md p-0.5">
-            <button onClick={() => setViewMode("2d")} className={`px-2 py-0.5 rounded text-xs ${viewMode === "2d" ? "bg-bg-overlay text-fg-default" : "text-fg-subtle"}`}>2D</button>
-            <button onClick={() => setViewMode("3d")} className={`px-2 py-0.5 rounded text-xs ${viewMode === "3d" ? "bg-bg-overlay text-fg-default" : "text-fg-subtle"}`}>3D</button>
+            <button
+              onClick={() => setViewMode("2d")}
+              className={`px-2 py-0.5 rounded text-xs ${viewMode === "2d" ? "bg-bg-overlay text-fg-default" : "text-fg-subtle"}`}
+            >
+              2D
+            </button>
+            <button
+              onClick={() => setViewMode("3d")}
+              className={`px-2 py-0.5 rounded text-xs ${viewMode === "3d" ? "bg-bg-overlay text-fg-default" : "text-fg-subtle"}`}
+            >
+              3D
+            </button>
           </div>
         </div>
       </div>
@@ -217,7 +247,10 @@ export function GraphPage() {
                 : "border-transparent bg-bg-surface/50 text-fg-subtle opacity-50"
             }`}
           >
-            <span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ backgroundColor: cfg.color }} />
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full mr-1"
+              style={{ backgroundColor: cfg.color }}
+            />
             {cfg.label}
           </button>
         ))}

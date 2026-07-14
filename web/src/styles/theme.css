@@ -45,6 +45,9 @@
   --color-knowledge: #bf8c3e;
   --color-task: #b5677e;
   --color-session: #5e8aa6;
+  --color-tool: #5f9494;
+  --color-concept: #7d7aa3;
+  --color-organization: #c07a4a;
 
   /* ---- Interactive / brand ---- */
   --color-accent: #c2613d;        /* terracotta            */
@@ -62,7 +65,8 @@
 
 /* Base resets — body bg + font, replaces the stray #06060f in index.html */
 @layer base {
-  html, body {
+  html,
+  body {
     background-color: var(--color-bg-canvas);
     color: var(--color-fg-default);
     font-family: var(--font-sans);
@@ -101,6 +105,9 @@
   --color-knowledge: #d8ab5e;
   --color-task: #d2879c;
   --color-session: #7cacc7;
+  --color-tool: #86b8b8;
+  --color-concept: #a19fc4;
+  --color-organization: #d69a6d;
 
   --color-accent: #d4754f;
   --color-accent-muted: #e08862;
