@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/assets/memkin-cover.png" alt="Memkin — an AI that finally knows you" width="100%">
+  <img src="docs/assets/memkin-cover.png" alt="Memkin" width="100%">
 </p>
 
-<h1 align="center">An AI that finally knows you</h1>
+<h1 align="center">Memkin</h1>
 
-<p align="center"><strong>Your AI agents forget everything between sessions. Memkin turns your Claude Code / Codex sessions — and your work chats, meetings, and email — into a private, local-first memory graph that any agent can tap over MCP.</strong></p>
+<p align="center">A local-first personal memory system: extracts structured signals from Feishu/Lark and AI coding sessions, builds a knowledge graph on your machine, and serves it to any agent over MCP.</p>
 
 <p align="center">
   <a href="README.md">简体中文</a> | English
@@ -19,28 +19,44 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/demo.gif" alt="Asking Memkin inside Claude Code: what did I discuss with Alice about the launch last week? — answered with [n] citations" width="850">
-  <br>
-  <em>Ask inside Claude Code — Memkin answers over MCP, with citations back to the source.</em>
+  <img src="docs/assets/demo.gif" alt="Asking Memkin inside Claude Code, answered with [n] citations" width="850">
 </p>
 
----
+AI agent sessions have no memory across sessions: every new session starts by re-explaining who you are, the project background, and past decisions. Memkin extracts the information scattered across Feishu/Lark (DMs, group chats, email, calendar, docs, tasks) and AI coding sessions (Claude Code, Codex, Hermes) into structured signals — entities, decisions, tasks, discoveries, knowledge, relations — stores them in a knowledge graph on your own machine, and exposes them to any agent over MCP for both querying and writing back. All data stays local.
 
-## ⚡ 30-Second Quick Start
+## Features
+
+- **Feishu/Lark capture**: 7 sources — DMs, group chats, email, calendar, docs, tasks, message search — with incremental sync and backfill. See the [Feishu guide](docs/feishu.md) *(Chinese)*
+- **AI session capture**: Claude Code (`~/.claude/projects/`), Codex (`~/.codex/`), Hermes/OpenClaw (`~/.openclaw/agents/`)
+- **MCP server**: 36 tools (15 high-intent tools exposed by default), stdio and Streamable HTTP transports. See the [MCP guide](docs/mcp.md) *(Chinese)*
+- **Signal extraction**: LLM pipeline distills 7 signal types with two-layer noise filtering (rules + LLM scoring); every signal traces back to its source message
+- **Hybrid search**: tsvector full-text (CJK-friendly) + pgvector embeddings, fused with RRF
+- **Knowledge graph**: signals anchored to entities (people, projects, tools), directed links, cross-platform person identity resolution
+- **Privacy**: pre-write redaction (reversible / irreversible), zero cloud dependency (embedded PGLite), optional local embeddings via Ollama
+- **Background service**: `memkin up` registers a boot-time daemon with scheduled capture, run history, and alerts
+- **Memory consolidation**: hot → warm → cold tier rotation, dead-link repair, preference inference
+- **Obsidian two-way sync**: export as a Markdown vault, edit, import back
+- **Web UI**: dashboard, timeline, force-directed knowledge graph, search
+
+Full inventory: [Features](docs/features.md) *(Chinese)*.
+
+## Quick Start
+
+One-command install (recommended; registers a background service):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AndreLYL/memkin/main/scripts/install.sh | sh
 ```
 
-One command does it all: installs the runtime → installs `memkin` globally → opens the setup wizard in your browser (just paste an LLM API key) → registers Memkin as an **auto-starting background service**, and wires memory into the AI agents already on your machine (Claude Code, Codex, Hermes/OpenClaw).
+The script installs the Node runtime if missing → `npm install -g memkin` → opens the browser setup wizard (paste an LLM API key) → runs `memkin up` to register a boot-time background service, and writes MCP config into AI clients found on your machine (Claude Code, Codex, Hermes/OpenClaw).
 
-Just want to try it without a background service?
+Try it without a background service:
 
 ```bash
-npx memkin start     # no config? it walks you through setup, then serves + opens the Web UI
+npx memkin start     # runs the setup wizard if unconfigured, then serves + opens the Web UI
 ```
 
-Day-to-day management and full uninstall:
+Service management and uninstall:
 
 ```bash
 memkin status        # background service status
@@ -48,141 +64,104 @@ memkin down          # stop the service and disable autostart
 memkin down && memkin uninstall && npm rm -g memkin    # remove everything
 ```
 
-> Prerequisite: [Node.js](https://nodejs.org) >= 18 (the install script handles it). More commands in the [📘 CLI reference](docs/cli.md) *(Chinese)*.
+Prerequisite: [Node.js](https://nodejs.org) >= 18 (handled by the install script).
 
-## Three Pillars
+## Connecting AI Agents
 
-**🕸️ You are the sum of your relationships**
-Memory is not a pile of vector chunks. Signals are anchored to entities (people, projects, tools) and linked in a directed graph — you get answers *with context*: who, why, and what it relates to.
-
-**🔒 Your data never leaves your machine**
-Everything lives in an embedded PGLite database on your disk, with optional local embeddings via Ollama — zero cloud dependency. Dual-track privacy redaction (reversible / irreversible) scrubs sensitive data before anything is written.
-
-**🤖 Agents read *and* write**
-Built around **15 high-intent MCP tools** (`query` / `recall` / `synthesize` / `prep_for_person` / `daily_report` …), any agent can query your history and write new decisions and discoveries back. The more your agents work, the better your memory knows you.
-
-## Why
-
-Your working memory lives in two places, and your AI agents can't reach either: **work chat** (Feishu/Lark: DMs, group chats, email, meetings, docs, tasks) holds what you're doing and with whom; **AI agents** (Claude Code, Codex, OpenClaw) hold how you build — every decision, discovery, and dead-end from your coding sessions. Yet every new session starts from zero, and you re-explain who you are, what the project is, and what was decided last week.
-
-**You don't have a bad memory. Your information is fragmented — and your agents pay for it every day.**
-
-Memkin extracts those conversations into structured signals (entities, decisions, tasks, discoveries, knowledge, relations), folds them into one searchable knowledge graph on your own machine, and feeds that memory back to any agent over **MCP**:
-
-> "Yesterday I discussed a proposal with a colleague on Feishu, today I implemented part of it in Claude Code, and there's a review meeting next week."
->
-> Memkin connects all three — across platforms and time — and hands the full thread to your agent when you need it.
-
-<p align="center">
-  <img src="docs/assets/web-ui-graph.png" alt="Memkin knowledge graph — entities, decisions, tasks, and knowledge interconnected across your work" width="850">
-  <br>
-  <em>Your work as a living knowledge graph — people, decisions, tasks, knowledge, all connected.</em>
-</p>
-
-## What You Can Ask
-
-> Memkin doesn't just answer "what do I know" — it answers "**what should I do**", with `[n]` citations back to the source.
-
-**🌟 Prep before you meet someone**
-*"I'm meeting Mr. Zhang tomorrow to discuss a renewal price increase — what should I watch out for?"* — `prep_for_person` **passively infers** a communication profile from your real interactions (direct or diplomatic? data-driven or relationship-driven? any landmines?), conditions it on your goal, and flags gaps (*"no new signal from him in 18 days — the profile may be stale"*). No questionnaires; the profile never leaves your machine.
-
-**📋 One-line cross-channel daily report**
-*"Generate today's report"* — `daily_report` gathers today's signals scattered across DMs, group chats, email, meeting minutes, and calendar into 7 sections: decisions / in progress / my todos / needs-reply & mentions / people updates / tomorrow's reminders.
-
-**🔧 Troubleshoot by playbook**
-*"Why won't the driving assistant activate?"* — `troubleshoot` walks the playbook's diagnostic chain in order and explains what each outcome means. Playbooks can be curated by hand or auto-drafted from past troubleshooting conversations.
-
-**⚡ Hand a project to an agent in seconds**
-*"Where does the memkin project stand?"* — `get_session_context` pulls aggregated decisions, open tasks, and the recent timeline. No re-explaining.
-
-**🔎 Recall a person or a thread**
-*"What did I discuss with this colleague last week?"* — DMs, meetings, and follow-up tasks, stitched into one cited answer.
-
-## Only Using Claude Code / Codex?
-
-You don't need Feishu at all — turn your AI coding sessions into persistent, cross-project memory:
+`memkin install` writes MCP config and memory-usage instructions into local AI clients. Supported: Claude Code, Claude Desktop, Cursor, Codex, Windsurf, Hermes/OpenClaw:
 
 ```bash
-npx memkin start                          # enable only the claude-code / codex sources in the wizard
-npx memkin extract --source claude-code   # extract session history into memory
-npx memkin install --agent claude-code    # wire up the agent (MCP config + memory instructions)
-npx memkin hooks install                  # (optional) auto-inject recent decisions into new sessions
+memkin install                      # detect installed clients and wire them up
+memkin install --agent claude-code  # a single client
+memkin install --dry-run            # preview file changes
+memkin extract --source claude-code # extract session history into memory
+memkin hooks install                # (optional) auto-recall hooks for Claude Code
 ```
 
-Reopen your client and ask *"what did we decide on this project last week?"* — the agent answers from your local memory.
+Restart the client after installing. Transports (stdio / Streamable HTTP), manual configuration, and hooks are covered in the [MCP guide](docs/mcp.md) *(Chinese)*.
 
-## Core Features
+## Use Cases
 
-| | |
-|---|---|
-| 🛰️ **Full Feishu/Lark capture** | 7 sources: DMs, group chats, email, calendar, docs, tasks, message search → [📘 Feishu guide](docs/feishu.md) *(Chinese)* |
-| 🤖 **Agent-native (MCP)** | 15 high-intent tools (36 total), stdio + Streamable HTTP, one-command install into popular clients → [📘 MCP guide](docs/mcp.md) *(Chinese)* |
-| 🧠 **AI signal extraction** | LLM pipeline distills 7 signal types from raw conversations, two-layer noise filtering, full provenance |
-| 🔍 **Hybrid semantic search** | Full-text (tsvector, CJK-friendly) + vectors (pgvector), fused with RRF |
-| ♻️ **Memory consolidation** | hot → warm → cold tier rotation, dead-link repair, preference inference |
-| ⏰ **Always-on background service** | `memkin up` registers a boot-time daemon: scheduled capture, run history, alerts |
-| 🔗 **Obsidian two-way sync** | Export memory as a Markdown vault, edit, import back |
-| 🕸️ **Knowledge graph + Web UI** | Dashboard, timeline, force-directed graph, search — all in the browser |
+Ask these directly in any agent connected to Memkin; answers carry `[n]` citations back to source messages:
 
-Full capability inventory: [📘 Features](docs/features.md) *(Chinese)* · Configuration: [📘 Config reference](docs/configuration.md) *(Chinese)*.
+| Question | Tool |
+|----------|------|
+| "Meeting Mr. Zhang tomorrow about the renewal — what should I know?" | `prep_for_person` infers a communication profile from past interactions, conditioned on your goal |
+| "Generate today's report" | `daily_report` aggregates today's DMs, group chats, email, meeting minutes, and calendar into a 7-section digest |
+| "Why won't the driving assistant activate?" | `troubleshoot` walks an ordered diagnostic playbook |
+| "Where does the memkin project stand?" | `get_session_context` returns aggregated decisions, open tasks, and the recent timeline |
+| "What did I discuss with this colleague last week?" | `recall` composes DMs, meetings, and follow-ups into one cited answer |
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/assets/web-ui-graph.png" alt="Memkin Web UI knowledge graph page" width="850">
+</p>
 
 ## Architecture
 
-Memkin is **5 vertical layers + 3 cross-cutting concerns**: sources are captured, distilled into signals, stored locally, and served back out; person identity, memory consolidation, and scheduling cut across.
+The data flow has 5 layers — source capture → signal extraction → local storage → interfaces — with person identity, memory consolidation, and scheduling as cross-cutting modules.
 
 <p align="center">
-  <img src="docs/assets/architecture.png" alt="Memkin architecture — 5-layer vertical data flow + 3 cross-cutting concerns" width="920">
+  <img src="docs/assets/architecture.png" alt="Memkin architecture" width="920">
 </p>
 
-| Layer | In one line |
-|-------|-------------|
-| ① Setup & config | TUI config center / browser wizard, auto-detection, live connection tests |
-| ② Capture | 7 Feishu sources + Claude Code / Codex / Hermes, incremental + backfill |
-| ③ Signal extraction | Chunking → two-layer noise filter → LLM extraction → scoring → privacy redaction |
-| ④ Memory store | PGLite + pgvector, hybrid retrieval (FTS + vectors + RRF) |
-| ⑤ Interfaces | CLI · MCP · REST API · Web UI · Obsidian |
+| Layer | Contents |
+|-------|----------|
+| Setup & config | TUI config center / browser wizard, auto-detection, connection tests |
+| Capture | 7 Feishu sources + Claude Code / Codex / Hermes, incremental + backfill |
+| Signal extraction | Chunking → two-layer noise filter → LLM extraction → scoring → redaction |
+| Memory store | PGLite + pgvector, hybrid retrieval (FTS + vectors + RRF) |
+| Interfaces | CLI, MCP, REST API, Web UI, Obsidian |
 
-> Platforms: macOS / Linux / Windows (embedded PGLite by default — zero setup). The optional self-managed local Postgres engine (faster) supports macOS (arm64/x64) and Linux (x64/arm64). Layer details, signal types, MCP tool list, and store internals: [📘 Architecture](docs/architecture.md) / [📘 MCP guide](docs/mcp.md) *(Chinese)*.
+Platforms: macOS / Linux / Windows (embedded PGLite by default, zero external dependencies). The optional self-managed local Postgres engine supports macOS (arm64/x64) and Linux (x64/arm64). Details: [Architecture](docs/architecture.md) *(Chinese)*.
 
-## 🙏 Standing on Shoulders — and Where We Differ
+## Commands
 
-Memkin didn't appear out of thin air. It stands on some excellent projects:
-
-- **[lark-cli](https://github.com/larksuite/cli)** — the official CLI for the Feishu/Lark open platform. Memkin's user-mode Feishu capture (DMs / message search) is built directly on top of it. Literal bedrock.
-- **[GBrain](https://github.com/garrytan/gbrain)** — Garry Tan's agent memory system. Its brain-first retrieval conventions, self-wiring knowledge graph, cited synthesis, and gap analysis deeply influenced Memkin's design.
-- **[OpenHuman](https://github.com/tinyhumansai/openhuman)** — a local-first personal AI. Its Memory Tree hierarchical compression and Obsidian vault interop shaped much of our thinking.
-- **[mem0](https://github.com/mem0ai/mem0)** — the pioneer of the agent memory layer, which proved to the whole field that giving agents memory is worth doing.
-
-On those foundations, Memkin takes its own path: **Chinese workplace tools (Feishu/Lark) are first-class citizens** (DMs, group chats, email, meetings, docs, tasks — full capture); **local-first with zero cloud dependencies** (your data never leaves your machine); **agents read *and* write over MCP** (memory grows as it's used).
-
-## Common Commands
-
-| Command | What it does |
-|---------|--------------|
-| `memkin start` | One-shot start (auto-runs setup if unconfigured) |
+| Command | Description |
+|---------|-------------|
+| `memkin start` | Start (runs setup if unconfigured) |
 | `memkin up` / `down` / `status` | Background service: register autostart / stop / status |
-| `memkin install` | Wire MCP config + memory instructions into AI clients |
+| `memkin install` | Wire up AI clients |
 | `memkin extract --source <name>` | Extract signals from a source |
-| `memkin search <query>` | Search your memory |
-| `memkin doctor` | Diagnose environment & connectivity |
+| `memkin search <query>` | Search memory |
+| `memkin doctor` | Diagnose environment |
 
-Full command reference: [📘 CLI](docs/cli.md) *(Chinese)*.
+Full reference: [CLI](docs/cli.md) *(Chinese)*.
+
+## Documentation
+
+- [Features](docs/features.md)
+- [CLI reference](docs/cli.md)
+- [Configuration](docs/configuration.md) (memkin.yaml, ports, auth)
+- [Feishu guide](docs/feishu.md)
+- [MCP guide](docs/mcp.md)
+- [Architecture](docs/architecture.md)
+
+All docs are currently in Chinese; English versions are planned.
 
 ## Roadmap
 
-- [ ] **More workplace sources**: DingTalk, WeCom (enterprise WeChat), WeChat history, local documents
-- [ ] **Extraction quality**: cross-block shared context (ContextBuffer), weighted admission scoring, entity-centric narratives
-- [ ] **Natural-language Q&A** over the memory store
-- [ ] **Web UI**: memory editing (currently read-only), provenance audit view
+- [ ] More sources: DingTalk, WeCom, WeChat history, local documents
+- [ ] Extraction quality: cross-block shared context, weighted admission scoring, entity-centric narratives
+- [ ] Natural-language Q&A
+- [ ] Web UI: memory editing (currently read-only), provenance audit view
 
-## Community & Support
+## Acknowledgements
 
-- 🐛 Found a bug or have a feature request? [Open an issue](https://github.com/AndreLYL/memkin/issues).
-- 💡 Questions and ideas are welcome in the issue tracker.
-- ⭐ If Memkin helps you, give it a star — it's the best way to support the project.
+Memkin's design and implementation benefited from these projects:
 
-Development guide: [CONTRIBUTING.md](CONTRIBUTING.md).
+- [lark-cli](https://github.com/larksuite/cli) — the official Feishu/Lark open platform CLI; Memkin's user-mode Feishu capture is built on it
+- [GBrain](https://github.com/garrytan/gbrain) — brain-first retrieval conventions, self-wiring knowledge graph, cited synthesis
+- [OpenHuman](https://github.com/tinyhumansai/openhuman) — Memory Tree hierarchical compression and Obsidian interop
+- [mem0](https://github.com/mem0ai/mem0) — pioneer of the agent memory layer
+
+Compared to them, Memkin focuses on: capturing Chinese workplace tools (Feishu/Lark), local-first with zero cloud dependency, and agent read/write over MCP.
+
+## Contributing
+
+Bug reports and feature requests: [issues](https://github.com/AndreLYL/memkin/issues). Development workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
+[Apache License 2.0](LICENSE)
