@@ -36,7 +36,9 @@ describe("validate setup config", () => {
     expect(result.errors).toContain("At least one data source must be enabled");
   });
 
-  it("requires Feishu credentials when Feishu is enabled", () => {
+  it("requires Feishu app credentials when a bot-scoped source is enabled", () => {
+    // Since #117 credentials are only required for bot-scoped sources
+    // (messages/calendar/tasks/dm); user-scoped sources authorize via lark-cli.
     const result = validateConfig({
       llm: { provider: "openai", model: "gpt-4o-mini" },
       sources: {
@@ -44,12 +46,35 @@ describe("validate setup config", () => {
           enabled: true,
           app_id: "",
           app_secret: "",
+          sources: { messages: { enabled: true } },
         },
       },
     });
 
-    expect(result.errors).toContain("Feishu App ID is required when Feishu is enabled");
-    expect(result.errors).toContain("Feishu App Secret is required when Feishu is enabled");
+    expect(result.errors).toContain(
+      "Feishu App ID is required for bot-scoped sources (messages, calendar, tasks, dm)",
+    );
+    expect(result.errors).toContain(
+      "Feishu App Secret is required for bot-scoped sources (messages, calendar, tasks, dm)",
+    );
+  });
+
+  it("allows user-only Feishu (no bot-scoped sources) without app credentials", () => {
+    const result = validateConfig({
+      llm: { provider: "openai", model: "gpt-4o-mini" },
+      sources: {
+        feishu: {
+          enabled: true,
+          app_id: "",
+          app_secret: "",
+          sources: { mail: { enabled: true } },
+        },
+      },
+    });
+
+    expect(result.errors).not.toContain(
+      "Feishu App ID is required for bot-scoped sources (messages, calendar, tasks, dm)",
+    );
   });
 
   it("requires explicit security settings for public MCP HTTP exposure", () => {
