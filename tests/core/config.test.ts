@@ -236,6 +236,60 @@ llm:
     expect(config.__context.projectRoot).toBe(envDir);
   });
 
+  it("should fall back to $HOME/.memkin/memkin.yaml when the cwd walk finds nothing", () => {
+    // install.sh's wizard writes the config to ~/.memkin/memkin.yaml; discovery
+    // must find it so a bare `memkin serve` works right after first install.
+    const fakeHome = join(testDir, "fake-home");
+    const homeConfig = join(fakeHome, ".memkin", "memkin.yaml");
+    mkdirSync(dirname(homeConfig), { recursive: true });
+    writeFileSync(homeConfig, "llm:\n  model: home-model\n");
+    const workDir = join(testDir, "empty-workdir");
+    mkdirSync(workDir, { recursive: true });
+
+    process.env.MEMKIN_HOME = fakeHome;
+    try {
+      process.chdir(workDir);
+      expect(resolveConfigPath()).toBe(homeConfig);
+      const config = loadConfig();
+      expect(config.llm.model).toBe("home-model");
+    } finally {
+      delete process.env.MEMKIN_HOME;
+    }
+  });
+
+  it("should prefer a project memkin.yaml over the home fallback", () => {
+    const fakeHome = join(testDir, "fake-home");
+    const homeConfig = join(fakeHome, ".memkin", "memkin.yaml");
+    mkdirSync(dirname(homeConfig), { recursive: true });
+    writeFileSync(homeConfig, "llm:\n  model: home-model\n");
+    writeFileSync("memkin.yaml", "llm:\n  model: project-model\n");
+
+    process.env.MEMKIN_HOME = fakeHome;
+    try {
+      // process.cwd() because /tmp resolves to /private/tmp on macOS
+      expect(resolveConfigPath()).toBe(join(process.cwd(), "memkin.yaml"));
+      expect(loadConfig().llm.model).toBe("project-model");
+    } finally {
+      delete process.env.MEMKIN_HOME;
+    }
+  });
+
+  it("should fall back to cwd/memkin.yaml when neither cwd walk nor home has a config", () => {
+    const fakeHome = join(testDir, "fake-home-empty");
+    const workDir = join(testDir, "empty-workdir-2");
+    mkdirSync(fakeHome, { recursive: true });
+    mkdirSync(workDir, { recursive: true });
+
+    process.env.MEMKIN_HOME = fakeHome;
+    try {
+      process.chdir(workDir);
+      // process.cwd() because /tmp resolves to /private/tmp on macOS
+      expect(resolveConfigPath()).toBe(resolve(process.cwd(), "memkin.yaml"));
+    } finally {
+      delete process.env.MEMKIN_HOME;
+    }
+  });
+
   it("should handle empty YAML file", () => {
     writeFileSync("memkin.yaml", "");
     const config = loadConfig();
