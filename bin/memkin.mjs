@@ -10,12 +10,12 @@ const distCli = resolve(projectRoot, "dist", "cli.js");
 const srcCli = resolve(projectRoot, "src", "cli.ts");
 const args = process.argv.slice(2);
 
-// dist exists: prefer Bun when available, otherwise run with the current Node process.
+// dist exists: run the compiled output with the Node process already executing
+// this shim. Launching dist under Bun (old behavior) created a runtime cell the
+// daemon autostart detection didn't cover and broke first-run `memkin up` on
+// machines that happen to have Bun on PATH.
 if (existsSync(distCli)) {
-  let result = spawnSync("bun", [distCli, ...args], { stdio: "inherit" });
-  if (result.error) {
-    result = spawnSync(process.execPath, [distCli, ...args], { stdio: "inherit" });
-  }
+  const result = spawnSync(process.execPath, [distCli, ...args], { stdio: "inherit" });
   process.exit(result.status ?? (result.error ? 1 : 0));
 } else if (existsSync(srcCli)) {
   const candidates = [

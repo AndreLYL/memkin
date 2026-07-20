@@ -723,8 +723,12 @@ async function runServe(options: {
       });
       if (!recovered) {
         console.error(
-          "No configuration file found.\n" +
-            "Run `memkin start` for one-step setup + launch, or `memkin init --web` to configure first.",
+          "No configuration file found. Searched:\n" +
+            `  - ${serveConfigPath}\n` +
+            "  - memkin.yaml in the current directory and its parents\n" +
+            `  - ${join(homedir(), ".memkin", "memkin.yaml")}\n` +
+            "If your config lives elsewhere, pass it explicitly: `memkin serve -c /path/to/memkin.yaml`.\n" +
+            "Otherwise run `memkin start` for one-step setup + launch, or `memkin init --web` to configure first.",
         );
         process.exit(1);
       }

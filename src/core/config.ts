@@ -5,6 +5,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { parse } from "yaml";
 import type { FeishuDocSourceConfig } from "../collectors/feishu/types.js";
@@ -487,6 +488,13 @@ export function resolveConfigPath(explicit?: string): string {
     if (parent === dir) break;
     dir = parent;
   }
+
+  // Home fallback: the install.sh wizard writes ~/.memkin/memkin.yaml, so a
+  // bare `memkin serve` run from anywhere must find it. Project-level configs
+  // (the cwd walk above) still win. MEMKIN_HOME exists for test isolation.
+  const home = process.env.MEMKIN_HOME || homedir();
+  const homeConfig = join(home, ".memkin", "memkin.yaml");
+  if (existsSync(homeConfig)) return homeConfig;
 
   return resolve(process.cwd(), "memkin.yaml");
 }
