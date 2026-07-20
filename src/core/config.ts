@@ -170,6 +170,10 @@ export interface EmbeddingConfig {
   dimensions: number;
   api_key?: string;
   base_url?: string;
+  /** Background embed sweep interval in seconds; 0 disables the sweep. */
+  sweep_interval_secs?: number;
+  /** Max chunks embedded per sweep batch. */
+  sweep_batch_limit?: number;
 }
 
 /**
@@ -389,6 +393,8 @@ const DEFAULT_CONFIG: Config = {
     provider: "openai",
     model: "text-embedding-3-large",
     dimensions: 768,
+    sweep_interval_secs: 300,
+    sweep_batch_limit: 256,
   },
   server: {
     http_port: 3927,
