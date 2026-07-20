@@ -45,6 +45,7 @@ import {
 } from "./daemon/autostart/daemon-state.js";
 import { disableAutostart, statusAutostart } from "./daemon/autostart/index.js";
 import { nodeRunner } from "./daemon/autostart/runner.js";
+import { startEmbedSweep } from "./daemon/embed-sweep.js";
 import { ReloadManager } from "./daemon/reload-manager.js";
 import { buildServeRuntime, ServeRuntimeHolder } from "./daemon/serve-runtime.js";
 import { VERSION } from "./embedded-assets.generated.js";
@@ -760,6 +761,25 @@ async function runServe(options: {
       ? startRecoveryLoop(stores.supervisor, { intervalMs: 3000 })
       : undefined;
 
+    // Embed sweep is likewise process-level: the scheduled capture pipeline
+    // writes chunks with embedding = NULL and nothing else embeds them, so
+    // without this loop vector search silently degrades to FTS-only for all
+    // auto-captured content. Logs go to stderr — `serve --mcp` owns stdout.
+    const sweepIntervalSecs = config.embedding.sweep_interval_secs ?? 300;
+    const embedSweep =
+      sweepIntervalSecs > 0
+        ? startEmbedSweep(stores.embedding, {
+            intervalMs: sweepIntervalSecs * 1000,
+            batchLimit: config.embedding.sweep_batch_limit ?? 256,
+            onSweep: (r) =>
+              console.error(`[embed-sweep] embedded ${r.embedded} chunks, errors ${r.errors}`),
+            onError: (err, failures) =>
+              console.error(
+                `[embed-sweep] sweep failed (${failures} consecutive): ${err instanceof Error ? err.message : String(err)}`,
+              ),
+          })
+        : undefined;
+
     const initialRuntime = await buildServeRuntime(config, stores, stateDir);
     const holder = new ServeRuntimeHolder(initialRuntime);
     if (config.scheduler?.enabled) await holder.current.scheduler?.start();
@@ -790,6 +810,7 @@ async function runServe(options: {
       shuttingDown = true;
       // P1-1: stop recovery loop first, then dispose supervisor monitor (NOT the cluster),
       // then dispose the runtime, then close the DB connection.
+      embedSweep?.stop();
       recovery?.stop();
       stores.supervisor?.dispose(); // stops monitor only — does NOT stop the cluster
       await holder.current.dispose();
