@@ -7,6 +7,6 @@ export default defineConfig({
     pool: "forks",
     hookTimeout: 60_000,
     testTimeout: 60_000,
-    exclude: [...configDefaults.exclude, ".worktrees/**"],
+    exclude: [...configDefaults.exclude, ".worktrees/**", ".claude/worktrees/**"],
   },
 });

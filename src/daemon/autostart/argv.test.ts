@@ -24,6 +24,14 @@ describe("resolveDaemonArgv", () => {
       resolveDaemonArgv({ kind: "bun-src", bunPath: "/abs/bun", srcCli: "/abs/src/cli.ts" }, tail),
     ).toEqual(["/abs/bun", "/abs/src/cli.ts", ...tail]);
   });
+  it("bun-dist → [bun, dist/cli.js, ...tail]", () => {
+    expect(
+      resolveDaemonArgv(
+        { kind: "bun-dist", bunPath: "/abs/bun", distCli: "/abs/dist/cli.js" },
+        tail,
+      ),
+    ).toEqual(["/abs/bun", "/abs/dist/cli.js", ...tail]);
+  });
   it("unknown kind → throws fail-fast", () => {
     expect(() => resolveDaemonArgv({ kind: "unknown" } as never, tail)).toThrow(
       /build or install/i,
@@ -64,6 +72,47 @@ describe("detectDaemonRuntime", () => {
       projectRoot,
     });
     expect(result).toEqual({ kind: "bun-src", bunPath: "/usr/local/bin/bun", srcCli });
+  });
+
+  it("bun-dist branch: Bun exec with dist/cli.js but no src (global npm install)", () => {
+    // The bin shim historically launched dist/cli.js under Bun when Bun was on
+    // PATH; the published package ships dist/ only, so neither node-dist nor
+    // bun-src matched and first-run `memkin up` died. bun-dist covers that cell.
+    const distCli = join(projectRoot, "dist", "cli.js");
+    const result = detectDaemonRuntime({
+      execPath: "/opt/homebrew/bin/bun",
+      hasBun: true,
+      existsSync: (p) => p === distCli,
+      projectRoot,
+    });
+    expect(result).toEqual({ kind: "bun-dist", bunPath: "/opt/homebrew/bin/bun", distCli });
+  });
+
+  it("bun-src wins over bun-dist when both src and dist exist (dev repo)", () => {
+    const srcCli = join(projectRoot, "src", "cli.ts");
+    const distCli = join(projectRoot, "dist", "cli.js");
+    const result = detectDaemonRuntime({
+      execPath: "/usr/local/bin/bun",
+      hasBun: true,
+      existsSync: (p) => p === srcCli || p === distCli,
+      projectRoot,
+    });
+    expect(result).toEqual({ kind: "bun-src", bunPath: "/usr/local/bin/bun", srcCli });
+  });
+
+  it("node-dist branch matches any non-Bun runtime name (node.exe on Windows)", () => {
+    const distCli = join(projectRoot, "dist", "cli.js");
+    const result = detectDaemonRuntime({
+      execPath: "C:\\Program Files\\nodejs\\node.exe",
+      hasBun: false,
+      existsSync: (p) => p === distCli,
+      projectRoot,
+    });
+    expect(result).toEqual({
+      kind: "node-dist",
+      execPath: "C:\\Program Files\\nodejs\\node.exe",
+      distCli,
+    });
   });
 
   it("fail-fast: no Bun, no dist, no src → throws", () => {
