@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`serve` now actually auto-captures the enabled channels after a fresh install**: the
+  scheduler treated `scheduler.sources` as the authoritative list of what to run, but every
+  config writer (web setup wizard, Auto-fetch settings, CLI `init`) persists that map as
+  overrides only — a fresh install saved `{}` (or no scheduler block at all), so the scheduler
+  started with zero schedules and never extracted anything. The schedulable set is now derived
+  from the enabled data channels (`claude-code`/`codex`/`hermes`, `feishu`, `feishu.docs`),
+  with `scheduler.sources` entries kept as per-source overrides (`interval_secs`,
+  `enabled: false`). Note for hand-written configs: a `scheduler.sources` map that lists only
+  some channels no longer disables the rest — set `enabled: false` per source (or disable the
+  channel) to opt out.
+- **Toggling Auto-fetch in the running app now takes effect immediately**: a
+  `scheduler.enabled` flip forces a runtime rebuild on config reload, so turning it on wires
+  and starts the capture loop (and turning it off stops it) without restarting the daemon.
+- **CLI `memkin init` now writes the same default scheduler block as the web wizard**
+  (auto-fetch on, hourly interval), so CLI-initialized installs auto-capture too.
+
 ## [0.4.2] - 2026-07-07
 
 ### Fixed
