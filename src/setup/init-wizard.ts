@@ -592,6 +592,7 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
       ? {
           newInstallEngine: resolveDefaultEngineForNewInstall({
             platform: process.platform,
+            arch: process.arch,
             home: homedir(),
           }),
         }
