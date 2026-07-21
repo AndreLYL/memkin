@@ -1,11 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-function escapeRegex(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function minimalPathWithNodeAndNpm(): string {
+  const nodePath = execFileSync("sh", ["-c", "command -v node"], { encoding: "utf8" }).trim();
+  const npmPath = execFileSync("sh", ["-c", "command -v npm"], { encoding: "utf8" }).trim();
+  const bin = mkdtempSync(join(tmpdir(), "memkin-bin-"));
+  symlinkSync(nodePath, join(bin, "node"));
+  symlinkSync(npmPath, join(bin, "npm"));
+  return `${bin}:/usr/bin:/bin`;
 }
 
 describe("install.sh orchestration (dryrun)", () => {
@@ -14,6 +19,7 @@ describe("install.sh orchestration (dryrun)", () => {
     const cfg = join(home, ".memkin", "memkin.yaml");
     execFileSync("mkdir", ["-p", join(home, ".memkin")]);
     writeFileSync(cfg, "store:\n  engine: pglite\n");
+    const path = minimalPathWithNodeAndNpm();
 
     const out = execFileSync("sh", ["scripts/install.sh"], {
       env: {
@@ -21,13 +27,13 @@ describe("install.sh orchestration (dryrun)", () => {
         HOME: home,
         MEMKIN_CONFIG: cfg,
         MEMKIN_INSTALL_DRYRUN: "1",
-        PATH: process.env.PATH ?? "",
+        PATH: path,
       },
       encoding: "utf8",
     });
 
     expect(out).toContain("DRYRUN: npm install -g memkin@latest");
-    expect(out).toMatch(new RegExp(`DRYRUN: (memkin|npm exec --yes memkin@latest --) up -c ${escapeRegex(cfg)}`));
+    expect(out).toContain(`DRYRUN: npm exec --yes memkin@latest -- up -c ${cfg}`);
     expect(out).not.toContain("memkin init --web");
   });
 
@@ -36,26 +42,26 @@ describe("install.sh orchestration (dryrun)", () => {
     const cfg = join(home, ".memkin", "memkin.yaml");
     execFileSync("mkdir", ["-p", join(home, ".memkin")]);
     writeFileSync(cfg, "store:\n  engine: pglite\n");
+    const path = minimalPathWithNodeAndNpm();
 
     const env = {
       ...process.env,
       HOME: home,
       MEMKIN_CONFIG: cfg,
       MEMKIN_INSTALL_DRYRUN: "1",
-      PATH: process.env.PATH ?? "",
+      PATH: path,
     };
     execFileSync("sh", ["scripts/install.sh"], { env, encoding: "utf8" });
     execFileSync("sh", ["scripts/install.sh"], { env, encoding: "utf8" });
 
     const marker = "# >>> memkin npm global bin >>>";
-    const profiles = [join(home, ".profile"), join(home, ".bashrc"), join(home, ".zshrc"), join(home, ".bash_profile")];
+    const profiles =
+      process.platform === "darwin"
+        ? [join(home, ".zshrc"), join(home, ".bash_profile")]
+        : [join(home, ".profile"), join(home, ".bashrc")];
     for (const profile of profiles) {
-      try {
-        const text = readFileSync(profile, "utf8");
-        expect(text.split(marker).length - 1).toBeLessThanOrEqual(1);
-      } catch {
-        // profile not created on this platform
-      }
+      const text = readFileSync(profile, "utf8");
+      expect(text.split(marker).length - 1).toBe(1);
     }
   });
 });

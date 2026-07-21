@@ -113,6 +113,12 @@ resolve_memkin_runner() {
     log "Using memkin from PATH: $(command -v memkin)"
     return
   fi
+  if [ -n "$NPM_GLOBAL_BIN" ] && [ -x "$NPM_GLOBAL_BIN/memkin" ]; then
+    MEMKIN_RUNNER="npm_global_bin"
+    MEMKIN_RUNNER_RESOLVED=1
+    log "Using memkin from npm global bin: $NPM_GLOBAL_BIN/memkin"
+    return
+  fi
   MEMKIN_RUNNER="npm_exec"
   MEMKIN_RUNNER_RESOLVED=1
   log "memkin not on PATH yet; using npm exec fallback for installer commands."
@@ -121,6 +127,8 @@ resolve_memkin_runner() {
 run_memkin() {
   if [ "$MEMKIN_RUNNER" = "direct" ]; then
     run memkin "$@"
+  elif [ "$MEMKIN_RUNNER" = "npm_global_bin" ]; then
+    run "$NPM_GLOBAL_BIN/memkin" "$@"
   else
     run npm exec --yes memkin@latest -- "$@"
   fi
