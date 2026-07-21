@@ -53,8 +53,10 @@ add_profile_path_block() {
 
   {
     printf '\n%s\n' "$PATH_MARKER_BEGIN"
+    # shellcheck disable=SC2016
     printf 'case ":$PATH:" in\n'
     printf '  *":%s:"*) ;;\n' "$NPM_GLOBAL_BIN"
+    # shellcheck disable=SC2016
     printf '  *) export PATH="$PATH:%s" ;;\n' "$NPM_GLOBAL_BIN"
     printf 'esac\n'
     printf '%s\n' "$PATH_MARKER_END"
