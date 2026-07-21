@@ -33,17 +33,19 @@ describe("feishuNeedsBotCredentials", () => {
     ).toBe(false);
   });
 
-  it.each(["messages", "calendar", "tasks", "dm"] as const)(
-    "is true when bot-scoped source %s is enabled",
-    (src) => {
-      expect(
-        feishuNeedsBotCredentials({
-          enabled: true,
-          sources: { [src]: { enabled: true } } as never,
-        }),
-      ).toBe(true);
-    },
-  );
+  it.each([
+    "messages",
+    "calendar",
+    "tasks",
+    "dm",
+  ] as const)("is true when bot-scoped source %s is enabled", (src) => {
+    expect(
+      feishuNeedsBotCredentials({
+        enabled: true,
+        sources: { [src]: { enabled: true } } as never,
+      }),
+    ).toBe(true);
+  });
 
   it("is false when Feishu is enabled but no sub-sources are on", () => {
     expect(feishuNeedsBotCredentials({ enabled: true, sources: {} as never })).toBe(false);
