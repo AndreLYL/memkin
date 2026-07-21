@@ -8,6 +8,7 @@ MIN_NODE_MAJOR=18
 PATH_MARKER_BEGIN="# >>> memkin npm global bin >>>"
 PATH_MARKER_END="# <<< memkin npm global bin <<<"
 MEMKIN_RUNNER="direct"
+MEMKIN_RUNNER_RESOLVED=0
 NPM_GLOBAL_BIN=""
 
 # DRYRUN=1 prints commands instead of running them (used by tests).
@@ -47,10 +48,6 @@ add_profile_path_block() {
 
   if grep -F "$PATH_MARKER_BEGIN" "$profile" >/dev/null 2>&1; then
     log "PATH helper already present in $profile"
-    return 0
-  fi
-  if grep -F "export PATH=\"\$PATH:$NPM_GLOBAL_BIN\"" "$profile" >/dev/null 2>&1; then
-    log "PATH already references $NPM_GLOBAL_BIN in $profile"
     return 0
   fi
 
@@ -106,12 +103,18 @@ configure_npm_global_bin_path() {
 }
 
 resolve_memkin_runner() {
+  if [ "$MEMKIN_RUNNER_RESOLVED" = "1" ]; then
+    return
+  fi
+
   if command -v memkin >/dev/null 2>&1; then
     MEMKIN_RUNNER="direct"
+    MEMKIN_RUNNER_RESOLVED=1
     log "Using memkin from PATH: $(command -v memkin)"
     return
   fi
   MEMKIN_RUNNER="npm_exec"
+  MEMKIN_RUNNER_RESOLVED=1
   log "memkin not on PATH yet; using npm exec fallback for installer commands."
 }
 

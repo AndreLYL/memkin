@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 describe("install.sh orchestration (dryrun)", () => {
   it("runs node→install→up in order and pins the config path", () => {
     const home = mkdtempSync(join(tmpdir(), "memkin-inst-"));
@@ -23,7 +27,7 @@ describe("install.sh orchestration (dryrun)", () => {
     });
 
     expect(out).toContain("DRYRUN: npm install -g memkin@latest");
-    expect(out).toMatch(new RegExp(`DRYRUN: (memkin|npm exec --yes memkin@latest --) up -c ${cfg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    expect(out).toMatch(new RegExp(`DRYRUN: (memkin|npm exec --yes memkin@latest --) up -c ${escapeRegex(cfg)}`));
     expect(out).not.toContain("memkin init --web");
   });
 
