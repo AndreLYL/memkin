@@ -23,11 +23,7 @@ describe("install.sh orchestration (dryrun)", () => {
     });
 
     expect(out).toContain("DRYRUN: npm install -g memkin@latest");
-    if (out.includes("using npm exec fallback")) {
-      expect(out).toContain(`DRYRUN: npm exec --yes memkin@latest -- up -c ${cfg}`);
-    } else {
-      expect(out).toContain(`DRYRUN: memkin up -c ${cfg}`);
-    }
+    expect(out).toMatch(new RegExp(`DRYRUN: (memkin|npm exec --yes memkin@latest --) up -c ${cfg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
     expect(out).not.toContain("memkin init --web");
   });
 

@@ -49,22 +49,24 @@ add_profile_path_block() {
     log "PATH helper already present in $profile"
     return 0
   fi
-  if grep -F "export PATH=\"$NPM_GLOBAL_BIN:\$PATH\"" "$profile" >/dev/null 2>&1; then
+  if grep -F "export PATH=\"\$PATH:$NPM_GLOBAL_BIN\"" "$profile" >/dev/null 2>&1; then
     log "PATH already references $NPM_GLOBAL_BIN in $profile"
     return 0
   fi
 
   {
     printf '\n%s\n' "$PATH_MARKER_BEGIN"
-    printf 'export PATH="%s:$PATH"\n' "$NPM_GLOBAL_BIN"
+    printf 'export PATH="$PATH:%s"\n' "$NPM_GLOBAL_BIN"
     printf '%s\n' "$PATH_MARKER_END"
   } >>"$profile"
   PROFILE_PATH_UPDATED=1
+  [ -n "$PROFILE_SOURCE_HINT" ] || PROFILE_SOURCE_HINT="$profile"
   log "Added npm global bin PATH to $profile"
 }
 
 persist_npm_global_bin_path() {
   PROFILE_PATH_UPDATED=0
+  PROFILE_SOURCE_HINT=""
   os_name="$(uname -s 2>/dev/null || echo unknown)"
   case "$os_name" in
     Darwin)
@@ -81,7 +83,11 @@ persist_npm_global_bin_path() {
   esac
 
   if [ "$PROFILE_PATH_UPDATED" = "1" ]; then
-    log "Updated shell profile PATH for future sessions. Restart your terminal or run: . \"$HOME/.profile\""
+    if [ -n "$PROFILE_SOURCE_HINT" ]; then
+      log "Updated shell profile PATH for future sessions. Restart your terminal or run: . \"$PROFILE_SOURCE_HINT\""
+    else
+      log "Updated shell profile PATH for future sessions. Restart your terminal."
+    fi
   fi
 }
 
@@ -94,7 +100,7 @@ configure_npm_global_bin_path() {
     return 0
   fi
 
-  export PATH="$NPM_GLOBAL_BIN:$PATH"
+  export PATH="$PATH:$NPM_GLOBAL_BIN"
   log "Temporarily added npm global bin to PATH: $NPM_GLOBAL_BIN"
   persist_npm_global_bin_path
 }
