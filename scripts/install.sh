@@ -53,7 +53,10 @@ add_profile_path_block() {
 
   {
     printf '\n%s\n' "$PATH_MARKER_BEGIN"
-    printf 'export PATH="$PATH:%s"\n' "$NPM_GLOBAL_BIN"
+    printf 'case ":$PATH:" in\n'
+    printf '  *":%s:"*) ;;\n' "$NPM_GLOBAL_BIN"
+    printf '  *) export PATH="$PATH:%s" ;;\n' "$NPM_GLOBAL_BIN"
+    printf 'esac\n'
     printf '%s\n' "$PATH_MARKER_END"
   } >>"$profile"
   PROFILE_PATH_UPDATED=1
