@@ -103,6 +103,31 @@ describe("createConfigRoutes", () => {
     expect(data.diagnostics.some((d) => d.severity === "error")).toBe(true);
   });
 
+  it("POST /api/config returns 422 for embedding dimensions above the HNSW limit", async () => {
+    const app = createConfigRoutes({ configPath });
+    const res = await app.request("/api/config", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        llm: { provider: "openai", model: "gpt-4o-mini" },
+        sources: { "claude-code": { enabled: true } },
+        embedding: { dimensions: 2001 },
+      }),
+    });
+    expect(res.status).toBe(422);
+    const data = (await res.json()) as {
+      ok: boolean;
+      diagnostics: Array<{ path: string; message: string }>;
+    };
+    expect(data.ok).toBe(false);
+    expect(data.diagnostics).toContainEqual({
+      path: "embedding.dimensions",
+      severity: "error",
+      message:
+        "Embedding dimensions cannot exceed 2000. pgvector HNSW indexes support at most 2000 dimensions. For OpenAI text-embedding-3-large, use 1536. Got: 2001.",
+    });
+  });
+
   it("POST /api/test/llm returns ok with latency_ms", async () => {
     const app = createConfigRoutes({ configPath });
     const res = await app.request("/api/test/llm", {
