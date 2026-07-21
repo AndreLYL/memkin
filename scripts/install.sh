@@ -11,7 +11,7 @@ MEMKIN_RUNNER="direct"
 MEMKIN_RUNNER_RESOLVED=0
 NPM_GLOBAL_BIN=""
 
-# DRYRUN=1 prints commands instead of running them (used by tests).
+# MEMKIN_INSTALL_DRYRUN=1 prints commands instead of running them (used by tests); the script may still write profile files during dryrun.
 run() {
   if [ "${MEMKIN_INSTALL_DRYRUN:-0}" = "1" ]; then
     echo "DRYRUN: $*"
