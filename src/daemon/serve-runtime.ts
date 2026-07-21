@@ -30,6 +30,7 @@ import type { AccumulateDeps } from "../profile/accumulate.js";
 import type { DaemonStatus, StoreContext } from "../server/api.js";
 import { ChatNameRefreshJob } from "../server/chat-name-refresh-job.js";
 import { PersonBehaviorStore } from "../store/person-behavior.js";
+import { effectiveSchedulerConfig } from "./effective-scheduler.js";
 import { Scheduler } from "./scheduler.js";
 
 /** A serve session's config-derived runtime, rebuilt/replaced as a whole on reload. */
@@ -123,12 +124,17 @@ export async function buildServeRuntime(
   let docsCursor: CursorStore | undefined;
   let chatNameRefreshJob: ChatNameRefreshJob | undefined;
 
-  if (config.scheduler) {
+  // Effective scheduler config: schedulable sources are derived from the enabled
+  // data channels; `scheduler.sources` only carries per-source overrides. Fresh
+  // installs save `sources: {}` — constructing the Scheduler from the raw block
+  // scheduled nothing, so serve never auto-captured any channel.
+  const schedulerConfig = effectiveSchedulerConfig(config);
+  if (schedulerConfig) {
     // Always construct Scheduler when the block is present (even if enabled=false),
     // so ServeRuntimeHolder always holds a Scheduler for future cold-start wiring.
-    scheduler = new Scheduler(config.scheduler, stateDir);
+    scheduler = new Scheduler(schedulerConfig, stateDir);
 
-    if (config.scheduler.enabled) {
+    if (schedulerConfig.enabled) {
       bootstrapCollectors(config.sources, config.__context.projectRoot);
 
       const llmConfig = { ...config.llm };
