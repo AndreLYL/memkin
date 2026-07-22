@@ -33,7 +33,10 @@ describe("install.sh orchestration (dryrun)", () => {
     });
 
     expect(out).toContain("DRYRUN: npm install -g memkin@latest");
-    expect(out).toContain(`DRYRUN: npm exec --yes memkin@latest -- up -c ${cfg}`);
+    // Linux gets --linger so the systemd user service survives SSH logout; the
+    // minimal test PATH has no memkin binary, so the npm-exec runner is used.
+    const upArgs = process.platform === "linux" ? `up --linger -c ${cfg}` : `up -c ${cfg}`;
+    expect(out).toContain(`DRYRUN: npm exec --yes memkin@latest -- ${upArgs}`);
     expect(out).not.toContain("memkin init --web");
   });
 

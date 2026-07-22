@@ -192,7 +192,12 @@ run_wizard_if_needed() {
 
 start_service() {
   log "Starting the always-on background service + wiring your AI agents…"
-  run_memkin up -c "$STABLE_CONFIG"
+  # --linger (Linux only): keep the systemd user service running after SSH
+  # logout — otherwise the daemon (and managed Postgres) stops with the last
+  # login session. Best-effort inside memkin; harmless on desktop Linux.
+  LINGER_FLAG=""
+  [ "$(uname -s)" = "Linux" ] && LINGER_FLAG="--linger"
+  run_memkin up $LINGER_FLAG -c "$STABLE_CONFIG"
   log "Done. Manage it with:  memkin status  |  memkin down"
 }
 
