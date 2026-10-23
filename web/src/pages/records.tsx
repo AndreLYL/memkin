@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { crm } from "../api/crm";
 import { ErrorNotice, Field } from "../components/crm/forms";
@@ -25,7 +25,13 @@ export function RecordsPage() {
     params.get("person_id") ? [Number(params.get("person_id"))] : [],
   );
   const people = useQuery({ queryKey: ["crm-people", ""], queryFn: () => crm.people() });
-  const records = useQuery({ queryKey: ["crm-records"], queryFn: () => crm.records() });
+  const records = useInfiniteQuery({
+    queryKey: ["crm-records"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => crm.records(undefined, pageParam),
+    getNextPageParam: (last, pages) => (last.length === 100 ? pages.length * 100 : undefined),
+  });
+  const recordItems = records.data?.pages.flat() ?? [];
   const save = useMutation({
     mutationFn: () =>
       crm.capture({
@@ -131,7 +137,7 @@ export function RecordsPage() {
       {records.isPending ? (
         <p className="crm-muted">正在读取记录…</p>
       ) : (
-        records.data?.map((r) => (
+        recordItems.map((r) => (
           <Link key={r.id} className="crm-card crm-card-link crm-stack" to={`/records/${r.id}`}>
             <p>{r.content.slice(0, 240)}</p>
             <span className="crm-muted">
@@ -141,7 +147,18 @@ export function RecordsPage() {
           </Link>
         ))
       )}
-      {records.data?.length === 0 && <div className="crm-empty">你的第一条记忆，从上面开始。</div>}
+      {records.hasNextPage && (
+        <button
+          className="crm-btn crm-secondary"
+          disabled={records.isFetchingNextPage}
+          onClick={() => records.fetchNextPage()}
+        >
+          {records.isFetchingNextPage ? "正在读取…" : "读取更早的记录"}
+        </button>
+      )}
+      {!records.isPending && recordItems.length === 0 && (
+        <div className="crm-empty">你的第一条记忆，从上面开始。</div>
+      )}
     </div>
   );
 }

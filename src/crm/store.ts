@@ -318,7 +318,8 @@ export class CrmStore {
       if (Object.keys(args.identities).length !== data.people.length)
         invalid("Confirm exactly one identity for every proposed person");
       for (const person of data.people)
-        if (!args.identities[person.key]) invalid(`Confirm identity for ${person.name}`);
+        if (!Object.hasOwn(args.identities, person.key))
+          invalid(`Confirm identity for ${person.name}`);
       const existingIds = unique(
         Object.values(args.identities).flatMap((x) => ("person_id" in x ? [x.person_id] : [])),
       ).sort((a, b) => a - b);
@@ -326,7 +327,7 @@ export class CrmStore {
         await tx.query("SELECT person_id FROM crm_people WHERE person_id=$1 FOR UPDATE", [
           personId,
         ]);
-      const mapping: Record<string, number> = {};
+      const mapping: Record<string, number> = Object.create(null);
       for (const person of data.people) {
         const identity = args.identities[person.key];
         if ("person_id" in identity) {
@@ -464,6 +465,9 @@ export class CrmStore {
       }
       const mapping = Object.fromEntries(entryRefs(entry).map((ref) => [ref, Number(ref)]));
       const resolved = this.resolveEntry(entry, mapping, record.timezone);
+      assertEvidence(resolved, record);
+      if (resolved.kind === "relationship" && resolved.subject === resolved.object)
+        invalid("Choose two distinct people for a relationship");
       const [start, end] = timeBounds(
         resolved.kind === "interaction" ? resolved.time : resolved.valid_from,
       );
@@ -565,7 +569,6 @@ export class CrmStore {
       );
       const p = person.profile;
       const body = [
-        "<!-- memkin:crm:start -->",
         `## ${p.name}`,
         `Person ID: ${id}`,
         `Aliases: ${p.aliases.join(", ")}`,
@@ -586,8 +589,10 @@ export class CrmStore {
               : `${d.status}: ${d.kind === "fact" ? `${d.predicate}: ${d.value}` : `${d.subject} ${d.relation} ${d.object}`}; valid from: ${JSON.stringify(d.valid_from)}; valid until: ${JSON.stringify(d.valid_until)}`;
           return `- ${summary}; captured: ${e.captured_at_input}; source: /records/${e.record_id}; quote: ${d.evidence.quote}`;
         }),
-        "<!-- memkin:crm:end -->",
-      ].join("\n");
+      ]
+        .map((line) => line.replaceAll("<!-- memkin:crm:", "&lt;!-- memkin:crm:"))
+        .join("\n");
+      const generated = `<!-- memkin:crm:start -->\n${body}\n<!-- memkin:crm:end -->`;
       const page = await tx.query<{ compiled_truth: string }>(
         "SELECT compiled_truth FROM pages WHERE id=$1 FOR UPDATE",
         [id],
@@ -595,8 +600,8 @@ export class CrmStore {
       const old = page.rows[0].compiled_truth;
       const block = /<!-- memkin:crm:start -->[\s\S]*?<!-- memkin:crm:end -->/;
       const combined = block.test(old)
-        ? old.replace(block, () => body)
-        : `${old}\n\n${body}`.trim();
+        ? old.replace(block, () => generated)
+        : `${old}\n\n${generated}`.trim();
       await tx.query(
         "UPDATE pages SET type='person',title=$2,compiled_truth=$3,content_hash=$4,halflife_days=NULL,expires_at=NULL,updated_at=NOW() WHERE id=$1",
         [id, p.name, combined, createHash("sha256").update(combined).digest("hex")],
@@ -611,8 +616,10 @@ export class CrmStore {
       "DELETE FROM links WHERE left(link_type,4)='crm:' AND (from_page_id=ANY($1::int[]) OR to_page_id=ANY($1::int[]))",
       [ids],
     );
-    const entries = await tx.query<MemoryEntry>(
-      `SELECT e.* FROM crm_entries e WHERE
+    const entries = await tx.query<
+      MemoryEntry & { source_content: string; captured_at_input: string }
+    >(
+      `SELECT e.*,r.content AS source_content,r.captured_at_input FROM crm_entries e JOIN crm_records r ON r.id=e.record_id WHERE
       EXISTS(SELECT 1 FROM crm_entry_people ep WHERE ep.entry_id=e.id AND ep.person_id=ANY($1::int[])) ORDER BY e.created_at,e.id`,
       [ids],
     );
@@ -620,7 +627,9 @@ export class CrmStore {
       const d = e.data;
       let edges: [number, number, string][] = [];
       if (d.kind === "relationship")
-        edges = [[Number(d.subject), Number(d.object), `crm:relationship:${d.relation}`]];
+        edges = [
+          [Number(d.subject), Number(d.object), `crm:relationship:${d.status}:${d.relation}`],
+        ];
       if (d.kind === "interaction") {
         const participants = d.people
           .filter((p) => p.role === "participant")
@@ -628,7 +637,14 @@ export class CrmStore {
         edges = participants.flatMap((a) =>
           participants
             .filter((b) => b !== a)
-            .map((b) => [a, b, "crm:interaction"] as [number, number, string]),
+            .map(
+              (b) =>
+                [
+                  a,
+                  b,
+                  d.status === "happened" ? "crm:interaction" : `crm:interaction:${d.status}`,
+                ] as [number, number, string],
+            ),
         );
       }
       for (const [from, to, type] of edges) {
@@ -642,7 +658,15 @@ export class CrmStore {
             to,
             type,
             JSON.stringify(d),
-            JSON.stringify({ crm_entry_id: e.id, record_id: e.record_id, quote: d.evidence.quote }),
+            JSON.stringify({
+              platform: "crm",
+              channel: `records/${e.record_id}`,
+              timestamp: e.captured_at_input,
+              raw_hash: createHash("sha256").update(e.source_content).digest("hex"),
+              crm_entry_id: e.id,
+              record_id: e.record_id,
+              quote: d.evidence.quote,
+            }),
             `crm:${e.id}`,
           ],
         );

@@ -425,6 +425,68 @@ describe("structured person memory", () => {
     expect(resolved.slug).not.toBe(p.slug);
   });
 
+  it("keeps source delimiter text from breaking generated person blocks", async () => {
+    const p = await person("原文包含标记");
+    const content = "聊天原文 <!-- memkin:crm:end --> 之后仍然是原话";
+    const r = await store.capture({
+      content,
+      captured_at: "2026-10-03T19:07:00+08:00",
+      timezone: "Asia/Shanghai",
+    });
+    const q = await store.saveProposal(r.id, {
+      people: [{ key: "a", name: p.profile.name }],
+      entries: [{ ...interaction(), evidence: { quote: content } }],
+    });
+    await store.applyProposal(q.id, { identities: mapping(p) });
+    await store.updatePerson(p.id, {
+      profile: { ...p.profile, notes: "更新备注" },
+      expected_revision: 1,
+      reason: "检查视图重建",
+    });
+    const page = await new PageStore(db.executor).getPage(p.slug);
+    expect(page?.compiled_truth.match(/<!-- memkin:crm:start -->/g)).toHaveLength(1);
+    expect(page?.compiled_truth.match(/<!-- memkin:crm:end -->/g)).toHaveLength(1);
+    expect(page?.compiled_truth.match(/聊天原文/g)).toHaveLength(1);
+    expect((await store.getRecord(r.id)).content).toBe(content);
+  });
+
+  it("labels planned relationships and refuses self-relationships during correction", async () => {
+    const a = await person("关系状态甲");
+    const b = await person("关系状态乙");
+    const r = await capture();
+    const q = await store.saveProposal(r.id, {
+      people: [
+        { key: "a", name: "a" },
+        { key: "b", name: "b" },
+      ],
+      entries: [
+        {
+          kind: "relationship",
+          subject: "a",
+          object: "b",
+          relation: "同事",
+          status: "planned",
+          evidence: { quote: "小林" },
+        },
+      ],
+    });
+    const result = await store.applyProposal(q.id, {
+      identities: { ...mapping(a), b: { person_id: b.id, expected_revision: 1 } },
+    });
+    const links = await new GraphStore(db.executor).getLinks(a.slug);
+    expect(links.some((l) => l.link_type === "crm:relationship:planned:同事")).toBe(true);
+    const entry = await store.getEntry(result.entry_ids[0]);
+    if (entry.data.kind !== "relationship") throw new Error("wrong fixture");
+    await expect(
+      store.correctEntry(entry.id, {
+        entry: { ...entry.data, object: String(a.id) },
+        expected_revision: 1,
+        reason: "错误自指",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
+    expect((await store.getEntry(entry.id)).revision).toBe(1);
+  });
+
   it("extracts a proposal using original time without applying or sending unrelated profiles", async () => {
     const r = await capture();
     let messages = "";

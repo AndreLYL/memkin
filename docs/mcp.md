@@ -2,6 +2,15 @@
 
 > [← 返回 README](../README.md) · Memkin 是标准 MCP 服务器，任何 MCP 客户端都能读写你的记忆。
 
+## 人物记忆 / Personal CRM
+
+新增 12 个 `crm_*` 工具，可保存原始文字或转写文本、组织人物资料与往来，
+按人物、话题、角色及原始记录时间或事情发生时间检索，并读取修订历史。
+先调用 `crm_capture_record` 保存原文，再用 `crm_create_proposal` 创建手动或 AI 建议；
+明确确认人物身份和内容后，使用 `crm_apply_proposal` 应用。
+无模型时仍能手动整理；只读模式只暴露 6 个 CRM 读取工具。
+完整参数、时间约定和 REST 对照见[人物记忆指南](person-crm.md)。
+
 ## 一键接入（推荐）
 
 `memkin install` 自动把 MCP 配置 + 一份极简「记忆指令」写进你的 AI 客户端（默认全局，对所有项目生效），支持 **Claude Code · Claude Desktop · Cursor · Codex · Windsurf · Hermes/OpenClaw**：

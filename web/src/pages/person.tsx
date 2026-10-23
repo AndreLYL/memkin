@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { crm, type Profile } from "../api/crm";
 import { ErrorNotice, Field, ProfileFields, displayTime } from "../components/crm/forms";
@@ -28,11 +28,20 @@ export function PersonPage() {
   }
   if (topic) params.topic = topic;
   if (role) params.role = role;
-  const timeline = useQuery({
+  const timeline = useInfiniteQuery({
     queryKey: ["crm-timeline", params],
-    queryFn: () => crm.timeline(params),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => crm.timeline({ ...params, offset: String(pageParam) }),
+    getNextPageParam: (last, pages) => (last.length === 100 ? pages.length * 100 : undefined),
   });
-  const records = useQuery({ queryKey: ["crm-records", id], queryFn: () => crm.records(id) });
+  const timelineItems = timeline.data?.pages.flat() ?? [];
+  const records = useInfiniteQuery({
+    queryKey: ["crm-records", id],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => crm.records(id, pageParam),
+    getNextPageParam: (last, pages) => (last.length === 100 ? pages.length * 100 : undefined),
+  });
+  const recordItems = records.data?.pages.flat() ?? [];
   const history = useQuery({
     queryKey: ["crm-person-history", id],
     queryFn: () => crm.history("person", String(id)),
@@ -217,8 +226,8 @@ export function PersonPage() {
         <ErrorNotice message={timeline.error?.message ?? ""} />
         {timeline.isPending ? (
           <p className="crm-muted">正在读取记忆…</p>
-        ) : timeline.data?.length ? (
-          timeline.data.map((e) => (
+        ) : timelineItems.length ? (
+          timelineItems.map((e) => (
             <EntryCard key={e.id} entry={e} people={people.data ?? [person.data!]} />
           ))
         ) : (
@@ -226,11 +235,20 @@ export function PersonPage() {
             还没有符合条件的记忆。可以先记一条，再把其中的信息整理进档案。
           </div>
         )}
+        {timeline.hasNextPage && (
+          <button
+            className="crm-btn crm-secondary"
+            disabled={timeline.isFetchingNextPage}
+            onClick={() => timeline.fetchNextPage()}
+          >
+            {timeline.isFetchingNextPage ? "正在读取…" : "读取更多记忆"}
+          </button>
+        )}
       </section>
       <section className="crm-card crm-stack">
         <h2>相关原始记录</h2>
         <ErrorNotice message={records.error?.message ?? ""} />
-        {records.data?.map((r) => (
+        {recordItems.map((r) => (
           <Link key={r.id} to={`/records/${r.id}`} className="crm-inset crm-stack">
             <p>{r.content.slice(0, 160)}</p>
             <span className="crm-muted">
@@ -238,7 +256,18 @@ export function PersonPage() {
             </span>
           </Link>
         ))}
-        {records.data?.length === 0 && <p className="crm-muted">尚未关联原始记录。</p>}
+        {records.hasNextPage && (
+          <button
+            className="crm-btn crm-secondary"
+            disabled={records.isFetchingNextPage}
+            onClick={() => records.fetchNextPage()}
+          >
+            {records.isFetchingNextPage ? "正在读取…" : "读取更早的记录"}
+          </button>
+        )}
+        {!records.isPending && recordItems.length === 0 && (
+          <p className="crm-muted">尚未关联原始记录。</p>
+        )}
       </section>
     </div>
   );

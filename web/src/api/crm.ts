@@ -127,13 +127,23 @@ export async function request<T>(
   return data as T;
 }
 export const crm = {
-  people: (q = "") => request<Person[]>(`/people?q=${encodeURIComponent(q)}&limit=200`),
+  people: async (q = ""): Promise<Person[]> => {
+    const result: Person[] = [];
+    for (let offset = 0; ; offset += 200) {
+      const page = await request<Person[]>(
+        `/people?q=${encodeURIComponent(q)}&limit=200&offset=${offset}`,
+      );
+      result.push(...page);
+      if (page.length < 200) return result;
+    }
+  },
   person: (id: number) => request<Person>(`/people/${id}`),
   createPerson: (profile: Profile, page_slug?: string) =>
     request<Person>("/people", { profile, ...(page_slug ? { page_slug } : {}) }),
   updatePerson: (p: Person, profile: Profile, reason: string) =>
     request<Person>(`/people/${p.id}`, { profile, expected_revision: p.revision, reason }, "PUT"),
-  records: (id?: number) => request<SourceRecord[]>(`/records${id ? `?person_id=${id}` : ""}`),
+  records: (id?: number, offset = 0) =>
+    request<SourceRecord[]>(`/records?limit=100&offset=${offset}${id ? `&person_id=${id}` : ""}`),
   record: (id: string) => request<SourceRecord>(`/records/${id}`),
   capture: (body: unknown) => request<SourceRecord>("/records", body),
   proposals: (id: string) => request<Proposal[]>(`/records/${id}/proposals`),
