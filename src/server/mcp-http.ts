@@ -1,5 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono } from "hono";
+import type { CrmProvider } from "../crm/extract.js";
 import { createMcpServer, type StoreContext } from "./mcp.js";
 import { isLoopbackHost, tokensMatch } from "./server-security.js";
 
@@ -18,6 +19,7 @@ export interface McpHttpHealth {
 }
 
 export interface McpHttpOptions {
+  crmProvider?: CrmProvider;
   allowedOrigins: string[];
   allowedHosts: string[];
   authToken?: string;
@@ -163,6 +165,7 @@ export function createMcpHttpApp(stores: StoreContext, options: McpHttpOptions):
       sessionIdGenerator: undefined,
     });
     const server = createMcpServer(stores, {
+      crmProvider: options.crmProvider,
       exposeLegacyTools: options.exposeLegacyTools,
       readOnly: options.readOnly,
     });

@@ -31,7 +31,7 @@ describe("migration runner", () => {
     const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 
   it("adds halflife_days column to pages", async () => {
@@ -70,7 +70,7 @@ describe("migration runner", () => {
     const rows = await db.executor.query<{ version: number }>(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(rows.rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 
   it("migration 006 installs pg_trgm + trgm indexes and drops tsvector machinery", async () => {

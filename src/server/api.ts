@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { Hono } from "hono";
+import type { CrmProvider } from "../crm/extract.js";
 import type { ChunkStore } from "../store/chunks.js";
 import type { Database } from "../store/database.js";
 import type { EmbeddingService } from "../store/embedding.js";
@@ -13,6 +14,7 @@ import { createDefaultBackfillRoutes } from "./backfill-routes.js";
 import type { ChatNameRefreshJob } from "./chat-name-refresh-job.js";
 import { registerChatNameRoutes } from "./chat-name-routes.js";
 import { createConfigRoutes } from "./config-routes.js";
+import { createCrmRoutes } from "./crm-routes.js";
 import type { EventBus } from "./event-bus.js";
 import { extractBearerToken, tokensMatch } from "./server-security.js";
 
@@ -43,6 +45,7 @@ function missing(c: { json: (body: unknown, status?: number) => Response }, name
 }
 
 export interface ApiAppOpts {
+  crmProvider?: CrmProvider;
   /** Fired after a successful config save (triggers async hot-reload). Not awaited. */
   onConfigSaved?: () => void;
   /**
@@ -84,6 +87,7 @@ export function createApiApp(stores: StoreContext, apiOpts: ApiAppOpts = {}): Ho
   // Data routes (health, pages, search, graph, etc.) are mounted under /api
   // so the front-end client (web/src/api/client.ts, BASE="/api") can reach them.
   const dataRoutes = new Hono();
+  dataRoutes.route("/crm", createCrmRoutes(stores.db.executor, apiOpts.crmProvider));
 
   dataRoutes.get("/health", async (c) => {
     const pages = await stores.db.executor.query("SELECT COUNT(*) AS c FROM pages");

@@ -114,7 +114,10 @@ export class PersonIdentityStore {
     const v = canonicalizeHandleValue(kind, value);
     const r = await this.db.query<{ canonical_slug: string }>(
       `SELECT canonical_slug FROM entity_handles
-       WHERE entity_type = $1 AND scope = $2 AND kind = $3 AND value = $4`,
+       WHERE entity_type = $1 AND scope = $2 AND kind = $3 AND value = $4
+       AND NOT ($1='person' AND $3 IN ('name','nickname') AND EXISTS (
+         SELECT 1 FROM crm_people c JOIN pages p ON p.id=c.person_id
+         WHERE p.slug=entity_handles.canonical_slug))`,
       [entityType, scope, kind, v],
     );
     return r.rows[0]?.canonical_slug ?? null;
@@ -323,6 +326,13 @@ export class PersonIdentityStore {
    */
   async merge(fromSlug: string, intoSlug: string): Promise<void> {
     if (fromSlug === intoSlug) throw new Error("cannot merge a person into itself");
+    const crm = await this.db.query(
+      `SELECT 1 FROM crm_people c JOIN pages p ON p.id=c.person_id
+      WHERE p.slug=ANY($1::text[]) LIMIT 1`,
+      [[fromSlug, intoSlug]],
+    );
+    if (crm.rows.length)
+      throw new Error("CRM person profiles cannot be merged through legacy tools");
 
     // Validate existence BEFORE the transaction (nicer error messages).
     const pages = this.requirePages();

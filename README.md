@@ -26,6 +26,7 @@ AI Agent 的会话没有跨会话记忆：每次新会话都需要重新解释�
 
 ## 核心特性
 
+- **人物记忆 / Personal CRM**：结构化人物档案、生日与联系方式、往来和话题、原始记录与事件双时间线；手动整理优先，AI 建议经确认后应用，纠错保留历史。见[人物记忆指南](docs/person-crm.md)
 - **飞书采集**：私信、群聊、邮件、日历、文档、任务、消息搜索共 7 个源，增量采集 + 历史回填。见[飞书采集指南](docs/feishu.md)
 - **AI 会话采集**：Claude Code（`~/.claude/projects/`）、Codex（`~/.codex/`）、Hermes/OpenClaw（`~/.openclaw/agents/`）
 - **MCP 服务器**：36 个工具（默认暴露 15 个高意图工具），支持 stdio 与 Streamable HTTP 两种传输。见 [MCP 接入指南](docs/mcp.md)

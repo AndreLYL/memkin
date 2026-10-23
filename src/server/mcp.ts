@@ -13,6 +13,7 @@ import {
 } from "../core/person-identity.js";
 import { SourceRefSchema } from "../core/schemas.js";
 import type { MemoryFilter, SourceRef } from "../core/types.js";
+import type { CrmProvider } from "../crm/extract.js";
 import type { LLMProvider } from "../extractors/providers/types.js";
 import { DIRECTIVE_L2 } from "../install/directive.js";
 import type { ChunkStore } from "../store/chunks.js";
@@ -30,6 +31,7 @@ import { dailyReportIntent } from "../synth/intents/daily-report.js";
 import { troubleshootIntent } from "../synth/intents/troubleshoot.js";
 import type { StoreContext as SynthStoreContext } from "./api.js";
 import { getSessionContext } from "./context.js";
+import { registerCrmTools } from "./crm-mcp.js";
 import { getEntityProfile, listSignalsByEntity } from "./entity.js";
 
 const packageVersion: string = pkg.version;
@@ -54,6 +56,7 @@ export interface StoreContext {
 }
 
 export interface McpServerOptions {
+  crmProvider?: CrmProvider;
   exposeLegacyTools?: boolean;
   readOnly?: boolean;
   version?: string;
@@ -1717,6 +1720,10 @@ export function createMcpServer(
   });
 
   registerPreferredTools(server, tools, options);
+  registerCrmTools(server, stores.db.executor, {
+    readOnly: options.readOnly,
+    crmProvider: options.crmProvider ?? (() => options.provider),
+  });
   registerMainTools(server, tools, ingestDeps);
   if (options.exposeLegacyTools) registerLegacyTools(server, tools, options);
   registerResources(server, tools);

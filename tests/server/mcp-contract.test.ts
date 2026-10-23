@@ -69,7 +69,7 @@ describe("MCP contract", () => {
   it("defaults to preferred memory tools and hides legacy CRUD tools", async () => {
     await connect();
     const { tools } = await client.listTools();
-    const names = tools.map((tool) => tool.name);
+    const names = tools.map((tool) => tool.name).filter((name) => !name.startsWith("crm_"));
 
     expect(names).toEqual([
       "query",

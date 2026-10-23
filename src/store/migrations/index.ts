@@ -1,3 +1,4 @@
+import { PERSON_CRM_SQL } from "../../crm/migration.js";
 import type { SqlConn } from "../sql-executor.js";
 
 export interface Migration {
@@ -351,6 +352,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 10, name: "distilled_payload", sql: M010_DISTILLED_PAYLOAD },
   { version: 11, name: "apply_engine", sql: M011_APPLY_ENGINE },
   { version: 12, name: "staging_schema", sql: M012_STAGING_SCHEMA },
+  { version: 13, name: "person_crm", sql: PERSON_CRM_SQL },
 ];
 
 export async function runMigrations(conn: SqlConn): Promise<void> {
