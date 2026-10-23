@@ -53,7 +53,9 @@ export const TimeSchema = z
               ? /^\d{4}-(0[1-9]|1[0-2])$/.test(t.value) && Number(t.value.slice(0, 4)) > 0
               : t.precision === "day"
                 ? isDate(t.value)
-                : isInstant(t.value));
+                : isInstant(t.value) &&
+                  (t.precision !== "minute" ||
+                    /:00(?:\.0{1,3})?(Z|[+-]\d{2}:\d{2})$/.test(t.value)));
     if (!valid)
       ctx.addIssue({
         code: "custom",

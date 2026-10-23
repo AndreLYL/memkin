@@ -26,6 +26,7 @@ export async function proposeRecord(
           "Return only JSON matching the schema below. Do not call tools. Do not identify people by guessing or merge namesakes.",
           "people contains temporary keys, not database IDs. A human must confirm each person's identity later.",
           "Every entry needs evidence.quote copied verbatim from the source. Do not invent birthdays, phones, addresses or relationships.",
+          "Include at least one supported entry. If a source only supplies profile fields, also represent those stated fields as facts with the same source quote.",
           "Use the original captured_at and timezone below for relative dates, never the current execution time.",
           "Keep uncertain dates unknown, partial dates partial. Time uses {value,precision,timezone?,original?}.",
           "Unknown time is {value:null,precision:'unknown'}. Other precision: year YYYY, month YYYY-MM, day YYYY-MM-DD, minute/second ISO datetime with seconds and offset.",

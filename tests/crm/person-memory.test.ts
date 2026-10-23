@@ -515,8 +515,24 @@ describe("temporal validation", () => {
       { value: "2026-13", precision: "month" },
       { value: "2026-10-03T19:07:00", precision: "second" },
       { value: "2026-10-03", precision: "unknown" },
+      { value: "2026-10-03T19:07:32+08:00", precision: "minute" },
     ])
       expect(TimeSchema.safeParse(t).success).toBe(false);
+    expect(
+      TimeSchema.safeParse({ value: "2026-10-03T19:07:00+08:00", precision: "minute" }).success,
+    ).toBe(true);
+    expect(
+      ProfileSchema.safeParse({
+        name: "x",
+        addresses: [
+          {
+            value: "住址",
+            valid_from: { value: "2026-11-01", precision: "day" },
+            valid_until: { value: "2026-10-01", precision: "day" },
+          },
+        ],
+      }).success,
+    ).toBe(false);
   });
   it("uses timezone calendar bounds including DST", () => {
     expect(

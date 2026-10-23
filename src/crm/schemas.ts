@@ -1,8 +1,15 @@
 import { z } from "zod";
-import { InstantSchema, isDate, TimeSchema, TimezoneSchema, UNKNOWN_TIME } from "./temporal.js";
+import {
+  InstantSchema,
+  isDate,
+  TimeSchema,
+  TimezoneSchema,
+  timeBounds,
+  UNKNOWN_TIME,
+} from "./temporal.js";
 
 const text = z.string().trim().min(1).max(500);
-export const IdSchema = z.number().int().positive();
+export const IdSchema = z.number().int().positive().max(2147483647);
 const BirthdaySchema = z
   .object({
     calendar: z.enum(["gregorian", "lunar"]).default("gregorian"),
@@ -52,7 +59,18 @@ export const ProfileSchema = z
             valid_from: TimeSchema.optional(),
             valid_until: TimeSchema.optional(),
           })
-          .strict(),
+          .strict()
+          .superRefine((address, ctx) => {
+            if (address.valid_from?.value && address.valid_until?.value) {
+              const [start] = timeBounds(address.valid_from);
+              const [, end] = timeBounds(address.valid_until);
+              if (start && end && start >= end)
+                ctx.addIssue({
+                  code: "custom",
+                  message: "Address validity end must not precede its start",
+                });
+            }
+          }),
       )
       .max(50)
       .default([]),

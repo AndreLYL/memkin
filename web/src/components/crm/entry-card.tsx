@@ -10,11 +10,11 @@ export function describeSnapshot(value: unknown): string {
   if (Array.isArray(value)) return value.map(describeSnapshot).join("；");
   const v = value as Record<string, unknown>;
   if (v.kind === "interaction")
-    return `${STATUS[String(v.status)]} · ${v.summary} · ${describeSnapshot(v.time)} · ${describeSnapshot(v.topics)}`;
+    return `${STATUS[String(v.status)]} · ${v.summary} · ${v.detail || ""} · ${describeSnapshot(v.time)} · ${describeSnapshot(v.topics)} · 人物与角色：${describeSnapshot(v.people)} · 原话：${describeSnapshot(v.evidence)}`;
   if (v.kind === "fact")
-    return `${STATUS[String(v.status)]} · ${v.predicate}：${v.value} · ${describeSnapshot(v.valid_from)}`;
+    return `${STATUS[String(v.status)]} · 人物 ${v.subject} · ${v.predicate}：${v.value} · 有效期 ${describeSnapshot(v.valid_from)} → ${describeSnapshot(v.valid_until)} · 原话：${describeSnapshot(v.evidence)}`;
   if (v.kind === "relationship")
-    return `${STATUS[String(v.status)]} · ${v.subject} ${v.relation} ${v.object} · ${describeSnapshot(v.valid_from)}`;
+    return `${STATUS[String(v.status)]} · ${v.subject} ${v.relation} ${v.object} · 有效期 ${describeSnapshot(v.valid_from)} → ${describeSnapshot(v.valid_until)} · 原话：${describeSnapshot(v.evidence)}`;
   const labels: Record<string, string> = {
     name: "姓名",
     aliases: "别名",
@@ -36,6 +36,9 @@ export function describeSnapshot(value: unknown): string {
     precision: "时间精度",
     timezone: "时区",
     original: "原话",
+    ref: "人物",
+    role: "角色",
+    quote: "原文",
   };
   return Object.entries(v)
     .map(([k, val]) => `${labels[k] ?? k}：${describeSnapshot(val)}`)
