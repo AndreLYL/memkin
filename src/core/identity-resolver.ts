@@ -142,7 +142,8 @@ export class IdentityResolver {
 
     // 1. Check cache by modelSlug
     const cacheBySlug = await this.db.query<{ display_name: string | null }>(
-      "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
+      `SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2
+       AND NOT EXISTS(SELECT 1 FROM crm_people c JOIN pages p ON p.id=c.person_id WHERE p.slug=identity_cache.display_name)`,
       ["canonical", modelSlug],
     );
 
@@ -154,7 +155,8 @@ export class IdentityResolver {
 
     // 2. Check cache by name
     const cacheByName = await this.db.query<{ display_name: string | null }>(
-      "SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2",
+      `SELECT display_name FROM identity_cache WHERE platform = $1 AND external_id = $2
+       AND NOT EXISTS(SELECT 1 FROM crm_people c JOIN pages p ON p.id=c.person_id WHERE p.slug=identity_cache.display_name)`,
       ["canonical", name],
     );
 
@@ -176,6 +178,17 @@ export class IdentityResolver {
 
     // 3. Generate canonical slug
     const canonicalSlug = toPersonCanonicalSlug(name);
+
+    // Pinyin is a name hint, never authority to attach an extraction to a CRM person.
+    if (canonicalSlug) {
+      const crm = await this.db.query(
+        `SELECT 1 FROM crm_people c JOIN pages p ON p.id=c.person_id
+        WHERE p.slug=ANY($1::text[])`,
+        [[canonicalSlug, modelSlug]],
+      );
+      if (crm.rows.length)
+        throw new Error("Ambiguous CRM identity: select a stable person ID explicitly");
+    }
 
     // 4. If null (unsupported script), return original
     if (canonicalSlug === null) {

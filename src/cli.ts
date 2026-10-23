@@ -37,6 +37,7 @@ import { type HandleKind, PersonIdentityStore } from "./core/person-identity.js"
 import { runPipeline } from "./core/pipeline.js";
 import { buildPipelineConfig } from "./core/pipeline-factory.js";
 import { ensureStateDir, stateDirFor, statePath } from "./core/state.js";
+import { configuredCrmProvider } from "./crm/provider.js";
 import {
   rawYamlHash,
   readDaemonState,
@@ -888,6 +889,7 @@ async function runServe(options: {
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
 
+    const crmProvider = configuredCrmProvider(() => loadConfig(options.config).llm);
     if (options.mcp) {
       const llmConfig = { ...config.llm };
       const envKey =
@@ -913,7 +915,7 @@ async function runServe(options: {
       }
       const server = createMcpServer(
         storesWithDaemon,
-        { provider: synthProvider, synthModel: llmConfig.model },
+        { provider: synthProvider, synthModel: llmConfig.model, crmProvider },
         ingestDeps,
       );
       await server.connect(new StdioServerTransport());
@@ -949,6 +951,7 @@ async function runServe(options: {
         // config file may not exist yet; leave hash undefined
       }
       const app = createMcpHttpApp(storesWithDaemon, {
+        crmProvider,
         allowedOrigins: runtime.allowedOrigins,
         allowedHosts: runtime.allowedHosts,
         authToken: serverToken ?? (tokenEnv ? process.env[tokenEnv] : undefined),
@@ -998,6 +1001,7 @@ async function runServe(options: {
     });
 
     const app = createApiApp(storesWithDaemon, {
+      crmProvider,
       authToken: security.authToken,
       onConfigSaved: () => {
         try {
