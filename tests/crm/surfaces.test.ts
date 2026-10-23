@@ -199,9 +199,12 @@ describe("person memory REST and MCP", () => {
         "crm_list_records",
         "crm_timeline",
       ]);
-      await expect(
-        client.callTool({ name: "crm_capture_record", arguments: source }),
-      ).rejects.toThrow();
+      const before = await stores.db.executor.query("SELECT COUNT(*) AS n FROM crm_records");
+      const denied = await client.callTool({ name: "crm_capture_record", arguments: source });
+      expect(denied.isError).toBe(true);
+      expect(await stores.db.executor.query("SELECT COUNT(*) AS n FROM crm_records")).toEqual(
+        before,
+      );
     } finally {
       await client.close();
       await server.close();

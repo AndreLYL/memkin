@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { NavLink } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Clock, Download, Share2, Layers, Search } from "lucide-react";
+import { LayoutDashboard, Clock, Download, Share2, Layers, Search, Users, NotebookPen } from "lucide-react";
 import { api } from "../../api/client";
 
 export const SIDEBAR_NAV_ITEMS = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
+  { to: "/people", label: "人物档案", Icon: Users },
+  { to: "/records", label: "随手记", Icon: NotebookPen },
   { to: "/timeline", label: "Timeline", Icon: Clock },
   { to: "/fetch", label: "Fetch", Icon: Download },
   { to: "/graph", label: "Graph", Icon: Share2 },
@@ -39,7 +41,7 @@ function footerNavLinkClass({ isActive }: { isActive: boolean }) {
   }`;
 }
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [isDark, setIsDark] = useState(
     () => document.documentElement.dataset.theme === "dark",
   );
@@ -61,7 +63,7 @@ export function Sidebar() {
   };
 
   return (
-    <nav className="w-[200px] shrink-0 bg-bg-inset border-r border-border-default flex flex-col min-h-screen">
+    <nav aria-label="主导航" className="w-full md:w-[200px] shrink-0 bg-bg-inset border-r border-border-default flex flex-col min-h-screen">
       <div className="flex items-center gap-2 px-4 py-4">
         <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold text-fg-default bg-accent-muted">
           M
@@ -71,7 +73,7 @@ export function Sidebar() {
 
       <div className="px-2 space-y-0.5">
         {SIDEBAR_NAV_ITEMS.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass}>
+          <NavLink key={item.to} to={item.to} end={item.to === "/"} className={navLinkClass} onClick={onNavigate}>
             <item.Icon size={16} strokeWidth={1.75} />
             <span>{item.label}</span>
           </NavLink>
@@ -84,6 +86,7 @@ export function Sidebar() {
           {CATEGORIES.map((cat) => (
             <NavLink
               key={cat.type}
+              onClick={onNavigate}
               to={`/search?type=${cat.type}`}
               className="flex items-center justify-between px-2 py-1 rounded text-sm text-fg-muted hover:text-fg-default hover:bg-bg-overlay transition-colors"
             >
@@ -132,7 +135,7 @@ export function Sidebar() {
           <span>{isDark ? "Light mode" : "Dark mode"}</span>
         </button>
         {SIDEBAR_FOOTER_ITEMS.map((item) => (
-          <NavLink key={item.to} to={item.to} end className={footerNavLinkClass}>
+          <NavLink key={item.to} to={item.to} end className={footerNavLinkClass} onClick={onNavigate}>
             <span>{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>

@@ -10,6 +10,10 @@ import { SearchPage } from "./pages/search";
 import { ConfigPage } from "./pages/config/index";
 import { SetupWizard } from "./pages/setup/index";
 import { TimelinePage } from "./pages/Timeline";
+import { PeoplePage } from "./pages/people";
+import { PersonPage } from "./pages/person";
+import { RecordsPage } from "./pages/records";
+import { RecordPage } from "./pages/record";
 
 export const appRoutes: RouteObject[] = [
   { path: "setup", element: <SetupWizard /> },
@@ -18,6 +22,10 @@ export const appRoutes: RouteObject[] = [
     children: [
       { index: true, element: <Dashboard /> },
       { path: "timeline", element: <TimelinePage /> },
+      { path: "people", element: <PeoplePage /> },
+      { path: "people/:id", element: <PersonPage /> },
+      { path: "records", element: <RecordsPage /> },
+      { path: "records/:id", element: <RecordPage /> },
       { path: "fetch", element: <FetchPage /> },
       { path: "graph", element: <GraphPage /> },
       { path: "entity/*", element: <EntityDetail /> },

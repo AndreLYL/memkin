@@ -39,6 +39,7 @@ export function registerCrmTools(
     server.registerTool(
       name,
       {
+        title: name.replaceAll("_", " "),
         description,
         inputSchema: described,
         annotations: { readOnlyHint: readOnly, destructiveHint: false },
