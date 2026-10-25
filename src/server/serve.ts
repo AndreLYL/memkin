@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 // Runtime-agnostic HTTP serving. The desktop sidecar runs under Bun (`bun --compile`),
 // but the npm package runs under Node via `npx memkin` when Bun isn't installed. Bun's
@@ -81,9 +81,12 @@ const MIME: Record<string, string> = {
  */
 export async function serveStaticSpa(dir: string, pathname: string): Promise<Response> {
   const rel = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
-  const target = resolve(dir, rel);
-  // Guard against path traversal escaping the web-dist root.
-  if (target === resolve(dir) || target.startsWith(resolve(dir) + "/")) {
+  const root = resolve(dir);
+  const target = resolve(root, rel);
+  // Use native path semantics: a slash-only prefix rejects every Windows asset.
+  // relative() also handles drive roots, while isAbsolute() rejects other drives.
+  const fromRoot = relative(root, target);
+  if (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot)) {
     const buf = await readFile(target).catch(() => null);
     if (buf) {
       const type = MIME[extname(target).toLowerCase()] ?? "application/octet-stream";
