@@ -57,4 +57,7 @@ eval-data/
 # Implementation plans (managed in separate repo: AndreLYL/memoark_spec)
 docs/superpowers/
 dist-bin/
+.venv-voice/
+.voice-models/
+voice-p0.yaml
 web/tsconfig.tsbuildinfo

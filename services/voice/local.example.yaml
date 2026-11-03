@@ -1,0 +1,26 @@
+# Copy to the repository root as voice-p0.yaml before use.
+# All paths below are resolved relative to that copied config file.
+store:
+  engine: pglite
+  data_dir: ./.memkin/voice-p0-db
+embedding:
+  provider: ollama
+  base_url: http://127.0.0.1:11434
+  model: nomic-embed-text
+  dimensions: 768
+  sweep_interval_secs: 0
+llm:
+  provider: mock
+  model: disabled
+sources:
+  claude-code:
+    enabled: false
+  codex:
+    enabled: false
+  hermes:
+    enabled: false
+  feishu:
+    enabled: false
+server:
+  host: 127.0.0.1
+  http_port: 3937
