@@ -80,6 +80,7 @@ import { managedPaths, readManagedState } from "./store/managed/pg-paths.js";
 import { startRecoveryLoop } from "./store/managed/recovery-loop.js";
 import { stopManagedFromState } from "./store/managed/stop-from-state.js";
 import { PersonBehaviorStore } from "./store/person-behavior.js";
+import { registerVoiceCommands } from "./voice/cli.js";
 
 function resolveProjectPath(path: string | undefined, projectRoot: string): string | undefined {
   if (!path) return undefined;
@@ -128,6 +129,8 @@ program
   .name("memkin")
   .description("Local-first personal memory extraction and storage")
   .version(VERSION);
+
+registerVoiceCommands(program);
 
 // One-shot legacy auto-migration (memoark → memkin). Runs BEFORE every command's
 // action — i.e. before loadConfig reads memkin.yaml or any store opens — so
