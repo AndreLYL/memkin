@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "audio_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "duration_ms": 12000,
+  "language": "zh",
+  "asr": {
+    "provider": "synthetic-fixture",
+    "model": "none"
+  },
+  "diarization": "none",
+  "segments": [
+    {
+      "id": "s000001",
+      "start_ms": 0,
+      "end_ms": 6000,
+      "speaker": null,
+      "text": "合成测试人物甲计划下周整理测试报告，具体时间未定。"
+    },
+    {
+      "id": "s000002",
+      "start_ms": 6500,
+      "end_ms": 12000,
+      "speaker": null,
+      "text": "这是一段虚构测试，不包含任何真实人物或事件。"
+    }
+  ]
+}

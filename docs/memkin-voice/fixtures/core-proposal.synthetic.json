@@ -1,0 +1,28 @@
+{
+  "people": [
+    {
+      "key": "p1",
+      "name": "合成测试人物甲"
+    }
+  ],
+  "entries": [
+    {
+      "kind": "fact",
+      "subject": "p1",
+      "predicate": "计划安排",
+      "value": "下周整理测试报告，具体时间未定",
+      "status": "planned",
+      "valid_from": {
+        "value": null,
+        "precision": "unknown"
+      },
+      "valid_until": {
+        "value": null,
+        "precision": "unknown"
+      },
+      "evidence": {
+        "quote": "合成测试人物甲计划下周整理测试报告，具体时间未定。"
+      }
+    }
+  ]
+}
